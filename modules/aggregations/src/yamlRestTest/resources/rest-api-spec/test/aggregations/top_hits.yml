@@ -348,17 +348,18 @@ sequence number and primary term:
 
 ---
 synthetic _source:
-  - skip:
-      version: " - 8.3.99"
-      reason: introduced in 8.4.0
+  - requires:
+      cluster_features: ["mapper.source.mode_from_index_setting"]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_synthetic
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               page:
                 type: keyword
@@ -432,8 +433,8 @@ synthetic _source:
 
 ---
 "having":
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: fixed in 8.9.0
   - do:
       bulk:
@@ -719,8 +720,8 @@ synthetic _source:
 
 ---
 runtime fields:
-  - skip:
-      version: " - 8.9.1"
+  - requires:
+      cluster_features: ["gte_v8.9.2"]
       reason:  "bugfix #97460 added in 8.9.1"
   - do:
       search:

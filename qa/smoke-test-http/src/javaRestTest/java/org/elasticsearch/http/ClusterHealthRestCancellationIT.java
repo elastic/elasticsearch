@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -18,24 +19,15 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.concurrent.CancellationException;
 import java.util.concurrent.CyclicBarrier;
-import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.action.support.ActionTestUtils.wrapAsRestResponseListener;
 import static org.elasticsearch.test.TaskAssertions.assertAllCancellableTasksAreCancelled;
-import static org.elasticsearch.test.TaskAssertions.awaitTaskWithPrefixOnMaster;
 
 public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
 
-    @TestIssueLogging(
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/100062",
-        value = "org.elasticsearch.test.TaskAssertions:TRACE"
-            + ",org.elasticsearch.cluster.service.MasterService:TRACE"
-            + ",org.elasticsearch.tasks.TaskManager:TRACE"
-    )
     public void testClusterHealthRestCancellation() throws Exception {
 
         final var barrier = new CyclicBarrier(2);
@@ -45,18 +37,7 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
                 @Override
                 public ClusterState execute(ClusterState currentState) {
                     safeAwait(barrier);
-                    // safeAwait(barrier);
-
-                    // temporarily lengthen timeout on safeAwait while investigating #100062
-                    try {
-                        barrier.await(60, TimeUnit.SECONDS);
-                    } catch (InterruptedException e) {
-                        Thread.currentThread().interrupt();
-                        throw new AssertionError("unexpected", e);
-                    } catch (Exception e) {
-                        throw new AssertionError("unexpected", e);
-                    }
-
+                    safeAwait(barrier);
                     return currentState;
                 }
 
@@ -70,12 +51,23 @@ public class ClusterHealthRestCancellationIT extends HttpSmokeTestCase {
         clusterHealthRequest.addParameter("wait_for_events", Priority.LANGUID.toString());
 
         final PlainActionFuture<Response> future = new PlainActionFuture<>();
-        logger.info("--> sending cluster state request");
+        logger.info("--> sending cluster health request");
         final Cancellable cancellable = getRestClient().performRequestAsync(clusterHealthRequest, wrapAsRestResponseListener(future));
 
         safeAwait(barrier);
 
-        awaitTaskWithPrefixOnMaster(TransportClusterHealthAction.NAME);
+        // wait until the health request is waiting on the (blocked) master service
+        assertBusy(
+            () -> assertTrue(
+                internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+                    .getMasterService()
+                    .pendingTasks()
+                    .stream()
+                    .anyMatch(
+                        pendingClusterTask -> pendingClusterTask.source().string().equals("cluster_health (wait_for_events [LANGUID])")
+                    )
+            )
+        );
 
         logger.info("--> cancelling cluster health request");
         cancellable.cancel();

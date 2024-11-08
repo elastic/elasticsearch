@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.security.operator;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
+import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.SecureString;
@@ -323,6 +324,13 @@ public class OperatorPrivilegesIT extends ESRestTestCase {
         var request = new Request("DELETE", "/_internal/desired_nodes");
         var responseException = expectThrows(ResponseException.class, () -> client().performRequest(request));
         assertThat(responseException.getResponse().getStatusLine().getStatusCode(), equalTo(403));
+    }
+
+    public void testNonOperatorUserCanCallAnalyzeRepositoryAPI() throws IOException {
+        createSnapshotRepo("testAnalysisRepo");
+        var request = new Request("POST", "/_snapshot/testAnalysisRepo/_analyze");
+        Response response = client().performRequest(request);
+        assertThat(response.getStatusLine().getStatusCode(), equalTo(200));
     }
 
     private void createSnapshotRepo(String repoName) throws IOException {

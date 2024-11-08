@@ -91,9 +91,10 @@ import org.elasticsearch.watcher.FileWatcher;
 import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xpack.core.security.authc.RealmConfig;
 import org.elasticsearch.xpack.core.security.authc.RealmSettings;
-import org.elasticsearch.xpack.core.security.authc.jwt.JwtUtil;
 import org.elasticsearch.xpack.core.security.authc.oidc.OpenIdConnectRealmSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
+import org.elasticsearch.xpack.security.authc.jwt.JwtUtil;
 
 import java.io.IOException;
 import java.net.URI;
@@ -366,8 +367,14 @@ public class OpenIdConnectAuthenticator {
     private JWKSet readJwkSetFromFile(String jwkSetPath) throws IOException, ParseException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
         // avoid using JWKSet.loadFile() as it does not close FileInputStream internally
-        String jwkSet = Files.readString(path, StandardCharsets.UTF_8);
-        return JWKSet.parse(jwkSet);
+        try {
+            String jwkSet = AccessController.doPrivileged(
+                (PrivilegedExceptionAction<String>) () -> Files.readString(path, StandardCharsets.UTF_8)
+            );
+            return JWKSet.parse(jwkSet);
+        } catch (PrivilegedActionException ex) {
+            throw (IOException) ex.getException();
+        }
     }
 
     /**
@@ -718,7 +725,7 @@ public class OpenIdConnectAuthenticator {
                 connectionManager.setMaxTotal(realmConfig.getSetting(HTTP_MAX_CONNECTIONS));
                 final RequestConfig requestConfig = RequestConfig.custom()
                     .setConnectTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECT_TIMEOUT).getMillis()))
-                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getSeconds()))
+                    .setConnectionRequestTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_CONNECTION_READ_TIMEOUT).getMillis()))
                     .setSocketTimeout(Math.toIntExact(realmConfig.getSetting(HTTP_SOCKET_TIMEOUT).getMillis()))
                     .build();
 
@@ -808,7 +815,7 @@ public class OpenIdConnectAuthenticator {
 
     private void setMetadataFileWatcher(String jwkSetPath) throws IOException {
         final Path path = realmConfig.env().configFile().resolve(jwkSetPath);
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(LOGGER, () -> this.idTokenValidator.set(createIdTokenValidator(false))));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
     }

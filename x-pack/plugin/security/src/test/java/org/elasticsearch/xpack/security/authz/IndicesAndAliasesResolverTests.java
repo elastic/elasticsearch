@@ -47,6 +47,7 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -58,6 +59,8 @@ import org.elasticsearch.protocol.xpack.graph.GraphExploreRequest;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.EmptyRequest;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.graph.action.GraphExploreAction;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
@@ -77,7 +80,6 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.security.authc.ApiKeyService;
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountService;
-import org.elasticsearch.xpack.security.authz.restriction.WorkflowService;
 import org.elasticsearch.xpack.security.authz.store.CompositeRolesStore;
 import org.elasticsearch.xpack.security.authz.store.NativePrivilegeStore;
 import org.elasticsearch.xpack.security.authz.store.RoleProviders;
@@ -105,6 +107,7 @@ import static org.elasticsearch.test.TestMatchers.throwableWithMessage;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.RESTRICTED_INDICES;
 import static org.elasticsearch.xpack.security.authz.AuthorizedIndicesTests.getRequestInfo;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
+import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.instanceOf;
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.arrayContaining;
@@ -240,8 +243,8 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 mock(ServiceAccountService.class),
                 new DocumentSubsetBitsetCache(Settings.EMPTY, mock(ThreadPool.class)),
                 RESTRICTED_INDICES,
-                rds -> {},
-                new WorkflowService()
+                EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                rds -> {}
             )
         );
         String[] authorizedIndices = new String[] {
@@ -455,6 +458,102 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
                 )
                 : throwableWithMessage("the action indices:data/read/search[s] requires explicit index names, but none were provided")
         );
+    }
+
+    public void testResolveIndicesAndAliasesWithoutWildcardsWithSingleIndexNoWildcardsRequest() {
+        // test 1: matching local index
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "index10" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(0));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(1));
+            assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
+        }
+
+        // test 2: matching remote index
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "remote:indexName" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
+            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(0));
+        }
+
+        // test 3: missing local index
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "zzz_no_such_index_zzz" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(0));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(1));
+            assertThat(resolvedIndices.getLocal().get(0), equalTo("zzz_no_such_index_zzz"));
+        }
+
+        // test 4: missing remote index
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "remote:zzz_no_such_index_zzz" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
+            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:zzz_no_such_index_zzz"));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(0));
+        }
+
+        // test 5: both local and remote indexes
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "index10", "remote:indexName" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
+            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(1));
+            assertThat(resolvedIndices.getLocal().get(0), equalTo("index10"));
+        }
+
+        // test 6: remote cluster name with wildcards that does not match any configured remotes
+        {
+            NoSuchRemoteClusterException exception = expectThrows(
+                NoSuchRemoteClusterException.class,
+                () -> defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                    TransportSearchAction.TYPE.name() + "[s]",
+                    createSingleIndexNoWildcardsRequest(new String[] { "x*x:test" })
+                )
+            );
+            assertThat(exception.getMessage(), containsString("no such remote cluster: [x*x]"));
+        }
+
+        // test 7: mix and test 2 and test 6 - should not result in exception (wildcard without matches has no effect)
+        {
+            ResolvedIndices resolvedIndices = defaultIndicesResolver.resolveIndicesAndAliasesWithoutWildcards(
+                TransportSearchAction.TYPE.name() + "[s]",
+                createSingleIndexNoWildcardsRequest(new String[] { "x*x:test", "remote:indexName" })
+            );
+            assertThat(resolvedIndices.getRemote().size(), equalTo(1));
+            assertThat(resolvedIndices.getRemote().get(0), equalTo("remote:indexName"));
+            assertThat(resolvedIndices.getLocal().size(), equalTo(0));
+        }
+    }
+
+    private static IndicesRequest.SingleIndexNoWildcards createSingleIndexNoWildcardsRequest(String[] indexExpression) {
+        IndicesRequest.SingleIndexNoWildcards singleIndexNoWildcardsRequest = new IndicesRequest.SingleIndexNoWildcards() {
+            @Override
+            public String[] indices() {
+                return indexExpression;
+            }
+
+            @Override
+            public IndicesOptions indicesOptions() {
+                return IndicesOptions.DEFAULT;
+            }
+        };
+        return singleIndexNoWildcardsRequest;
     }
 
     public void testExplicitDashIndices() {
@@ -2445,7 +2544,7 @@ public class IndicesAndAliasesResolverTests extends ESTestCase {
     }
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action) {
-        return buildAuthorizedIndices(user, action, TransportRequest.Empty.INSTANCE);
+        return buildAuthorizedIndices(user, action, new EmptyRequest());
     }
 
     private AuthorizedIndices buildAuthorizedIndices(User user, String action, TransportRequest request) {

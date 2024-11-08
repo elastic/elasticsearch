@@ -135,7 +135,7 @@ PUT my-index-000001/
       "day_of_week": {
         "type": "keyword",
         "script": {
-          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
         }
       }
     },
@@ -291,7 +291,7 @@ GET my-index-000001/_search
     "day_of_week": {
       "type": "keyword",
       "script": {
-        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+        "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
       }
     }
   },
@@ -667,7 +667,7 @@ PUT my-index-000001/
       "day_of_week": {
         "type": "keyword",
         "script": {
-          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT))"
+          "source": "emit(doc['@timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH))"
         }
       }
     },
@@ -820,8 +820,6 @@ address.
 
 [[lookup-runtime-fields]]
 ==== Retrieve fields from related indices
-
-experimental[]
 
 The <<search-fields,`fields`>> parameter on the `_search` API can also be used to retrieve fields from
 the related indices via runtime fields with a type of `lookup`.

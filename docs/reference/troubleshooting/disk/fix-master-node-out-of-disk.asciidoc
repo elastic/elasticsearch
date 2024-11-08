@@ -5,4 +5,4 @@
 out of space, you need to ensure that they have enough disk space to function. If the <<health-api, health API>>
 reports that your master node is out of space you need to increase the disk capacity of your master nodes.
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/disk/increase-master-node-capacity-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/disk/increase-master-node-capacity-widget.asciidoc[]

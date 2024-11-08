@@ -1,0 +1,11 @@
+---
+version: ${xpack.apmdata.template.version}
+_meta:
+  description: Fallback to ILM policy for traces-apm.sampled if data stream lifecycle not defined
+  managed: true
+template:
+  settings:
+    index:
+      lifecycle:
+        name: traces-apm.sampled_traces-default_policy
+        prefer_ilm: false

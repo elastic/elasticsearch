@@ -3,10 +3,10 @@
 *Parameters*
 
 `field`::
-A multivalued field
+Multivalue expression. If `null`, the function returns `null`.
 
 `start`::
-start index
+Start position. If `null`, the function returns `null`. The start argument can be negative. An index of -1 is used to specify the last value in the list.
 
 `end`::
-end index (included)
+End position(included). Optional; if omitted, the position at `start` is returned. The end argument can be negative. An index of -1 is used to specify the last value in the list.

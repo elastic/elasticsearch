@@ -1,0 +1,4 @@
+street:keyword,number:keyword,zip_code:keyword,city.name:keyword,city.country.name:keyword,city.country.continent.name:keyword,city.country.continent.planet.name:keyword,city.country.continent.planet.galaxy:keyword
+Keizersgracht,281,1016 ED,Amsterdam,Netherlands,Europe,Earth,Milky Way
+Kearny St,88,CA 94108,San Francisco,United States of America,North America,Earth,Milky Way
+Marunouchi,2-7-2,100-7014,Tokyo,Japan,Asia,Earth,Milky Way

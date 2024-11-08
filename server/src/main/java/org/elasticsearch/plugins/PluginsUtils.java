@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -313,21 +314,12 @@ public class PluginsUtils {
                 Set<URL> pluginUrls = transitiveUrls.get(extendedPlugin);
                 assert pluginUrls != null : "transitive urls should have already been set for " + extendedPlugin;
 
-                // consistency check: extended plugins should not have duplicate codebases with each other
-                Set<URL> intersection = new HashSet<>(extendedPluginUrls);
-                intersection.retainAll(pluginUrls);
-                if (intersection.isEmpty() == false) {
-                    throw new IllegalStateException(
-                        "jar hell! extended plugins " + exts + " have duplicate codebases with each other: " + intersection
-                    );
-                }
-
                 // jar hell check: extended plugins (so far) do not have jar hell with each other
                 extendedPluginUrls.addAll(pluginUrls);
                 JarHell.checkJarHell(extendedPluginUrls, logger::debug);
 
                 // consistency check: each extended plugin should not have duplicate codebases with implementation+spi of this plugin
-                intersection = new HashSet<>(bundle.allUrls);
+                Set<URL> intersection = new HashSet<>(bundle.allUrls);
                 intersection.retainAll(pluginUrls);
                 if (intersection.isEmpty() == false) {
                     throw new IllegalStateException(

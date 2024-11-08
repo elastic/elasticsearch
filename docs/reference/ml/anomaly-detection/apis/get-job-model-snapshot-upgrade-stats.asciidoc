@@ -36,7 +36,7 @@ returned.
 
 `<job_id>`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection-wildcard]
 
 `<snapshot_id>`::
 (string)
@@ -51,7 +51,7 @@ use wildcard expressions or `_all`.
 
 `allow_no_match`::
 (Optional, Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=allow-no-match-jobs]
 
 [role="child_attributes"]
 [[ml-get-job-model-snapshot-upgrade-stats-results]]
@@ -62,11 +62,11 @@ All of these properties are informational; you cannot update their values.
 
 `assignment_explanation`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=assignment-explanation-datafeeds]
 
 `job_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-anomaly-detection]
 
 `node`::
 (object)
@@ -78,15 +78,15 @@ available only for upgrade tasks that are assigned to a node.
 ====
 `attributes`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-attributes]
 
 `ephemeral_id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-ephemeral-id]
 
 `id`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-id]
 
 `name`:::
 (string)
@@ -94,13 +94,13 @@ The node name. For example, `0-o0tOo`.
 
 `transport_address`:::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=node-transport-address]
 ====
 --
 
 `snapshot_id`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=model-snapshot-id]
 
 `state`::
 (string)

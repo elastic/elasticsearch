@@ -24,7 +24,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
@@ -32,23 +31,23 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
     private final OpenAiAccount account;
     private final List<String> input;
-    private final URI uri;
     private final OpenAiChatCompletionModel model;
+    private final boolean stream;
 
-    public OpenAiChatCompletionRequest(OpenAiAccount account, List<String> input, OpenAiChatCompletionModel model) {
-        this.account = Objects.requireNonNull(account);
+    public OpenAiChatCompletionRequest(List<String> input, OpenAiChatCompletionModel model, boolean stream) {
+        this.account = OpenAiAccount.of(model, OpenAiChatCompletionRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
-        this.uri = buildUri(this.account.url(), "OpenAI", OpenAiChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
+        this.stream = stream;
     }
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(uri);
+        HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user())
+                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user(), stream)
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
@@ -66,7 +65,7 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
     @Override
     public URI getURI() {
-        return uri;
+        return account.uri();
     }
 
     @Override
@@ -86,8 +85,12 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
         return model.getInferenceEntityId();
     }
 
-    // default for testing
-    static URI buildDefaultUri() throws URISyntaxException {
+    @Override
+    public boolean isStreaming() {
+        return stream;
+    }
+
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(OpenAiUtils.HOST)
             .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.CHAT_PATH, OpenAiUtils.COMPLETIONS_PATH)

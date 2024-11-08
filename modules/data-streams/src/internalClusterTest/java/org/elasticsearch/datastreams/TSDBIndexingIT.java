@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -19,9 +20,11 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
@@ -35,6 +38,7 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.test.InternalSettingsPlugin;
@@ -167,7 +171,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             time = randomBoolean() ? endTime : endTime.plusSeconds(randomIntBetween(1, 99));
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
-            expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            expectThrows(IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class, () -> client().index(indexRequest).actionGet());
         }
 
         // Fetch UpdateTimeSeriesRangeService and increment time range of latest backing index:
@@ -408,7 +412,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertResponse(client().search(searchRequest), searchResponse -> {
                 ElasticsearchAssertions.assertNoSearchHits(searchResponse);
                 assertThat(searchResponse.getTotalShards(), equalTo(2));
-                assertThat(searchResponse.getSkippedShards(), equalTo(1));
+                assertThat(searchResponse.getSkippedShards(), equalTo(2));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
             });
         }
@@ -457,6 +461,16 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
                 indexName = bulkResponse.getItems()[0].getIndex();
             }
             client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+
+            // In rare cases we can end up with a single segment shard, which means we can't trim away the _id later.
+            // So update an existing doc to create a new segment without adding a new document after force merging:
+            var indexRequest = new IndexRequest(indexName).setIfPrimaryTerm(1L)
+                .setIfSeqNo((numBulkRequests * numDocsPerBulk) - 1)
+                .setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+            indexRequest.source(DOC.replace("$time", formatInstant(time.minusMillis(1))), XContentType.JSON);
+            var res = client().index(indexRequest).actionGet();
+            assertThat(res.status(), equalTo(RestStatus.OK));
+            assertThat(res.getVersion(), equalTo(2L));
         }
 
         // Check whether there are multiple segments:
@@ -494,7 +508,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertThat(retentionLeasesStats.retentionLeases().leases(), hasSize(1));
             assertThat(
                 retentionLeasesStats.retentionLeases().leases().iterator().next().retainingSequenceNumber(),
-                equalTo((long) numBulkRequests * numDocsPerBulk)
+                equalTo((long) numBulkRequests * numDocsPerBulk + 1)
             );
         });
 
@@ -532,7 +546,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
             String id = searchResponse.getHits().getHits()[0].getId();
             assertThat(id, notNullValue());
 

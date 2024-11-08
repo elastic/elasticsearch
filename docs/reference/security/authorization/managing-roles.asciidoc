@@ -12,7 +12,10 @@ A role is defined by the following JSON structure:
   "global": { ... }, <3>
   "indices": [ ... ], <4>
   "applications": [ ... ], <5>
-  "remote_indices": [ ... ] <6>
+  "remote_indices": [ ... ], <6>
+  "remote_cluster": [ ... ], <7>
+  "metadata": { ... }, <8>
+  "description": "..." <9>
 }
 -----
 // NOTCONSOLE
@@ -31,11 +34,24 @@ A role is defined by the following JSON structure:
 <4> A list of indices permissions entries. This field is optional (missing `indices`
     privileges effectively mean no index level permissions).
 <5> A list of application privilege entries. This field is optional.
-<6> beta:[]
-    A list of indices permissions entries for
+<6> A list of indices permissions entries for
     <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
     This field is optional (missing `remote_indices` privileges effectively mean
     no index level permissions for any API key based remote clusters).
+<7> A list of cluster permissions entries for
+    <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+    This field is optional (missing `remote_cluster` privileges effectively means
+    no additional cluster permissions for any API key based remote clusters).
+<8> Metadata field associated with the role, such as `metadata.app_tag`.
+    Metadata is internally indexed as a <<flattened,flattened>> field type.
+    This means that all sub-fields act like `keyword` fields when querying and sorting.
+    Metadata values can be simple values, but also lists and maps.
+    This field is optional.
+<9> A string value with the description text of the role.
+    The maximum length of it is `1000` chars.
+    The field is internally indexed as a <<text-field-type,text>> field type
+    (with default values for all parameters).
+    This field is optional.
 
 [[valid-role-name]]
 NOTE: Role names must be at least 1 and no more than 507 characters. They can
@@ -165,8 +181,6 @@ no effect, and will not grant any actions in the
 [[roles-remote-indices-priv]]
 ==== Remote indices privileges
 
-beta::[]
-
 For <<remote-clusters-api-key,remote clusters configured with the API key based model>>, remote indices privileges
 can be used to specify desired indices privileges for matching remote clusters. The final
 effective index privileges will be an intersection of the remote indices privileges
@@ -211,6 +225,36 @@ The following describes the structure of a remote indices permissions entry:
     If however, for administrative purposes, you need to create a role with privileges covering
     restricted indices, you must set this field to `true` (default is `false`), and then the
     `names` field will cover the restricted indices as well.
+
+[[roles-remote-cluster-priv]]
+==== Remote cluster privileges
+
+For <<remote-clusters-api-key,remote clusters configured with the API key based model>>, remote cluster privileges
+can be used to specify additional cluster privileges for matching remote clusters.
+
+NOTE: Remote cluster privileges are only effective for remote clusters configured with the API key based model.
+They have no effect on remote clusters configured with the certificate based model.
+
+The following describes the structure of a remote cluster permissions entry:
+
+[source,js]
+-------
+{
+  "clusters": [ ... ], <1>
+  "privileges": [ ... ] <2>
+}
+-------
+// NOTCONSOLE
+<1> A list of remote cluster aliases. It supports literal strings as well as
+<<api-multi-index,wildcards>> and <<regexp-syntax,regular expressions>>.
+This field is required.
+<2> The cluster level privileges for the remote cluster. The allowed values here are a subset of the
+<<privileges-list-cluster,cluster privileges>>. This field is required.
+
+The `monitor_enrich` privilege for remote clusters was introduced in version
+8.15.0. Currently, this is the only privilege available for remote clusters and
+is required to enable users to use the `ENRICH` keyword in ES|QL queries across
+clusters.
 
 ==== Example
 

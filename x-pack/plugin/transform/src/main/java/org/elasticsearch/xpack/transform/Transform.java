@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.core.transform.action.DeleteTransformAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointNodeAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformAction;
+import org.elasticsearch.xpack.core.transform.action.GetTransformNodeStatsAction;
 import org.elasticsearch.xpack.core.transform.action.GetTransformStatsAction;
 import org.elasticsearch.xpack.core.transform.action.PreviewTransformAction;
 import org.elasticsearch.xpack.core.transform.action.PutTransformAction;
@@ -74,6 +75,7 @@ import org.elasticsearch.xpack.transform.action.TransportDeleteTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointAction;
 import org.elasticsearch.xpack.transform.action.TransportGetCheckpointNodeAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformAction;
+import org.elasticsearch.xpack.transform.action.TransportGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.action.TransportPreviewTransformAction;
 import org.elasticsearch.xpack.transform.action.TransportPutTransformAction;
@@ -93,6 +95,7 @@ import org.elasticsearch.xpack.transform.persistence.TransformInternalIndex;
 import org.elasticsearch.xpack.transform.rest.action.RestCatTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestDeleteTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformAction;
+import org.elasticsearch.xpack.transform.rest.action.RestGetTransformNodeStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestGetTransformStatsAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPreviewTransformAction;
 import org.elasticsearch.xpack.transform.rest.action.RestPutTransformAction;
@@ -134,6 +137,14 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
 
     public static final Integer DEFAULT_INITIAL_MAX_PAGE_SEARCH_SIZE = Integer.valueOf(500);
     public static final TimeValue DEFAULT_TRANSFORM_FREQUENCY = TimeValue.timeValueSeconds(60);
+
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from transforms code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_TRANSFORM_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
 
     public static final int DEFAULT_FAILURE_RETRIES = 10;
     // How many times the transform task can retry on a non-critical failure.
@@ -191,7 +202,8 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new RestCatTransformAction(),
             new RestUpgradeTransformsAction(),
             new RestResetTransformAction(),
-            new RestScheduleNowTransformAction()
+            new RestScheduleNowTransformAction(),
+            new RestGetTransformNodeStatsAction()
         );
     }
 
@@ -211,6 +223,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             new ActionHandler<>(UpgradeTransformsAction.INSTANCE, TransportUpgradeTransformsAction.class),
             new ActionHandler<>(ResetTransformAction.INSTANCE, TransportResetTransformAction.class),
             new ActionHandler<>(ScheduleNowTransformAction.INSTANCE, TransportScheduleNowTransformAction.class),
+            new ActionHandler<>(GetTransformNodeStatsAction.INSTANCE, TransportGetTransformNodeStatsAction.class),
 
             // internal, no rest endpoint
             new ActionHandler<>(ValidateTransformAction.INSTANCE, TransportValidateTransformAction.class),
@@ -255,14 +268,12 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
             getTransformExtension().getMinFrequency()
         );
         scheduler.start();
+        var clusterStateListener = new TransformClusterStateListener(clusterService, client);
+        var transformNode = new TransformNode(clusterStateListener);
 
-        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler));
+        transformServices.set(new TransformServices(configManager, checkpointService, auditor, scheduler, transformNode));
 
-        return List.of(
-            transformServices.get(),
-            new TransformClusterStateListener(clusterService, client),
-            new TransformExtensionHolder(getTransformExtension())
-        );
+        return List.of(transformServices.get(), clusterStateListener, new TransformExtensionHolder(getTransformExtension()));
     }
 
     @Override
@@ -323,7 +334,7 @@ public class Transform extends Plugin implements SystemIndexPlugin, PersistentTa
     @Override
     public void close() {
         if (transformServices.get() != null) {
-            transformServices.get().getScheduler().stop();
+            transformServices.get().scheduler().stop();
         }
     }
 

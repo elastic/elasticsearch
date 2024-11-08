@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -21,7 +22,9 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -49,6 +52,7 @@ import static org.objectweb.asm.Opcodes.V_PREVIEW;
 public class MrjarPlugin implements Plugin<Project> {
 
     private static final Pattern MRJAR_SOURCESET_PATTERN = Pattern.compile("main(\\d{2})");
+    private static final String MRJAR_IDEA_ENABLED = "org.gradle.mrjar.idea.enabled";
 
     private final JavaToolchainService javaToolchains;
 
@@ -61,23 +65,32 @@ public class MrjarPlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         var javaExtension = project.getExtensions().getByType(JavaPluginExtension.class);
+        var isIdeaSync = System.getProperty("idea.sync.active", "false").equals("true");
+        var ideaSourceSetsEnabled = project.hasProperty(MRJAR_IDEA_ENABLED) && project.property(MRJAR_IDEA_ENABLED).equals("true");
 
-        List<Integer> mainVersions = findSourceVersions(project);
-        List<String> mainSourceSets = new ArrayList<>();
-        mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
-        List<String> testSourceSets = new ArrayList<>(mainSourceSets);
-        testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
-        for (int javaVersion : mainVersions) {
-            String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
-            SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
-            configureSourceSetInJar(project, mainSourceSet, javaVersion);
-            mainSourceSets.add(mainSourceSetName);
-            testSourceSets.add(mainSourceSetName);
+        // Ignore version-specific source sets if we are importing into IntelliJ and have not explicitly enabled this.
+        // Avoids an IntelliJ bug:
+        // https://youtrack.jetbrains.com/issue/IDEA-285640/Compiler-Options-Settings-language-level-is-set-incorrectly-with-JDK-19ea
+        if (isIdeaSync == false || ideaSourceSetsEnabled) {
+            List<Integer> mainVersions = findSourceVersions(project);
+            List<String> mainSourceSets = new ArrayList<>();
+            mainSourceSets.add(SourceSet.MAIN_SOURCE_SET_NAME);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.MAIN_SOURCE_SET_NAME), 21);
+            List<String> testSourceSets = new ArrayList<>(mainSourceSets);
+            testSourceSets.add(SourceSet.TEST_SOURCE_SET_NAME);
+            configurePreviewFeatures(project, javaExtension.getSourceSets().getByName(SourceSet.TEST_SOURCE_SET_NAME), 21);
+            for (int javaVersion : mainVersions) {
+                String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
+                SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
+                configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                mainSourceSets.add(mainSourceSetName);
+                testSourceSets.add(mainSourceSetName);
 
-            String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
-            SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
-            testSourceSets.add(testSourceSetName);
-            createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+                String testSourceSetName = SourceSet.TEST_SOURCE_SET_NAME + javaVersion;
+                SourceSet testSourceSet = addSourceSet(project, javaExtension, testSourceSetName, testSourceSets, javaVersion);
+                testSourceSets.add(testSourceSetName);
+                createTestTask(project, testSourceSet, javaVersion, mainSourceSets);
+            }
         }
 
         configureMrjar(project);
@@ -115,11 +128,8 @@ public class MrjarPlugin implements Plugin<Project> {
             compileTask.setSourceCompatibility(Integer.toString(javaVersion));
             CompileOptions compileOptions = compileTask.getOptions();
             compileOptions.getRelease().set(javaVersion);
-            compileOptions.getCompilerArgs().add("--enable-preview");
-            compileOptions.getCompilerArgs().add("-Xlint:-preview");
-
-            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
         });
+        configurePreviewFeatures(project, sourceSet, javaVersion);
 
         // Since we configure MRJAR sourcesets to allow preview apis, class signatures for those
         // apis are not known by forbidden apis, so we must ignore all missing classes. We could, in theory,
@@ -131,6 +141,21 @@ public class MrjarPlugin implements Plugin<Project> {
         });
 
         return sourceSet;
+    }
+
+    private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
+            CompileOptions compileOptions = compileTask.getOptions();
+            compileOptions.getCompilerArgs().add("--enable-preview");
+            compileOptions.getCompilerArgs().add("-Xlint:-preview");
+
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
+        });
+        project.getTasks().withType(Javadoc.class).named(name -> name.equals(sourceSet.getJavadocTaskName())).configureEach(javadocTask -> {
+            CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+            options.addBooleanOption("-enable-preview", true);
+            options.addStringOption("-release", String.valueOf(javaVersion));
+        });
     }
 
     private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {
@@ -164,7 +189,6 @@ public class MrjarPlugin implements Plugin<Project> {
                 testTask.getJavaLauncher()
                     .set(javaToolchains.launcherFor(spec -> spec.getLanguageVersion().set(JavaLanguageVersion.of(javaVersion))));
             }
-
         });
 
         project.getTasks().named("check").configure(checkTask -> checkTask.dependsOn(testTaskProvider));

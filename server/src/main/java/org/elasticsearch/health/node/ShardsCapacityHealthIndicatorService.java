@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
 
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Setting;
@@ -123,12 +125,23 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
         var shardLimitsMetadata = healthMetadata.getShardLimitsMetadata();
         return mergeIndicators(
-            calculateFrom(shardLimitsMetadata.maxShardsPerNode(), state, ShardLimitValidator::checkShardLimitForNormalNodes),
-            calculateFrom(shardLimitsMetadata.maxShardsPerNodeFrozen(), state, ShardLimitValidator::checkShardLimitForFrozenNodes)
+            verbose,
+            calculateFrom(
+                shardLimitsMetadata.maxShardsPerNode(),
+                state.nodes(),
+                state.metadata(),
+                ShardLimitValidator::checkShardLimitForNormalNodes
+            ),
+            calculateFrom(
+                shardLimitsMetadata.maxShardsPerNodeFrozen(),
+                state.nodes(),
+                state.metadata(),
+                ShardLimitValidator::checkShardLimitForFrozenNodes
+            )
         );
     }
 
-    private HealthIndicatorResult mergeIndicators(StatusResult dataNodes, StatusResult frozenNodes) {
+    private HealthIndicatorResult mergeIndicators(boolean verbose, StatusResult dataNodes, StatusResult frozenNodes) {
         var finalStatus = HealthStatus.merge(Stream.of(dataNodes.status, frozenNodes.status));
         var diagnoses = List.<Diagnosis>of();
         var symptomBuilder = new StringBuilder();
@@ -166,19 +179,24 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
         return createIndicator(
             finalStatus,
             symptomBuilder.toString(),
-            buildDetails(dataNodes.result, frozenNodes.result),
+            verbose ? buildDetails(dataNodes.result, frozenNodes.result) : HealthIndicatorDetails.EMPTY,
             indicatorImpacts,
-            diagnoses
+            verbose ? diagnoses : List.of()
         );
     }
 
-    static StatusResult calculateFrom(int maxShardsPerNodeSetting, ClusterState state, ShardsCapacityChecker checker) {
-        var result = checker.check(maxShardsPerNodeSetting, 5, 1, state);
+    static StatusResult calculateFrom(
+        int maxShardsPerNodeSetting,
+        DiscoveryNodes discoveryNodes,
+        Metadata metadata,
+        ShardsCapacityChecker checker
+    ) {
+        var result = checker.check(maxShardsPerNodeSetting, 5, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.RED, result);
         }
 
-        result = checker.check(maxShardsPerNodeSetting, 10, 1, state);
+        result = checker.check(maxShardsPerNodeSetting, 10, 1, discoveryNodes, metadata);
         if (result.canAddShards() == false) {
             return new StatusResult(HealthStatus.YELLOW, result);
         }
@@ -224,6 +242,12 @@ public class ShardsCapacityHealthIndicatorService implements HealthIndicatorServ
 
     @FunctionalInterface
     interface ShardsCapacityChecker {
-        ShardLimitValidator.Result check(int maxConfiguredShardsPerNode, int numberOfNewShards, int replicas, ClusterState state);
+        ShardLimitValidator.Result check(
+            int maxConfiguredShardsPerNode,
+            int numberOfNewShards,
+            int replicas,
+            DiscoveryNodes discoveryNodes,
+            Metadata metadata
+        );
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.datastreams;
@@ -26,7 +27,7 @@ import static org.elasticsearch.datastreams.LogsDataStreamIT.getValueFromPath;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.getWriteBackingIndex;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.indexDoc;
 import static org.elasticsearch.datastreams.LogsDataStreamIT.searchDocs;
-import static org.elasticsearch.datastreams.LogsDataStreamIT.waitForLogs;
+import static org.elasticsearch.datastreams.LogsDataStreamIT.waitForIndexTemplate;
 import static org.hamcrest.Matchers.is;
 
 public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
@@ -38,7 +39,7 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
     @Before
     public void setup() throws Exception {
         client = client();
-        waitForLogs(client);
+        waitForIndexTemplate(client, "logs");
 
         {
             Request request = new Request("PUT", "/_ingest/pipeline/logs@custom");
@@ -201,12 +202,12 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                       "host": {
                         "cpu": {
                           "usage": 0.68
-                        }
-                      },
-                      "geo": {
-                        "location": {
-                          "lon": -73.614830,
-                          "lat": 45.505918
+                        },
+                        "geo": {
+                          "location": {
+                            "lon": -73.614830,
+                            "lat": 45.505918
+                          }
                         }
                       },
                       "data_stream": {
@@ -414,7 +415,10 @@ public class EcsLogsDataStreamIT extends DisabledSecurityDataStreamTestCase {
                 getValueFromPath(properties, List.of("host", "properties", "cpu", "properties", "usage", "scaling_factor")),
                 is(1000.0)
             );
-            assertThat(getValueFromPath(properties, List.of("geo", "properties", "location", "type")), is("geo_point"));
+            assertThat(
+                getValueFromPath(properties, List.of("host", "properties", "geo", "properties", "location", "type")),
+                is("geo_point")
+            );
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "dataset", "type")), is("constant_keyword"));
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "namespace", "type")), is("constant_keyword"));
             assertThat(getValueFromPath(properties, List.of("data_stream", "properties", "type", "type")), is("constant_keyword"));

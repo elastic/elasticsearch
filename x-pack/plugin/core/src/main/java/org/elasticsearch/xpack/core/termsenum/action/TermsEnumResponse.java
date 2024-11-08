@@ -26,7 +26,7 @@ public class TermsEnumResponse extends BroadcastResponse {
 
     private final List<String> terms;
 
-    private boolean complete;
+    private final boolean complete;
 
     TermsEnumResponse(StreamInput in) throws IOException {
         super(in);

@@ -1,0 +1,18 @@
+{
+  "template": {
+    "settings": {
+      "index": {
+        "codec": "best_compression",
+        "mapping": {
+          "ignore_malformed": true
+        }
+      }
+    }
+  },
+  "_meta": {
+    "description": "default settings for the traces index template installed by x-pack",
+    "managed": true
+  },
+  "version": ${xpack.stack.template.version},
+  "deprecated": ${xpack.stack.template.deprecated}
+}

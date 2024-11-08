@@ -1,0 +1,5 @@
+pr: 111367
+summary: "ESQL: Add Values aggregation tests, fix `ConstantBytesRefBlock` memory handling"
+area: ES|QL
+type: bug
+issues: []

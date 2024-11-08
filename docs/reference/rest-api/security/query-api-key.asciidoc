@@ -177,7 +177,7 @@ The query supports a subset of query types, including
 <<query-dsl-match-query,`match`>>, <<query-dsl-ids-query,`ids`>>,
 <<query-dsl-prefix-query,`prefix`>>, <<query-dsl-wildcard-query,`wildcard`>>,
 <<query-dsl-exists-query,`exists`>>, <<query-dsl-range-query,`range`>>,
-and <<query-dsl-simple-query-string-query,`simple query string`>>
+and <<query-dsl-simple-query-string-query,`simple query string`>>.
 +
 You can query the following public values associated with an API key.
 +
@@ -242,7 +242,7 @@ This supports only a subset of aggregation types, namely: <<search-aggregations-
 <<search-aggregations-bucket-filter-aggregation,filter>>, and <<search-aggregations-bucket-filters-aggregation,filters>>.
 Additionally, aggregations only run over the same subset of fields that `query` works with.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=from]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=from]
 +
 By default, you cannot page through more than 10,000 hits using the `from` and
 `size` parameters. To page through more hits, use the

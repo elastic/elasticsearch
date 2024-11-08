@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.mapping;
 
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -33,6 +35,8 @@ public class MalformedDynamicTemplateIT extends ESIntegTestCase {
      * contains unknown parameters. We were able to create those templates in 7.x still, so we need
      * to be able to index new documents into them. Indexing should issue a deprecation warning though.
      */
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+    @AwaitsFix(bugUrl = "this is testing 7.x specific compatibility which may be n/a now after 9.0 bump")
     public void testBWCMalformedDynamicTemplate() {
         // this parameter is not supported by "keyword" field type
         String mapping = """

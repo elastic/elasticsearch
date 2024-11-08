@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.profile.query;
@@ -124,14 +125,14 @@ public class ProfileCollectorManagerTests extends ESTestCase {
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), topDocsManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
         }
         {
             CollectorManager<TopScoreDocCollector, TopDocs> topDocsManager = new TopScoreDocCollectorManager(10, null, 1000);
             String profileReason = "profiler_reason";
             ProfileCollectorManager<TopDocs> profileCollectorManager = new ProfileCollectorManager<>(topDocsManager, profileReason);
             TopDocs topDocs = searcher.search(new MatchAllDocsQuery(), profileCollectorManager);
-            assertEquals(numDocs, topDocs.totalHits.value);
+            assertEquals(numDocs, topDocs.totalHits.value());
             CollectorResult result = profileCollectorManager.getCollectorTree();
             assertEquals("profiler_reason", result.getReason());
             assertEquals("SimpleTopScoreDocCollector", result.getName());

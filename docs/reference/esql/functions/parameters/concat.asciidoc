@@ -3,7 +3,7 @@
 *Parameters*
 
 `string1`::
-
+Strings to concatenate.
 
 `string2`::
-
+Strings to concatenate.

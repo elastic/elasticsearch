@@ -29,9 +29,11 @@ import org.elasticsearch.index.fielddata.IndexFieldData.XFieldComparatorSource.N
 import org.elasticsearch.index.fielddata.IndexHistogramFieldData;
 import org.elasticsearch.index.fielddata.LeafHistogramFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.CompositeSyntheticFieldLoader;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.IgnoreMalformedStoredValues;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.SourceLoader;
@@ -44,6 +46,7 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.MultiValueMode;
 import org.elasticsearch.search.sort.BucketedSort;
 import org.elasticsearch.search.sort.SortOrder;
+import org.elasticsearch.xcontent.CopyingXContentParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -54,7 +57,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Map;
-import java.util.stream.Stream;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
@@ -94,10 +96,9 @@ public class HistogramFieldMapper extends FieldMapper {
         @Override
         public HistogramFieldMapper build(MapperBuilderContext context) {
             return new HistogramFieldMapper(
-                name(),
-                new HistogramFieldType(context.buildFullName(name()), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                leafName(),
+                new HistogramFieldType(context.buildFullName(leafName()), meta.getValue()),
+                builderParams(this, context),
                 this
             );
         }
@@ -111,14 +112,8 @@ public class HistogramFieldMapper extends FieldMapper {
     private final Explicit<Boolean> ignoreMalformed;
     private final boolean ignoreMalformedByDefault;
 
-    public HistogramFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    public HistogramFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.ignoreMalformed = builder.ignoreMalformed.getValue();
         this.ignoreMalformedByDefault = builder.ignoreMalformed.getDefaultValue().value();
     }
@@ -135,7 +130,7 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(simpleName(), ignoreMalformedByDefault).init(this);
+        return new Builder(leafName(), ignoreMalformedByDefault).init(this);
     }
 
     @Override
@@ -238,10 +233,6 @@ public class HistogramFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {
-
-                        }
                     };
                 }
 
@@ -286,9 +277,13 @@ public class HistogramFieldMapper extends FieldMapper {
 
     @Override
     public void parse(DocumentParserContext context) throws IOException {
-        context.path().add(simpleName());
+        context.path().add(leafName());
+
+        boolean shouldStoreMalformedDataForSyntheticSource = context.mappingLookup().isSourceSynthetic() && ignoreMalformed();
         XContentParser.Token token;
         XContentSubParser subParser = null;
+        XContentBuilder malformedDataForSyntheticSource = null;
+
         try {
             token = context.parser().currentToken();
             if (token == XContentParser.Token.VALUE_NULL) {
@@ -299,10 +294,16 @@ public class HistogramFieldMapper extends FieldMapper {
             ArrayList<Long> counts = null;
             // should be an object
             ensureExpectedToken(XContentParser.Token.START_OBJECT, token, context.parser());
-            subParser = new XContentSubParser(context.parser());
+            if (shouldStoreMalformedDataForSyntheticSource) {
+                var copyingParser = new CopyingXContentParser(context.parser());
+                malformedDataForSyntheticSource = copyingParser.getBuilder();
+                subParser = new XContentSubParser(copyingParser);
+            } else {
+                subParser = new XContentSubParser(context.parser());
+            }
             token = subParser.nextToken();
             while (token != XContentParser.Token.END_OBJECT) {
-                // should be an field
+                // should be a field
                 ensureExpectedToken(XContentParser.Token.FIELD_NAME, token, subParser);
                 String fieldName = subParser.currentName();
                 if (fieldName.equals(VALUES_FIELD.getPreferredName())) {
@@ -321,7 +322,7 @@ public class HistogramFieldMapper extends FieldMapper {
                             throw new DocumentParsingException(
                                 subParser.getTokenLocation(),
                                 "error parsing field ["
-                                    + name()
+                                    + fullPath()
                                     + "], ["
                                     + VALUES_FIELD
                                     + "] values must be in increasing order, got ["
@@ -350,7 +351,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 } else {
                     throw new DocumentParsingException(
                         subParser.getTokenLocation(),
-                        "error parsing field [" + name() + "], with unknown parameter [" + fieldName + "]"
+                        "error parsing field [" + fullPath() + "], with unknown parameter [" + fieldName + "]"
                     );
                 }
                 token = subParser.nextToken();
@@ -358,20 +359,20 @@ public class HistogramFieldMapper extends FieldMapper {
             if (values == null) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
-                    "error parsing field [" + name() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
+                    "error parsing field [" + fullPath() + "], expected field called [" + VALUES_FIELD.getPreferredName() + "]"
                 );
             }
             if (counts == null) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
-                    "error parsing field [" + name() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
+                    "error parsing field [" + fullPath() + "], expected field called [" + COUNTS_FIELD.getPreferredName() + "]"
                 );
             }
             if (values.size() != counts.size()) {
                 throw new DocumentParsingException(
                     subParser.getTokenLocation(),
                     "error parsing field ["
-                        + name()
+                        + fullPath()
                         + "], expected same length from ["
                         + VALUES_FIELD.getPreferredName()
                         + "] and "
@@ -390,7 +391,7 @@ public class HistogramFieldMapper extends FieldMapper {
                 if (count < 0) {
                     throw new DocumentParsingException(
                         subParser.getTokenLocation(),
-                        "error parsing field [" + name() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
+                        "error parsing field [" + fullPath() + "], [" + COUNTS_FIELD + "] elements must be >= 0 but got " + counts.get(i)
                     );
                 } else if (count > 0) {
                     // we do not add elements with count == 0
@@ -403,14 +404,14 @@ public class HistogramFieldMapper extends FieldMapper {
                 }
             }
             BytesRef docValue = streamOutput.bytes().toBytesRef();
-            Field field = new BinaryDocValuesField(name(), docValue);
+            Field field = new BinaryDocValuesField(fullPath(), docValue);
             if (context.doc().getByKey(fieldType().name()) != null) {
                 throw new IllegalArgumentException(
                     "Field ["
-                        + name()
+                        + fullPath()
                         + "] of type ["
                         + typeName()
-                        + "] doesn't not support indexing multiple values for the same field in the same document"
+                        + "] doesn't support indexing multiple values for the same field in the same document"
                 );
             }
             context.doc().addWithKey(fieldType().name(), field);
@@ -427,7 +428,17 @@ public class HistogramFieldMapper extends FieldMapper {
             if (subParser != null) {
                 // close the subParser so we advance to the end of the object
                 subParser.close();
+            } else if (shouldStoreMalformedDataForSyntheticSource) {
+                // We have a malformed value, but it's not an object given that `subParser` is null.
+                // So we just remember whatever it is.
+                malformedDataForSyntheticSource = XContentBuilder.builder(context.parser().contentType().xContent())
+                    .copyCurrentStructure(context.parser());
             }
+
+            if (malformedDataForSyntheticSource != null) {
+                context.doc().add(IgnoreMalformedStoredValues.storedField(fullPath(), malformedDataForSyntheticSource));
+            }
+
             context.addIgnoredField(fieldType().name());
         }
         context.path().remove();
@@ -485,72 +496,77 @@ public class HistogramFieldMapper extends FieldMapper {
     }
 
     @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (ignoreMalformed.value()) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [histogram] doesn't support synthetic source because it ignores malformed histograms"
-            );
-        }
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + name() + "] of type [histogram] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new SourceLoader.SyntheticFieldLoader() {
-            private final InternalHistogramValue value = new InternalHistogramValue();
-            private BytesRef binaryValue;
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(
+            leafName(),
+            fullPath(),
+            new HistogramSyntheticFieldLoader(),
+            new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
+        );
 
-            @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                return Stream.of();
-            }
-
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf) throws IOException {
-                BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
-                if (docValues == null) {
-                    // No values in this leaf
-                    binaryValue = null;
-                    return null;
-                }
-                return docId -> {
-                    if (docValues.advanceExact(docId)) {
-                        binaryValue = docValues.binaryValue();
-                        return true;
-                    }
-                    binaryValue = null;
-                    return false;
-                };
-            }
-
-            @Override
-            public boolean hasValue() {
-                return binaryValue != null;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (binaryValue == null) {
-                    return;
-                }
-                b.startObject(simpleName());
-
-                value.reset(binaryValue);
-                b.startArray("values");
-                while (value.next()) {
-                    b.value(value.value());
-                }
-                b.endArray();
-
-                value.reset(binaryValue);
-                b.startArray("counts");
-                while (value.next()) {
-                    b.value(value.count());
-                }
-                b.endArray();
-
-                b.endObject();
-            }
-        };
+        return new SyntheticSourceSupport.Native(loader);
     }
+
+    private class HistogramSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {
+        private final InternalHistogramValue value = new InternalHistogramValue();
+        private BytesRef binaryValue;
+
+        @Override
+        public SourceLoader.SyntheticFieldLoader.DocValuesLoader docValuesLoader(LeafReader leafReader, int[] docIdsInLeaf)
+            throws IOException {
+            BinaryDocValues docValues = leafReader.getBinaryDocValues(fieldType().name());
+            if (docValues == null) {
+                // No values in this leaf
+                binaryValue = null;
+                return null;
+            }
+            return docId -> {
+                if (docValues.advanceExact(docId)) {
+                    binaryValue = docValues.binaryValue();
+                    return true;
+                }
+                binaryValue = null;
+                return false;
+            };
+        }
+
+        @Override
+        public boolean hasValue() {
+            return binaryValue != null;
+        }
+
+        @Override
+        public void write(XContentBuilder b) throws IOException {
+            if (binaryValue == null) {
+                return;
+            }
+            b.startObject();
+
+            value.reset(binaryValue);
+            b.startArray("values");
+            while (value.next()) {
+                b.value(value.value());
+            }
+            b.endArray();
+
+            value.reset(binaryValue);
+            b.startArray("counts");
+            while (value.next()) {
+                b.value(value.count());
+            }
+            b.endArray();
+
+            b.endObject();
+        }
+
+        @Override
+        public String fieldName() {
+            return fullPath();
+        }
+
+        @Override
+        public long valueCount() {
+            return binaryValue != null ? 1 : 0;
+        }
+    };
 }

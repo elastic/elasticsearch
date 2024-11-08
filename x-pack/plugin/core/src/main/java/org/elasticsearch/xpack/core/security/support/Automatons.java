@@ -9,9 +9,10 @@ package org.elasticsearch.xpack.core.security.support;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
+import org.apache.lucene.util.automaton.StatePair;
+import org.apache.lucene.util.automaton.Transition;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
 import org.elasticsearch.common.settings.Setting;
@@ -20,15 +21,20 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ExecutionException;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.stream.Collectors;
 
 import static org.apache.lucene.util.automaton.Operations.DEFAULT_DETERMINIZE_WORK_LIMIT;
 import static org.apache.lucene.util.automaton.Operations.concatenate;
@@ -69,6 +75,10 @@ public final class Automatons {
     static final char WILDCARD_CHAR = '?';       // Char equality with support for wildcards
     static final char WILDCARD_ESCAPE = '\\';    // Escape character
 
+    // for testing only -Dtests.jvm.argline="-Dtests.automaton.record.patterns=true"
+    public static boolean recordPatterns = System.getProperty("tests.automaton.record.patterns", "false").equals("true");
+    private static final Map<Automaton, List<String>> patternsMap = new HashMap<>();
+
     private Automatons() {}
 
     /**
@@ -87,10 +97,13 @@ public final class Automatons {
             return EMPTY;
         }
         if (cache == null) {
-            return buildAutomaton(patterns);
+            return maybeRecordPatterns(buildAutomaton(patterns), patterns);
         } else {
             try {
-                return cache.computeIfAbsent(Sets.newHashSet(patterns), p -> buildAutomaton((Set<String>) p));
+                return cache.computeIfAbsent(
+                    Sets.newHashSet(patterns),
+                    p -> maybeRecordPatterns(buildAutomaton((Set<String>) p), patterns)
+                );
             } catch (ExecutionException e) {
                 throw unwrapCacheException(e);
             }
@@ -99,7 +112,7 @@ public final class Automatons {
 
     private static Automaton buildAutomaton(Collection<String> patterns) {
         if (patterns.size() == 1) {
-            return minimize(pattern(patterns.iterator().next()));
+            return determinize(pattern(patterns.iterator().next()));
         }
 
         final Function<Collection<String>, Automaton> build = strings -> {
@@ -108,7 +121,7 @@ public final class Automatons {
                 final Automaton patternAutomaton = pattern(pattern);
                 automata.add(patternAutomaton);
             }
-            return unionAndMinimize(automata);
+            return unionAndDeterminize(automata);
         };
 
         // We originally just compiled each automaton separately and then unioned them all.
@@ -175,7 +188,7 @@ public final class Automatons {
         if (misc.isEmpty() == false) {
             automata.add(build.apply(misc));
         }
-        return unionAndMinimize(automata);
+        return unionAndDeterminize(automata);
     }
 
     /**
@@ -212,7 +225,10 @@ public final class Automatons {
                 );
             }
             String regex = pattern.substring(1, pattern.length() - 1);
-            return new RegExp(regex).toAutomaton();
+            return Operations.determinize(
+                new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton(),
+                DEFAULT_DETERMINIZE_WORK_LIMIT
+            );
         } else if (pattern.equals("*")) {
             return MATCH_ALL;
         } else {
@@ -258,26 +274,26 @@ public final class Automatons {
             }
             i += length;
         }
-        return concatenate(automata);
+        return Operations.determinize(concatenate(automata), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
-    public static Automaton unionAndMinimize(Collection<Automaton> automata) {
+    public static Automaton unionAndDeterminize(Collection<Automaton> automata) {
         Automaton res = automata.size() == 1 ? automata.iterator().next() : union(automata);
-        return minimize(res);
+        return determinize(res);
     }
 
-    public static Automaton minusAndMinimize(Automaton a1, Automaton a2) {
+    public static Automaton minusAndDeterminize(Automaton a1, Automaton a2) {
         Automaton res = minus(a1, a2, maxDeterminizedStates);
-        return minimize(res);
+        return determinize(res);
     }
 
-    public static Automaton intersectAndMinimize(Automaton a1, Automaton a2) {
+    public static Automaton intersectAndDeterminize(Automaton a1, Automaton a2) {
         Automaton res = intersection(a1, a2);
-        return minimize(res);
+        return determinize(res);
     }
 
-    private static Automaton minimize(Automaton automaton) {
-        return MinimizationOperations.minimize(automaton, maxDeterminizedStates);
+    private static Automaton determinize(Automaton automaton) {
+        return Operations.determinize(automaton, maxDeterminizedStates);
     }
 
     public static Predicate<String> predicate(String... patterns) {
@@ -318,7 +334,8 @@ public final class Automatons {
         } else if (automaton == EMPTY) {
             return Predicates.never();
         }
-        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton, maxDeterminizedStates);
+        automaton = Operations.determinize(automaton, maxDeterminizedStates);
+        CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
         return new Predicate<String>() {
             @Override
             public boolean test(String s) {
@@ -337,5 +354,92 @@ public final class Automatons {
         settingsList.add(CACHE_ENABLED);
         settingsList.add(CACHE_SIZE);
         settingsList.add(CACHE_TTL);
+    }
+
+    private static Automaton maybeRecordPatterns(Automaton automaton, Collection<String> patterns) {
+        if (recordPatterns) {
+            patternsMap.put(
+                automaton,
+                patterns.stream().map(String::trim).map(s -> s.toLowerCase(Locale.ROOT)).sorted().collect(Collectors.toList())
+            );
+        }
+        return automaton;
+    }
+
+    // test only
+    static List<String> getPatterns(Automaton automaton) {
+        if (recordPatterns) {
+            return patternsMap.get(automaton);
+        } else {
+            throw new IllegalArgumentException("recordPatterns is set to false");
+        }
+    }
+
+    /**
+     * Returns true if the language of <code>a1</code> is a subset of the language of <code>a2</code>.
+     * Both automata must be determinized and must have no dead states.
+     *
+     * <p>Complexity: quadratic in number of states.
+     * Copied of Lucene's AutomatonTestUtil
+     */
+    public static boolean subsetOf(Automaton a1, Automaton a2) {
+        if (a1.isDeterministic() == false) {
+            throw new IllegalArgumentException("a1 must be deterministic");
+        }
+        if (a2.isDeterministic() == false) {
+            throw new IllegalArgumentException("a2 must be deterministic");
+        }
+        assert Operations.hasDeadStatesFromInitial(a1) == false;
+        assert Operations.hasDeadStatesFromInitial(a2) == false;
+        if (a1.getNumStates() == 0) {
+            // Empty language is alwyas a subset of any other language
+            return true;
+        } else if (a2.getNumStates() == 0) {
+            return Operations.isEmpty(a1);
+        }
+
+        // TODO: cutover to iterators instead
+        Transition[][] transitions1 = a1.getSortedTransitions();
+        Transition[][] transitions2 = a2.getSortedTransitions();
+        ArrayDeque<StatePair> worklist = new ArrayDeque<>();
+        HashSet<StatePair> visited = new HashSet<>();
+        StatePair p = new StatePair(0, 0);
+        worklist.add(p);
+        visited.add(p);
+        while (worklist.size() > 0) {
+            p = worklist.removeFirst();
+            if (a1.isAccept(p.s1) && a2.isAccept(p.s2) == false) {
+                return false;
+            }
+            Transition[] t1 = transitions1[p.s1];
+            Transition[] t2 = transitions2[p.s2];
+            for (int n1 = 0, b2 = 0; n1 < t1.length; n1++) {
+                while (b2 < t2.length && t2[b2].max < t1[n1].min) {
+                    b2++;
+                }
+                int min1 = t1[n1].min, max1 = t1[n1].max;
+
+                for (int n2 = b2; n2 < t2.length && t1[n1].max >= t2[n2].min; n2++) {
+                    if (t2[n2].min > min1) {
+                        return false;
+                    }
+                    if (t2[n2].max < Character.MAX_CODE_POINT) {
+                        min1 = t2[n2].max + 1;
+                    } else {
+                        min1 = Character.MAX_CODE_POINT;
+                        max1 = Character.MIN_CODE_POINT;
+                    }
+                    StatePair q = new StatePair(t1[n1].dest, t2[n2].dest);
+                    if (visited.contains(q) == false) {
+                        worklist.add(q);
+                        visited.add(q);
+                    }
+                }
+                if (min1 <= max1) {
+                    return false;
+                }
+            }
+        }
+        return true;
     }
 }

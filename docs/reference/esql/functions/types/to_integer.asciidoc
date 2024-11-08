@@ -6,7 +6,8 @@
 |===
 field | result
 boolean | integer
-datetime | integer
+counter_integer | integer
+date | integer
 double | integer
 integer | integer
 keyword | integer

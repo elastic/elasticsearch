@@ -23,7 +23,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<filter_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=filter-id]
 
 [[ml-update-filter-request-body]]
 == {api-request-body-title}

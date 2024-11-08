@@ -27,7 +27,7 @@ Requires the `manage_ml` cluster privilege. This privilege is included in the
 
 `<data_frame_analytics_id>`::
 (Required, string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=job-id-data-frame-analytics]
 
 [[ml-delete-dfanalytics-query-params]]
 == {api-query-parms-title}

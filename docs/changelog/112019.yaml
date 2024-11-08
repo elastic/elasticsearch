@@ -1,0 +1,5 @@
+pr: 112019
+summary: Display effective retention in the relevant data stream APIs
+area: Data streams
+type: enhancement
+issues: []

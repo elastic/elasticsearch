@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -90,6 +91,18 @@ final class CompositeIndexEventListener implements IndexEventListener {
                 listener.beforeIndexShardClosed(shardId, indexShard, indexSettings);
             } catch (Exception e) {
                 logger.warn(() -> "[" + shardId.getId() + "] failed to invoke before shard closed callback", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void afterIndexShardClosing(ShardId shardId, @Nullable IndexShard indexShard, Settings indexSettings) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.afterIndexShardClosing(shardId, indexShard, indexSettings);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + shardId.getId() + "] failed to invoke after shard closing callback", e);
                 throw e;
             }
         }

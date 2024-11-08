@@ -1,0 +1,962 @@
+setup:
+  - skip:
+      features: close_to
+  - requires:
+      cluster_features: 'rrf_retriever_composition_supported'
+      reason: 'test requires rrf retriever composition support'
+
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              id:
+                type: integer
+              text:
+                type: text
+              text_to_highlight:
+                type: text
+              keyword:
+                type: keyword
+              integer:
+                type: integer
+              vector:
+                type: dense_vector
+                dims: 1
+                index: true
+                similarity: l2_norm
+                index_options:
+                  type: hnsw
+                  ef_construction: 100
+                  m: 16
+              nested:
+                type: nested
+                properties:
+                  views:
+                    type: long
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        body:
+          id: 1
+          text: "term1"
+          vector: [1.0]
+
+  - do:
+      index:
+        index: test
+        id: "2"
+        body:
+          id: 2
+          text: "term2"
+          text_to_highlight: "search for the truth"
+          keyword: "biology"
+          vector: [2.0]
+
+  - do:
+      index:
+        index: test
+        id: "3"
+        body:
+          id: 3
+          text: "term3"
+          text_to_highlight: "nothing related"
+          keyword: "technology"
+          vector: [3.0]
+
+  - do:
+      index:
+        index: test
+        id: "4"
+        body:
+          id: 4
+          text: "term4"
+          vector: [4.0]
+  - do:
+      index:
+        index: test
+        id: "5"
+        body:
+          id: 5
+          text: "term5"
+          text_to_highlight: "You know, for Search!"
+          keyword: "technology"
+          integer: 5
+          vector: [5.0]
+  - do:
+      index:
+        id: 6
+        index: test
+        body:
+          id: 6
+          text: "term6"
+          keyword: "biology"
+          integer: 6
+          vector: [6.0]
+  - do:
+      index:
+        index: test
+        id: "7"
+        body:
+          id: 7
+          text: "term7"
+          keyword: "astronomy"
+          vector: [77.0]
+          nested: { views: 50}
+  - do:
+      index:
+        index: test
+        id: "8"
+        body:
+          id: 8
+          text: "term8"
+          keyword: "technology"
+          nested: { views: 100}
+  - do:
+      index:
+        index: test
+        id: "9"
+        body:
+          id: 9
+          text: "term9"
+          integer: 2
+          keyword: "technology"
+          nested: { views: 10}
+  - do:
+      indices.refresh: {}
+
+---
+"rrf retriever with aggs":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrieves docs 6, 5, 4
+                  knn: {
+                    field: vector,
+                    query_vector: [ 6.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  # this one retrieves docs 4, 5, 1, 2, 6
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term4
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term5
+                                }
+                              },
+                              boost: 9.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term1
+                                }
+                              },
+                              boost: 8.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term2
+                                }
+                              },
+                              boost: 7.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term6
+                                }
+                              },
+                              boost: 6.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                exists: {
+                                  field: text
+                                }
+                              },
+                              boost: 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          aggs:
+            keyword_aggs:
+              terms:
+                field: keyword
+
+
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 0.1678, error: 0.001 } }
+  - match: { hits.hits.1._id: "5" }
+  - close_to: { hits.hits.1._score: { value: 0.1666, error: 0.001 } }
+  - match: { hits.hits.2._id: "6" }
+  - close_to: { hits.hits.2._score: { value: 0.1575, error: 0.001 } }
+
+  - match: { aggregations.keyword_aggs.buckets.0.key: "technology" }
+  - match: { aggregations.keyword_aggs.buckets.0.doc_count: 4 }
+  - match: { aggregations.keyword_aggs.buckets.1.key: "biology" }
+  - match: { aggregations.keyword_aggs.buckets.1.doc_count: 2 }
+  - match: { aggregations.keyword_aggs.buckets.2.key: "astronomy" }
+  - match: { aggregations.keyword_aggs.buckets.2.doc_count: 1 }
+
+---
+"rrf retriever with aggs - scripted metric using score":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: false
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrieves docs 6, 5, 4
+                  knn: {
+                    field: vector,
+                    query_vector: [ 6.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  # this one retrieves docs 4, 5, 1, 2, 6
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term4
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term5
+                                }
+                              },
+                              boost: 9.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term1
+                                }
+                              },
+                              boost: 8.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term2
+                                }
+                              },
+                              boost: 7.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term6
+                                }
+                              },
+                              boost: 6.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                exists: {
+                                  field: text
+                                }
+                              },
+                              boost: 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          aggs:
+            max_score:
+              max:
+                script:
+                  lang: painless
+                  source: "_score"
+
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 0.1678, error: 0.001 } }
+  - match: { hits.hits.1._id: "5" }
+  - close_to: { hits.hits.1._score: { value: 0.1666, error: 0.001 } }
+  - match: { hits.hits.2._id: "6" }
+  - close_to: { hits.hits.2._score: { value: 0.1575, error: 0.001 } }
+
+  - close_to: { aggregations.max_score.value: { value: 0.1678, error: 0.001 }}
+
+---
+"rrf retriever with top-level collapse":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrieves docs 6, 5, 4
+                  knn: {
+                    field: vector,
+                    query_vector: [ 6.0 ],
+                    k: 3,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  # this one retrieves docs 4, 5, 1, 2, 6
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term4
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term5
+                                }
+                              },
+                              boost: 9.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term1
+                                }
+                              },
+                              boost: 8.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term2
+                                }
+                              },
+                              boost: 7.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term6
+                                }
+                              },
+                              boost: 6.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                exists: {
+                                  field: text
+                                }
+                              },
+                              boost: 1
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          collapse: {
+            field: keyword,
+            inner_hits: {
+              name: sub_hits,
+              size: 2,
+              sort:
+                {
+                  id: {
+                    order: desc
+                  }
+                }
+            }
+          }
+
+  - match: { hits.total : 9 }
+
+  - match: { hits.hits.0._id: "4" }
+  - close_to: { hits.hits.0._score: { value: 0.1678, error: 0.001 } }
+  - match: { hits.hits.1._id: "5" }
+  - close_to: { hits.hits.1._score: { value: 0.1666, error: 0.001 } }
+  - match: { hits.hits.2._id: "6" }
+  - close_to: { hits.hits.2._score: { value: 0.1575, error: 0.001 } }
+
+  - length: { hits.hits.0.inner_hits.sub_hits.hits.hits : 2 }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.0._id: "4" }
+  - match: { hits.hits.0.inner_hits.sub_hits.hits.hits.1._id: "1" }
+
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.total : 4 }
+  - length: { hits.hits.1.inner_hits.sub_hits.hits.hits : 2 }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.0._id: "9" }
+  - match: { hits.hits.1.inner_hits.sub_hits.hits.hits.1._id: "8" }
+
+  - length: { hits.hits.2.inner_hits.sub_hits.hits.hits: 2 }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.0._id: "6" }
+  - match: { hits.hits.2.inner_hits.sub_hits.hits.hits.1._id: "2" }
+
+---
+"rrf retriever with inner-level collapse":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrieves docs 7, 3
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term7
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term3
+                                } },
+                              boost: 9.0
+                            }
+                          }
+                        ]
+                      }
+                    }
+                  }
+                },
+                {
+                  # this one retrieves docs 1, 2, 3, 7
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term1
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term2
+                                }
+                              },
+                              boost: 9.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term3
+                                }
+                              },
+                              boost: 8.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term4
+                                }
+                              },
+                              boost: 7.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term5
+                                }
+                              },
+                              boost: 6.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term6
+                                }
+                              },
+                              boost: 5.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term7
+                                }
+                              },
+                              boost: 4.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term8
+                                }
+                              },
+                              boost: 3.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term9
+                                }
+                              },
+                              boost: 2.0
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    collapse: { field: keyword, inner_hits: { name: sub_hits, size: 1 } }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+
+  - match: { hits.hits.0._id: "7" }
+  - close_to: { hits.hits.0._score: { value: 0.1623, error: 0.001 } }
+  - match: { hits.hits.1._id: "3" }
+  - close_to: { hits.hits.1._score: { value: 0.1602, error: 0.001 } }
+
+---
+"rrf retriever highlighting results":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  standard: {
+                    query: {
+                      match: {
+                        text_to_highlight: "search"
+                      }
+                    }
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      term: {
+                        text: term5
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          highlight: {
+            fields: {
+              "text_to_highlight": {
+                "fragment_size": 150,
+                "number_of_fragments": 3
+              }
+            }
+          }
+
+  - match: { hits.total : 2 }
+
+  - match: { hits.hits.0._id: "5" }
+  - match: { hits.hits.0.highlight.text_to_highlight.0: "You know, for <em>Search</em>!" }
+
+  - match: { hits.hits.1._id: "2" }
+  - match: { hits.hits.1.highlight.text_to_highlight.0: "<em>search</em> for the truth" }
+
+---
+"rrf retriever with custom nested sort":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrievers docs 1, 2, 3, .., 9
+                  # but due to sorting, it will revert the order to 6, 5, 9, ... which due to
+                  # rank_window_size: 2 will only return 6 and 5
+                  standard: {
+                    query: {
+                      bool: {
+                        should: [
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term1
+                                }
+                              },
+                              boost: 10.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term2
+                                }
+                              },
+                              boost: 9.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term3
+                                }
+                              },
+                              boost: 8.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term4
+                                }
+                              },
+                              boost: 7.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term5
+                                }
+                              },
+                              boost: 6.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term6
+                                }
+                              },
+                              boost: 5.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term7
+                                }
+                              },
+                              boost: 4.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term8
+                                }
+                              },
+                              boost: 3.0
+                            }
+                          },
+                          {
+                            constant_score: {
+                              filter: {
+                                term: {
+                                  text: term9
+                                }
+                              },
+                              boost: 2.0
+                            }
+                          }
+                        ]
+                      }
+                    },
+                    sort: [
+                      {
+                        integer: {
+                          order: desc
+                        }
+                      }
+                    ]
+                  }
+                },
+                {
+                  # this one retrieves doc 2 and 6
+                  standard: {
+                    query: {
+                      term: {
+                        keyword: biology
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 2
+              rank_constant: 10
+          size: 2
+
+  - match: { hits.total : 9 }
+  - length: {hits.hits: 2 }
+
+  - match: { hits.hits.0._id: "6" }
+
+---
+"rrf retriever with nested query":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  knn: {
+                    field: vector,
+                    query_vector: [ 77.0 ],
+                    k: 1,
+                    num_candidates: 3
+                  }
+                },
+                {
+                  standard: {
+                    query: {
+                      nested: {
+                        path: nested,
+                        query: {
+                          range: {
+                            nested.views: {
+                              gte: 50
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+
+  - match: { hits.total : 2 }
+  - match: { hits.hits.0._id: "7" }
+  - match: { hits.hits.1._id: "8" }
+
+---
+"rrf retriever with global min_score":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrievers docs 1 and 2
+                  knn: {
+                    field: vector,
+                    query_vector: [ 1.0 ],
+                    k: 2,
+                    num_candidates: 10
+                  }
+                },
+                {
+                  # this one retrieves docs 2 and 6
+                  standard: {
+                    query: {
+                      term: {
+                        keyword: biology
+                      }
+                    }
+                  }
+                }
+              ]
+              rank_window_size: 5
+              rank_constant: 10
+          size: 3
+          min_score: 0.1
+
+  - match: { hits.total : 1 }
+
+  - match: { hits.hits.0._id: "2" }
+
+---
+"rrf retriever with retriever-level min_score":
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        index: test
+        body:
+          track_total_hits: true
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  # this one retrieves doc 1
+                  knn: {
+                    field: vector,
+                    query_vector: [ 1.0 ],
+                    k: 10,
+                    num_candidates: 10,
+                    similarity: 0.0
+                  }
+                },
+                {
+                  # this one retrieves no docs
+                  standard: {
+                    query: {
+                      term: {
+                        keyword: biology
+                      }
+                    },
+                    min_score: 100
+                  }
+                }
+              ]
+              rank_window_size: 10
+              rank_constant: 10
+          size: 10
+
+  - length: { hits.hits : 1 }
+
+  - match: { hits.hits.0._id: "1" }

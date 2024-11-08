@@ -50,6 +50,9 @@ privilege or action.
 `cluster`:: (list) A list of cluster privileges. These privileges define the
 cluster level actions that users with this role are able to execute.
 
+`description`:: (string) A description of the role.
+The maximum length is `1000` chars.
+
 `global`:: (object) An object defining global privileges. A global privilege is
 a form of cluster privilege that is request-aware. Support for global privileges
 is currently limited to the management of application privileges.
@@ -74,7 +77,7 @@ that begin with `_` are reserved for system usage.
 For more information, see
 <<run-as-privilege>>.
 
-`remote_indices`:: beta:[] (list) A list of remote indices permissions entries.
+`remote_indices`:: (list) A list of remote indices permissions entries.
 +
 --
 NOTE: Remote indices are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
@@ -93,6 +96,17 @@ have on the specified indices.
 read access to. A document within the specified indices must match this query in
 order for it to be accessible by the owners of the role.
 
+`remote_cluster`:: (list) A list of remote cluster permissions entries.
++
+--
+NOTE: Remote cluster permissions are effective for <<remote-clusters-api-key,remote clusters configured with the API key based model>>.
+They have no effect for remote clusters configured with the <<remote-clusters-cert,certificate based model>>.
+--
+`clusters` (required)::: (list) A list of cluster aliases to which the permissions
+in this entry apply.
+`privileges`(required)::: (list) The cluster level privileges that the owners of the role
+have in the specified clusters.
+
 For more information, see <<defining-roles>>.
 
 [[security-api-put-role-example]]
@@ -104,6 +118,7 @@ The following example adds a role called `my_admin_role`:
 --------------------------------------------------
 POST /_security/role/my_admin_role
 {
+  "description": "Grants full access to all management features within the cluster.",
   "cluster": ["all"],
   "indices": [
     {

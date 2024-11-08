@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -494,12 +495,17 @@ public class GatewayServiceTests extends ESTestCase {
 
     private MasterServiceTaskQueue<SetClusterStateTask> createSetClusterStateTaskQueue(ClusterService clusterService) {
         return clusterService.createTaskQueue("set-cluster-state", Priority.NORMAL, batchExecutionContext -> {
-            ClusterState targetState = batchExecutionContext.initialState();
+            final var initialState = batchExecutionContext.initialState();
+            var targetState = initialState;
             for (var taskContext : batchExecutionContext.taskContexts()) {
                 targetState = taskContext.getTask().clusterState();
                 taskContext.success(() -> {});
             }
-            return targetState;
+            // fix up the version numbers
+            return ClusterState.builder(targetState)
+                .version(initialState.version())
+                .metadata(Metadata.builder(targetState.metadata()).version(initialState.metadata().version()))
+                .build();
         });
     }
 }

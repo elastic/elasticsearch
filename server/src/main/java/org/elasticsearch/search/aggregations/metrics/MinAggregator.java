@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.metrics;
 
@@ -84,16 +85,13 @@ public class MinAggregator extends NumericMetricsAggregator.SingleValue {
         return new LeafBucketCollectorBase(sub, allValues) {
             @Override
             public void collect(int doc, long bucket) throws IOException {
-                if (bucket >= mins.size()) {
-                    long from = mins.size();
-                    mins = bigArrays().grow(mins, bucket + 1);
-                    mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
-                }
                 if (values.advanceExact(doc)) {
-                    final double value = values.doubleValue();
-                    double min = mins.get(bucket);
-                    min = Math.min(min, value);
-                    mins.set(bucket, min);
+                    if (bucket >= mins.size()) {
+                        long from = mins.size();
+                        mins = bigArrays().grow(mins, bucket + 1);
+                        mins.fill(from, mins.size(), Double.POSITIVE_INFINITY);
+                    }
+                    mins.set(bucket, Math.min(mins.get(bucket), values.doubleValue()));
                 }
             }
 

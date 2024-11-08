@@ -35,7 +35,6 @@ import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BitUtil;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.index.codec.ForUtil;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat.IntBlockTermState;
 
 import java.io.IOException;
@@ -110,7 +109,7 @@ final class ES812PostingsWriter extends PushPostingsWriterBase {
         boolean success = false;
         try {
             CodecUtil.writeIndexHeader(docOut, DOC_CODEC, VERSION_CURRENT, state.segmentInfo.getId(), state.segmentSuffix);
-            pforUtil = new PForUtil(new ForUtil());
+            pforUtil = new PForUtil();
             if (state.fieldInfos.hasProx()) {
                 posDeltaBuffer = new long[BLOCK_SIZE];
                 String posFileName = IndexFileNames.segmentFileName(

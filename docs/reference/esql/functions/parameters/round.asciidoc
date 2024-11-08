@@ -3,7 +3,7 @@
 *Parameters*
 
 `number`::
-The numeric value to round
+The numeric value to round. If `null`, the function returns `null`.
 
 `decimals`::
-The number of decimal places to round to. Defaults to 0.
+The number of decimal places to round to. Defaults to 0. If `null`, the function returns `null`.

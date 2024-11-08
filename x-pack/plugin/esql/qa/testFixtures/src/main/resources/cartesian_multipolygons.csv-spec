@@ -6,7 +6,7 @@
 # Test against a polygon similar in size to the Bottom Left polygon
 
 whereIntersectsSinglePolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM cartesian_multipolygons
 | WHERE ST_Intersects(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"))
@@ -25,7 +25,7 @@ id:l | name:keyword            | shape:cartesian_shape
 ;
 
 whereContainsSinglePolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Contains(shape, TO_CARTESIANSHAPE("POLYGON((0.001 0.001, 0.999 0.001, 0.999 0.999, 0.001 0.999, 0.001 0.001))"))
@@ -38,7 +38,7 @@ id:l | name:keyword | shape:cartesian_shape
 ;
 
 whereWithinSinglePolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Within(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"))
@@ -52,11 +52,34 @@ id:l | name:keyword            | shape:cartesian_shape
 16   | Bottom left point       | POINT(0.5 0.5)
 ;
 
+whereDisjointSinglePolygon
+required_capability: st_disjoint
+
+FROM cartesian_multipolygons
+| WHERE ST_Disjoint(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 1 0, 1 1, 0 1, 0 0))"))
+| SORT id
+;
+
+id:l | name:keyword             | shape:cartesian_shape
+2    | Bottom right             | POLYGON((2 0, 3 0, 3 1, 2 1, 2 0))
+3    | Top right                | POLYGON((2 2, 3 2, 3 3, 2 3, 2 2))
+4    | Top left                 | POLYGON((0 2, 1 2, 1 3, 0 3, 0 2))
+7    | Bottom right with holes  | POLYGON((2 0, 3 0, 3 1, 2 1, 2 0), (2.4 0.4, 2.6 0.4, 2.6 0.6, 2.4 0.6, 2.4 0.4))
+8    | Top right with holes     | POLYGON((2 2, 3 2, 3 3, 2 3, 2 2), (2.4 2.4, 2.6 2.4, 2.6 2.6, 2.4 2.6, 2.4 2.4))
+9    | Top left with holes      | POLYGON((0 2, 1 2, 1 3, 0 3, 0 2), (0.4 2.4, 0.6 2.4, 0.6 2.6, 0.4 2.6, 0.4 2.4))
+12   | Bottom right diagonal    | LINESTRING(2 0, 3 1)
+13   | Top right diagonal       | LINESTRING(2 2, 3 3)
+14   | Top left diagonal        | LINESTRING(0 2, 1 3)
+17   | Bottom right point       | POINT(2.5 0.5)
+18   | Top right point          | POINT(2.5 2.5)
+19   | Top left point           | POINT(0.5 2.5)
+;
+
 ####################################################################################################
 # Test against a polygon smaller in size to the Bottom Left polygon
 
 whereIntersectsSmallerPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM cartesian_multipolygons
 | WHERE ST_Intersects(shape, TO_CARTESIANSHAPE("POLYGON((0.2 0.2, 0.8 0.2, 0.8 0.8, 0.2 0.8, 0.2 0.2))"))
@@ -75,7 +98,7 @@ id:l | name:keyword | shape:cartesian_shape
 ;
 
 whereContainsSmallerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Contains(shape, TO_CARTESIANSHAPE("POLYGON((0.2 0.2, 0.8 0.2, 0.8 0.8, 0.2 0.8, 0.2 0.2))"))
@@ -88,7 +111,7 @@ id:l | name:keyword | shape:cartesian_shape
 ;
 
 whereWithinSmallerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Within(shape, TO_CARTESIANSHAPE("POLYGON((0.2 0.2, 0.8 0.2, 0.8 0.8, 0.2 0.8, 0.2 0.2))"))
@@ -99,11 +122,34 @@ id:l | name:keyword | shape:cartesian_shape
 16   | Bottom left point       | POINT(0.5 0.5)
 ;
 
+whereDisjointSmallerPolygon
+required_capability: st_disjoint
+
+FROM cartesian_multipolygons
+| WHERE ST_Disjoint(shape, TO_CARTESIANSHAPE("POLYGON((0.2 0.2, 0.8 0.2, 0.8 0.8, 0.2 0.8, 0.2 0.2))"))
+| SORT id
+;
+
+id:l | name:keyword             | shape:cartesian_shape
+2    | Bottom right             | POLYGON((2 0, 3 0, 3 1, 2 1, 2 0))
+3    | Top right                | POLYGON((2 2, 3 2, 3 3, 2 3, 2 2))
+4    | Top left                 | POLYGON((0 2, 1 2, 1 3, 0 3, 0 2))
+7    | Bottom right with holes  | POLYGON((2 0, 3 0, 3 1, 2 1, 2 0), (2.4 0.4, 2.6 0.4, 2.6 0.6, 2.4 0.6, 2.4 0.4))
+8    | Top right with holes     | POLYGON((2 2, 3 2, 3 3, 2 3, 2 2), (2.4 2.4, 2.6 2.4, 2.6 2.6, 2.4 2.6, 2.4 2.4))
+9    | Top left with holes      | POLYGON((0 2, 1 2, 1 3, 0 3, 0 2), (0.4 2.4, 0.6 2.4, 0.6 2.6, 0.4 2.6, 0.4 2.4))
+12   | Bottom right diagonal    | LINESTRING(2 0, 3 1)
+13   | Top right diagonal       | LINESTRING(2 2, 3 3)
+14   | Top left diagonal        | LINESTRING(0 2, 1 3)
+17   | Bottom right point       | POINT(2.5 0.5)
+18   | Top right point          | POINT(2.5 2.5)
+19   | Top left point           | POINT(0.5 2.5);
+;
+
 ####################################################################################################
 # Test against a polygon similar in size to the entire test data
 
 whereIntersectsLargerPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM cartesian_multipolygons
 | WHERE ST_Intersects(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))"))
@@ -134,7 +180,7 @@ id:l | name:keyword            | shape:cartesian_shape
 ;
 
 whereContainsLargerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Contains(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))"))
@@ -145,7 +191,7 @@ id:l | name:keyword            | shape:cartesian_shape
 ;
 
 whereWithinLargerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Within(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))"))
@@ -175,11 +221,22 @@ id:l | name:keyword            | shape:cartesian_shape
 19   | Top left point          | POINT(0.5 2.5)
 ;
 
+whereDisjointLargerPolygon
+required_capability: st_disjoint
+
+FROM cartesian_multipolygons
+| WHERE ST_Disjoint(shape, TO_CARTESIANSHAPE("POLYGON((0 0, 3 0, 3 3, 0 3, 0 0))"))
+| SORT id
+;
+
+id:l | name:keyword            | shape:cartesian_shape
+;
+
 ####################################################################################################
 # Test against a polygon larger than all test data
 
 whereIntersectsEvenLargerPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM cartesian_multipolygons
 | WHERE ST_Intersects(shape, TO_CARTESIANSHAPE("POLYGON((-1 -1, 4 -1, 4 4, -1 4, -1 -1))"))
@@ -210,7 +267,7 @@ id:l | name:keyword            | shape:cartesian_shape
 ;
 
 whereContainsEvenLargerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Contains(shape, TO_CARTESIANSHAPE("POLYGON((-1 -1, 4 -1, 4 4, -1 4, -1 -1))"))
@@ -221,7 +278,7 @@ id:l | name:keyword            | shape:cartesian_shape
 ;
 
 whereWithinEvenLargerPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM cartesian_multipolygons
 | WHERE ST_Within(shape, TO_CARTESIANSHAPE("POLYGON((-1 -1, 4 -1, 4 4, -1 4, -1 -1))"))
@@ -249,4 +306,15 @@ id:l | name:keyword            | shape:cartesian_shape
 17   | Bottom right point      | POINT(2.5 0.5)
 18   | Top right point         | POINT(2.5 2.5)
 19   | Top left point          | POINT(0.5 2.5)
+;
+
+whereDisjointEvenLargerPolygon
+required_capability: st_disjoint
+
+FROM cartesian_multipolygons
+| WHERE ST_Disjoint(shape, TO_CARTESIANSHAPE("POLYGON((-1 -1, 4 -1, 4 4, -1 4, -1 -1))"))
+| SORT id
+;
+
+id:l | name:keyword            | shape:cartesian_shape
 ;

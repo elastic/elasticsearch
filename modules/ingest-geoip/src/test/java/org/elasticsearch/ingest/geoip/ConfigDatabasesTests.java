@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
 
 import com.maxmind.geoip2.model.CityResponse;
 
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
@@ -20,12 +20,11 @@ import org.elasticsearch.watcher.ResourceWatcherService;
 import org.junit.After;
 import org.junit.Before;
 
-import java.io.IOException;
-import java.nio.file.CopyOption;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
+import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -62,8 +61,8 @@ public class ConfigDatabasesTests extends ESTestCase {
 
     public void testDatabasesConfigDir() throws Exception {
         Path configDir = createTempDir();
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoIP2-City-Test.mmdb"), configDir.resolve("GeoIP2-City.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"));
+        copyDatabase("GeoIP2-City-Test.mmdb", configDir.resolve("GeoIP2-City.mmdb"));
+        copyDatabase("GeoLite2-City-Test.mmdb", configDir.resolve("GeoLite2-City.mmdb"));
 
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, new GeoIpCache(0));
         configDatabases.initialize(resourceWatcherService);
@@ -92,9 +91,9 @@ public class ConfigDatabasesTests extends ESTestCase {
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-Country"));
         }
 
-        CopyOption option = StandardCopyOption.REPLACE_EXISTING;
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoIP2-City-Test.mmdb"), configDir.resolve("GeoIP2-City.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"), configDir.resolve("GeoLite2-City.mmdb"), option);
+        copyDatabase("GeoIP2-City-Test.mmdb", configDir.resolve("GeoIP2-City.mmdb"));
+        copyDatabase("GeoLite2-City-Test.mmdb", configDir.resolve("GeoLite2-City.mmdb"));
+
         assertBusy(() -> {
             assertThat(configDatabases.getConfigDatabases().size(), equalTo(4));
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-ASN.mmdb");
@@ -116,7 +115,8 @@ public class ConfigDatabasesTests extends ESTestCase {
 
     public void testDatabasesUpdateExistingConfDatabase() throws Exception {
         Path configDir = createTempDir();
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City.mmdb"), configDir.resolve("GeoLite2-City.mmdb"));
+        copyDatabase("GeoLite2-City.mmdb", configDir);
+
         GeoIpCache cache = new GeoIpCache(1000); // real cache to test purging of entries upon a reload
         ConfigDatabases configDatabases = new ConfigDatabases(configDir, cache);
         configDatabases.initialize(resourceWatcherService);
@@ -126,23 +126,19 @@ public class ConfigDatabasesTests extends ESTestCase {
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Tumba"));
             assertThat(cache.count(), equalTo(1));
         }
 
-        Files.copy(
-            ConfigDatabases.class.getResourceAsStream("/GeoLite2-City-Test.mmdb"),
-            configDir.resolve("GeoLite2-City.mmdb"),
-            StandardCopyOption.REPLACE_EXISTING
-        );
+        copyDatabase("GeoLite2-City-Test.mmdb", configDir.resolve("GeoLite2-City.mmdb"));
         assertBusy(() -> {
             assertThat(configDatabases.getConfigDatabases().size(), equalTo(1));
             assertThat(cache.count(), equalTo(0));
 
             DatabaseReaderLazyLoader loader = configDatabases.getDatabase("GeoLite2-City.mmdb");
             assertThat(loader.getDatabaseType(), equalTo("GeoLite2-City"));
-            CityResponse cityResponse = loader.getCity(InetAddresses.forString("89.160.20.128"));
+            CityResponse cityResponse = loader.getResponse("89.160.20.128", GeoIpTestUtils::getCity);
             assertThat(cityResponse.getCity().getName(), equalTo("Linköping"));
             assertThat(cache.count(), equalTo(1));
         });
@@ -154,11 +150,9 @@ public class ConfigDatabasesTests extends ESTestCase {
         });
     }
 
-    private static Path prepareConfigDir() throws IOException {
+    private static Path prepareConfigDir() {
         Path dir = createTempDir();
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-ASN.mmdb"), dir.resolve("GeoLite2-ASN.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-City.mmdb"), dir.resolve("GeoLite2-City.mmdb"));
-        Files.copy(ConfigDatabases.class.getResourceAsStream("/GeoLite2-Country.mmdb"), dir.resolve("GeoLite2-Country.mmdb"));
+        copyDefaultDatabases(dir);
         return dir;
     }
 

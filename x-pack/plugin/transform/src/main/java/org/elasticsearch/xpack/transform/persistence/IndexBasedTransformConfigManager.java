@@ -509,7 +509,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
         final ExpandedIdsMatcher requiredMatches = new ExpandedIdsMatcher(idTokens, allowNoMatch);
 
         executeAsyncWithOrigin(request, foundConfigsListener.<SearchResponse>delegateFailureAndWrap((l, searchResponse) -> {
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             // important: preserve order
             Set<String> ids = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
             Set<TransformConfig> configs = Sets.newLinkedHashSetWithExpectedSize(searchResponse.getHits().getHits().length);
@@ -589,7 +589,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                     .trackTotalHitsUpTo(1)
             );
         executeAsyncWithOrigin(TransportSearchAction.TYPE, searchRequest, deleteListener.delegateFailureAndWrap((l, searchResponse) -> {
-            if (searchResponse.getHits().getTotalHits().value == 0) {
+            if (searchResponse.getHits().getTotalHits().value() == 0) {
                 listener.onFailure(
                     new ResourceNotFoundException(TransformMessages.getMessage(TransformMessages.REST_UNKNOWN_TRANSFORM, transformId))
                 );
@@ -671,7 +671,7 @@ public class IndexBasedTransformConfigManager implements TransformConfigManager 
                 ActionListener.wrap(
                     r -> listener.onResponse(SeqNoPrimaryTermAndIndex.fromIndexResponse(r)),
                     e -> listener.onFailure(
-                        new RuntimeException(
+                        new TransformStatePersistenceException(
                             TransformMessages.getMessage(TransformMessages.TRANSFORM_FAILED_TO_PERSIST_STATS, storedDoc.getId()),
                             e
                         )

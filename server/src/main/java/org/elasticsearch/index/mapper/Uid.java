@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -11,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.Numbers;
+import org.elasticsearch.common.Strings;
 
 import java.util.Arrays;
 import java.util.Base64;
@@ -112,7 +114,7 @@ public final class Uid {
     }
 
     private static BytesRef encodeUtf8Id(String id) {
-        byte[] b = new byte[1 + UnicodeUtil.maxUTF8Length(id.length())];
+        byte[] b = new byte[1 + UnicodeUtil.calcUTF16toUTF8Length(id, 0, id.length())];
         // Prepend a byte that indicates that the content is an utf8 string
         b[0] = (byte) UTF8;
         int length = UnicodeUtil.UTF16toUTF8(id, 0, id.length(), b, 1);
@@ -168,7 +170,7 @@ public final class Uid {
         } else if ((idBytes.length == length && offset == 0) == false) { // no need to copy if it's not a slice
             idBytes = Arrays.copyOfRange(idBytes, offset, offset + length);
         }
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(idBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(idBytes);
     }
 
     /** Decode an indexed id back to its original form.

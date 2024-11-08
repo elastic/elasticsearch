@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gateway;
 
@@ -19,6 +20,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -52,6 +54,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -63,7 +66,7 @@ import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.test.CorruptionUtils;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.io.IOError;
@@ -726,10 +729,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(1L)
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -797,10 +797,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(indexMetadataVersion - 1) // -1 because it's incremented in .put()
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
                                         )
                                 )
@@ -931,10 +928,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .putMapping(randomMappingMetadataOrNull())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, updatedIndexUuid)
                                         )
                                 )
@@ -943,10 +937,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .putMapping(randomMappingMetadataOrNull())
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, deletedIndexUuid)
                                         )
                                 )
@@ -990,10 +981,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         .version(randomLongBetween(0L, Long.MAX_VALUE - 1) - 1) // -1 because it's incremented in .put()
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 1).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, addedIndexUuid)
                                         )
                                 )
@@ -1040,10 +1028,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                         IndexMetadata.builder(index.getName())
                                             .putMapping(randomMappingMetadataOrNull())
                                             .settings(
-                                                Settings.builder()
-                                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                     .put(IndexMetadata.SETTING_INDEX_UUID, index.getUUID())
                                             )
                                     )
@@ -1074,10 +1059,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     IndexMetadata.builder("test-" + i)
                         .putMapping(randomMappingMetadataOrNull())
                         .settings(
-                            Settings.builder()
-                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                         )
                 );
@@ -1186,7 +1168,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1202,7 +1184,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning above threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1218,7 +1200,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1236,7 +1218,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at reduced threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1254,10 +1236,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                 IndexMetadata.builder("test")
                                     .putMapping(randomMappingMetadata())
                                     .settings(
-                                        Settings.builder()
-                                            .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                            .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                        indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                             .put(IndexMetadata.SETTING_INDEX_UUID, "test-uuid")
                                     )
                             )
@@ -1270,7 +1249,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.SeenEventExpectation(
+                    new MockLog.SeenEventExpectation(
                         "should see warning at threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1289,7 +1268,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     null,
                     clusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1302,7 +1281,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     clusterState,
                     newClusterState,
                     writer,
-                    new MockLogAppender.UnseenEventExpectation(
+                    new MockLog.UnseenEventExpectation(
                         "should not see warning below threshold",
                         PersistedClusterStateService.class.getCanonicalName(),
                         Level.WARN,
@@ -1369,10 +1348,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                                     IndexMetadata.builder("index-" + i)
                                         .putMapping(randomMappingMetadataOrNull())
                                         .settings(
-                                            Settings.builder()
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                                .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                            indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                                 .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                         )
                                 )
@@ -1439,14 +1415,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 assertThat(clusterState.metadata().version(), equalTo(version));
 
             }
+            @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)
+            BuildVersion overrideVersion = BuildVersion.fromVersionId(Version.V_8_0_0.id);
+
             NodeMetadata prevMetadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
             assertEquals(BuildVersion.current(), prevMetadata.nodeVersion());
-            PersistedClusterStateService.overrideVersion(Version.V_8_0_0, persistedClusterStateService.getDataPaths());
+            PersistedClusterStateService.overrideVersion(overrideVersion, persistedClusterStateService.getDataPaths());
             NodeMetadata metadata = PersistedClusterStateService.nodeMetadata(persistedClusterStateService.getDataPaths());
-            assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), metadata.nodeVersion());
+            assertEquals(overrideVersion, metadata.nodeVersion());
             for (Path p : persistedClusterStateService.getDataPaths()) {
                 NodeMetadata individualMetadata = PersistedClusterStateService.nodeMetadata(p);
-                assertEquals(BuildVersion.fromVersionId(Version.V_8_0_0.id()), individualMetadata.nodeVersion());
+                assertEquals(overrideVersion, individualMetadata.nodeVersion());
             }
         }
     }
@@ -1540,43 +1519,42 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                 writer.writeFullStateAndCommit(randomNonNegativeLong(), ClusterState.EMPTY_STATE);
             }
 
-            MockLogAppender mockAppender = new MockLogAppender();
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see checkindex message",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "checking cluster state integrity"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see commit message including timestamps",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from commit [*] in [*creationTime*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see user data",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
-                )
-            );
-            mockAppender.addExpectation(
-                new MockLogAppender.SeenEventExpectation(
-                    "should see segment message including timestamp",
-                    PersistedClusterStateService.class.getCanonicalName(),
-                    Level.DEBUG,
-                    "loading cluster state from segment: *timestamp=*"
-                )
-            );
+            try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see checkindex message",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "checking cluster state integrity"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see commit message including timestamps",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from commit [*] in [*creationTime*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see user data",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "cluster state commit user data: *" + PersistedClusterStateService.NODE_VERSION_KEY + "*"
+                    )
+                );
+                mockLog.addExpectation(
+                    new MockLog.SeenEventExpectation(
+                        "should see segment message including timestamp",
+                        PersistedClusterStateService.class.getCanonicalName(),
+                        Level.DEBUG,
+                        "loading cluster state from segment: *timestamp=*"
+                    )
+                );
 
-            try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
                 persistedClusterStateService.loadBestOnDiskState();
-                mockAppender.assertAllExpectationsMatched();
+                mockLog.assertAllExpectationsMatched();
             }
         }
     }
@@ -1593,10 +1571,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             IndexMetadata.builder("test-1")
                                 .putMapping(randomMappingMetadata())
                                 .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
@@ -1648,10 +1623,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                             IndexMetadata.builder("test-1")
                                 .putMapping(randomMappingMetadata())
                                 .settings(
-                                    Settings.builder()
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                        .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                        .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                    indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                         .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                                 )
                         )
@@ -1714,10 +1686,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         IndexMetadata.builder("test-" + i)
                             .putMapping(mapping1)
                             .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
@@ -1741,10 +1710,7 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                         IndexMetadata.builder("test-" + 99)
                             .putMapping(mapping2)
                             .settings(
-                                Settings.builder()
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                                    .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                                    .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+                                indexSettings(1, 0).put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
                                     .put(IndexMetadata.SETTING_INDEX_UUID, UUIDs.randomBase64UUID(random()))
                             )
                     );
@@ -1815,9 +1781,10 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
                     final Bits liveDocs = leafReaderContext.reader().getLiveDocs();
                     final IntPredicate isLiveDoc = liveDocs == null ? i -> true : liveDocs::get;
                     final DocIdSetIterator docIdSetIterator = scorer.iterator();
+                    StoredFields storedFields = leafReaderContext.reader().storedFields();
                     while (docIdSetIterator.nextDoc() != DocIdSetIterator.NO_MORE_DOCS) {
                         if (isLiveDoc.test(docIdSetIterator.docID())) {
-                            final Document document = leafReaderContext.reader().document(docIdSetIterator.docID());
+                            final Document document = storedFields.document(docIdSetIterator.docID());
                             document.add(new StringField(TYPE_FIELD_NAME, typeName, Field.Store.NO));
                             consumer.accept(document);
                         }
@@ -1880,17 +1847,17 @@ public class PersistedClusterStateServiceTests extends ESTestCase {
         ClusterState previousState,
         ClusterState clusterState,
         PersistedClusterStateService.Writer writer,
-        MockLogAppender.LoggingExpectation expectation
+        MockLog.LoggingExpectation expectation
     ) throws IOException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(expectation);
-        try (var ignored = mockAppender.capturing(PersistedClusterStateService.class)) {
+        try (var mockLog = MockLog.capture(PersistedClusterStateService.class)) {
+            mockLog.addExpectation(expectation);
+
             if (previousState == null) {
                 writer.writeFullStateAndCommit(currentTerm, clusterState);
             } else {
                 writer.writeIncrementalStateAndCommit(currentTerm, previousState, clusterState);
             }
-            mockAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

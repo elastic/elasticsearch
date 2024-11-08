@@ -9,8 +9,9 @@
 
 package org.elasticsearch.xpack.inference.external.response.cohere;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
-import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
@@ -21,12 +22,16 @@ import org.elasticsearch.xpack.inference.external.http.HttpResult;
 
 import java.io.IOException;
 
+import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
+import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownField;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.throwUnknownToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.moveToFirstToken;
 import static org.elasticsearch.xpack.inference.external.response.XContentUtils.positionParserAtTokenAfterField;
 
 public class CohereRankedResponseEntity {
+
+    private static final Logger logger = LogManager.getLogger(CohereRankedResponseEntity.class);
 
     /**
      * Parses the Cohere ranked response.
@@ -87,7 +92,7 @@ public class CohereRankedResponseEntity {
             moveToFirstToken(jsonParser);
 
             XContentParser.Token token = jsonParser.currentToken();
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, token, jsonParser);
 
             positionParserAtTokenAfterField(jsonParser, "results", FAILED_TO_FIND_FIELD_TEMPLATE); // TODO error message
 
@@ -105,9 +110,9 @@ public class CohereRankedResponseEntity {
     }
 
     private static RankedDocsResults.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        Integer index = null;
-        Float relevanceScore = null;
+        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+        int index = -1;
+        float relevanceScore = -1;
         String documentText = null;
         parser.nextToken();
         while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
@@ -125,7 +130,7 @@ public class CohereRankedResponseEntity {
                         break;
                     case "document":
                         parser.nextToken(); // move to START_OBJECT; document text is wrapped in an object
-                        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+                        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
                         do {
                             if (parser.currentToken() == XContentParser.Token.FIELD_NAME && parser.currentName().equals("text")) {
                                 parser.nextToken(); // move to VALUE_STRING
@@ -136,16 +141,25 @@ public class CohereRankedResponseEntity {
                         // parser should now be at the next FIELD_NAME or END_OBJECT
                         break;
                     default:
-                        XContentParserUtils.throwUnknownField(parser.currentName(), parser);
+                        throwUnknownField(parser.currentName(), parser);
                 }
             } else {
                 parser.nextToken();
             }
         }
-        return new RankedDocsResults.RankedDoc(String.valueOf(index), String.valueOf(relevanceScore), String.valueOf(documentText));
+
+        if (index == -1) {
+            logger.warn("Failed to find required field [index] in Cohere rerank response");
+        }
+        if (relevanceScore == -1) {
+            logger.warn("Failed to find required field [relevance_score] in Cohere rerank response");
+        }
+        // documentText may or may not be present depending on the request parameter
+
+        return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
     }
 
     private CohereRankedResponseEntity() {}
 
-    static String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere embeddings response";
+    static String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Cohere rerank response";
 }

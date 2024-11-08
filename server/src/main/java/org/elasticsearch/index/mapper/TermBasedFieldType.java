@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -18,6 +19,7 @@ import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.index.query.SearchExecutionContext;
 
 import java.util.Collection;
+import java.util.List;
 import java.util.Map;
 
 /** Base {@link MappedFieldType} implementation for a field that is indexed
@@ -45,7 +47,13 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termQueryCaseInsensitive(Object value, SearchExecutionContext context) {
         failIfNotIndexed();
-        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), indexedValueForSearch(value)));
+        final BytesRef valueForSearch = indexedValueForSearch(value);
+        // check if valueForSearch is the same as an empty string
+        // if we have a length of zero, just do a regular term query
+        if (valueForSearch.length == 0) {
+            return termQuery(value, context);
+        }
+        return AutomatonQueries.caseInsensitiveTermQuery(new Term(name(), valueForSearch));
     }
 
     @Override
@@ -62,7 +70,7 @@ public abstract class TermBasedFieldType extends SimpleMappedFieldType {
     @Override
     public Query termsQuery(Collection<?> values, SearchExecutionContext context) {
         failIfNotIndexed();
-        BytesRef[] bytesRefs = values.stream().map(this::indexedValueForSearch).toArray(BytesRef[]::new);
+        List<BytesRef> bytesRefs = values.stream().map(this::indexedValueForSearch).toList();
         return new TermInSetQuery(name(), bytesRefs);
     }
 

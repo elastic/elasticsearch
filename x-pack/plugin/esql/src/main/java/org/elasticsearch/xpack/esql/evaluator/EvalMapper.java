@@ -20,33 +20,24 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.xpack.esql.core.QlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
+import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
+import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.evaluator.mapper.ExpressionMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.ComparisonMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InMapper;
-import org.elasticsearch.xpack.esql.evaluator.predicate.operator.comparison.InsensitiveEqualsMapper;
+import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.InsensitiveEqualsMapper;
 import org.elasticsearch.xpack.esql.planner.Layout;
-import org.elasticsearch.xpack.ql.QlIllegalArgumentException;
-import org.elasticsearch.xpack.ql.expression.Attribute;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Literal;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.BinaryLogic;
-import org.elasticsearch.xpack.ql.expression.predicate.logical.Not;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNotNull;
-import org.elasticsearch.xpack.ql.expression.predicate.nulls.IsNull;
 
 import java.util.List;
 
 public final class EvalMapper {
 
     private static final List<ExpressionMapper<?>> MAPPERS = List.of(
-        ComparisonMapper.EQUALS,
-        ComparisonMapper.NOT_EQUALS,
-        ComparisonMapper.GREATER_THAN,
-        ComparisonMapper.GREATER_THAN_OR_EQUAL,
-        ComparisonMapper.LESS_THAN,
-        ComparisonMapper.LESS_THAN_OR_EQUAL,
-        InMapper.IN_MAPPER,
         new InsensitiveEqualsMapper(),
         new BooleanLogic(),
         new Nots(),
@@ -134,7 +125,7 @@ public final class EvalMapper {
                     int positionCount = lhs.getPositionCount();
                     try (var result = lhs.blockFactory().newBooleanVectorFixedBuilder(positionCount)) {
                         for (int p = 0; p < positionCount; p++) {
-                            result.appendBoolean(bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
+                            result.appendBoolean(p, bl.function().apply(lhs.getBoolean(p), rhs.getBoolean(p)));
                         }
                         return result.build().asBlock();
                     }
@@ -185,6 +176,11 @@ public final class EvalMapper {
                 public String toString() {
                     return "Attribute[channel=" + channel + "]";
                 }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
+                }
             }
             return new AttributeFactory(layout.get(attr.id()).channel());
         }
@@ -217,6 +213,11 @@ public final class EvalMapper {
                 @Override
                 public String toString() {
                     return "LiteralsEvaluator[lit=" + lit + "]";
+                }
+
+                @Override
+                public boolean eagerEvalSafeInLazy() {
+                    return true;
                 }
             }
             return new LiteralsEvaluatorFactory(lit);
@@ -271,7 +272,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p));
+                            builder.appendBoolean(p, fieldBlock.isNull(p));
                         }
                         return builder.build().asBlock();
                     }
@@ -320,7 +321,7 @@ public final class EvalMapper {
                     }
                     try (var builder = driverContext.blockFactory().newBooleanVectorFixedBuilder(page.getPositionCount())) {
                         for (int p = 0; p < page.getPositionCount(); p++) {
-                            builder.appendBoolean(fieldBlock.isNull(p) == false);
+                            builder.appendBoolean(p, fieldBlock.isNull(p) == false);
                         }
                         return builder.build().asBlock();
                     }

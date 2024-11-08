@@ -3,7 +3,7 @@
 *Parameters*
 
 `str`::
-
+String expression. If `null`, the function returns `null`.
 
 `suffix`::
-
+String expression. If `null`, the function returns `null`.

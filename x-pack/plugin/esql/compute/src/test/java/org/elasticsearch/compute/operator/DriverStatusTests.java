@@ -23,6 +23,7 @@ import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
@@ -40,7 +41,12 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
                 new DriverStatus.OperatorStatus("LuceneSource", LuceneSourceOperatorStatusTests.simple()),
                 new DriverStatus.OperatorStatus("ValuesSourceReader", ValuesSourceReaderOperatorStatusTests.simple())
             ),
-            List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple()))
+            List.of(new DriverStatus.OperatorStatus("ExchangeSink", ExchangeSinkOperatorStatusTests.simple())),
+            new DriverSleeps(
+                Map.of("driver time", 1L),
+                List.of(new DriverSleeps.Sleep("driver time", 1, 1)),
+                List.of(new DriverSleeps.Sleep("driver time", 1, 1))
+            )
         );
         assertThat(Strings.toString(status, true, true), equalTo("""
             {
@@ -72,7 +78,30 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             """.stripTrailing() + " " + ExchangeSinkOperatorStatusTests.simpleToJson().replace("\n", "\n      ") + """
 
                 }
-              ]
+              ],
+              "sleeps" : {
+                "counts" : {
+                  "driver time" : 1
+                },
+                "first" : [
+                  {
+                    "reason" : "driver time",
+                    "sleep" : "1970-01-01T00:00:00.001Z",
+                    "sleep_millis" : 1,
+                    "wake" : "1970-01-01T00:00:00.001Z",
+                    "wake_millis" : 1
+                  }
+                ],
+                "last" : [
+                  {
+                    "reason" : "driver time",
+                    "sleep" : "1970-01-01T00:00:00.001Z",
+                    "sleep_millis" : 1,
+                    "wake" : "1970-01-01T00:00:00.001Z",
+                    "wake_millis" : 1
+                  }
+                ]
+              }
             }"""));
     }
 
@@ -91,7 +120,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             randomNonNegativeLong(),
             randomStatus(),
             randomOperatorStatuses(),
-            randomOperatorStatuses()
+            randomOperatorStatuses(),
+            DriverSleepsTests.randomDriverSleeps()
         );
     }
 
@@ -127,7 +157,8 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
         var status = instance.status();
         var completedOperators = instance.completedOperators();
         var activeOperators = instance.activeOperators();
-        switch (between(0, 7)) {
+        var sleeps = instance.sleeps();
+        switch (between(0, 8)) {
             case 0 -> sessionId = randomValueOtherThan(sessionId, this::randomSessionId);
             case 1 -> started = randomValueOtherThan(started, ESTestCase::randomNonNegativeLong);
             case 2 -> lastUpdated = randomValueOtherThan(lastUpdated, ESTestCase::randomNonNegativeLong);
@@ -136,9 +167,10 @@ public class DriverStatusTests extends AbstractWireSerializingTestCase<DriverSta
             case 5 -> status = randomValueOtherThan(status, this::randomStatus);
             case 6 -> completedOperators = randomValueOtherThan(completedOperators, DriverStatusTests::randomOperatorStatuses);
             case 7 -> activeOperators = randomValueOtherThan(activeOperators, DriverStatusTests::randomOperatorStatuses);
+            case 8 -> sleeps = randomValueOtherThan(sleeps, DriverSleepsTests::randomDriverSleeps);
             default -> throw new UnsupportedOperationException();
         }
-        return new DriverStatus(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators);
+        return new DriverStatus(sessionId, started, lastUpdated, cpuNanos, iterations, status, completedOperators, activeOperators, sleeps);
     }
 
     @Override

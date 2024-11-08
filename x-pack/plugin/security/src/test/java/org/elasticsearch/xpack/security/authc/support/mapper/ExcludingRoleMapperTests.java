@@ -71,9 +71,9 @@ public class ExcludingRoleMapperTests extends ESTestCase {
     public void testRefreshRealmOnChange() {
         final UserRoleMapper delegate = mock(UserRoleMapper.class);
         final CachingRealm realm = mock(CachingRealm.class);
-        new ExcludingRoleMapper(delegate, randomSet(0, 5, () -> randomAlphaOfLengthBetween(3, 6))).refreshRealmOnChange(realm);
+        new ExcludingRoleMapper(delegate, randomSet(0, 5, () -> randomAlphaOfLengthBetween(3, 6))).clearRealmCacheOnChange(realm);
 
-        verify(delegate, times(1)).refreshRealmOnChange(same(realm));
+        verify(delegate, times(1)).clearRealmCacheOnChange(same(realm));
         verify(delegate, times(0)).resolveRoles(any(UserRoleMapper.UserData.class), anyActionListener());
     }
 

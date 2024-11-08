@@ -3,7 +3,7 @@
 #
 
 convertFromString
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 // tag::to_geoshape-str[]
 ROW wkt = "POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))"
@@ -18,7 +18,7 @@ wkt:keyword                                     | geom:geo_shape
 ;
 
 convertFromStringArray
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 row wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | eval pt = to_geoshape(wkt);
@@ -28,7 +28,7 @@ wkt:keyword                                                                     
 ;
 
 convertFromStringViaPoint
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = "POINT (30 10)"
 | EVAL point = TO_GEOPOINT(wkt)
@@ -41,7 +41,7 @@ wkt:keyword     | point:geo_point | shape:geo_shape
 
 # need to work out how to upload WKT
 simpleLoad
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 FROM countries_bbox | WHERE id == "ISL";
 
@@ -50,7 +50,7 @@ ISL|Iceland|BBOX(-24.538400, -13.499446, 66.536100, 63.390000)
 ;
 
 simpleLoadPointsAsShapes
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 FROM airports
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
@@ -80,7 +80,7 @@ CPH             |  Københavns Kommune  |  POINT(12.5683 55.6761)  |  Copenhagen
 # Tests for ST_INTERSECTS with GEO_SHAPE
 
 pointIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
@@ -93,7 +93,7 @@ HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen
 ;
 
 polygonIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM airport_city_boundaries
 | WHERE ST_INTERSECTS(city_boundary, TO_GEOSHAPE("POLYGON((109.4 18.1, 109.6 18.1, 109.6 18.3, 109.4 18.3, 109.4 18.1))"))
@@ -106,7 +106,7 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 ;
 
 pointIntersectsLiteralPolygonReversed
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM airports
 | EVAL location = TO_GEOSHAPE(location)
@@ -119,7 +119,7 @@ HOD            | Hodeidah Int'l | POINT(42.97109630194 14.7552534413725) | Yemen
 ;
 
 literalPointIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -133,7 +133,7 @@ wkt:keyword   | pt:geo_point
 ;
 
 literalPointIntersectsLiteralPolygonReversed
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -147,7 +147,7 @@ wkt:keyword   | pt:geo_point
 ;
 
 literalPointAsShapeIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -161,7 +161,7 @@ wkt:keyword   | pt:geo_shape
 ;
 
 literalPointAsShapeIntersectsLiteralPolygonReversed
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -175,7 +175,7 @@ wkt:keyword   | pt:geo_shape
 ;
 
 shapeIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM countries_bbox
 | WHERE ST_INTERSECTS(shape, TO_GEOSHAPE("POLYGON((29 -30, 31 -30, 31 -27.3, 29 -27.3, 29 -30))"))
@@ -189,7 +189,7 @@ LSO        | Lesotho      | BBOX(27.013973, 29.455554, -28.570691, -30.650527)
 ;
 
 literalPolygonIntersectsLiteralPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))", "POLYGON((20 60, 6 60, 6 66, 20 66, 20 60))"]
 | EVAL other = TO_GEOSHAPE("POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))")
@@ -204,7 +204,7 @@ wkt:keyword                                       | shape:geo_shape             
 ;
 
 literalPolygonIntersectsLiteralPolygonOneRow
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW intersects = ST_INTERSECTS(TO_GEOSHAPE("POLYGON((-20 60, -6 60, -6 66, -20 66, -20 60))"), TO_GEOSHAPE("POLYGON((-15 64, -10 64, -10 66, -15 66, -15 64))"))
 ;
@@ -214,10 +214,31 @@ true
 ;
 
 ###############################################
+# Tests for ST_DISJOINT with GEO_SHAPE
+
+polygonDisjointLiteralPolygon
+required_capability: st_disjoint
+
+// tag::st_disjoint-airport_city_boundaries[]
+FROM airport_city_boundaries
+| WHERE ST_DISJOINT(city_boundary, TO_GEOSHAPE("POLYGON((-10 -60, 120 -60, 120 60, -10 60, -10 -60))"))
+| KEEP abbrev, airport, region, city, city_location
+// end::st_disjoint-airport_city_boundaries[]
+| SORT abbrev
+| LIMIT 1
+;
+
+// tag::st_disjoint-airport_city_boundaries-result[]
+abbrev:keyword | airport:text                 | region:text        | city:keyword       | city_location:geo_point
+ACA            | General Juan N Alvarez Int'l | Acapulco de Juárez | Acapulco de Juárez | POINT (-99.8825 16.8636)
+// end::st_disjoint-airport_city_boundaries-result[]
+;
+
+###############################################
 # Tests for ST_CONTAINS and ST_WITHIN with GEO_SHAPE
 
 polygonContainsLiteralPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 // tag::st_contains-airport_city_boundaries[]
 FROM airport_city_boundaries
@@ -234,7 +255,7 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 ;
 
 polygonWithinLiteralPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 // tag::st_within-airport_city_boundaries[]
 FROM airport_city_boundaries
@@ -254,7 +275,7 @@ SYX            | Sanya Phoenix Int'l  | 天涯区       | Sanya        | POINT(1
 # Tests for Equality and casting with GEO_SHAPE
 
 geo_shapeEquals
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
@@ -267,7 +288,7 @@ wkt:keyword                              |pt:geo_shape
 ;
 
 geo_shapeNotEquals
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = ["POLYGON ((30 10, 40 40, 20 40, 10 20, 30 10))", "POINT(75.8092915005895 22.727749187571)"]
 | MV_EXPAND wkt
@@ -280,7 +301,7 @@ wkt:keyword                               |pt:geo_shape
 ;
 
 convertFromStringParseError
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 row wkt = ["POINTX(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)", "POINT(111)"]
 | mv_expand wkt
@@ -302,7 +323,7 @@ wkt:keyword                               |pt:geo_shape
 #
 
 convertCartesianShapeFromString
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 // tag::to_cartesianshape-str[]
 ROW wkt = ["POINT(4297.11 -1475.53)", "POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))"]
@@ -319,7 +340,7 @@ wkt:keyword               |geom:cartesian_shape
 ;
 
 convertCartesianFromStringArray
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 row wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | eval pt = to_cartesianshape(wkt);
@@ -329,7 +350,7 @@ wkt:keyword                                                                     
 ;
 
 convertCartesianFromStringViaPoint
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = "POINT (3010 -1010)"
 | EVAL point = TO_CARTESIANPOINT(wkt)
@@ -342,7 +363,7 @@ wkt:keyword          | point:cartesian_point | shape:cartesian_shape
 
 # need to work out how to upload WKT
 simpleCartesianShapeLoad
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 FROM countries_bbox_web | WHERE id == "ISL";
 
@@ -351,7 +372,7 @@ ISL|Iceland|BBOX(-2731602.192501422, -1502751.454502109, 1.0025136653899286E7, 9
 ;
 
 simpleLoadCartesianPointsAsShapes
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 FROM airports_web
 | WHERE abbrev == "CPH" OR abbrev == "VLC"
@@ -368,7 +389,7 @@ abbrev:keyword | name:text    | scalerank:integer | type:keyword | location:cart
 # Tests for ST_INTERSECTS with CARTESIAN_SHAPE
 
 cartesianPointIntersectsPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM airports_web
 | EVAL location = TO_CARTESIANSHAPE(location)
@@ -381,7 +402,7 @@ HOD            | Hodeidah Int'l | POINT (4783520.559160681 1661010.0197476079) |
 ;
 
 literalCartesianPointIntersectsPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POINT(1 1)", "POINT(-1 -1)", "POINT(-1 1)", "POINT(1 -1)"]
 | MV_EXPAND wkt
@@ -395,7 +416,7 @@ wkt:keyword   | pt:cartesian_shape
 ;
 
 cartesianShapeIntersectsPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 FROM countries_bbox_web
 | WHERE ST_INTERSECTS(shape, TO_CARTESIANSHAPE("POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))"))
@@ -409,7 +430,7 @@ LSO        | Lesotho      | BBOX(3007181.718244638, 3278977.271857335, -3321117.
 ;
 
 literalCartesianPolygonIntersectsPolygon
-required_feature: esql.st_intersects
+required_capability: st_intersects
 
 ROW wkt = ["POLYGON((-2000 6000, -600 6000, -600 6600, -2000 6600, -2000 6000))", "POLYGON((2000 6000, 600 6000, 600 6600, 2000 6600, 2000 6000))"]
 | MV_EXPAND wkt
@@ -423,10 +444,41 @@ wkt:keyword                                                           | shape:ca
 ;
 
 ###############################################
+# Tests for ST_DISJOINT with CARTESIAN_SHAPE
+
+cartesianPolygonDisjointLiteralPolygon
+required_capability: st_disjoint
+
+FROM countries_bbox_web
+| WHERE ST_DISJOINT(shape, TO_CARTESIANSHAPE("POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))"))
+| SORT id DESC
+| LIMIT 1
+;
+
+id:keyword | name:keyword | shape:cartesian_shape
+ZWE        | Zimbabwe     | BBOX (2809472.180051312, 3681512.6693309383, -1760356.671722378, -2561396.0054164226)
+;
+
+cartesianPolygonDisjointEmptyGeometry
+required_capability: st_disjoint
+
+FROM countries_bbox_web
+| WHERE ST_DISJOINT(shape, TO_CARTESIANSHAPE("LINESTRING()"))
+| STATS count=COUNT()
+;
+
+warning:Line 2:28: evaluation of [TO_CARTESIANSHAPE(\"LINESTRING()\")] failed, treating result as null. Only first 20 failures recorded.
+warning:Line 2:28: java.lang.IllegalArgumentException: Failed to parse WKT: expected number but found: ')'
+
+count:long
+0
+;
+
+###############################################
 # Tests for ST_CONTAINS and ST_WITHIN with CARTESIAN_SHAPE
 
 cartesianShapeContainsPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM countries_bbox_web
 | WHERE ST_CONTAINS(shape, TO_CARTESIANSHAPE("POLYGON((3100000 -3400000, 3500000 -3400000, 3500000 -3150000, 3100000 -3150000, 3100000 -3400000))"))
@@ -438,7 +490,7 @@ ZAF        | South Africa | BBOX(1834915.5679635953, 4218142.412200545, -2527908
 ;
 
 cartesianShapeWithinPolygon
-required_feature: esql.st_contains_within
+required_capability: st_contains_within
 
 FROM countries_bbox_web
 | WHERE ST_WITHIN(shape, TO_CARTESIANSHAPE("POLYGON((1800000 -2500000, 4300000 -2500000, 4300000 -6000000, 1800000 -6000000, 1800000 -2500000))"))
@@ -455,7 +507,7 @@ LSO        | Lesotho      | BBOX(3007181.718244638, 3278977.271857335, -3321117.
 # Tests for Equality and casting with CARTESIAN_SHAPE
 
 cartesianshapeEquals
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
@@ -468,7 +520,7 @@ wkt:keyword               |pt:cartesian_shape
 ;
 
 cartesianShapeNotEquals
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 ROW wkt = ["POLYGON ((3339584.72 1118889.97, 4452779.63 4865942.27, 2226389.81 4865942.27, 1113194.90 2273030.92, 3339584.72 1118889.97))", "POINT(7580.93 2272.77)"]
 | MV_EXPAND wkt
@@ -481,7 +533,7 @@ wkt:keyword              |pt:cartesian_shape
 ;
 
 convertCartesianShapeFromStringParseError
-required_feature: esql.spatial_shapes
+required_capability: spatial_shapes
 
 row wkt = ["POINTX(4297.11 -1475.53)", "POINT(7580.93 2272.77)", "POINT(111)"]
 | mv_expand wkt

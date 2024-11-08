@@ -17,7 +17,6 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 
-import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
 import static org.mockito.Mockito.mock;
 
@@ -35,7 +34,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   "index": 0,
                   "message": {
                     "role": "assistant",
-                    "content": "some content"
+                    "content": "result"
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
@@ -55,7 +54,8 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(chatCompletionResults.getResults().size(), equalTo(1));
+        assertThat(chatCompletionResults.getResults().size(), is(1));
+        assertThat(chatCompletionResults.getResults().get(0).content(), is("result"));
     }
 
     public void testFromResponse_FailsWhenChoicesFieldIsNotPresent() {
@@ -74,7 +74,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               ],
               "usage": {
                 "prompt_tokens": 46,
@@ -112,7 +112,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               },
               "usage": {
                 "prompt_tokens": 46,
@@ -153,7 +153,7 @@ public class OpenAiChatCompletionResponseEntityTests extends ESTestCase {
                   },
                   "logprobs": null,
                   "finish_reason": "stop"
-                },
+                }
               ],
               "usage": {
                 "prompt_tokens": 46,

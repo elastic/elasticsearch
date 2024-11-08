@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.timeseries;
@@ -105,7 +106,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @Override
     public InternalAggregation buildEmptyAggregation() {
-        return new InternalTimeSeries(name, new ArrayList<>(), false, metadata());
+        return new InternalTimeSeries(name, List.of(), false, metadata());
     }
 
     @Override
@@ -122,18 +123,16 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 SortedNumericDocValues docValues = numericVS.longValues(aggCtx.getLeafReaderContext());
                 dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
-                        for (int i = 0; i < docValues.docValueCount(); i++) {
-                            tsidBuilder.addLong(fieldName, docValues.nextValue());
-                        }
+                        assert docValues.docValueCount() == 1 : "Dimension field cannot be a multi-valued field";
+                        tsidBuilder.addLong(fieldName, docValues.nextValue());
                     }
                 });
             } else {
                 SortedBinaryDocValues docValues = entry.getValue().bytesValues(aggCtx.getLeafReaderContext());
                 dimensionConsumers.put(entry.getKey(), (docId, tsidBuilder) -> {
                     if (docValues.advanceExact(docId)) {
-                        for (int i = 0; i < docValues.docValueCount(); i++) {
-                            tsidBuilder.addString(fieldName, docValues.nextValue());
-                        }
+                        assert docValues.docValueCount() == 1 : "Dimension field cannot be a multi-valued field";
+                        tsidBuilder.addString(fieldName, docValues.nextValue());
                     }
                 });
             }

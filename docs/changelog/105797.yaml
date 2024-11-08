@@ -1,5 +1,0 @@
-pr: 105797
-summary: Enable retrying on 500 error response from Cohere text embedding API
-area: Machine Learning
-type: enhancement
-issues: []

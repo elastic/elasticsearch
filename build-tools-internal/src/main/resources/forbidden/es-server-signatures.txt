@@ -1,8 +1,9 @@
-# Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
-# or more contributor license agreements. Licensed under the Elastic License
-# 2.0 and the Server Side Public License, v 1; you may not use this file except
-# in compliance with, at your election, the Elastic License 2.0 or the Server
-# Side Public License, v 1.
+ # Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ # or more contributor license agreements. Licensed under the "Elastic License
+ # 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ # Public License v 1"; you may not use this file except in compliance with, at
+ # your election, the "Elastic License 2.0", the "GNU Affero General Public
+ # License v3.0 only", or the "Server Side Public License, v 1".
 
 # For third-party dependencies, please put signatures in third-party.txt instead of here.
 
@@ -57,10 +58,6 @@ java.nio.channels.FileChannel#read(java.nio.ByteBuffer, long)
 org.apache.lucene.util.Version#parseLeniently(java.lang.String)
 
 org.apache.lucene.index.NoMergePolicy#INSTANCE @ explicit use of NoMergePolicy risks forgetting to configure NoMergeScheduler; use org.elasticsearch.common.lucene.Lucene#indexWriterConfigWithNoMerging() instead.
-
-@defaultMessage Spawns a new thread which is solely under lucenes control use ThreadPool#relativeTimeInMillis instead
-org.apache.lucene.search.TimeLimitingCollector#getGlobalTimerThread()
-org.apache.lucene.search.TimeLimitingCollector#getGlobalCounter()
 
 @defaultMessage Don't interrupt threads use FutureUtils#cancel(Future<T>) instead
 java.util.concurrent.Future#cancel(boolean)

@@ -1,13 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.readiness;
 
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.discovery.MasterNotDiscoveredException;
 import org.elasticsearch.plugins.Plugin;
@@ -111,13 +112,20 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void assertMasterNode(Client client, String node) {
-        assertThat(client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName(), equalTo(node));
+        assertThat(
+            client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName(),
+            equalTo(node)
+        );
     }
 
     private void expectMasterNotFound() {
-        expectThrows(MasterNotDiscoveredException.class, clusterAdmin().prepareState().setMasterNodeTimeout("100ms"));
+        expectThrows(
+            MasterNotDiscoveredException.class,
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setMasterNodeTimeout(TimeValue.timeValueMillis(100))
+        );
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/108613")
     public void testReadinessDuringRestarts() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         writeFileSettings(testJSON);
@@ -211,10 +219,9 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         }
     }
 
-    private Tuple<CountDownLatch, AtomicLong> setupClusterStateListenerForError(String node) {
+    private CountDownLatch setupClusterStateListenerForError(String node) {
         ClusterService clusterService = internalCluster().clusterService(node);
         CountDownLatch savedClusterState = new CountDownLatch(1);
-        AtomicLong metadataVersion = new AtomicLong(-1);
         clusterService.addListener(new ClusterStateListener() {
             @Override
             public void clusterChanged(ClusterChangedEvent event) {
@@ -227,13 +234,16 @@ public class ReadinessClusterIT extends ESIntegTestCase {
                         containsString("Missing handler definition for content key [not_cluster_settings]")
                     );
                     clusterService.removeListener(this);
-                    metadataVersion.set(event.state().metadata().version());
                     savedClusterState.countDown();
                 }
             }
         });
 
-        return new Tuple<>(savedClusterState, metadataVersion);
+        // we need this after we setup the listener above, in case the node started and processed
+        // settings before we set our listener to cluster state changes.
+        causeClusterStateUpdate();
+
+        return savedClusterState;
     }
 
     private void writeFileSettings(String json) throws Exception {
@@ -265,20 +275,47 @@ public class ReadinessClusterIT extends ESIntegTestCase {
         assertMasterNode(internalCluster().nonMasterClient(), masterNode);
         var savedClusterState = setupClusterStateListenerForError(masterNode);
 
-        // we need this after we setup the listener above, in case the node started and processed
-        // settings before we set our listener to cluster state changes.
-        causeClusterStateUpdate();
-
         FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
 
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
+        boolean awaitSuccessful = savedClusterState.await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         ReadinessService s = internalCluster().getInstance(ReadinessService.class, internalCluster().getMasterName());
         assertNull(s.boundAddress());
+    }
+
+    public void testReadyAfterRestartWithBadFileSettings() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        writeFileSettings(testJSON);
+
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        String masterNode = internalCluster().startMasterOnlyNode();
+
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        assertBusy(() -> assertTrue("master node ready", internalCluster().getInstance(ReadinessService.class, masterNode).ready()));
+        assertBusy(() -> assertTrue("data node ready", internalCluster().getInstance(ReadinessService.class, dataNode).ready()));
+
+        logger.info("--> stop master node");
+        Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
+        internalCluster().stopCurrentMasterNode();
+        expectMasterNotFound();
+
+        logger.info("--> write bad file settings before restarting master node");
+        writeFileSettings(testErrorJSON);
+
+        logger.info("--> restart master node");
+        String nextMasterNode = internalCluster().startNode(Settings.builder().put(nonDataNode(masterNode())).put(masterDataPathSettings));
+
+        assertMasterNode(internalCluster().nonMasterClient(), nextMasterNode);
+
+        var savedClusterState = setupClusterStateListenerForError(nextMasterNode);
+        assertTrue(savedClusterState.await(20, TimeUnit.SECONDS));
+
+        assertTrue("master node ready on restart", internalCluster().getInstance(ReadinessService.class, nextMasterNode).ready());
     }
 
     public void testReadyWhenMissingFileSettings() throws Exception {
@@ -363,24 +400,24 @@ public class ReadinessClusterIT extends ESIntegTestCase {
     }
 
     private void causeClusterStateUpdate() {
-        PlainActionFuture.get(
-            fut -> internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
-                .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
-                    @Override
-                    public ClusterState execute(ClusterState currentState) {
-                        return ClusterState.builder(currentState).build();
-                    }
+        final var latch = new CountDownLatch(1);
+        internalCluster().getCurrentMasterNodeInstance(ClusterService.class)
+            .submitUnbatchedStateUpdateTask("poke", new ClusterStateUpdateTask() {
+                @Override
+                public ClusterState execute(ClusterState currentState) {
+                    return ClusterState.builder(currentState).build();
+                }
 
-                    @Override
-                    public void onFailure(Exception e) {
-                        assert false : e;
-                    }
+                @Override
+                public void onFailure(Exception e) {
+                    assert false : e;
+                }
 
-                    @Override
-                    public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
-                        fut.onResponse(null);
-                    }
-                })
-        );
+                @Override
+                public void clusterStateProcessed(ClusterState initialState, ClusterState newState) {
+                    latch.countDown();
+                }
+            });
+        safeAwait(latch);
     }
 }

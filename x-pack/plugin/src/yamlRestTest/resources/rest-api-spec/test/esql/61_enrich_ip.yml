@@ -1,9 +1,9 @@
 ---
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
   - do:
       indices.create:
         index: networks
@@ -133,8 +133,8 @@ teardown:
 
 ---
 "IP text fields":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "ENRICH support for TEXT fields was added in 8.14.0"
 
   - do:
@@ -161,8 +161,8 @@ teardown:
 
 ---
 "Invalid IP strings":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IP range ENRICH support was added in 8.14.0"
 
   - do:
@@ -173,8 +173,8 @@ teardown:
 
 ---
 "IP":
-  - skip:
-      version: " - 8.13.99"
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
       reason: "IP range ENRICH support was added in 8.14.0"
 
   - do:

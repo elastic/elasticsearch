@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.time;
@@ -18,17 +19,22 @@ import java.time.temporal.IsoFields;
 import java.time.temporal.TemporalAccessor;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Objects;
 import java.util.function.UnaryOperator;
+
+import static java.util.Map.entry;
 
 class JavaDateFormatter implements DateFormatter {
     @SuppressWarnings("unchecked")
     private static <T extends DateTimeParser> T defaultRoundUp(T parser) {
         if (parser instanceof JavaTimeDateTimeParser jtp) {
             return (T) defaultRoundUp(jtp);
+        }
+        if (parser instanceof Iso8601DateTimeParser iso) {
+            return (T) defaultRoundUp(iso);
         }
         throw new IllegalArgumentException("Unknown parser implementation " + parser.getClass());
     }
@@ -76,6 +82,19 @@ class JavaDateFormatter implements DateFormatter {
         builder.parseDefaulting(ChronoField.NANO_OF_SECOND, 999_999_999L);
 
         return new JavaTimeDateTimeParser(builder.toFormatter(parser.getLocale()));
+    }
+
+    private static Iso8601DateTimeParser defaultRoundUp(Iso8601DateTimeParser parser) {
+        return parser.withDefaults(
+            Map.ofEntries(
+                entry(ChronoField.MONTH_OF_YEAR, 1),
+                entry(ChronoField.DAY_OF_MONTH, 1),
+                entry(ChronoField.HOUR_OF_DAY, 23),
+                entry(ChronoField.MINUTE_OF_HOUR, 59),
+                entry(ChronoField.SECOND_OF_MINUTE, 59),
+                entry(ChronoField.NANO_OF_SECOND, 999_999_999)
+            )
+        );
     }
 
     private final String format;
@@ -130,19 +149,24 @@ class JavaDateFormatter implements DateFormatter {
         assert formatters.isEmpty() == false;
 
         DateTimePrinter printer = null;
-        List<DateTimeParser> parsers = new ArrayList<>(formatters.size());
-        List<DateTimeParser> roundUpParsers = new ArrayList<>(formatters.size());
+        List<DateTimeParser[]> parsers = new ArrayList<>(formatters.size());
+        List<DateTimeParser[]> roundUpParsers = new ArrayList<>(formatters.size());
 
         for (DateFormatter formatter : formatters) {
             JavaDateFormatter javaDateFormatter = (JavaDateFormatter) formatter;
             if (printer == null) {
                 printer = javaDateFormatter.printer;
             }
-            Collections.addAll(parsers, javaDateFormatter.parsers);
-            Collections.addAll(roundUpParsers, javaDateFormatter.roundupParsers);
+            parsers.add(javaDateFormatter.parsers);
+            roundUpParsers.add(javaDateFormatter.roundupParsers);
         }
 
-        return new JavaDateFormatter(input, printer, roundUpParsers.toArray(DateTimeParser[]::new), parsers.toArray(DateTimeParser[]::new));
+        return new JavaDateFormatter(
+            input,
+            printer,
+            roundUpParsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new),
+            parsers.stream().flatMap(Arrays::stream).toArray(DateTimeParser[]::new)
+        );
     }
 
     private JavaDateFormatter(String format, DateTimePrinter printer, DateTimeParser[] roundupParsers, DateTimeParser[] parsers) {
@@ -187,13 +211,15 @@ class JavaDateFormatter implements DateFormatter {
      */
     private static TemporalAccessor doParse(String input, DateTimeParser[] parsers) {
         if (parsers.length > 1) {
-            for (DateTimeParser formatter : parsers) {
-                var result = formatter.tryParse(input);
-                if (result.isPresent()) {
-                    return result.get();
+            int earliestError = Integer.MAX_VALUE;
+            for (DateTimeParser parser : parsers) {
+                ParseResult result = parser.tryParse(input);
+                if (result.result() != null) {
+                    return result.result();
                 }
+                earliestError = Math.min(earliestError, result.errorIndex());
             }
-            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, 0);
+            throw new DateTimeParseException("Failed to parse with all enclosed parsers", input, earliestError);
         }
         return parsers[0].parse(input);
     }

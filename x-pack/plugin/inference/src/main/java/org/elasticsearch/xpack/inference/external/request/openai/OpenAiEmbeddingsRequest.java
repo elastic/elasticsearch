@@ -24,7 +24,6 @@ import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.external.request.RequestUtils.buildUri;
 import static org.elasticsearch.xpack.inference.external.request.RequestUtils.createAuthBearerHeader;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.createOrgHeader;
 
@@ -33,24 +32,17 @@ public class OpenAiEmbeddingsRequest implements OpenAiRequest {
     private final Truncator truncator;
     private final OpenAiAccount account;
     private final Truncator.TruncationResult truncationResult;
-    private final URI uri;
     private final OpenAiEmbeddingsModel model;
 
-    public OpenAiEmbeddingsRequest(
-        Truncator truncator,
-        OpenAiAccount account,
-        Truncator.TruncationResult input,
-        OpenAiEmbeddingsModel model
-    ) {
+    public OpenAiEmbeddingsRequest(Truncator truncator, Truncator.TruncationResult input, OpenAiEmbeddingsModel model) {
         this.truncator = Objects.requireNonNull(truncator);
-        this.account = Objects.requireNonNull(account);
+        this.account = OpenAiAccount.of(model, OpenAiEmbeddingsRequest::buildDefaultUri);
         this.truncationResult = Objects.requireNonNull(input);
-        this.uri = buildUri(this.account.url(), "OpenAI", OpenAiEmbeddingsRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
     }
 
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(uri);
+        HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
@@ -83,14 +75,14 @@ public class OpenAiEmbeddingsRequest implements OpenAiRequest {
 
     @Override
     public URI getURI() {
-        return uri;
+        return account.uri();
     }
 
     @Override
     public Request truncate() {
         var truncatedInput = truncator.truncate(truncationResult.input());
 
-        return new OpenAiEmbeddingsRequest(truncator, account, truncatedInput, model);
+        return new OpenAiEmbeddingsRequest(truncator, truncatedInput, model);
     }
 
     @Override
@@ -98,8 +90,7 @@ public class OpenAiEmbeddingsRequest implements OpenAiRequest {
         return truncationResult.truncated().clone();
     }
 
-    // default for testing
-    static URI buildDefaultUri() throws URISyntaxException {
+    public static URI buildDefaultUri() throws URISyntaxException {
         return new URIBuilder().setScheme("https")
             .setHost(OpenAiUtils.HOST)
             .setPathSegments(OpenAiUtils.VERSION_1, OpenAiUtils.EMBEDDINGS_PATH)

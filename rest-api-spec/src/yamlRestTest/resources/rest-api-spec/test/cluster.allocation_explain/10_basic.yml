@@ -50,7 +50,7 @@
 ---
 "Cluster shard allocation explanation test with a closed index":
   - requires:
-      cluster_features: ["indices_replicate_closed"]
+      cluster_features: ["gte_v7.2.0"]
       reason: closed indices are replicated starting version 7.2.0
       test_runner_features: ["allowed_warnings"]
 
@@ -96,7 +96,7 @@
 ---
 "Cluster allocation explanation response includes node's roles":
   - requires:
-      cluster_features: ["cluster_allocation_role"]
+      cluster_features: ["gte_v8.11.0"]
       reason: The roles field was introduced in 8.11.0
 
   - do:

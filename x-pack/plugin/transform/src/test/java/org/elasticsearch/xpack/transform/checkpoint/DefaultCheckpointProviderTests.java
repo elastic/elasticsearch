@@ -28,10 +28,11 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
-import org.elasticsearch.test.MockLogAppender.LoggingExpectation;
+import org.elasticsearch.test.MockLog;
+import org.elasticsearch.test.MockLog.LoggingExpectation;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ActionNotFoundTransportException;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.xpack.core.transform.action.GetCheckpointAction;
 import org.elasticsearch.xpack.core.transform.transforms.SourceConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -103,7 +104,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "warn when source is empty",
                 checkpointProviderLogger.getName(),
                 Level.WARN,
@@ -121,7 +122,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.UnseenEventExpectation(
+            new MockLog.UnseenEventExpectation(
                 "do not warn if empty again",
                 checkpointProviderLogger.getName(),
                 Level.WARN,
@@ -145,7 +146,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         DefaultCheckpointProvider provider = newCheckpointProvider(transformConfig);
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -163,7 +164,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         );
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -180,7 +181,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
             }
         );
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -213,7 +214,7 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         }
 
         assertExpectation(
-            new MockLogAppender.SeenEventExpectation(
+            new MockLog.SeenEventExpectation(
                 "info about adds/removal",
                 checkpointProviderLogger.getName(),
                 Level.DEBUG,
@@ -358,13 +359,18 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response checkpointResponse = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 1L, 2L, 3L }));
         doAnswer(withResponse(checkpointResponse)).when(client).execute(eq(GetCheckpointAction.INSTANCE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -401,18 +407,25 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         String transformId = getTestName();
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfig(transformId);
 
+        doAnswer(withMockConnection()).when(remoteClient1).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient2).getConnection(any(), any());
+        doAnswer(withMockConnection()).when(remoteClient3).getConnection(any(), any());
+
         GetCheckpointAction.Response remoteCheckpointResponse1 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 1L, 2L, 3L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse1)).when(remoteClient1).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse1)).when(remoteClient1)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse2 = new GetCheckpointAction.Response(
             Map.of("index-1", new long[] { 4L, 5L, 6L, 7L, 8L })
         );
-        doAnswer(withResponse(remoteCheckpointResponse2)).when(remoteClient2).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse2)).when(remoteClient2)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         GetCheckpointAction.Response remoteCheckpointResponse3 = new GetCheckpointAction.Response(Map.of("index-1", new long[] { 9L }));
-        doAnswer(withResponse(remoteCheckpointResponse3)).when(remoteClient3).execute(eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
+        doAnswer(withRemoteResponse(remoteCheckpointResponse3)).when(remoteClient3)
+            .execute(any(), eq(GetCheckpointAction.REMOTE_TYPE), any(), any());
 
         RemoteClusterResolver remoteClusterResolver = mock(RemoteClusterResolver.class);
 
@@ -462,23 +475,17 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
     }
 
     private void assertExpectation(LoggingExpectation loggingExpectation, AuditExpectation auditExpectation, Runnable codeBlock) {
-        MockLogAppender mockLogAppender = new MockLogAppender();
-        mockLogAppender.start();
-
         Loggers.setLevel(checkpointProviderLogger, Level.DEBUG);
-        mockLogAppender.addExpectation(loggingExpectation);
 
         // always start fresh
         transformAuditor.reset();
         transformAuditor.addExpectation(auditExpectation);
-        try {
-            Loggers.addAppender(checkpointProviderLogger, mockLogAppender);
+
+        try (var mockLog = MockLog.capture(checkpointProviderLogger.getName())) {
+            mockLog.addExpectation(loggingExpectation);
             codeBlock.run();
-            mockLogAppender.assertAllExpectationsMatched();
+            mockLog.assertAllExpectationsMatched();
             transformAuditor.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(checkpointProviderLogger, mockLogAppender);
-            mockLogAppender.stop();
         }
     }
 
@@ -486,6 +493,22 @@ public class DefaultCheckpointProviderTests extends ESTestCase {
         return invocationOnMock -> {
             ActionListener<Response> listener = invocationOnMock.getArgument(2);
             listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static <Response> Answer<Response> withRemoteResponse(Response response) {
+        return invocationOnMock -> {
+            ActionListener<Response> listener = invocationOnMock.getArgument(3);
+            listener.onResponse(response);
+            return null;
+        };
+    }
+
+    private static Answer<Void> withMockConnection() {
+        return invocationOnMock -> {
+            ActionListener<Transport.Connection> listener = invocationOnMock.getArgument(1);
+            listener.onResponse(mock(Transport.Connection.class));
             return null;
         };
     }

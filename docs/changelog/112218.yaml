@@ -1,0 +1,9 @@
+pr: 112218
+summary: "ESQL: Fix a bug in `MV_PERCENTILE`"
+area: ES|QL
+type: bug
+issues:
+ - 112193
+ - 112180
+ - 112187
+ - 112188

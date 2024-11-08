@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.store;
@@ -25,7 +26,6 @@ import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -41,6 +41,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.indices.cluster.IndicesClusterStateService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportChannel;
@@ -82,6 +84,7 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
     private final ClusterService clusterService;
     private final TransportService transportService;
     private final ThreadPool threadPool;
+    private final IndicesClusterStateService indicesClusterStateService;
 
     // Cache successful shard deletion checks to prevent unnecessary file system lookups
     private final Set<ShardId> folderNotFoundCache = new HashSet<>();
@@ -94,13 +97,15 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
         IndicesService indicesService,
         ClusterService clusterService,
         TransportService transportService,
-        ThreadPool threadPool
+        ThreadPool threadPool,
+        IndicesClusterStateService indicesClusterStateService
     ) {
         this.settings = settings;
         this.indicesService = indicesService;
         this.clusterService = clusterService;
         this.transportService = transportService;
         this.threadPool = threadPool;
+        this.indicesClusterStateService = indicesClusterStateService;
         transportService.registerRequestHandler(
             ACTION_SHARD_EXISTS,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
@@ -169,7 +174,9 @@ public final class IndicesStore implements ClusterStateListener, Closeable {
                     );
                     switch (shardDeletionCheckResult) {
                         case FOLDER_FOUND_CAN_DELETE:
-                            deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable);
+                            indicesClusterStateService.onClusterStateShardsClosed(
+                                () -> deleteShardIfExistElseWhere(event.state(), indexShardRoutingTable)
+                            );
                             break;
                         case NO_FOLDER_FOUND:
                             folderNotFoundCache.add(shardId);

@@ -1,6 +1,6 @@
 setup:
-  - skip:
-      version: ' - 8.13.99'
+  - requires:
+      cluster_features: "gte_v8.14.0"
       reason: 'check of preTags and postTags params for empty values was added in 8.14'
 
   - do:

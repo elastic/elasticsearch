@@ -4,7 +4,7 @@
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-v | result
+field | result
 date_period | date_period
 double | double
 integer | integer

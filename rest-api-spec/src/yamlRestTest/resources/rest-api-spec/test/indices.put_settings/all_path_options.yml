@@ -79,25 +79,6 @@ setup:
   - is_false: foo.settings.index.refresh_interval
 
 ---
-"put settings in list of indices":
-  - skip:
-      version: "all"
-      reason:  list of indices not implemented yet
-  - do:
-      indices.put_settings:
-        index: test_index1, test_index2
-        body:
-          refresh_interval: 10s
-
-  - do:
-      indices.get_settings: {}
-
-  - match: {test_index1.settings.index.refresh_interval:     10s}
-  - match: {test_index2.settings.index.refresh_interval:     10s}
-  - is_false: foo.settings.index.refresh_interval
-
-
----
 "put settings in blank index":
   - do:
       indices.put_settings:

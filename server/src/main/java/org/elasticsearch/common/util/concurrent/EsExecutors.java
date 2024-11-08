@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.util.concurrent;
@@ -33,6 +34,9 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
+/**
+ * A collection of static methods to help create different ES Executor types.
+ */
 public class EsExecutors {
 
     // although the available processors may technically change, for node sizing we use the number available at launch
@@ -100,22 +104,63 @@ public class EsExecutors {
         TimeUnit unit,
         boolean rejectAfterShutdown,
         ThreadFactory threadFactory,
-        ThreadContext contextHolder
+        ThreadContext contextHolder,
+        TaskTrackingConfig config
     ) {
         ExecutorScalingQueue<Runnable> queue = new ExecutorScalingQueue<>();
-        EsThreadPoolExecutor executor = new EsThreadPoolExecutor(
+        EsThreadPoolExecutor executor;
+        if (config.trackExecutionTime()) {
+            executor = new TaskExecutionTimeTrackingEsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                TimedRunnable::new,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder,
+                config
+            );
+        } else {
+            executor = new EsThreadPoolExecutor(
+                name,
+                min,
+                max,
+                keepAliveTime,
+                unit,
+                queue,
+                threadFactory,
+                new ForceQueuePolicy(rejectAfterShutdown),
+                contextHolder
+            );
+        }
+        queue.executor = executor;
+        return executor;
+    }
+
+    public static EsThreadPoolExecutor newScaling(
+        String name,
+        int min,
+        int max,
+        long keepAliveTime,
+        TimeUnit unit,
+        boolean rejectAfterShutdown,
+        ThreadFactory threadFactory,
+        ThreadContext contextHolder
+    ) {
+        return newScaling(
             name,
             min,
             max,
             keepAliveTime,
             unit,
-            queue,
+            rejectAfterShutdown,
             threadFactory,
-            new ForceQueuePolicy(rejectAfterShutdown),
-            contextHolder
+            contextHolder,
+            TaskTrackingConfig.DO_NOT_TRACK
         );
-        queue.executor = executor;
-        return executor;
     }
 
     public static EsThreadPoolExecutor newFixed(
@@ -263,17 +308,43 @@ public class EsExecutors {
         return "elasticsearch" + (nodeName.isEmpty() ? "" : "[") + nodeName + (nodeName.isEmpty() ? "" : "]") + "[" + namePrefix + "]";
     }
 
+    public static String executorName(String threadName) {
+        // subtract 2 to avoid the `]` of the thread number part.
+        int executorNameEnd = threadName.lastIndexOf(']', threadName.length() - 2);
+        int executorNameStart = threadName.lastIndexOf('[', executorNameEnd);
+        if (executorNameStart == -1
+            || executorNameEnd - executorNameStart <= 1
+            || threadName.startsWith("TEST-")
+            || threadName.startsWith("LuceneTestCase")) {
+            return null;
+        }
+        return threadName.substring(executorNameStart + 1, executorNameEnd);
+    }
+
+    public static String executorName(Thread thread) {
+        return executorName(thread.getName());
+    }
+
     public static ThreadFactory daemonThreadFactory(Settings settings, String namePrefix) {
-        return daemonThreadFactory(threadName(settings, namePrefix));
+        return createDaemonThreadFactory(threadName(settings, namePrefix), false);
     }
 
     public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix) {
-        assert nodeName != null && false == nodeName.isEmpty();
-        return daemonThreadFactory(threadName(nodeName, namePrefix));
+        return daemonThreadFactory(nodeName, namePrefix, false);
     }
 
-    public static ThreadFactory daemonThreadFactory(String namePrefix) {
-        return new EsThreadFactory(namePrefix);
+    public static ThreadFactory daemonThreadFactory(String nodeName, String namePrefix, boolean isSystemThread) {
+        assert nodeName != null && false == nodeName.isEmpty();
+        return createDaemonThreadFactory(threadName(nodeName, namePrefix), isSystemThread);
+    }
+
+    public static ThreadFactory daemonThreadFactory(String name) {
+        assert name != null && name.isEmpty() == false;
+        return createDaemonThreadFactory(name, false);
+    }
+
+    private static ThreadFactory createDaemonThreadFactory(String namePrefix, boolean isSystemThread) {
+        return new EsThreadFactory(namePrefix, isSystemThread);
     }
 
     static class EsThreadFactory implements ThreadFactory {
@@ -281,22 +352,36 @@ public class EsExecutors {
         final ThreadGroup group;
         final AtomicInteger threadNumber = new AtomicInteger(1);
         final String namePrefix;
+        final boolean isSystem;
 
-        EsThreadFactory(String namePrefix) {
+        EsThreadFactory(String namePrefix, boolean isSystem) {
             this.namePrefix = namePrefix;
             SecurityManager s = System.getSecurityManager();
             group = (s != null) ? s.getThreadGroup() : Thread.currentThread().getThreadGroup();
+            this.isSystem = isSystem;
         }
 
         @Override
         public Thread newThread(Runnable r) {
             return AccessController.doPrivileged((PrivilegedAction<Thread>) () -> {
-                Thread t = new Thread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0);
+                Thread t = new EsThread(group, r, namePrefix + "[T#" + threadNumber.getAndIncrement() + "]", 0, isSystem);
                 t.setDaemon(true);
                 return t;
             });
         }
+    }
 
+    public static class EsThread extends Thread {
+        private final boolean isSystem;
+
+        EsThread(ThreadGroup group, Runnable target, String name, long stackSize, boolean isSystem) {
+            super(group, target, name, stackSize);
+            this.isSystem = isSystem;
+        }
+
+        public boolean isSystem() {
+            return isSystem;
+        }
     }
 
     /**

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -18,6 +19,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.EMPTY_VERSION;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.NO_VERSION;
+import static org.elasticsearch.cluster.metadata.ReservedStateMetadata.RESTORED_VERSION;
 import static org.elasticsearch.core.Strings.format;
 
 /**
@@ -47,17 +51,19 @@ public class ReservedStateErrorTask implements ClusterStateTaskListener {
     }
 
     // package private for testing
-    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion) {
+    static boolean isNewError(ReservedStateMetadata existingMetadata, Long newStateVersion, ReservedStateVersionCheck versionCheck) {
         return (existingMetadata == null
             || existingMetadata.errorMetadata() == null
-            || newStateVersion <= 0 // version will be -1 when we can't even parse the file, it might be 0 on snapshot restore
-            || existingMetadata.errorMetadata().version() < newStateVersion);
+            || versionCheck.test(existingMetadata.errorMetadata().version(), newStateVersion)
+            || newStateVersion.equals(RESTORED_VERSION)
+            || newStateVersion.equals(EMPTY_VERSION)
+            || newStateVersion.equals(NO_VERSION));
     }
 
     static boolean checkErrorVersion(ClusterState currentState, ErrorState errorState) {
         ReservedStateMetadata existingMetadata = currentState.metadata().reservedStateMetadata().get(errorState.namespace());
         // check for noop here
-        if (isNewError(existingMetadata, errorState.version()) == false) {
+        if (isNewError(existingMetadata, errorState.version(), errorState.versionCheck()) == false) {
             logger.info(
                 () -> format(
                     "Not updating error state because version [%s] is less or equal to the last state error version [%s]",

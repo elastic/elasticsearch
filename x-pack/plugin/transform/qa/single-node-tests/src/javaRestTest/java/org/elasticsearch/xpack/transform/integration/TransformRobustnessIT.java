@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.transform.integration;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.transform.TransformField;
 import org.elasticsearch.xpack.core.transform.transforms.persistence.TransformInternalIndexConstants;
 
@@ -19,6 +18,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.core.Strings.format;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
@@ -86,23 +86,121 @@ public class TransformRobustnessIT extends TransformRestTestCase {
         deleteTransform(transformId);
     }
 
-    public void testCreateAndDeleteTransformInALoop() throws IOException {
+    public void testBatchTransformLifecycltInALoop() throws IOException {
         createReviewsIndex();
 
-        String transformId = "test_create_and_delete_in_a_loop";
+        String transformId = "test_batch_lifecycle_in_a_loop";
         String destIndex = transformId + "-dest";
         for (int i = 0; i < 100; ++i) {
             try {
                 // Create the batch transform
                 createPivotReviewsTransform(transformId, destIndex, null);
+                assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
                 // Wait until the transform finishes
                 startAndWaitForTransform(transformId, destIndex);
+
                 // After the transform finishes, there should be no transform task left
                 assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
                 // Delete the transform
                 deleteTransform(transformId);
             } catch (AssertionError | Exception e) {
-                fail("Failure at iteration " + i + ": " + e.getMessage());
+                throw new AssertionError(format("Failure at iteration %d: %s", i, e.getMessage()), e);
+            }
+        }
+    }
+
+    public void testInterruptedBatchTransformLifecycltInALoop() throws IOException {
+        createReviewsIndex();
+
+        String transformId = "test_interrupted_batch_lifecycle_in_a_loop";
+        String destIndex = transformId + "-dest";
+        for (int i = 0; i < 100; ++i) {
+            long sleepAfterStartMillis = randomLongBetween(0, 1_000);
+            boolean force = randomBoolean();
+            try {
+                // Create the batch transform.
+                createPivotReviewsTransform(transformId, destIndex, null);
+                assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
+                startTransform(transformId);
+                // There is 1 transform task after start.
+                assertThat(getTransformTasks(), hasSize(1));
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+
+                Thread.sleep(sleepAfterStartMillis);
+
+                // Stop the transform with force set randomly.
+                stopTransform(transformId, force);
+                // After the transform is stopped, there should be no transform task left.
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
+                // Delete the transform.
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                throw new AssertionError(
+                    format("Failure at iteration %d (sleepAfterStart=%sms,force=%s): %s", i, sleepAfterStartMillis, force, e.getMessage()),
+                    e
+                );
+            }
+        }
+    }
+
+    public void testContinuousTransformLifecycleInALoop() throws Exception {
+        createReviewsIndex();
+
+        String transformId = "test_cont_lifecycle_in_a_loop";
+        String destIndex = transformId + "-dest";
+        for (int i = 0; i < 100; ++i) {
+            long sleepAfterStartMillis = randomLongBetween(0, 5_000);
+            boolean force = randomBoolean();
+            try {
+                // Create the continuous transform.
+                createContinuousPivotReviewsTransform(transformId, destIndex, null);
+                assertThat(getTransformTasks(), is(empty()));
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
+                startTransform(transformId);
+                // There is 1 transform task after start.
+                assertThat(getTransformTasks(), hasSize(1));
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+
+                Thread.sleep(sleepAfterStartMillis);
+                // There should still be 1 transform task as the transform is continuous.
+                assertThat(getTransformTasks(), hasSize(1));
+                assertThat(getTransformTasksFromClusterState(transformId), hasSize(1));
+
+                // Stop the transform with force set randomly.
+                stopTransform(transformId, force);
+                if (force) {
+                    // If the "force" has been used, then the persistent task is removed from the cluster state but the local task can still
+                    // be seen by the PersistentTasksNodeService. We need to wait until PersistentTasksNodeService reconciles the state.
+                    assertBusy(() -> assertThat(getTransformTasks(), is(empty())));
+                } else {
+                    // If the "force" hasn't been used then we can expect the local task to be already gone.
+                    assertThat(getTransformTasks(), is(empty()));
+                }
+                assertThat(getTransformTasksFromClusterState(transformId), is(empty()));
+
+                // Delete the transform.
+                deleteTransform(transformId);
+            } catch (AssertionError | Exception e) {
+                throw new AssertionError(
+                    format("Failure at iteration %d (sleepAfterStart=%sms,force=%s): %s", i, sleepAfterStartMillis, force, e.getMessage()),
+                    e
+                );
             }
         }
     }
@@ -162,7 +260,7 @@ public class TransformRobustnessIT extends TransformRestTestCase {
     }
 
     private static String createConfig(String sourceIndex, String destIndex) {
-        return Strings.format("""
+        return format("""
             {
               "source": {
                 "index": "%s"

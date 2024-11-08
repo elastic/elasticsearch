@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -177,14 +178,15 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
     public static SnapshotInfo inProgress(SnapshotsInProgress.Entry entry) {
         int successfulShards = 0;
         List<SnapshotShardFailure> shardFailures = new ArrayList<>();
-        for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardsByRepoShardId().entrySet()) {
+        for (Map.Entry<RepositoryShardId, SnapshotsInProgress.ShardSnapshotStatus> c : entry.shardSnapshotStatusByRepoShardId()
+            .entrySet()) {
             if (c.getValue().state() == SnapshotsInProgress.ShardState.SUCCESS) {
                 successfulShards++;
             } else if (c.getValue().state().failed() && c.getValue().state().completed()) {
                 shardFailures.add(new SnapshotShardFailure(c.getValue().nodeId(), entry.shardId(c.getKey()), c.getValue().reason()));
             }
         }
-        int totalShards = entry.shardsByRepoShardId().size();
+        int totalShards = entry.shardSnapshotStatusByRepoShardId().size();
         return new SnapshotInfo(
             entry.snapshot(),
             List.copyOf(entry.indices().keySet()),
@@ -567,7 +569,7 @@ public final class SnapshotInfo implements Comparable<SnapshotInfo>, ToXContentF
 
         if (version != null) {
             builder.field(VERSION_ID, version.id());
-            builder.field(VERSION, version.toString());
+            builder.field(VERSION, version.toReleaseVersion());
         }
 
         if (params.paramAsBoolean(INDEX_NAMES_XCONTENT_PARAM, true)) {

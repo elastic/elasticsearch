@@ -12,6 +12,7 @@ import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.ElasticsearchRoleRestrictionException;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.AliasesRequest;
@@ -84,6 +85,7 @@ import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeRes
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.NamedClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.Privilege;
+import org.elasticsearch.xpack.core.security.support.Automatons;
 import org.elasticsearch.xpack.core.security.support.StringMatcher;
 import org.elasticsearch.xpack.core.sql.SqlAsyncActionNames;
 import org.elasticsearch.xpack.security.action.user.TransportChangePasswordAction;
@@ -549,7 +551,7 @@ public class RBACEngine implements AuthorizationEngine {
                 Automaton existingPermissions = permissionMap.computeIfAbsent(entry.getKey(), role::allowedActionsMatcher);
                 for (String alias : entry.getValue()) {
                     Automaton newNamePermissions = permissionMap.computeIfAbsent(alias, role::allowedActionsMatcher);
-                    if (Operations.subsetOf(newNamePermissions, existingPermissions) == false) {
+                    if (Automatons.subsetOf(newNamePermissions, existingPermissions) == false) {
                         listener.onResponse(AuthorizationResult.deny());
                         return;
                     }
@@ -726,12 +728,13 @@ public class RBACEngine implements AuthorizationEngine {
     @Override
     public void getRoleDescriptorsIntersectionForRemoteCluster(
         final String remoteClusterAlias,
+        final TransportVersion remoteClusterVersion,
         final AuthorizationInfo authorizationInfo,
         final ActionListener<RoleDescriptorsIntersection> listener
     ) {
         if (authorizationInfo instanceof RBACAuthorizationInfo rbacAuthzInfo) {
             final Role role = rbacAuthzInfo.getRole();
-            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias));
+            listener.onResponse(role.getRoleDescriptorsIntersectionForRemoteCluster(remoteClusterAlias, remoteClusterVersion));
         } else {
             listener.onFailure(
                 new IllegalArgumentException("unsupported authorization info: " + authorizationInfo.getClass().getSimpleName())
@@ -798,7 +801,15 @@ public class RBACEngine implements AuthorizationEngine {
             runAs = runAsPrivilege.name();
         }
 
-        return new GetUserPrivilegesResponse(cluster, conditionalCluster, indices, application, runAs, remoteIndices);
+        return new GetUserPrivilegesResponse(
+            cluster,
+            conditionalCluster,
+            indices,
+            application,
+            runAs,
+            remoteIndices,
+            userRole.remoteCluster()
+        );
     }
 
     private static GetUserPrivilegesResponse.Indices toIndices(final IndicesPermission.Group group) {

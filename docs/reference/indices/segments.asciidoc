@@ -40,50 +40,55 @@ and indices, omit this parameter or use `*` or `_all`.
 [[index-segments-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+`<vector_formats>`::
+(Optional, Boolean)
+If `true`, the list of vector formats used by fields in each segment is
+included in the output `attributes`. Defaults to `false`.
+
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
 [[index-segments-api-response-body]]
 ==== {api-response-body-title}
 
 `<segment>`::
 (String)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment]
 
 `generation`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=generation]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=generation]
 
 `num_docs`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-count]
 
 `deleted_docs`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=docs-deleted]
 
 `size_in_bytes`::
 (Integer)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-size]
 
 `committed`::
 (Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=committed]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=committed]
 
 `search`::
 (Boolean)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-search]
 
 `version`::
 (String)
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=segment-version]
 
 `compound`::
 (Boolean)
@@ -92,7 +97,7 @@ into a single file to save file descriptors.
 
 `attributes`::
 (Object)
-Contains information about whether high compression was enabled.
+Contains information about (i) whether high compression was enabled, (ii) per-field vector formats.
 
 
 [[index-segments-api-example]]

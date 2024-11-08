@@ -8,24 +8,50 @@ package org.elasticsearch.xpack.transform.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.TaskOperationFailure;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.persistent.PersistentTaskResponse;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksService;
+import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.TransformConfigVersion;
+import org.elasticsearch.xpack.core.transform.action.StopTransformAction;
 import org.elasticsearch.xpack.core.transform.transforms.TransformState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskParams;
 import org.elasticsearch.xpack.core.transform.transforms.TransformTaskState;
+import org.mockito.ArgumentCaptor;
+import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestStatus.CONFLICT;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.emptyArray;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.is;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
+import static org.mockito.ArgumentMatchers.same;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 public class TransportStopTransformActionTests extends ESTestCase {
 
@@ -198,4 +224,85 @@ public class TransportStopTransformActionTests extends ESTestCase {
         assertThat(statusException.getSuppressed().length, equalTo(0));
     }
 
+    public void testCancelTransformTasksListener_NoTasks() {
+        StopTransformAction.Response responseTrue = new StopTransformAction.Response(true);
+
+        PersistentTasksService persistentTasksService = mock(PersistentTasksService.class);
+        Set<String> transformTasks = Set.of();
+        ActionListener<StopTransformAction.Response> listener = Mockito.<ActionListener<StopTransformAction.Response>>mock();
+
+        ActionListener<StopTransformAction.Response> cancelTransformTasksListener = TransportStopTransformAction
+            .cancelTransformTasksListener(persistentTasksService, transformTasks, listener);
+        cancelTransformTasksListener.onResponse(responseTrue);
+        verify(listener, times(1)).onResponse(responseTrue);
+    }
+
+    public void testCancelTransformTasksListener_ThreeTasksRemovedSuccessfully() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        // We treat NotFound as a successful removal of the task
+        doAnswer(randomBoolean() ? withResponse() : withException(new ResourceNotFoundException("task not found"))).when(client)
+            .execute(same(RemovePersistentTaskAction.INSTANCE), any(), any());
+
+        PersistentTasksService persistentTasksService = new PersistentTasksService(mock(ClusterService.class), threadPool, client);
+        Set<String> transformTasks = Set.of("task-A", "task-B", "task-C");
+        ActionListener<StopTransformAction.Response> listener = Mockito.<ActionListener<StopTransformAction.Response>>mock();
+
+        StopTransformAction.Response responseTrue = new StopTransformAction.Response(true);
+        ActionListener<StopTransformAction.Response> cancelTransformTasksListener = TransportStopTransformAction
+            .cancelTransformTasksListener(persistentTasksService, transformTasks, listener);
+        cancelTransformTasksListener.onResponse(responseTrue);
+
+        verify(listener).onResponse(responseTrue);
+    }
+
+    public void testCancelTransformTasksListener_OneTaskCouldNotBeRemoved() {
+        ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
+        Client client = mock(Client.class);
+        when(client.threadPool()).thenReturn(threadPool);
+
+        doAnswer(randomBoolean() ? withResponse() : withException(new ResourceNotFoundException("task not found"))).when(client)
+            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-A")), any());
+        doAnswer(randomBoolean() ? withResponse() : withException(new ResourceNotFoundException("task not found"))).when(client)
+            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-B")), any());
+        doAnswer(withException(new IllegalStateException("real issue while removing task"))).when(client)
+            .execute(same(RemovePersistentTaskAction.INSTANCE), eq(new RemovePersistentTaskAction.Request("task-C")), any());
+
+        PersistentTasksService persistentTasksService = new PersistentTasksService(mock(ClusterService.class), threadPool, client);
+        Set<String> transformTasks = Set.of("task-A", "task-B", "task-C");
+        ActionListener<StopTransformAction.Response> listener = Mockito.<ActionListener<StopTransformAction.Response>>mock();
+
+        StopTransformAction.Response responseTrue = new StopTransformAction.Response(true);
+        ActionListener<StopTransformAction.Response> cancelTransformTasksListener = TransportStopTransformAction
+            .cancelTransformTasksListener(persistentTasksService, transformTasks, listener);
+        cancelTransformTasksListener.onResponse(responseTrue);
+
+        ArgumentCaptor<Exception> exceptionArgumentCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener, times(1)).onFailure(exceptionArgumentCaptor.capture());
+        Exception actualException = exceptionArgumentCaptor.getValue();
+        assertThat(actualException.getMessage(), containsString("real issue while removing task"));
+        assertThat(actualException.getSuppressed(), is(emptyArray()));
+    }
+
+    private static Answer<?> withResponse() {
+        return invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var l = (ActionListener<PersistentTaskResponse>) invocationOnMock.getArguments()[2];
+            l.onResponse(new PersistentTaskResponse((PersistentTasksCustomMetadata.PersistentTask<?>) null));
+            return null;
+        };
+    }
+
+    private static Answer<?> withException(Exception e) {
+        return invocationOnMock -> {
+            @SuppressWarnings("unchecked")
+            var l = (ActionListener<PersistentTaskResponse>) invocationOnMock.getArguments()[2];
+            l.onFailure(e);
+            return null;
+        };
+    }
 }

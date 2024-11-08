@@ -12,14 +12,32 @@ import java.util.Objects;
 
 public class DocumentsOnlyInput extends InferenceInputs {
 
-    List<String> input;
+    public static DocumentsOnlyInput of(InferenceInputs inferenceInputs) {
+        if (inferenceInputs instanceof DocumentsOnlyInput == false) {
+            throw createUnsupportedTypeException(inferenceInputs);
+        }
 
-    public DocumentsOnlyInput(List<String> chunks) {
+        return (DocumentsOnlyInput) inferenceInputs;
+    }
+
+    private final List<String> input;
+    private final boolean stream;
+
+    public DocumentsOnlyInput(List<String> input) {
+        this(input, false);
+    }
+
+    public DocumentsOnlyInput(List<String> input, boolean stream) {
         super();
-        this.input = Objects.requireNonNull(chunks);
+        this.input = Objects.requireNonNull(input);
+        this.stream = stream;
     }
 
     public List<String> getInputs() {
         return this.input;
+    }
+
+    public boolean stream() {
+        return stream;
     }
 }

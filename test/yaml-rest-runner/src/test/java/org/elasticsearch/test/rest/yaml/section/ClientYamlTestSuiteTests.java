@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.rest.yaml.section;
@@ -40,13 +41,15 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             ---
             setup:
               - skip:
-                  version: "8.7.00 - 8.9.99"
-                  reason: "Synthetic source shows up in the mapping in 8.10 and on, may trigger assert failures in mixed cluster tests"
+                  known_issues:
+                    - cluster_feature: "feature_a"
+                      fixed_by: "feature_a_fix"
+                  reason: "Bug introduced with feature a, fixed with feature a fix"
 
             ---
             date:
               - skip:
-                  version: " - 8.1.99"
+                  cluster_features: "tsdb_indexing"
                   reason: tsdb indexing changed in 8.2.0
               - do:
                   indices.get_mapping:
@@ -117,7 +120,7 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
             "Get type mapping - pre 6.0":
 
               - skip:
-                  version:     "6.0.0 - "
+                  cluster_features: "feature_in_6.0"
                   reason:      "for newer versions the index name is always returned"
 
               - do:
@@ -468,11 +471,41 @@ public class ClientYamlTestSuiteTests extends AbstractClientYamlTestFragmentPars
         assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().hasYamlRunnerFeature("skip_os"), equalTo(true));
     }
 
+    public void testMuteUsingAwaitsFix() throws Exception {
+        parser = createParser(YamlXContent.yamlXContent, """
+            "Mute":
+
+              - skip:
+                  awaits_fix: bugurl
+
+              - do:
+                  indices.get_mapping:
+                    index: test_index
+                    type: test_type
+
+              - match: {test_type.properties.text.type:     string}
+              - match: {test_type.properties.text.analyzer: whitespace}
+            """);
+
+        ClientYamlTestSuite restTestSuite = ClientYamlTestSuite.parse(getTestClass().getName(), getTestName(), Optional.empty(), parser);
+
+        assertThat(restTestSuite, notNullValue());
+        assertThat(restTestSuite.getName(), equalTo(getTestName()));
+        assertThat(restTestSuite.getFile().isPresent(), equalTo(false));
+        assertThat(restTestSuite.getTestSections().size(), equalTo(1));
+
+        assertThat(restTestSuite.getTestSections().get(0).getName(), equalTo("Mute"));
+        assertThat(restTestSuite.getTestSections().get(0).getPrerequisiteSection().isEmpty(), equalTo(false));
+    }
+
     public void testParseSkipAndRequireClusterFeatures() throws Exception {
         parser = createParser(YamlXContent.yamlXContent, """
             "Broken on some os":
 
               - skip:
+                  known_issues:
+                    - cluster_feature: buggy_feature
+                      fixed_by: buggy_feature_fix
                   cluster_features:     [unsupported-feature1, unsupported-feature2]
                   reason:      "unsupported-features are not supported"
               - requires:

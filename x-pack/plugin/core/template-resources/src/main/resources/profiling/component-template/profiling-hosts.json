@@ -2,7 +2,6 @@
   "template": {
     "settings": {
       "index": {
-        "number_of_replicas": 0,
         "auto_expand_replicas": "0-1",
         "refresh_interval": "10s",
         "sort": {
@@ -76,6 +75,12 @@
                 "start_time": {
                   "type": "date",
                   "format": "epoch_millis"
+                },
+                "protocol": {
+                  "type": "keyword"
+                },
+                "env_https_proxy": {
+                  "type": "keyword"
                 },
                 "config.bpf_log_level": {
                   "type": "long"

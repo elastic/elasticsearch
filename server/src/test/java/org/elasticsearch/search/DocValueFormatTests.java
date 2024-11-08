@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.geo.GeoUtils;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -19,6 +21,7 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.mapper.DateFieldMapper.Resolution;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
+import org.elasticsearch.index.mapper.TimeSeriesRoutingHashFieldMapper;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -32,6 +35,8 @@ import java.util.List;
 import static org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils.longEncode;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public class DocValueFormatTests extends ESTestCase {
 
@@ -169,8 +174,8 @@ public class DocValueFormatTests extends ESTestCase {
         assertEquals("29/536869420/0", DocValueFormat.GEOTILE.format(longEncode(179.999, 89.999, 29)));
         assertEquals("29/1491/536870911", DocValueFormat.GEOTILE.format(longEncode(-179.999, -89.999, 29)));
         assertEquals("2/2/1", DocValueFormat.GEOTILE.format(longEncode(1, 1, 2)));
-        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, 95, 1)));
-        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, -95, 1)));
+        assertEquals("1/1/0", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(95), 1)));
+        assertEquals("1/1/1", DocValueFormat.GEOTILE.format(longEncode(13, GeoUtils.normalizeLat(-95), 1)));
     }
 
     public void testRawParse() {
@@ -386,5 +391,15 @@ public class DocValueFormatTests extends ESTestCase {
         Object tsidFormat = DocValueFormat.TIME_SERIES_ID.format(expected);
         Object tsidBase64 = Base64.getUrlEncoder().withoutPadding().encodeToString(expectedBytes);
         assertEquals(tsidFormat, tsidBase64);
+    }
+
+    public void testFormatAndParseTsRoutingHash() throws IOException {
+        BytesRef tsRoutingHashInput = new BytesRef("cn4exQ");
+        DocValueFormat docValueFormat = TimeSeriesRoutingHashFieldMapper.INSTANCE.fieldType().docValueFormat(null, ZoneOffset.UTC);
+        Object formattedValue = docValueFormat.format(tsRoutingHashInput);
+        // the format method takes BytesRef as input and outputs a String
+        assertThat(formattedValue, instanceOf(String.class));
+        // the parse method will output the BytesRef input
+        assertThat(docValueFormat.parseBytesRef(formattedValue), is(tsRoutingHashInput));
     }
 }

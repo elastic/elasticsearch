@@ -5,7 +5,7 @@
 <titleabbrev>Create follower</titleabbrev>
 ++++
 
-Creates a follower index.
+Creates a <<xpack-ccr,{ccr}>> follower index.
 
 [[ccr-put-follow-request]]
 ==== {api-request-title}
@@ -65,11 +65,7 @@ referenced leader index. When this API returns, the follower index exists, and
   follower shard requires transferring all the remote Lucene segment files to
   the follower index.
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
-
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-put-follow-request-body]]
 ==== {api-request-body-title}

@@ -2,8 +2,6 @@
 [[tutorial-manage-new-data-stream]]
 === Tutorial: Create a data stream with a lifecycle
 
-preview::[]
-
 To create a data stream with a built-in lifecycle, follow these steps:
 
 . <<create-index-template-with-lifecycle>>
@@ -93,24 +91,23 @@ The result will look like this:
 {
   "data_streams": [
     {
-      "name": "my-data-stream",                                   <1>
+      "name": "my-data-stream",                                     <1>
       "lifecycle": {
-        "enabled": true,                                          <2>
-        "data_retention": "7d",                                   <3>
-        "effective_retention": "7d",                              <4>
-        "retention_determined_by": "data_stream_configuration"    <5>
+        "enabled": true,                                            <2>
+        "data_retention": "7d",                                     <3>
+        "effective_retention": "7d",                                <4>
+        "retention_determined_by": "data_stream_configuration"
       }
     }
-  ]
+  ],
+  "global_retention": {}
 }
 --------------------------------------------------
 <1> The name of your data stream.
 <2> Shows if the data stream lifecycle is enabled for this data stream.
-<3> The desired retention period of the data indexed in this data stream, this means that if there are no other limitations
-the data for this data stream will be preserved for at least 7 days.
-<4> The effective retention, this means that the data in this data stream will
-be kept at least for 7 days. After that {es} can delete it at its own discretion.
-<5> The configuration that determined the effective retention.
+<3> The retention period of the data indexed in this data stream, as configured by the user.
+<4> The retention period that will be applied by the data stream lifecycle. This means that the data in this data stream will
+    be kept at least for 7 days. After that {es} can delete it at its own discretion.
 
 If you want to see more information about how the data stream lifecycle is applied on individual backing indices use the
 <<data-streams-explain-lifecycle,explain data stream lifecycle API>>:
@@ -133,9 +130,7 @@ The result will look like this:
       "time_since_index_creation": "1.6m",                  <3>
       "lifecycle": {                                        <4>
         "enabled": true,
-        "data_retention": "7d",
-        "effective_retention": "7d",
-        "retention_determined_by": "data_stream_configuration"
+        "data_retention": "7d"
       }
     }
   }

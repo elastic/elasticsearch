@@ -21,10 +21,10 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -49,7 +49,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
     DownsampleIndexerAction.ShardDownsampleResponse> {
 
     private final Client client;
-    private final ClusterService clusterService;
     private final IndicesService indicesService;
 
     private final DownsampleMetrics downsampleMetrics;
@@ -75,7 +74,6 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             transportService.getThreadPool().executor(Downsample.DOWNSAMPLE_TASK_THREAD_POOL_NAME)
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
-        this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.downsampleMetrics = downsampleMetrics;
     }

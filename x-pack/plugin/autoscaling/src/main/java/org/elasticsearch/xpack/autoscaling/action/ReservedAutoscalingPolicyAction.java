@@ -91,7 +91,18 @@ public class ReservedAutoscalingPolicyAction implements ReservedClusterStateHand
             @SuppressWarnings("unchecked")
             Map<String, ?> content = (Map<String, ?>) source.get(name);
             try (XContentParser policyParser = mapToXContentParser(XContentParserConfiguration.EMPTY, content)) {
-                result.add(PutAutoscalingPolicyAction.Request.parse(policyParser, name));
+                result.add(
+                    PutAutoscalingPolicyAction.Request.parse(
+                        policyParser,
+                        (roles, deciders) -> new PutAutoscalingPolicyAction.Request(
+                            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                            RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
+                            name,
+                            roles,
+                            deciders
+                        )
+                    )
+                );
             }
         }
 

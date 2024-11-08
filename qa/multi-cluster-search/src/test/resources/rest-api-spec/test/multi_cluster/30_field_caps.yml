@@ -107,8 +107,8 @@
 
 ---
 "Get field caps from remote cluster with index filter":
-  - skip:
-      version: " - 7.8.99"
+  - requires:
+      cluster_features: ["gte_v7.9.0"]
       reason: Index filter support was added in 7.9
 
   - do:
@@ -158,8 +158,8 @@
 
 ---
 "Field caps with with include_empty_fields false":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: include_empty_fields has been added in 8.13.0
   - do:
         indices.create:

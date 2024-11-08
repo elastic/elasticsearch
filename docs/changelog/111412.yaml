@@ -1,0 +1,6 @@
+pr: 111412
+summary: Make enrich cache based on memory usage
+area: Ingest Node
+type: enhancement
+issues:
+ - 106081

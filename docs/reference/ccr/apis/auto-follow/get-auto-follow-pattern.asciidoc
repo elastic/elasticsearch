@@ -5,7 +5,7 @@
 <titleabbrev>Get auto-follow pattern</titleabbrev>
 ++++
 
-Get auto-follow patterns.
+Get {ccr} <<ccr-auto-follow,auto-follow patterns>>.
 
 [[ccr-get-auto-follow-pattern-request]]
 ==== {api-request-title}
@@ -75,10 +75,7 @@ This API will return the specified auto-follow pattern collection.
 [[ccr-get-auto-follow-pattern-query-params]]
 ==== {api-query-parms-title}
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [[ccr-get-auto-follow-pattern-examples]]
 ==== {api-examples-title}

@@ -5,6 +5,96 @@ a:integer | b:integer
 1         | 2
 ;
 
+
+shadowing
+ROW left = "left", x = 10000 , right = "right"
+| EVAL x = 1
+;
+
+left:keyword | right:keyword | x:integer
+left         | right         | 1
+;
+
+shadowingSubfields#[skip:-8.13.3,reason:fixed in 8.13]
+FROM addresses
+| KEEP city.country.continent.planet.name, city.country.name, city.name
+| EVAL city.country.continent.planet.name = to_upper(city.country.continent.planet.name)
+| SORT city.name
+;
+
+city.country.name:keyword | city.name:keyword | city.country.continent.planet.name:keyword 
+Netherlands               | Amsterdam         | EARTH
+United States of America  | San Francisco     | EARTH
+Japan                     | Tokyo             | EARTH
+;
+
+shadowingSelf
+ROW left = "left", x = 10000 , right = "right"
+| EVAL x = x + 1
+;
+
+left:keyword | right:keyword | x:integer
+left         | right         | 10001
+;
+
+shadowingMulti
+ROW left = "left", x = 0, middle = "middle", y = -1, right = "right"
+| EVAL x = 9, y = 10
+;
+
+left:keyword | middle:keyword | right:keyword | x:integer | y:integer
+left         | middle         | right         | 9         | 10
+;
+
+shadowingInternal
+ROW x = 10000
+| EVAL x = x + 1, x = x - 2
+;
+
+x:integer
+9999
+;
+
+shadowingWhenPushedDownPastRename
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = 3
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |              3
+;
+
+shadowingWhenPushedDownPastRename2
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1, emp_no = emp_no + languages, a = 0, languages = -1
+;
+
+z:integer | emp_no:integer | a:integer | languages:integer
+    10001 |          10004 |         0 |                -1
+;
+
+shadowingWhenPushedDownPastRename3
+required_capability: fixed_pushdown_past_project
+FROM employees
+| WHERE emp_no < 10002
+| KEEP emp_no, languages
+| RENAME emp_no AS z
+| EVAL emp_no = z + 1
+;
+
+z:integer | languages:integer | emp_no:integer
+    10001 |                 2 |          10002
+;
+
+
 withMath
 row a = 1 | eval b = 2 + 3;
 
@@ -201,7 +291,7 @@ Kyoichi.       |Kyoichi.Maliniak |Kyoichi.MaliniakKyoichi.   |Kyoichi
 ;
 
 roundArrays
-required_feature: esql.disable_nullable_opts
+required_capability: disable_nullable_opts
 
 row a = [1.2], b = [2.4, 7.9] | eval c = round(a), d = round(b), e = round([1.2]), f = round([1.2, 4.6]), g = round([1.14], 1), h = round([1.14], [1, 2]);
 warning:Line 1:56: evaluation of [round(b)] failed, treating result as null. Only first 20 failures recorded.
@@ -423,4 +513,70 @@ emp_no:i
 -10001
 -10002
 -10003
+;
+
+sortExpression1#[skip:-8.13.99,reason:supported in 8.14]
+FROM employees
+| SORT emp_no + salary ASC
+| EVAL emp_no = -emp_no
+| LIMIT 10
+| EVAL sum = -emp_no + salary
+| KEEP emp_no, salary, sum
+;
+
+  emp_no:i     |   salary:i    |      sum:i      
+-10015         |25324          |35339          
+-10035         |25945          |35980          
+-10092         |25976          |36068          
+-10048         |26436          |36484          
+-10057         |27215          |37272          
+-10084         |28035          |38119          
+-10026         |28336          |38362          
+-10068         |28941          |39009          
+-10060         |29175          |39235          
+-10042         |30404          |40446
+;
+
+sortConcat1#[skip:-8.13.99,reason:supported in 8.14]
+from employees
+| sort concat(left(last_name, 1), left(first_name, 1)), salary desc
+| keep first_name, last_name, salary
+| eval ll = left(last_name, 1), lf = left(first_name, 1)
+| limit 10
+;
+
+ first_name:keyword | last_name:keyword | salary:integer|ll:keyword|lf:keyword     
+Mona                |Azuma              |46595          |A         |M             
+Satosi              |Awdeh              |50249          |A         |S             
+Brendon             |Bernini            |33370          |B         |B             
+Breannda            |Billingsley        |29175          |B         |B             
+Cristinel           |Bouloucos          |58715          |B         |C             
+Charlene            |Brattka            |28941          |B         |C             
+Margareta           |Bierman            |41933          |B         |M             
+Mokhtar             |Bernatsky          |38992          |B         |M             
+Parto               |Bamford            |61805          |B         |P             
+Premal              |Baek               |52833          |B         |P
+;
+
+sortConcat2#[skip:-8.13.99,reason:supported in 8.14]
+from employees
+| eval ln = last_name, fn = first_name, concat = concat(left(last_name, 1), left(first_name, 1))
+| sort concat(left(ln, 1), left(fn, 1)), salary desc
+| keep f*, l*, salary
+| eval c = concat(left(last_name, 1), left(first_name, 1))
+| drop *name, lan*
+| limit 10
+;
+
+     fn:keyword     |     ln:keyword    | salary:integer|       c:keyword     
+Mona                |Azuma              |46595          |AM             
+Satosi              |Awdeh              |50249          |AS             
+Brendon             |Bernini            |33370          |BB             
+Breannda            |Billingsley        |29175          |BB             
+Cristinel           |Bouloucos          |58715          |BC             
+Charlene            |Brattka            |28941          |BC             
+Margareta           |Bierman            |41933          |BM             
+Mokhtar             |Bernatsky          |38992          |BM             
+Parto               |Bamford            |61805          |BP             
+Premal              |Baek               |52833          |BP
 ;

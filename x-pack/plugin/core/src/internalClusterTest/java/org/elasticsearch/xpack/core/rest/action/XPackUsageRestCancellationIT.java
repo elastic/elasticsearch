@@ -23,10 +23,9 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.tasks.Task;
@@ -35,7 +34,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.netty4.Netty4Plugin;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.TransportXPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureResponse;
@@ -148,9 +147,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.BLOCKING_XPACK_USAGE.name(),
@@ -171,7 +168,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
         ) throws Exception {
             blockingXPackUsageActionExecuting.countDown();
             blockActionLatch.await();
-            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureSet.Usage("test", false, false) {
+            listener.onResponse(new XPackUsageFeatureResponse(new XPackFeatureUsage("test", false, false) {
                 @Override
                 public TransportVersion getMinimalSupportedVersion() {
                     return TransportVersion.current();
@@ -187,9 +184,7 @@ public class XPackUsageRestCancellationIT extends ESIntegTestCase {
             ClusterService clusterService,
             ThreadPool threadPool,
             ActionFilters actionFilters,
-            IndexNameExpressionResolver indexNameExpressionResolver,
-            Settings settings,
-            XPackLicenseState licenseState
+            IndexNameExpressionResolver indexNameExpressionResolver
         ) {
             super(
                 BlockingUsageActionXPackPlugin.NON_BLOCKING_XPACK_USAGE.name(),

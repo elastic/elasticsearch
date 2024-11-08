@@ -6,7 +6,7 @@
 <titleabbrev>Get {ccr-init} stats</titleabbrev>
 ++++
 
-Get {ccr} stats.
+Get <<xpack-ccr,{ccr}>> stats.
 
 [[ccr-get-stats-request]]
 ==== {api-request-title}
@@ -56,10 +56,7 @@ shard-level stats as in the <<ccr-get-follow-stats,get follower stats API>>.
 `timeout`::
 (Optional, time) Controls the amount of time to wait for results. Defaults to unlimited.
 
-`master_timeout`::
-(Optional, <<time-units, time units>>) Specifies the period of time to wait for
-a connection to the master node. If no response is received before the timeout
-expires, the request fails and returns an error. Defaults to `30s`.
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [role="child_attributes"]
 [[ccr-get-stats-response-body]]

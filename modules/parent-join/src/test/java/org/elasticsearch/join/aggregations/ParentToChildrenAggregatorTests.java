@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.aggregations;
@@ -103,7 +104,7 @@ public class ParentToChildrenAggregatorTests extends AggregatorTestCase {
         });
 
         for (String parent : expectedParentChildRelations.keySet()) {
-            testCase(new TermInSetQuery(IdFieldMapper.NAME, Uid.encodeId(parent)), indexReader, child -> {
+            testCase(new TermInSetQuery(IdFieldMapper.NAME, List.of(Uid.encodeId(parent))), indexReader, child -> {
                 assertEquals((long) expectedParentChildRelations.get(parent).v1(), child.getDocCount());
                 assertEquals(
                     expectedParentChildRelations.get(parent).v2(),

@@ -129,6 +129,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     public void testAddPolicyWithNoRoles() {
         PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             null,
             randomAutoscalingDeciders()
@@ -158,6 +160,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final String name = randomFrom(currentMetadata.policies().keySet());
         // add to the existing deciders, to ensure the policy has changed
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             name,
             randomBoolean() ? randomRoles() : null,
             mutateAutoscalingDeciders(currentMetadata.policies().get(name).policy().deciders())
@@ -206,6 +210,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
         final AutoscalingMetadata currentMetadata = currentState.metadata().custom(AutoscalingMetadata.NAME);
         final AutoscalingPolicy policy = randomFrom(currentMetadata.policies().values()).policy();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policy.name(),
             randomBoolean() ? policy.roles() : null,
             randomBoolean() ? policy.deciders() : null
@@ -225,6 +231,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     public void testPolicyValidator() {
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             randomRoles(),
             Collections.emptySortedMap()
@@ -242,6 +250,8 @@ public class TransportPutAutoscalingPolicyActionTests extends AutoscalingTestCas
 
     static PutAutoscalingPolicyAction.Request randomPutAutoscalingPolicyRequest() {
         return new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             randomAlphaOfLength(8),
             randomRoles(),
             randomBoolean() ? randomAutoscalingDeciders() : null

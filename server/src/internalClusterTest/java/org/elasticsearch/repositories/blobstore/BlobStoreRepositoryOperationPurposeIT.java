@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -65,15 +66,15 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
         }
 
         final var timeout = TimeValue.timeValueSeconds(10);
-        clusterAdmin().prepareCleanupRepository(repoName).get(timeout);
-        clusterAdmin().prepareCloneSnapshot(repoName, "snap-0", "clone-0").setIndices("index-0").get(timeout);
+        clusterAdmin().prepareCleanupRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get(timeout);
+        clusterAdmin().prepareCloneSnapshot(TEST_REQUEST_TIMEOUT, repoName, "snap-0", "clone-0").setIndices("index-0").get(timeout);
 
         // restart to ensure that the reads which happen when starting a node on a nonempty repository use the expected purposes
         internalCluster().fullRestart();
 
-        clusterAdmin().prepareGetSnapshots(repoName).get(timeout);
+        clusterAdmin().prepareGetSnapshots(TEST_REQUEST_TIMEOUT, repoName).get(timeout);
 
-        clusterAdmin().prepareRestoreSnapshot(repoName, "clone-0")
+        clusterAdmin().prepareRestoreSnapshot(TEST_REQUEST_TIMEOUT, repoName, "clone-0")
             .setRenamePattern("index-0")
             .setRenameReplacement("restored-0")
             .setWaitForCompletion(true)
@@ -83,7 +84,7 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             assertTrue(startDeleteSnapshot(repoName, "snap-" + i).get(10, TimeUnit.SECONDS).isAcknowledged());
         }
 
-        clusterAdmin().prepareDeleteRepository(repoName).get(timeout);
+        clusterAdmin().prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, repoName).get(timeout);
     }
 
     public static class TestPlugin extends Plugin implements RepositoryPlugin {
@@ -187,6 +188,19 @@ public class BlobStoreRepositoryOperationPurposeIT extends AbstractSnapshotInteg
             assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
             assertPurposeConsistency(purpose, blobName);
             super.writeMetadataBlob(purpose, blobName, failIfAlreadyExists, atomic, writer);
+        }
+
+        @Override
+        public void writeBlobAtomic(
+            OperationPurpose purpose,
+            String blobName,
+            InputStream inputStream,
+            long blobSize,
+            boolean failIfAlreadyExists
+        ) throws IOException {
+            assertEquals(blobName, OperationPurpose.SNAPSHOT_METADATA, purpose);
+            assertPurposeConsistency(purpose, blobName);
+            super.writeBlobAtomic(purpose, blobName, inputStream, blobSize, failIfAlreadyExists);
         }
 
         @Override

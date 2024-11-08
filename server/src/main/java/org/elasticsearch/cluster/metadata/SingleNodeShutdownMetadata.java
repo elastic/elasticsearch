@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -265,7 +266,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            builder.timestampFieldsFromUnixEpochMillis(
+                STARTED_AT_MILLIS_FIELD.getPreferredName(),
+                STARTED_AT_READABLE_FIELD,
+                startedAtMillis
+            );
             builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
             if (allocationDelay != null) {
                 builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());

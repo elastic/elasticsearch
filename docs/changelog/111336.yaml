@@ -1,0 +1,5 @@
+pr: 111336
+summary: Use the same chunking configurations for models in the Elasticsearch service
+area: Machine Learning
+type: enhancement
+issues: []

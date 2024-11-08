@@ -1,6 +1,0 @@
-pr: 107054
-summary: Query API Keys support for both `aggs` and `aggregations` keywords
-area: Security
-type: enhancement
-issues:
- - 106839

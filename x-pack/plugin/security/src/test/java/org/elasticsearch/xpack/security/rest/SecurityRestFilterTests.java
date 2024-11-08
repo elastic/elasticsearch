@@ -273,7 +273,6 @@ public class SecurityRestFilterTests extends ESTestCase {
         final Workflow workflow = randomFrom(WorkflowResolver.allWorkflows());
         restHandler = new TestBaseRestHandler(randomFrom(workflow.allowedRestHandlers()));
 
-        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), null);
 
         RestRequest request = mock(RestRequest.class);
@@ -294,7 +293,6 @@ public class SecurityRestFilterTests extends ESTestCase {
             restHandler = Mockito.mock(RestHandler.class);
         }
 
-        final WorkflowService workflowService = new WorkflowService();
         filter = new SecurityRestFilter(true, threadContext, secondaryAuthenticator, new AuditTrailService(null, null), null);
 
         RestRequest request = mock(RestRequest.class);

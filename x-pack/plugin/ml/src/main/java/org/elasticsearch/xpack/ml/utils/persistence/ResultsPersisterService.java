@@ -325,7 +325,7 @@ public class ResultsPersisterService {
     }
 
     @SuppressWarnings("NonAtomicOperationOnVolatileField")
-    private static class BulkRequestRewriter {
+    static class BulkRequestRewriter {
         private volatile BulkRequest bulkRequest;
 
         BulkRequestRewriter(BulkRequest initialRequest) {
@@ -533,7 +533,7 @@ public class ResultsPersisterService {
         }
     }
 
-    private static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
+    static BulkRequest buildNewRequestFromFailures(BulkRequest bulkRequest, BulkResponse bulkResponse) {
         // If we failed, lets set the bulkRequest to be a collection of the failed requests
         BulkRequest bulkRequestOfFailures = new BulkRequest();
         Set<String> failedDocIds = Arrays.stream(bulkResponse.getItems())
@@ -542,6 +542,9 @@ public class ResultsPersisterService {
             .collect(Collectors.toSet());
         bulkRequest.requests().forEach(docWriteRequest -> {
             if (failedDocIds.contains(docWriteRequest.id())) {
+                if (docWriteRequest instanceof IndexRequest ir) {
+                    ir.reset();
+                }
                 bulkRequestOfFailures.add(docWriteRequest);
             }
         });

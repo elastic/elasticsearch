@@ -1,15 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.routing.allocation;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
@@ -31,7 +30,6 @@ import org.elasticsearch.cluster.routing.RoutingNodesHelper;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
@@ -41,7 +39,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 
 import java.util.Arrays;
@@ -1366,25 +1364,20 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
     }
 
     private void assertNoLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages) throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
-        );
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("any INFO message", DiskThresholdMonitor.class.getCanonicalName(), Level.INFO, "*")
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("any WARN message", DiskThresholdMonitor.class.getCanonicalName(), Level.WARN, "*")
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
+            for (int i = between(1, 3); i >= 0; i--) {
+                monitor.onNewInfo(clusterInfo(diskUsages));
+            }
 
-        for (int i = between(1, 3); i >= 0; i--) {
-            monitor.onNewInfo(clusterInfo(diskUsages));
+            mockLog.assertAllExpectationsMatched();
         }
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
     }
 
     private void assertRepeatedWarningMessages(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, String message)
@@ -1406,30 +1399,23 @@ public class DiskThresholdMonitorTests extends ESAllocationTestCase {
         assertNoLogging(monitor, diskUsages);
     }
 
-    private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message)
-        throws IllegalAccessException {
-        MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.start();
-        mockAppender.addExpectation(
-            new MockLogAppender.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
-        );
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation(
-                "any message of another level",
-                DiskThresholdMonitor.class.getCanonicalName(),
-                level == Level.INFO ? Level.WARN : Level.INFO,
-                "*"
-            )
-        );
+    private void assertLogging(DiskThresholdMonitor monitor, Map<String, DiskUsage> diskUsages, Level level, String message) {
+        try (var mockLog = MockLog.capture(DiskThresholdMonitor.class)) {
+            mockLog.addExpectation(
+                new MockLog.SeenEventExpectation("expected message", DiskThresholdMonitor.class.getCanonicalName(), level, message)
+            );
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation(
+                    "any message of another level",
+                    DiskThresholdMonitor.class.getCanonicalName(),
+                    level == Level.INFO ? Level.WARN : Level.INFO,
+                    "*"
+                )
+            );
 
-        Logger diskThresholdMonitorLogger = LogManager.getLogger(DiskThresholdMonitor.class);
-        Loggers.addAppender(diskThresholdMonitorLogger, mockAppender);
-
-        monitor.onNewInfo(clusterInfo(diskUsages));
-
-        mockAppender.assertAllExpectationsMatched();
-        Loggers.removeAppender(diskThresholdMonitorLogger, mockAppender);
-        mockAppender.stop();
+            monitor.onNewInfo(clusterInfo(diskUsages));
+            mockLog.assertAllExpectationsMatched();
+        }
     }
 
     private static long betweenGb(int min, int max) {

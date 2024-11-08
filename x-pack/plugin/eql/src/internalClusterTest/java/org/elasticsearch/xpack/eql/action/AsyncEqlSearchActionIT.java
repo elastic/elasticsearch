@@ -51,6 +51,7 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -171,7 +172,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         } else {
             keepAliveValue = EqlSearchRequest.DEFAULT_KEEP_ALIVE;
@@ -229,7 +230,7 @@ public class AsyncEqlSearchActionIT extends AbstractEqlBlockingIntegTestCase {
         boolean customKeepAlive = randomBoolean();
         final TimeValue keepAliveValue;
         if (customKeepAlive) {
-            keepAliveValue = TimeValue.parseTimeValue(randomTimeValue(1, 5, "d"), "test");
+            keepAliveValue = randomTimeValue(1, 5, TimeUnit.DAYS);
             request.keepAlive(keepAliveValue);
         }
 

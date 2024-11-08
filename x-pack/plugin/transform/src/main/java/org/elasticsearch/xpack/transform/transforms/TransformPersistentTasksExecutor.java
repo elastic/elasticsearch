@@ -20,6 +20,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -58,6 +59,7 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.TreeMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
@@ -98,7 +100,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
         this.threadPool = threadPool;
         this.clusterService = clusterService;
         this.resolver = resolver;
-        this.auditor = transformServices.getAuditor();
+        this.auditor = transformServices.auditor();
         this.numFailureRetries = Transform.NUM_FAILURE_RETRIES_SETTING.get(settings);
         clusterService.getClusterSettings().addSettingsUpdateConsumer(Transform.NUM_FAILURE_RETRIES_SETTING, this::setNumFailureRetries);
         this.transformExtension = transformExtension;
@@ -134,17 +136,28 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             logger.debug(reason);
             return new PersistentTasksCustomMetadata.Assignment(null, reason);
         }
+        Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
         DiscoveryNode discoveryNode = selectLeastLoadedNode(
             clusterState,
             candidateNodes,
-            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), null)
+            node -> nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed)
         );
 
         if (discoveryNode == null) {
-            Map<String, String> explainWhyAssignmentFailed = new TreeMap<>();
-            for (DiscoveryNode node : clusterState.getNodes()) {
-                nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
+            // clusterState can report an empty node list when the cluster health is yellow, if we have no other reason then include that
+            var nodes = clusterState.getNodes();
+            if (nodes.iterator().hasNext() == false && explainWhyAssignmentFailed.isEmpty()) {
+                var key = Optional.ofNullable(clusterState.getMetadata()).map(Metadata::clusterUUID).orElse("");
+                explainWhyAssignmentFailed.put(
+                    key,
+                    "No Discovery Nodes found in cluster state. Check cluster health and troubleshoot missing Discovery Nodes."
+                );
+            } else {
+                for (DiscoveryNode node : nodes) {
+                    nodeCanRunThisTransform(node, params.getVersion(), params.requiresRemote(), explainWhyAssignmentFailed);
+                }
             }
+
             String reason = "Not starting transform ["
                 + params.getId()
                 + "], reasons ["
@@ -253,7 +266,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
             indexerBuilder.setLastCheckpoint(lastCheckpoint);
             logger.trace("[{}] Loaded last checkpoint [{}], looking for next checkpoint", transformId, lastCheckpoint.getCheckpoint());
-            transformServices.getConfigManager()
+            transformServices.configManager()
                 .getTransformCheckpoint(transformId, lastCheckpoint.getCheckpoint() + 1, getTransformNextCheckpointListener);
         }, error -> {
             String msg = TransformMessages.getMessage(TransformMessages.FAILED_TO_LOAD_TRANSFORM_CHECKPOINT, transformId);
@@ -291,11 +304,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
 
                 if (lastCheckpoint == 0) {
                     logger.trace("[{}] No last checkpoint found, looking for next checkpoint", transformId);
-                    transformServices.getConfigManager()
+                    transformServices.configManager()
                         .getTransformCheckpoint(transformId, lastCheckpoint + 1, getTransformNextCheckpointListener);
                 } else {
                     logger.trace("[{}] Restore last checkpoint: [{}]", transformId, lastCheckpoint);
-                    transformServices.getConfigManager()
+                    transformServices.configManager()
                         .getTransformCheckpoint(transformId, lastCheckpoint, getTransformLastCheckpointListener);
                 }
             },
@@ -331,7 +344,7 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             ValidationException validationException = config.validate(null);
             if (validationException == null) {
                 indexerBuilder.setTransformConfig(config);
-                transformServices.getConfigManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
+                transformServices.configManager().getTransformStoredDoc(transformId, false, transformStatsActionListener);
             } else {
                 auditor.error(transformId, validationException.getMessage());
                 markAsFailed(
@@ -409,12 +422,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             var transformId = params.getId();
             // if this call fails for the first time, we are going to retry it indefinitely
             // register the retry using the TransformScheduler, when the call eventually succeeds, deregister it before returning
-            var scheduler = transformServices.getScheduler();
+            var scheduler = transformServices.scheduler();
             scheduler.registerTransform(
                 params,
                 new TransformRetryableStartUpListener<>(
                     transformId,
-                    l -> transformServices.getConfigManager().getTransformConfiguration(transformId, l),
+                    l -> transformServices.configManager().getTransformConfiguration(transformId, l),
                     ActionListener.runBefore(listener, () -> scheduler.deregisterTransform(transformId)),
                     retryListener(task),
                     () -> true, // because we can't determine if this is an unattended transform yet, retry indefinitely
@@ -494,10 +507,11 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
             parentTaskId,
             persistentTask.getParams(),
             (TransformState) persistentTask.getState(),
-            transformServices.getScheduler(),
+            transformServices.scheduler(),
             auditor,
             threadPool,
-            headers
+            headers,
+            transformServices.transformNode()
         );
     }
 }

@@ -7,13 +7,11 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.function.scalar.ScalarFunction;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 
 /**
  * Function that emits constants, like Euler's number.
@@ -30,12 +28,7 @@ public abstract class DoubleConstantFunction extends ScalarFunction {
 
     @Override
     public final DataType dataType() {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    public final ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
+        return DataType.DOUBLE;
     }
 
     @Override

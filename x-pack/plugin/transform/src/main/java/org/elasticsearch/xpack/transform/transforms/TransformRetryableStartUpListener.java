@@ -22,7 +22,7 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
     private final Supplier<Boolean> shouldRetry;
     private final TransformContext context;
     private final AtomicBoolean isFirstRun;
-    private final AtomicBoolean isRunning;
+    private final AtomicBoolean shouldRunAction;
 
     /**
      * @param transformId the transform associated with this listener. All events to this listener must be for the same transformId.
@@ -53,21 +53,13 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
         this.shouldRetry = shouldRetry;
         this.context = context;
         this.isFirstRun = new AtomicBoolean(true);
-        this.isRunning = new AtomicBoolean(true);
+        this.shouldRunAction = new AtomicBoolean(true);
     }
 
     @Override
     public void triggered(TransformScheduler.Event event) {
-        if (isRunning.get() && transformId.equals(event.transformId())) {
+        if (transformId.equals(event.transformId()) && shouldRunAction.compareAndSet(true, false)) {
             action.accept(ActionListener.wrap(this::actionSucceeded, this::actionFailed));
-        }
-    }
-
-    private void markDone() {
-        if (isRunning.compareAndSet(true, false)) {
-            synchronized (context) {
-                context.resetStartUpFailureCount();
-            }
         }
     }
 
@@ -75,6 +67,12 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
         maybeNotifyRetryListener(false);
         markDone();
         actionListener.onResponse(r);
+    }
+
+    private void markDone() {
+        synchronized (context) {
+            context.resetStartUpFailureCount();
+        }
     }
 
     private void maybeNotifyRetryListener(boolean response) {
@@ -87,6 +85,7 @@ class TransformRetryableStartUpListener<Response> implements TransformScheduler.
         if (shouldRetry.get()) {
             maybeNotifyRetryListener(true);
             recordError(e);
+            shouldRunAction.set(true);
         } else {
             maybeNotifyRetryListener(false);
             markDone();

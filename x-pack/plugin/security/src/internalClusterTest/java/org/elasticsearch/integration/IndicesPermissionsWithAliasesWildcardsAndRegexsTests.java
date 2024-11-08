@@ -199,7 +199,11 @@ public class IndicesPermissionsWithAliasesWildcardsAndRegexsTests extends Securi
 
     public void testSearchResolveDataStreams() throws Exception {
         putComposableIndexTemplate("id1", List.of("test*"));
-        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request("test");
+        CreateDataStreamAction.Request createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            "test"
+        );
         client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).get();
 
         IndicesAliasesRequest aliasesRequest = new IndicesAliasesRequest();

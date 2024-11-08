@@ -1,0 +1,82 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+'Get connector sync job':
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: access_control
+          trigger_method: scheduled
+  - set: { id: id }
+  - match: { id: $id }
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: $id
+  - match: { job_type: access_control }
+  - match: { trigger_method: scheduled }
+
+---
+'Get connector sync job - Missing sync job id':
+  - do:
+      connector.sync_job_get:
+        connector_sync_job_id: non-existing-sync-job-id
+      catch: missing
+
+
+---
+"Read-only access is sufficient to get the sync job":
+  - skip:
+      features: headers
+
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id }
+
+  - do:
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVzZXI6ZW50c2VhcmNoLXVzZXItcGFzc3dvcmQ=" }  # entsearch-user with read-only access
+      connector.sync_job_get:
+        connector_sync_job_id: $sync-job-id
+
+  - match: { job_type: full }
+  - match: { trigger_method: on_demand }
+  - match: { id: $sync-job-id }
+
+
+---
+"Get sync job fails for unprivileged user":
+  - skip:
+      features: headers
+
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: sync-job-id }
+
+  - do:
+      catch: forbidden
+      headers: { Authorization: "Basic ZW50c2VhcmNoLXVucHJpdmlsZWdlZDplbnRzZWFyY2gtdW5wcml2aWxlZ2VkLXBhc3N3b3Jk" }  # entsearch-unprivileged user
+      connector.sync_job_get:
+        connector_sync_job_id: $sync-job-id
+

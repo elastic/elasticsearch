@@ -247,12 +247,9 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         @SuppressWarnings("unchecked")
         final Map<String, ?> descriptor = (Map<String, ?>) fleetServerRoleDescriptor.get("elastic/fleet-server");
 
-        final RoleDescriptor roleDescriptor = RoleDescriptor.parse(
-            "elastic/fleet-server",
-            XContentTestUtils.convertToXContent(descriptor, XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor roleDescriptor = RoleDescriptor.parserBuilder()
+            .build()
+            .parse("elastic/fleet-server", XContentTestUtils.convertToXContent(descriptor, XContentType.JSON), XContentType.JSON);
         assertThat(roleDescriptor, equalTo(ServiceAccountService.getServiceAccounts().get("elastic/fleet-server").roleDescriptor()));
     }
 
@@ -318,15 +315,15 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         assertThat(apiKey.getRealmType(), equalTo("native"));
         final Client clientWithGrantedKey = client().filterWithHeader(Map.of("Authorization", "ApiKey " + base64ApiKeyKeyValue));
         // The API key has privileges (inherited from user2) to check cluster health
-        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest()).actionGet();
+        clientWithGrantedKey.execute(TransportClusterHealthAction.TYPE, new ClusterHealthRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         // If the API key is granted with limiting descriptors, it should not be able to read pipeline
         if (grantApiKeyRequest.getApiKeyRequest().getRoleDescriptors().isEmpty()) {
-            clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet();
+            clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT)).actionGet();
         } else {
             assertThat(
                 expectThrows(
                     ElasticsearchSecurityException.class,
-                    () -> clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest()).actionGet()
+                    () -> clientWithGrantedKey.execute(GetPipelineAction.INSTANCE, new GetPipelineRequest(TEST_REQUEST_TIMEOUT)).actionGet()
                 ).getMessage(),
                 containsString("unauthorized")
             );
@@ -588,16 +585,17 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
         final Map<String, Object> roleDescriptors = (Map<String, Object>) document.get("role_descriptors");
         assertThat(roleDescriptors.keySet(), contains("cross_cluster"));
         @SuppressWarnings("unchecked")
-        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parse(
-            "cross_cluster",
-            XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
-            false,
-            XContentType.JSON
-        );
+        final RoleDescriptor actualRoleDescriptor = RoleDescriptor.parserBuilder()
+            .build()
+            .parse(
+                "cross_cluster",
+                XContentTestUtils.convertToXContent((Map<String, Object>) roleDescriptors.get("cross_cluster"), XContentType.JSON),
+                XContentType.JSON
+            );
 
         final RoleDescriptor expectedRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")
@@ -649,7 +647,7 @@ public class ApiKeySingleNodeTests extends SecuritySingleNodeTestCase {
     public void testUpdateCrossClusterApiKey() throws IOException {
         final RoleDescriptor originalRoleDescriptor = new RoleDescriptor(
             "cross_cluster",
-            new String[] { "cross_cluster_search" },
+            new String[] { "cross_cluster_search", "monitor_enrich" },
             new RoleDescriptor.IndicesPrivileges[] {
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs")

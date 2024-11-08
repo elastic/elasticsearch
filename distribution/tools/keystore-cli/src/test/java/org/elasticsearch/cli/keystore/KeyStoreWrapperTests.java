@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cli.keystore;
@@ -455,6 +456,26 @@ public class KeyStoreWrapperTests extends ESTestCase {
         assertThat(toByteArray(wrapper.getFile("string_setting")), equalTo("string_value".getBytes(StandardCharsets.UTF_8)));
         assertThat(wrapper.getString("file_setting"), equalTo("file_value"));
         assertThat(toByteArray(wrapper.getFile("file_setting")), equalTo("file_value".getBytes(StandardCharsets.UTF_8)));
+    }
+
+    public void testLegacyV5() throws GeneralSecurityException, IOException {
+        final Path configDir = createTempDir();
+        final Path keystore = configDir.resolve("elasticsearch.keystore");
+        try (
+            InputStream is = KeyStoreWrapperTests.class.getResourceAsStream("/format-v5-with-password-elasticsearch.keystore");
+            OutputStream os = Files.newOutputStream(keystore)
+        ) {
+            final byte[] buffer = new byte[4096];
+            int readBytes;
+            while ((readBytes = is.read(buffer)) > 0) {
+                os.write(buffer, 0, readBytes);
+            }
+        }
+        final KeyStoreWrapper wrapper = KeyStoreWrapper.load(configDir);
+        assertNotNull(wrapper);
+        wrapper.decrypt("keystorepassword".toCharArray());
+        assertThat(wrapper.getFormatVersion(), equalTo(5));
+        assertThat(wrapper.getSettingNames(), equalTo(Set.of("keystore.seed")));
     }
 
     public void testSerializationNewlyCreated() throws Exception {

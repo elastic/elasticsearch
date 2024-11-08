@@ -158,7 +158,7 @@ public abstract class IdentityProviderIntegTestCase extends ESIntegTestCase {
         // user. This is ok for internal n2n stuff but the test framework does other things like wiping indices, repositories, etc
         // that the system user cannot do. so we wrap the node client with a user that can do these things since the client() calls
         // return a node client
-        return client -> (client instanceof NodeClient) ? client.filterWithHeader(headers) : client;
+        return client -> asInstanceOf(NodeClient.class, client).filterWithHeader(headers);
     }
 
     @Override

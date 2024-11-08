@@ -38,7 +38,7 @@ public class IndexDeprecationChecks {
                 DeprecationIssue.Level.CRITICAL,
                 "Old index with a compatibility version < 7.0",
                 "https://www.elastic.co/guide/en/elasticsearch/reference/master/" + "breaking-changes-8.0.html",
-                "This index has version: " + currentCompatibilityVersion,
+                "This index has version: " + currentCompatibilityVersion.toReleaseVersion(),
                 false,
                 null
             );

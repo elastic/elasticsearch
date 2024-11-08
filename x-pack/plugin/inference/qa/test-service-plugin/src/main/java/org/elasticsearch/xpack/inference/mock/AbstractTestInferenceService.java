@@ -23,9 +23,18 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 
 public abstract class AbstractTestInferenceService implements InferenceService {
+
+    protected static int stringWeight(String input, int position) {
+        int hashCode = input.hashCode();
+        if (hashCode < 0) {
+            hashCode = -hashCode;
+        }
+        return hashCode + position;
+    }
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
@@ -39,7 +48,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         if (settings.containsKey(ModelConfigurations.TASK_SETTINGS)) {
             taskSettingsMap = (Map<String, Object>) settings.remove(ModelConfigurations.TASK_SETTINGS);
         } else {
-            taskSettingsMap = Map.of();
+            taskSettingsMap = new HashMap<>();
         }
 
         return taskSettingsMap;
@@ -102,11 +111,6 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         }
 
         @Override
-        public TestDenseInferenceServiceExtension.TestServiceSettings getServiceSettings() {
-            return (TestDenseInferenceServiceExtension.TestServiceSettings) super.getServiceSettings();
-        }
-
-        @Override
         public TestTaskSettings getTaskSettings() {
             return (TestTaskSettings) super.getTaskSettings();
         }
@@ -128,6 +132,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
 
         public TestTaskSettings(StreamInput in) throws IOException {
             this(in.readOptionalVInt());
+        }
+
+        @Override
+        public boolean isEmpty() {
+            return temperature == null;
         }
 
         @Override
@@ -153,6 +162,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+            return fromMap(new HashMap<>(newSettings));
         }
     }
 
@@ -201,6 +215,11 @@ public abstract class AbstractTestInferenceService implements InferenceService {
         @Override
         public TransportVersion getMinimalSupportedVersion() {
             return TransportVersion.current(); // fine for these tests but will not work for cluster upgrade tests
+        }
+
+        @Override
+        public SecretSettings newSecretSettings(Map<String, Object> newSecrets) {
+            return TestSecretSettings.fromMap(new HashMap<>(newSecrets));
         }
     }
 }

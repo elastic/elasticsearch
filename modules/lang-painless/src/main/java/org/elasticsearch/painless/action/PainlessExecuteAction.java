@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.painless.action;
 
@@ -40,7 +41,6 @@ import org.elasticsearch.common.CheckedBiFunction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeometryFormatterFactory;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -68,6 +68,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.painless.spi.PainlessTestScript;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -107,7 +108,6 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -237,29 +237,21 @@ public class PainlessExecuteAction {
                     return new Tuple<>(null, null);
                 }
                 String trimmed = indexExpression.trim();
-                String sep = String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR);
-                if (trimmed.startsWith(sep) || trimmed.endsWith(sep)) {
-                    throw new IllegalArgumentException(
-                        "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
-                    );
-                }
-
+                String[] parts = RemoteClusterAware.splitIndexName(trimmed);
                 // The parser here needs to ensure that the indexExpression is not of the form "remote1:blogs,remote2:blogs"
                 // because (1) only a single index is allowed for Painless Execute and
                 // (2) if this method returns Tuple("remote1", "blogs,remote2:blogs") that will not fail with "index not found".
                 // Instead, it will fail with the inaccurate and confusing error message:
                 // "Cross-cluster calls are not supported in this context but remote indices were requested: [blogs,remote1:blogs]"
                 // which comes later out of the IndexNameExpressionResolver pathway this code uses.
-                String[] parts = indexExpression.split(sep, 2);
-                if (parts.length == 1) {
-                    return new Tuple<>(null, parts[0]);
-                } else if (parts.length == 2 && parts[1].contains(sep) == false) {
-                    return new Tuple<>(parts[0], parts[1]);
-                } else {
+                if ((parts[0] != null && parts[1].isEmpty())
+                    || parts[1].contains(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR))) {
                     throw new IllegalArgumentException(
                         "Unable to parse one single valid index name from the provided index: [" + indexExpression + "]"
                     );
                 }
+
+                return new Tuple<>(parts[0], parts[1]);
             }
 
             public String getClusterAlias() {
@@ -462,7 +454,7 @@ public class PainlessExecuteAction {
 
     public static class Response extends ActionResponse implements ToXContentObject {
 
-        private Object result;
+        private final Object result;
 
         Response(Object result) {
             this.result = result;
@@ -555,8 +547,8 @@ public class PainlessExecuteAction {
         // Visible for testing
         static void removeClusterAliasFromIndexExpression(Request request) {
             if (request.index() != null) {
-                String[] split = request.index().split(String.valueOf(RemoteClusterAware.REMOTE_CLUSTER_INDEX_SEPARATOR));
-                if (split.length > 1) {
+                String[] split = RemoteClusterAware.splitIndexName(request.index());
+                if (split[0] != null) {
                     /*
                      * if the cluster alias is null and the index field has a clusterAlias (clusterAlias:index notation)
                      * that means this is executing on a remote cluster (it was forwarded by the querying cluster).
@@ -564,9 +556,6 @@ public class PainlessExecuteAction {
                      * We need to strip off the clusterAlias from the index before executing the script locally,
                      * so it will resolve to a local index
                      */
-                    assert split.length == 2
-                        : "If the index contains the REMOTE_CLUSTER_INDEX_SEPARATOR it should have only two parts but it has "
-                            + Arrays.toString(split);
                     request.index(split[1]);
                 }
             }
@@ -648,6 +637,9 @@ public class PainlessExecuteAction {
                         luceneQuery = indexSearcher.rewrite(luceneQuery);
                         Weight weight = indexSearcher.createWeight(luceneQuery, ScoreMode.COMPLETE, 1f);
                         Scorer scorer = weight.scorer(indexSearcher.getIndexReader().leaves().get(0));
+                        if (scorer == null) {
+                            throw new IllegalArgumentException("The provided query did not match the sample document");
+                        }
                         // Consume the first (and only) match.
                         int docID = scorer.iterator().nextDoc();
                         assert docID == scorer.docID();

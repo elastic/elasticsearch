@@ -36,21 +36,20 @@ public class LifecyclePolicyUtils {
     private LifecyclePolicyUtils() {};
 
     /**
-     * Loads a built-in index lifecycle policy and returns its source with the given parser.
+     * Loads a built-in index lifecycle policy and returns its source.
      */
     public static LifecyclePolicy loadPolicy(
         String name,
         String resource,
         Map<String, String> variables,
-        NamedXContentRegistry xContentRegistry,
-        XContentType contentType
+        NamedXContentRegistry xContentRegistry
     ) {
         try {
             String source = TemplateResources.load(resource);
             source = replaceVariables(source, variables);
             validate(source);
 
-            return parsePolicy(source, name, xContentRegistry, contentType);
+            return parsePolicy(source, name, xContentRegistry, XContentType.JSON);
         } catch (Exception e) {
             throw new IllegalArgumentException("unable to load policy [" + name + "] from [" + resource + "]", e);
         }

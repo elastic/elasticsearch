@@ -1,4 +1,5 @@
-[[retriever_examples]]
+[[retriever-examples]]
+==== Retrievers examples
 
 To show the full functionality, for this set of examples, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service.
 

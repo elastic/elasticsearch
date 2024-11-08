@@ -1,4 +1,4 @@
-[[elastic-cloud-architecture]]
+[[hot-frozen-architecture]]
 == Hot / Frozen - High Availability
 
 The Hot / Frozen – High Availability architecture is cost optimized for large time-series datasets. All data is fully indexed and searchable in each tier as well as object storage for high speed retrieval. In this architecture, the hot tier is primarily used for indexing and immediate searching (<1 day), https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[searchable snapshots] are taken from Hot to the Object Store using Index and Snapshot lifecycle management. Then, the snapshots are automatically cached in the frozen tier for search. Since the hot tier data is moved to an object store, the cost of keeping all of the data searchable is dramatically reduced.
@@ -113,7 +113,7 @@ N2|
 * Shard Management: 
 ** The most important foundational step to maintaining performance as you scale is proper shard management. This includes even shard distribution amongst nodes, shard size, and shard count. For a complete understanding of what shards are and how they should be used please review this documentation on https://www.elastic.co/guide/en/elasticsearch/reference/current/size-your-shards.html[sizing your shards].
 * Snapshots:
-** If auditable or business critical events are being logged a backup is necessary.  The choice to backup data will be up to each business's needs and requirements. Please see this documentation if you need to create a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[snapshot repository]https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html.
+** If auditable or business critical events are being logged a backup is necessary.  The choice to backup data will be up to each business's needs and requirements. Please see this documentation if you need to create a https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-register-repository.html[snapshot repository].
 ** To automate snapshots and attach to Index Lifecycle Management policies see https://www.elastic.co/guide/en/elasticsearch/reference/current/snapshots-take-snapshot.html#automate-snapshots-slm[SLM (Snapshot Lifecycle Management)]
 * Kibana:
 ** If self-deploying outside of Elasticsearch Service ensure Kibana is configured for https://www.elastic.co/guide/en/kibana/current/production.html#high-availability[high availability].

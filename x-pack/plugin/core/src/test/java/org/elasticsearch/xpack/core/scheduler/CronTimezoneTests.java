@@ -106,4 +106,27 @@ public class CronTimezoneTests extends ESTestCase {
 
     }
 
+    public void testForGMTAdvanceTransitionTriggerTimeIsRoundedToAfterDiscontinuity() {
+        ZoneId london = ZoneId.of("Europe/London");
+        Cron cron = new Cron("0 30 1 * * ?", getTimeZone(london));
+
+        Instant beforeTransition = Instant.parse("2025-03-30T00:00:00Z");
+        long beforeTransitionEpoch = beforeTransition.toEpochMilli();
+
+        long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
+        System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
+        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2025-03-30T01:30:00Z").toEpochMilli()));
+    }
+
+    public void testForGMTRetardTransitionTriggerTimeIsRoundedToAfterDiscontinuity() {
+        ZoneId london = ZoneId.of("Europe/London");
+        Cron cron = new Cron("0 30 1 * * ?", getTimeZone(london));
+
+        Instant beforeTransition = Instant.parse("2024-10-27T00:00:00Z");
+        long beforeTransitionEpoch = beforeTransition.toEpochMilli();
+
+        long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
+        System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
+        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2024-10-27T00:30:00Z").toEpochMilli()));
+    }
 }

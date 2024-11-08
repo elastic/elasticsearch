@@ -286,6 +286,10 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         return k;
     }
 
+    public int getNumCands() {
+        return numCands;
+    }
+
     public QueryVectorBuilder getQueryVectorBuilder() {
         return queryVectorBuilder;
     }

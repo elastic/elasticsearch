@@ -319,9 +319,19 @@ public class EsqlCapabilities {
         TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support for date nanos type in binary comparisons
+         */
+        DATE_NANOS_BINARY_COMPARISON(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
          * Support Least and Greatest functions on Date Nanos type
          */
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+
+        /**
+         * Support for date_trunc function on date nanos type
+         */
+        DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
          * support aggregations on date nanos
@@ -434,6 +444,12 @@ public class EsqlCapabilities {
         FIX_FILTER_PUSHDOWN_PAST_STATS,
 
         /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
+
+        /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
          */
         SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
@@ -453,6 +469,7 @@ public class EsqlCapabilities {
          */
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
+        DELAY_DEBUG_FN(Build.current().isSnapshot()),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

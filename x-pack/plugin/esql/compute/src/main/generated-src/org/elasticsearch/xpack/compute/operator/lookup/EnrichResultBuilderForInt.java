@@ -5,13 +5,12 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
@@ -20,20 +19,20 @@ import org.elasticsearch.core.Releasables;
 import java.util.Arrays;
 
 /**
- * {@link EnrichResultBuilder} for Booleans.
+ * {@link EnrichResultBuilder} for Ints.
  * This class is generated. Edit `X-EnrichResultBuilder.java.st` instead.
  */
-final class EnrichResultBuilderForBoolean extends EnrichResultBuilder {
-    private ObjectArray<boolean[]> cells;
+final class EnrichResultBuilderForInt extends EnrichResultBuilder {
+    private ObjectArray<int[]> cells;
 
-    EnrichResultBuilderForBoolean(BlockFactory blockFactory, int channel) {
+    EnrichResultBuilderForInt(BlockFactory blockFactory, int channel) {
         super(blockFactory, channel);
         this.cells = blockFactory.bigArrays().newObjectArray(1);
     }
 
     @Override
     void addInputPage(IntVector positions, Page page) {
-        BooleanBlock block = page.getBlock(channel);
+        IntBlock block = page.getBlock(channel);
         for (int i = 0; i < positions.getPositionCount(); i++) {
             int valueCount = block.getValueCount(i);
             if (valueCount == 0) {
@@ -48,53 +47,53 @@ final class EnrichResultBuilderForBoolean extends EnrichResultBuilder {
             adjustBreaker(RamUsageEstimator.sizeOf(newCell) - (oldCell != null ? RamUsageEstimator.sizeOf(oldCell) : 0));
             int firstValueIndex = block.getFirstValueIndex(i);
             for (int v = 0; v < valueCount; v++) {
-                newCell[dstIndex + v] = block.getBoolean(firstValueIndex + v);
+                newCell[dstIndex + v] = block.getInt(firstValueIndex + v);
             }
         }
     }
 
-    private boolean[] extendCell(boolean[] oldCell, int newValueCount) {
+    private int[] extendCell(int[] oldCell, int newValueCount) {
         if (oldCell == null) {
-            return new boolean[newValueCount];
+            return new int[newValueCount];
         } else {
             return Arrays.copyOf(oldCell, oldCell.length + newValueCount);
         }
     }
 
-    private boolean[] combineCell(boolean[] first, boolean[] second) {
+    private int[] combineCell(int[] first, int[] second) {
         if (first == null) {
             return second;
         }
         if (second == null) {
             return first;
         }
-        var result = new boolean[first.length + second.length];
+        var result = new int[first.length + second.length];
         System.arraycopy(first, 0, result, 0, first.length);
         System.arraycopy(second, 0, result, first.length, second.length);
         return result;
     }
 
-    private void appendGroupToBlockBuilder(BooleanBlock.Builder builder, boolean[] group) {
+    private void appendGroupToBlockBuilder(IntBlock.Builder builder, int[] group) {
         if (group == null) {
             builder.appendNull();
         } else if (group.length == 1) {
-            builder.appendBoolean(group[0]);
+            builder.appendInt(group[0]);
         } else {
             builder.beginPositionEntry();
             // TODO: sort and dedup and set MvOrdering
             for (var v : group) {
-                builder.appendBoolean(v);
+                builder.appendInt(v);
             }
             builder.endPositionEntry();
         }
     }
 
-    private boolean[] getCellOrNull(int position) {
+    private int[] getCellOrNull(int position) {
         return position < cells.size() ? cells.get(position) : null;
     }
 
     private Block buildWithSelected(IntBlock selected) {
-        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount())) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int selectedCount = selected.getValueCount(i);
                 switch (selectedCount) {
@@ -119,7 +118,7 @@ final class EnrichResultBuilderForBoolean extends EnrichResultBuilder {
     }
 
     private Block buildWithSelected(IntVector selected) {
-        try (BooleanBlock.Builder builder = blockFactory.newBooleanBlockBuilder(selected.getPositionCount())) {
+        try (IntBlock.Builder builder = blockFactory.newIntBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 appendGroupToBlockBuilder(builder, getCellOrNull(selected.getInt(i)));
             }

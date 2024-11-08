@@ -449,7 +449,7 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
                 // assertExpectedClustersForMissingIndicesTests(executionInfo, List.of(
                 // // local cluster is never marked as SKIPPED even when no matching indices - just marked as 0 shards searched
                 // new ExpectedCluster(REMOTE_CLUSTER_1, "nomatch", EsqlExecutionInfo.Cluster.Status.SKIPPED, 0),
-                // new ExpectedCluster(REMOTE_CLUSTER_2, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
+                // new ExpectedCluster(REMOTE_CLUSTER_1, "*", EsqlExecutionInfo.Cluster.Status.SUCCESSFUL, remote2NumShards)
                 // ));
                 // }
 

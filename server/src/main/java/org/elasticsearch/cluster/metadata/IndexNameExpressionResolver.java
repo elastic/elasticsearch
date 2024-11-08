@@ -255,12 +255,12 @@ public class IndexNameExpressionResolver {
      * If {@param preserveDataStreams} is {@code true}, data streams that are covered by the wildcards from the
      * {@param expressions} are returned as-is, without expanding them further to their respective backing indices.
      */
-    protected static Set<String> resolveExpressionsToResources(Context context, String... expressions) {
+    protected static Collection<String> resolveExpressionsToResources(Context context, String... expressions) {
         // If we do not expand wildcards, then empty or _all expression result in an empty list
         boolean expandWildcards = context.getOptions().expandWildcardExpressions();
         if (expandWildcards == false) {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
-                return Set.of();
+                return List.of();
             }
         } else {
             if (expressions == null
@@ -268,11 +268,15 @@ public class IndexNameExpressionResolver {
                 || expressions.length == 1 && (Metadata.ALL.equals(expressions[0]) || Regex.isMatchAllPattern(expressions[0]))) {
                 return WildcardExpressionResolver.resolveAll(context);
             } else if (isNoneExpression(expressions)) {
-                return Set.of();
+                return List.of();
             }
         }
+
+        // Using ArrayList when we know we do not have wildcards is an optimisation, given that one expression result in 0 or 1 resources.
+        Collection<String> resources = expandWildcards && WildcardExpressionResolver.hasWildcards(expressions)
+            ? new LinkedHashSet<>()
+            : new ArrayList<>(expressions.length);
         boolean wildcardSeen = false;
-        Set<String> resources = new LinkedHashSet<>();
         for (int i = 0, n = expressions.length; i < n; i++) {
             String originalExpression = expressions[i];
 
@@ -287,7 +291,7 @@ public class IndexNameExpressionResolver {
             validateResourceExpression(context, baseExpression, expressions);
 
             // Check if it's wildcard
-            boolean isWildcard = expandWildcards && isWildcard(originalExpression);
+            boolean isWildcard = expandWildcards && WildcardExpressionResolver.isWildcard(originalExpression);
             wildcardSeen |= isWildcard;
 
             if (isWildcard) {
@@ -771,7 +775,13 @@ public class IndexNameExpressionResolver {
             getNetNewSystemIndexPredicate()
         );
         // unmodifiable without creating a new collection as it might contain many items
-        return Collections.unmodifiableSet(resolveExpressionsToResources(context, expressions));
+        Collection<String> resolved = resolveExpressionsToResources(context, expressions);
+        if (resolved instanceof Set<String>) {
+            // unmodifiable without creating a new collection as it might contain many items
+            return Collections.unmodifiableSet((Set<String>) resolved);
+        } else {
+            return Set.copyOf(resolved);
+        }
     }
 
     /**
@@ -1310,8 +1320,8 @@ public class IndexNameExpressionResolver {
          * Returns all the indices, data streams, and aliases, considering the open/closed, system, and hidden context parameters.
          * Depending on the context, returns the names of the data streams themselves or their backing indices.
          */
-        public static Set<String> resolveAll(Context context) {
-            Set<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
+        public static Collection<String> resolveAll(Context context) {
+            List<String> concreteIndices = resolveEmptyOrTrivialWildcard(context);
 
             if (context.includeDataStreams() == false && context.getOptions().ignoreAliases()) {
                 return concreteIndices;
@@ -1480,17 +1490,17 @@ public class IndexNameExpressionResolver {
             return resources;
         }
 
-        private static Set<String> resolveEmptyOrTrivialWildcard(Context context) {
+        private static List<String> resolveEmptyOrTrivialWildcard(Context context) {
             final String[] allIndices = resolveEmptyOrTrivialWildcardToAllIndices(context.getOptions(), context.getState().metadata());
             if (context.systemIndexAccessLevel == SystemIndexAccessLevel.ALL) {
-                return Set.of(allIndices);
+                return List.of(allIndices);
             } else {
                 return resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(context, allIndices);
             }
         }
 
-        private static Set<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
-            Set<String> filteredIndices = new LinkedHashSet<>(allIndices.length);
+        private static List<String> resolveEmptyOrTrivialWildcardWithAllowedSystemIndices(Context context, String[] allIndices) {
+            List<String> filteredIndices = new ArrayList<>(allIndices.length);
             for (int i = 0; i < allIndices.length; i++) {
                 if (shouldIncludeIndexAbstraction(context, allIndices[i])) {
                     filteredIndices.add(allIndices[i]);
@@ -1531,6 +1541,19 @@ public class IndexNameExpressionResolver {
             } else {
                 return Strings.EMPTY_ARRAY;
             }
+        }
+
+        static boolean isWildcard(String expression) {
+            return Regex.isSimpleMatchPattern(expression);
+        }
+
+        static boolean hasWildcards(String[] expressions) {
+            for (int i = 0; i < expressions.length; i++) {
+                if (isWildcard(expressions[i])) {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -1855,7 +1878,4 @@ public class IndexNameExpressionResolver {
         }
     }
 
-    private static boolean isWildcard(String expression) {
-        return Regex.isSimpleMatchPattern(expression);
-    }
 }

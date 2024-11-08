@@ -436,6 +436,16 @@ public final class EsqlTestUtils {
         return valuesList;
     }
 
+    public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.iterator().forEachRemaining(row -> {
+            var rowValues = new ArrayList<>();
+            row.iterator().forEachRemaining(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
+    }
+
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
         List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
         result.add("No limit defined, adding default limit of [1000]");

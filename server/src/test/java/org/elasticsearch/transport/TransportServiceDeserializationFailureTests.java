@@ -10,7 +10,6 @@
 package org.elasticsearch.transport;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -20,6 +19,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskAwareRequest;
@@ -53,7 +53,12 @@ public class TransportServiceDeserializationFailureTests extends ESTestCase {
                 if (action.equals(TransportService.HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), otherNode, new ClusterName(""))
+                        new TransportService.HandshakeResponse(
+                            BuildVersion.current(),
+                            Build.current().hash(),
+                            otherNode,
+                            new ClusterName("")
+                        )
                     );
                 }
             }

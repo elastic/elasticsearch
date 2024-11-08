@@ -188,7 +188,7 @@ public class NodeJoinTests extends ESTestCase {
                     handleResponse(
                         requestId,
                         new TransportService.HandshakeResponse(
-                            destination.getVersion(),
+                            destination.getBuildVersion(),
                             Build.current().hash(),
                             destination,
                             initialState.getClusterName()

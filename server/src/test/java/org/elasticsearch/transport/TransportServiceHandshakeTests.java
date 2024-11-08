@@ -24,6 +24,7 @@ import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
@@ -152,7 +153,7 @@ public class TransportServiceHandshakeTests extends ESTestCase {
             assertNotNull(connectedNode);
             // the name and version should be updated
             assertEquals(connectedNode.getName(), "TS_B");
-            assertEquals(connectedNode.getVersion(), transportServiceB.getLocalNode().getVersion());
+            assertEquals(connectedNode.getBuildVersion(), transportServiceB.getLocalNode().getBuildVersion());
             assertFalse(transportServiceA.nodeConnected(discoveryNode));
         }
     }
@@ -241,9 +242,9 @@ public class TransportServiceHandshakeTests extends ESTestCase {
                     "handshake with ["
                         + discoveryNode
                         + "] failed: remote node version ["
-                        + transportServiceB.getLocalNode().getVersion()
+                        + transportServiceB.getLocalNode().getBuildVersion()
                         + "] is incompatible with local node version ["
-                        + Version.CURRENT
+                        + BuildVersion.current()
                         + "]"
                 )
             );

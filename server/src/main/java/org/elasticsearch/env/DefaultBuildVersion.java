@@ -53,6 +53,11 @@ final class DefaultBuildVersion extends BuildVersion {
     }
 
     @Override
+    public boolean isCompatible(BuildVersion version) {
+        return version instanceof DefaultBuildVersion bv && this.version.isCompatible(bv.version);
+    }
+
+    @Override
     public boolean isFutureVersion() {
         return Version.CURRENT.before(version);
     }

@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
@@ -25,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -96,7 +96,12 @@ public class HandshakingTransportAddressConnectorTests extends ESTestCase {
                     } else {
                         handleResponse(
                             requestId,
-                            new HandshakeResponse(Version.CURRENT, Build.current().hash(), remoteNode, new ClusterName(remoteClusterName))
+                            new HandshakeResponse(
+                                BuildVersion.current(),
+                                Build.current().hash(),
+                                remoteNode,
+                                new ClusterName(remoteClusterName)
+                            )
                         );
                     }
                 }

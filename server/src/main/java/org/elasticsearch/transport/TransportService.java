@@ -13,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.cluster.ClusterName;
@@ -43,6 +42,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.tasks.Task;
@@ -314,7 +314,7 @@ public class TransportService extends AbstractLifecycleComponent
             false,
             HandshakeRequest::new,
             (request, channel, task) -> channel.sendResponse(
-                new HandshakeResponse(localNode.getVersion(), Build.current().hash(), localNode, clusterName)
+                new HandshakeResponse(localNode.getBuildVersion(), Build.current().hash(), localNode, clusterName)
             )
         );
     }
@@ -616,7 +616,7 @@ public class TransportService extends AbstractLifecycleComponent
                                 + clusterNamePredicate
                         )
                     );
-                } else if (response.version.isCompatible(localNode.getVersion()) == false) {
+                } else if (response.version.isCompatible(localNode.getBuildVersion()) == false) {
                     l.onFailure(
                         new IllegalStateException(
                             "handshake with ["
@@ -624,7 +624,7 @@ public class TransportService extends AbstractLifecycleComponent
                                 + "] failed: remote node version ["
                                 + response.version
                                 + "] is incompatible with local node version ["
-                                + localNode.getVersion()
+                                + localNode.getBuildVersion()
                                 + "]"
                         )
                     );
@@ -657,7 +657,7 @@ public class TransportService extends AbstractLifecycleComponent
 
     public static class HandshakeResponse extends TransportResponse {
 
-        private final Version version;
+        private final BuildVersion version;
 
         private final String buildHash;
 
@@ -665,7 +665,7 @@ public class TransportService extends AbstractLifecycleComponent
 
         private final ClusterName clusterName;
 
-        public HandshakeResponse(Version version, String buildHash, DiscoveryNode discoveryNode, ClusterName clusterName) {
+        public HandshakeResponse(BuildVersion version, String buildHash, DiscoveryNode discoveryNode, ClusterName clusterName) {
             this.buildHash = Objects.requireNonNull(buildHash);
             this.discoveryNode = Objects.requireNonNull(discoveryNode);
             this.version = Objects.requireNonNull(version);
@@ -676,7 +676,7 @@ public class TransportService extends AbstractLifecycleComponent
             super(in);
             // the first two fields need only VInts and raw (ASCII) characters, so we cross our fingers and hope that they appear
             // on the wire as we expect them to even if this turns out to be an incompatible build
-            version = Version.readVersion(in);
+            version = BuildVersion.fromStream(in);
             buildHash = in.readString();
 
             try {
@@ -716,13 +716,13 @@ public class TransportService extends AbstractLifecycleComponent
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            Version.writeVersion(version, out);
+            version.writeTo(out);
             out.writeString(buildHash);
             discoveryNode.writeTo(out);
             clusterName.writeTo(out);
         }
 
-        public Version getVersion() {
+        public BuildVersion getVersion() {
             return version;
         }
 
@@ -738,8 +738,8 @@ public class TransportService extends AbstractLifecycleComponent
             return clusterName;
         }
 
-        private static boolean isIncompatibleBuild(Version version, String buildHash) {
-            return version == Version.CURRENT && Build.current().hash().equals(buildHash) == false;
+        private static boolean isIncompatibleBuild(BuildVersion version, String buildHash) {
+            return BuildVersion.current().equals(version) && Build.current().hash().equals(buildHash) == false;
         }
     }
 

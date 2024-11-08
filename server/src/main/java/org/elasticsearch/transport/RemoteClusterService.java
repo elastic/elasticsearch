@@ -622,7 +622,7 @@ public final class RemoteClusterService extends RemoteClusterAware
                 logger.trace("handling remote cluster handshake request");
                 channel.sendResponse(
                     new TransportService.HandshakeResponse(
-                        transportService.getLocalNode().getVersion(),
+                        transportService.getLocalNode().getBuildVersion(),
                         Build.current().hash(),
                         transportService.getLocalNode().withTransportAddress(transportService.boundRemoteAccessAddress().publishAddress()),
                         transportService.clusterName

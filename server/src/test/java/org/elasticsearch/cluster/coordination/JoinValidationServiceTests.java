@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -33,6 +32,7 @@ import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
@@ -120,7 +120,7 @@ public class JoinValidationServiceTests extends ESTestCase {
                                         case JoinValidationService.JOIN_VALIDATE_ACTION_NAME, JoinHelper.JOIN_PING_ACTION_NAME ->
                                             TransportResponse.Empty.INSTANCE;
                                         case TransportService.HANDSHAKE_ACTION_NAME -> new TransportService.HandshakeResponse(
-                                            Version.CURRENT,
+                                            BuildVersion.current(),
                                             Build.current().hash(),
                                             node,
                                             ClusterName.DEFAULT

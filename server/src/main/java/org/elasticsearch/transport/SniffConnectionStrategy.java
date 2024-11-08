@@ -33,6 +33,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -120,7 +121,8 @@ public class SniffConnectionStrategy extends RemoteConnectionStrategy {
 
     private static final TimeValue SNIFF_REQUEST_TIMEOUT = TimeValue.THIRTY_SECONDS; // TODO make configurable?
 
-    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> Version.CURRENT.isCompatible(node.getVersion())
+    private static final Predicate<DiscoveryNode> DEFAULT_NODE_PREDICATE = (node) -> BuildVersion.current()
+        .isCompatible(node.getBuildVersion())
         && (node.isMasterNode() == false || node.canContainData() || node.isIngestNode());
 
     private final List<String> configuredSeedNodes;

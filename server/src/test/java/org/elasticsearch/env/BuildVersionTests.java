@@ -46,4 +46,8 @@ public class BuildVersionTests extends ESTestCase {
     public static BuildVersion increment(BuildVersion version) {
         return BuildVersion.fromVersionId(((DefaultBuildVersion) version).version.id() + 1);
     }
+
+    public static BuildVersion decrement(BuildVersion version) {
+        return BuildVersion.fromVersionId(((DefaultBuildVersion) version).version.id() - 1);
+    }
 }

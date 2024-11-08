@@ -10,7 +10,6 @@ package org.elasticsearch.cluster.coordination;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.coordination.FollowersChecker.FollowerCheckRequest;
@@ -23,6 +22,7 @@ import org.elasticsearch.common.settings.Settings.Builder;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
@@ -313,7 +313,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(BuildVersion.current(), Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }

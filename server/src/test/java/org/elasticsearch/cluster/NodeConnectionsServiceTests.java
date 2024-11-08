@@ -12,7 +12,6 @@ package org.elasticsearch.cluster;
 import org.apache.logging.log4j.Level;
 import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
@@ -32,6 +31,7 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
@@ -560,7 +560,9 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             Predicate<ClusterName> clusterNamePredicate,
             ActionListener<HandshakeResponse> listener
         ) {
-            listener.onResponse(new HandshakeResponse(Version.CURRENT, Build.current().hash(), connection.getNode(), new ClusterName("")));
+            listener.onResponse(
+                new HandshakeResponse(BuildVersion.current(), Build.current().hash(), connection.getNode(), new ClusterName(""))
+            );
         }
 
     }

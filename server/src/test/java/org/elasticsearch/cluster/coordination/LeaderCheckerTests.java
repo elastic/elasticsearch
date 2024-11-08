@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.coordination;
 import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.coordination.LeaderChecker.LeaderCheckRequest;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -21,6 +20,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.monitor.StatusInfo;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.EqualsHashCodeTestUtils;
@@ -261,7 +261,7 @@ public class LeaderCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(BuildVersion.current(), Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }
@@ -397,7 +397,7 @@ public class LeaderCheckerTests extends ESTestCase {
                 if (action.equals(HANDSHAKE_ACTION_NAME)) {
                     handleResponse(
                         requestId,
-                        new TransportService.HandshakeResponse(Version.CURRENT, Build.current().hash(), node, ClusterName.DEFAULT)
+                        new TransportService.HandshakeResponse(BuildVersion.current(), Build.current().hash(), node, ClusterName.DEFAULT)
                     );
                     return;
                 }

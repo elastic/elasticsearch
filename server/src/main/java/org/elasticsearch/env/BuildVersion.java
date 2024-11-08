@@ -52,6 +52,13 @@ public abstract class BuildVersion implements ToXContentFragment, Writeable {
     public abstract boolean onOrAfterMinimumCompatible();
 
     /**
+     * Checks whether this version is compatible with {@code version}.
+     *
+     * Usually, this means that the two versions can operate together in a cluster.
+     */
+    public abstract boolean isCompatible(BuildVersion version);
+
+    /**
      * Check whether this version comes from a release later than the
      * currently running Elasticsearch.
      *

@@ -679,7 +679,7 @@ public class Cron implements ToXContentFragment {
             gotOne = true;
         } // while( done == false )
 
-        return ldt.atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+         return ldt.atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
     }
 
     public String expression() {

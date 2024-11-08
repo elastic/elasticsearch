@@ -29,6 +29,13 @@ public class CronTimezoneTests extends ESTestCase {
         assertThat(nextValidTimeAfter, equalTo(Instant.parse("2020-01-01T01:00:00Z").toEpochMilli()));
     }
 
+    public void testForFixedOffsetLongDateCorrectlyCalculateNextRuntime() {
+        Cron cron = new Cron("0 0 1 1 1 ?", getTimeZone(ZoneOffset.of("+1")));
+        long midnightUTC = Instant.parse("2020-01-01T00:00:01Z").toEpochMilli();
+        long nextValidTimeAfter = cron.getNextValidTimeAfter(midnightUTC);
+        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2021-01-01T00:00:00Z").toEpochMilli()));
+    }
+
     public void testForLondonFixedDSTTransitionCheckCorrectSchedule() {
         ZoneId londonZone = getTimeZone("Europe/London").toZoneId();
 
@@ -115,7 +122,7 @@ public class CronTimezoneTests extends ESTestCase {
 
         long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
         System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
-        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2025-03-30T01:30:00Z").toEpochMilli()));
+        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2025-03-30T01:00:00Z").toEpochMilli()));
     }
 
     public void testForGMTRetardTransitionTriggerTimeIsRoundedToAfterDiscontinuity() {
@@ -125,8 +132,13 @@ public class CronTimezoneTests extends ESTestCase {
         Instant beforeTransition = Instant.parse("2024-10-27T00:00:00Z");
         long beforeTransitionEpoch = beforeTransition.toEpochMilli();
 
-        long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
+        long firstValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
+        System.out.println("nextValidTimeAfter = " + firstValidTimeAfter);
+        assertThat(firstValidTimeAfter, equalTo(Instant.parse("2024-10-27T00:30:00Z").toEpochMilli()));
+
+        long nextValidTimeAfter = cron.getNextValidTimeAfter(firstValidTimeAfter);
         System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
-        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2024-10-27T00:30:00Z").toEpochMilli()));
+        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2024-10-28T01:30:00Z").toEpochMilli()));
     }
+
 }

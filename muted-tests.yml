@@ -287,6 +287,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116484
 - class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
   issue: https://github.com/elastic/elasticsearch/issues/116487
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
 
 # Examples:
 #

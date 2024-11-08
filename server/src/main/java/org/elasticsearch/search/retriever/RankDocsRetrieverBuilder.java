@@ -141,9 +141,6 @@ public class RankDocsRetrieverBuilder extends RetrieverBuilder {
         if (searchSourceBuilder.size() + searchSourceBuilder.from() > rankDocResults.length) {
             searchSourceBuilder.size(Math.max(0, rankDocResults.length - searchSourceBuilder.from()));
         }
-        if (compoundUsed) {
-            searchSourceBuilder.skipInnerHits(true);
-        }
     }
 
     private boolean hasAggregations(SearchSourceBuilder searchSourceBuilder) {

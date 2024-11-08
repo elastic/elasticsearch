@@ -57,9 +57,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
         if (queryBuilders != null) {
             for (QueryBuilder query : queryBuilders) {
-                if (query instanceof AbstractQueryBuilder) {
-                    ((AbstractQueryBuilder<?>) query).extractInnerHitBuilders(innerHits);
-                }
+                InnerHitContextBuilder.extractInnerHits(query, innerHits);
             }
         }
     }

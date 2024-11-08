@@ -240,9 +240,6 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
         List<KnnSearchBuilder> knnSearchBuilders = new ArrayList<>(searchSourceBuilder.knnSearch());
         knnSearchBuilders.add(knnSearchBuilder);
         searchSourceBuilder.knnSearch(knnSearchBuilders);
-        if (compoundUsed) {
-            searchSourceBuilder.skipInnerHits(true);
-        }
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

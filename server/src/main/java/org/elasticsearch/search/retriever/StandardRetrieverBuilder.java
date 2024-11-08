@@ -201,9 +201,6 @@ public final class StandardRetrieverBuilder extends RetrieverBuilder implements 
         if (collapseBuilder != null) {
             searchSourceBuilder.collapse(collapseBuilder);
         }
-        if (compoundUsed) {
-            searchSourceBuilder.skipInnerHits(true);
-        }
     }
 
     // ---- FOR TESTING XCONTENT PARSING ----

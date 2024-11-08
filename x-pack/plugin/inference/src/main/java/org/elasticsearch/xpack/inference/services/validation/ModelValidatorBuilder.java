@@ -11,18 +11,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.inference.TaskType;
 
 public class ModelValidatorBuilder {
-
-    // TODO: Once we merge all the other service validation code we can remove the checkModelConfig function
-    // from each service, private the buildModelValidator function below this one, and call this directly from
-    // TransportPutInferenceModelAction.java.
-    public static ModelValidator buildModelValidator(TaskType taskType, boolean isElasticsearchInternalService) {
-        if (isElasticsearchInternalService) {
-            return new ElasticsearchInternalServiceModelValidator(buildModelValidator(taskType));
-        } else {
-            return buildModelValidator(taskType);
-        }
-    }
-
     public static ModelValidator buildModelValidator(TaskType taskType) {
         if (taskType == null) {
             throw new IllegalArgumentException("Task type can't be null");

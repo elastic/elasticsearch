@@ -1273,13 +1273,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
 
     @SuppressWarnings("unchecked")
     private void checkSnapshot(String snapshotName, int count, String tookOnVersion, IndexVersion tookOnIndexVersion) throws IOException {
-        logger.info(
-            "--> tookonVersion [{}], IndexVersion [{}] [{}] [{}]",
-            tookOnVersion,
-            tookOnIndexVersion,
-            tookOnIndexVersion.id(),
-            tookOnIndexVersion.toReleaseVersion()
-        );
         // Check the snapshot metadata, especially the version
         Request listSnapshotRequest = new Request("GET", "/_snapshot/repo/" + snapshotName);
         Map<String, Object> snapResponse = entityAsMap(client().performRequest(listSnapshotRequest));

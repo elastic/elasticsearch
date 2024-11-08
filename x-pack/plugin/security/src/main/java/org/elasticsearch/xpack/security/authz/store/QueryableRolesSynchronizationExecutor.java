@@ -19,21 +19,26 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
+import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyAction;
-import org.elasticsearch.xpack.core.security.action.SetIndexMetadataPropertyRequest;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider.QueryableRoles;
@@ -42,29 +47,41 @@ import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
-import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
 public class QueryableRolesSynchronizationExecutor implements ClusterStateListener {
 
-    public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
-
-    private static final String METADATA_INDEXED_BUILT_IN_ROLES = "indexed-built-in-roles";
-
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
+
+    public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
+    private static final String METADATA_QUERYABLE_BUILT_IN_ROLES = "queryable_built_in_roles";
+
+    private static final SimpleBatchedExecutor<MarkBuiltinRolesAsSyncedTask, Map<String, String>> MARK_ROLES_AS_SYNCED_TASK_EXECUTOR =
+        new SimpleBatchedExecutor<>() {
+            @Override
+            public Tuple<ClusterState, Map<String, String>> executeTask(MarkBuiltinRolesAsSyncedTask task, ClusterState clusterState) {
+                return task.execute(clusterState);
+            }
+
+            @Override
+            public void taskSucceeded(MarkBuiltinRolesAsSyncedTask task, Map<String, String> value) {
+                task.success(value);
+            }
+        };
+
+    private final MasterServiceTaskQueue<MarkBuiltinRolesAsSyncedTask> markRolesAsSyncedTaskQueue;
 
     private final QueryableRolesProvider builtinRolesProvider;
     private final NativeRolesStore nativeRolesStore;
     private final SecurityIndexManager securityIndex;
     private final Client client;
     private final Executor executor;
-    private final ClusterService clusterService;
     private final FeatureService featureService;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
@@ -77,13 +94,17 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         Client client,
         ThreadPool threadPool
     ) {
-        this.clusterService = clusterService;
         this.featureService = featureService;
         this.builtinRolesProvider = rolesProvider;
         this.nativeRolesStore = nativeRolesStore;
         this.securityIndex = securityIndex;
         this.client = client;
         this.executor = threadPool.generic();
+        this.markRolesAsSyncedTaskQueue = clusterService.createTaskQueue(
+            "mark-built-in-roles-as-synced-task-queue",
+            Priority.LOW,
+            MARK_ROLES_AS_SYNCED_TASK_EXECUTOR
+        );
     }
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
@@ -103,6 +124,8 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             logger.info("No data nodes in the cluster, skipping built-in roles synchronization");
             return false;
         }
+        // to keep things simple and avoid potential overwrites with an older version of built-in roles,
+        // we only sync built-in roles if all nodes are on the same version
         if (isMixedVersionCluster(state.nodes())) {
             logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
             return false;
@@ -141,7 +164,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
 
         if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> syncBuiltinRoles(indexedRolesVersions, roles, ActionListener.wrap(v -> {
+            executor.execute(() -> syncBuiltinRoles(state, indexedRolesVersions, roles, ActionListener.wrap(v -> {
                 logger.info("Successfully synced built-in roles to security index");
                 synchronizationInProgress.set(false);
             }, e -> {
@@ -153,23 +176,26 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         }
     }
 
-    private void syncBuiltinRoles(Map<String, String> indexedRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
+    private void syncBuiltinRoles(
+        ClusterState state,
+        Map<String, String> indexedRolesVersions,
+        QueryableRoles roles,
+        ActionListener<Void> listener
+    ) {
         // This will create .security index if it does not exist and execute all migrations.
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
             if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
             } else {
-                // we will first create new or update the existing roles in .security index
-                // then potentially delete the roles from .security index that have been removed
                 indexRoles(roles.roleDescriptors().values(), frozenSecurityIndex, ActionListener.wrap(onResponse -> {
                     Set<String> rolesToDelete = indexedRolesVersions == null
                         ? Set.of()
                         : Sets.difference(indexedRolesVersions.keySet(), roles.roleVersions().keySet());
                     if (false == rolesToDelete.isEmpty()) {
-                        deleteRoles(rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
+                        deleteRoles(state, rolesToDelete, roles.roleVersions(), frozenSecurityIndex, indexedRolesVersions, listener);
                     } else {
-                        markRolesAsIndexed(indexedRolesVersions, roles.roleVersions(), listener);
+                        markRolesAsSynced(state, indexedRolesVersions, roles.roleVersions(), listener);
                     }
                 }, listener::onFailure));
             }
@@ -178,6 +204,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private void deleteRoles(
+        ClusterState state,
         Set<String> rolesToDelete,
         Map<String, String> roleVersions,
         SecurityIndexManager frozenSecurityIndex,
@@ -195,7 +222,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                         new ElasticsearchStatusException("Automatic deletion of built-in roles failed", RestStatus.INTERNAL_SERVER_ERROR)
                     );
                 } else {
-                    markRolesAsIndexed(indexedRolesVersions, roleVersions, listener);
+                    markRolesAsSynced(state, indexedRolesVersions, roleVersions, listener);
                 }
 
             }, listener::onFailure)
@@ -223,51 +250,112 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         );
     }
 
-    private void markRolesAsIndexed(
+    private void markRolesAsSynced(
+        ClusterState state,
         Map<String, String> expectedRolesVersion,
         Map<String, String> newRolesVersion,
         ActionListener<Void> listener
     ) {
-        // TODO: We could potentially submit this as a cluster state update task instead of calling a transport action
-        executeAsyncWithOrigin(
-            client,
-            SECURITY_ORIGIN,
-            SetIndexMetadataPropertyAction.INSTANCE,
-            new SetIndexMetadataPropertyRequest(
-                TimeValue.MINUS_ONE,
-                SECURITY_MAIN_ALIAS,
-                METADATA_INDEXED_BUILT_IN_ROLES,
-                expectedRolesVersion,
-                newRolesVersion
-            ),
-            ActionListener.wrap(response -> {
-                if (newRolesVersion.equals(response.value()) == false) {
-                    listener.onFailure(new IllegalStateException("Failed to mark built-in roles as indexed"));
+        Index concreteSecurityIndex = resolveConcreteSecurityIndex(state.metadata());
+        if(concreteSecurityIndex == null){
+            listener.onFailure(new IndexNotFoundException("concrete security index not found"));
+            return;
+        }
+        markRolesAsSyncedTaskQueue.submitTask(
+            "mark built-in roles as synced task",
+            new MarkBuiltinRolesAsSyncedTask(ActionListener.wrap(response -> {
+                if (newRolesVersion.equals(response) == false) {
+                    listener.onFailure(new IllegalStateException("Failed to mark built-in roles as synced"));
                 } else {
                     listener.onResponse(null);
                 }
-            }, listener::onFailure)
+            }, listener::onFailure), concreteSecurityIndex, expectedRolesVersion, newRolesVersion),
+            null
         );
     }
 
+
+
     private Map<String, String> readIndexedRolesVersion(ClusterState state) {
-        final IndexMetadata indexMetadata = resolveConcreteIndex(SECURITY_MAIN_ALIAS, state.metadata());
+        final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
         if (indexMetadata == null) {
             return null;
         }
-        return indexMetadata.getCustomData(METADATA_INDEXED_BUILT_IN_ROLES);
+        return indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
     }
 
-    private static IndexMetadata resolveConcreteIndex(final String indexOrAliasName, final Metadata metadata) {
-        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(indexOrAliasName);
+    private static IndexMetadata resolveSecurityIndexMetadata(final Metadata metadata) {
+        final Index index = resolveConcreteSecurityIndex(metadata);
+        if (index != null) {
+            return metadata.getIndexSafe(index);
+        }
+        return null;
+    }
+
+    private static Index resolveConcreteSecurityIndex(final Metadata metadata) {
+        final IndexAbstraction indexAbstraction = metadata.getIndicesLookup().get(SECURITY_MAIN_ALIAS);
         if (indexAbstraction != null) {
             final List<Index> indices = indexAbstraction.getIndices();
             if (indexAbstraction.getType() != IndexAbstraction.Type.CONCRETE_INDEX && indices.size() > 1) {
-                throw new IllegalStateException("Alias [" + indexOrAliasName + "] points to more than one index: " + indices);
+                throw new IllegalStateException("Alias [" + SECURITY_MAIN_ALIAS + "] points to more than one index: " + indices);
             }
-            return metadata.index(indices.get(0));
+            return indices.get(0);
         }
         return null;
+    }
+
+    static class MarkBuiltinRolesAsSyncedTask implements ClusterStateTaskListener {
+
+        private final ActionListener<Map<String, String>> listener;
+        private final Index index;
+        @Nullable
+        private final Map<String, String> expected;
+        @Nullable
+        private final Map<String, String> value;
+
+        MarkBuiltinRolesAsSyncedTask(
+            ActionListener<Map<String, String>> listener,
+            Index index,
+            @Nullable Map<String, String> expected,
+            @Nullable Map<String, String> value
+        ) {
+            this.listener = listener;
+            this.index = index;
+            this.expected = expected;
+            this.value = value;
+        }
+
+        Tuple<ClusterState, Map<String, String>> execute(ClusterState state) {
+            IndexMetadata indexMetadata = state.metadata().getIndexSafe(index);
+            Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
+            if (Objects.equals(expected, existingValue)) {
+                IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
+                if (value != null) {
+                    indexMetadataBuilder.putCustom(METADATA_QUERYABLE_BUILT_IN_ROLES, value);
+                } else {
+                    indexMetadataBuilder.removeCustom(METADATA_QUERYABLE_BUILT_IN_ROLES);
+                }
+                indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
+                ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().indices());
+                builder.put(index.getName(), indexMetadataBuilder.build());
+                return new Tuple<>(
+                    ClusterState.builder(state).metadata(Metadata.builder(state.metadata()).indices(builder.build()).build()).build(),
+                    value
+                );
+            } else {
+                // returns existing value when expectation is not met
+                return new Tuple<>(state, existingValue);
+            }
+        }
+
+        void success(Map<String, String> value) {
+            listener.onResponse(value);
+        }
+
+        @Override
+        public void onFailure(Exception e) {
+            listener.onFailure(e);
+        }
     }
 
 }

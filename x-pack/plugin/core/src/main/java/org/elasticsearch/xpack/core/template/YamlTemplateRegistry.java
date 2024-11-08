@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -124,7 +125,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 .collect(Collectors.toList());
             this.featureService = featureService;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchException(e);
         }
     }
 
@@ -213,7 +214,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 return ComponentTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's component template: " + name, e);
+            throw new ElasticsearchException("failed to load " + getName() + " Ingest plugin's component template: " + name, e);
         }
     }
 
@@ -229,7 +230,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 return ComposableIndexTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's index template: " + name, e);
+            throw new ElasticsearchException("failed to load " + getName() + " Ingest plugin's index template: " + name, e);
         }
     }
 
@@ -254,7 +255,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
             var rawPolicy = loadResource(this.getClass(), "/lifecycle-policies/" + name + ".yaml");
             return LifecyclePolicyUtils.parsePolicy(rawPolicy, name, LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY, XContentType.YAML);
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchException(e);
         }
     }
 

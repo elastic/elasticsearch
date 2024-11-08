@@ -10,7 +10,7 @@ This allows for complex behavior to be depicted in a tree-like structure, called
 
 [TIP]
 ====
-Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction.
+Refer to <<retrievers-overview>> for a high level overview of the retrievers abstraction, and to <<retrievers-examples>> for detailed examples on combining and using retrievers.
 ====
 
 The following retrievers are available:

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.rest.action.search;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 
 import java.util.HashSet;
@@ -27,8 +28,12 @@ public final class SearchCapabilities {
     private static final String BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY = "bit_dense_vector_synthetic_source";
     /** Support Byte and Float with Bit dot product. */
     private static final String BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY = "byte_float_bit_dot_product";
+    /** Support docvalue_fields parameter for `dense_vector` field. */
+    private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
     /** Support transforming rank rrf queries to the corresponding rrf retriever. */
     private static final String TRANSFORM_RANK_RRF_TO_RETRIEVER = "transform_rank_rrf_to_retriever";
+    /** Support kql query. */
+    private static final String KQL_QUERY_SUPPORTED = "kql_query";
     /** Support multi-dense-vector field mapper. */
     private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
 
@@ -38,9 +43,13 @@ public final class SearchCapabilities {
         capabilities.add(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
         capabilities.add(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
         capabilities.add(BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY);
+        capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
+        }
+        if (Build.current().isSnapshot()) {
+            capabilities.add(KQL_QUERY_SUPPORTED);
         }
         CAPABILITIES = Set.copyOf(capabilities);
     }

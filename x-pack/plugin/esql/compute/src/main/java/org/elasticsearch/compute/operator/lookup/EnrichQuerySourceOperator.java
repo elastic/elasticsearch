@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.esql.enrich;
+package org.elasticsearch.compute.operator.lookup;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.LeafReaderContext;
@@ -32,8 +32,7 @@ import java.io.UncheckedIOException;
  * This operator will emit Pages consisting of a {@link DocVector} and {@link IntBlock} of positions for each query of the input queries.
  * The position block will be used as keys to combine the extracted values by {@link MergePositionsOperator}.
  */
-final class EnrichQuerySourceOperator extends SourceOperator {
-
+public final class EnrichQuerySourceOperator extends SourceOperator {
     private final BlockFactory blockFactory;
     private final QueryList queryList;
     private int queryPosition = -1;
@@ -42,9 +41,9 @@ final class EnrichQuerySourceOperator extends SourceOperator {
     private final int maxPageSize;
 
     // using smaller pages enables quick cancellation and reduces sorting costs
-    static final int DEFAULT_MAX_PAGE_SIZE = 256;
+    public static final int DEFAULT_MAX_PAGE_SIZE = 256;
 
-    EnrichQuerySourceOperator(BlockFactory blockFactory, int maxPageSize, QueryList queryList, IndexReader indexReader) {
+    public EnrichQuerySourceOperator(BlockFactory blockFactory, int maxPageSize, QueryList queryList, IndexReader indexReader) {
         this.blockFactory = blockFactory;
         this.maxPageSize = maxPageSize;
         this.queryList = queryList;

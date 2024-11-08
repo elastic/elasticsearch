@@ -55,5 +55,7 @@
   ],
   "examples" : [
     "ROW a=12.9\n| EVAL atan=ATAN(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

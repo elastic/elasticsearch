@@ -35,7 +35,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
@@ -54,6 +53,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "boolean",
             "cartesian_point",
             "cartesian_shape",
+            "date_nanos",
             "date",
             "geo_point",
             "geo_shape",
@@ -61,7 +61,6 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
         examples = { @Example(file = "null", tag = "coalesce") }
@@ -74,6 +73,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "date_nanos",
                 "date",
                 "geo_point",
                 "geo_shape",
@@ -91,6 +91,7 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
                 "boolean",
                 "cartesian_point",
                 "cartesian_shape",
+                "date_nanos",
                 "date",
                 "geo_point",
                 "geo_shape",
@@ -143,12 +144,12 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
 
         for (int position = 0; position < children().size(); position++) {
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = children().get(position).dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()
@@ -192,8 +193,8 @@ public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator::apply).toList();
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {

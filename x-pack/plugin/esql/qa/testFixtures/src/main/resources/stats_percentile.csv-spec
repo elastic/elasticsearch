@@ -130,19 +130,6 @@ m:double           | p50:double           | job_positions:keyword
 3.9299999999999997 | 3.9299999999999997   | "Architect"
 ;
 
-medianAbsoluteDeviation
-// tag::median-absolute-deviation[]
-FROM employees
-| STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)
-// end::median-absolute-deviation[]
-;
-
-// tag::median-absolute-deviation-result[]
-MEDIAN(salary):double | MEDIAN_ABSOLUTE_DEVIATION(salary):double
-47003                 | 10096.5
-// end::median-absolute-deviation-result[]
-;
-
 medianViaExpression
 from employees | stats p50 = percentile(salary_change, 25*2);
 
@@ -168,19 +155,6 @@ FROM employees
 median_max_salary_change:double
 7.69
 // end::docsStatsMedianNestedExpression-result[]
-;
-
-docsStatsMADNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]
-// tag::docsStatsMADNestedExpression[]
-FROM employees
-| STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))
-// end::docsStatsMADNestedExpression[]
-;
-
-// tag::docsStatsMADNestedExpression-result[]
-m_a_d_max_salary_change:double
-5.69
-// end::docsStatsMADNestedExpression-result[]
 ;
 
 docsStatsPercentileNestedExpression#[skip:-8.12.99,reason:supported in 8.13+]

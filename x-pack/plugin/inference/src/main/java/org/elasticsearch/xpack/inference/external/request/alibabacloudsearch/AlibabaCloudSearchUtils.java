@@ -15,4 +15,5 @@ public class AlibabaCloudSearchUtils {
     public static final String TEXT_EMBEDDING_PATH = "text-embedding";
     public static final String SPARSE_EMBEDDING_PATH = "text-sparse-embedding";
     public static final String RERANK_PATH = "ranker";
+    public static final String COMPLETION_PATH = "text-generation";
 }

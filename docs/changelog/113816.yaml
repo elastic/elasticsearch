@@ -1,0 +1,5 @@
+pr: 113816
+summary: Avoid using concurrent collector manager in `LuceneChangesSnapshot`
+area: Search
+type: enhancement
+issues: []

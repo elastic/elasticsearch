@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.IndexFormatTooNewException;
 import org.apache.lucene.index.IndexFormatTooOldException;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.store.LockObtainFailedException;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.common.io.stream.NotSerializableExceptionWrapper;
@@ -1817,12 +1819,6 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             160,
             TransportVersions.V_7_10_0
         ),
-        VERSION_MISMATCH_EXCEPTION(
-            org.elasticsearch.action.search.VersionMismatchException.class,
-            org.elasticsearch.action.search.VersionMismatchException::new,
-            161,
-            TransportVersions.V_7_12_0
-        ),
         AUTHENTICATION_PROCESSING_ERROR(
             org.elasticsearch.ElasticsearchAuthenticationProcessingError.class,
             org.elasticsearch.ElasticsearchAuthenticationProcessingError::new,
@@ -1921,13 +1917,19 @@ public class ElasticsearchException extends RuntimeException implements ToXConte
             ResourceAlreadyUploadedException.class,
             ResourceAlreadyUploadedException::new,
             181,
-            TransportVersions.ADD_RESOURCE_ALREADY_UPLOADED_EXCEPTION
+            TransportVersions.V_8_15_0
         ),
         INGEST_PIPELINE_EXCEPTION(
             org.elasticsearch.ingest.IngestPipelineException.class,
             org.elasticsearch.ingest.IngestPipelineException::new,
             182,
             TransportVersions.INGEST_PIPELINE_EXCEPTION_ADDED
+        ),
+        INDEX_RESPONSE_WRAPPER_EXCEPTION(
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class,
+            IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus::new,
+            183,
+            TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE
         );
 
         final Class<? extends ElasticsearchException> exceptionClass;

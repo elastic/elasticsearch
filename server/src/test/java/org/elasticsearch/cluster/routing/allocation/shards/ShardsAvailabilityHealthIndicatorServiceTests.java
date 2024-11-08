@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.shards;
@@ -1983,6 +1984,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         );
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.getClusterSettings()).thenReturn(ClusterSettings.createBuiltInClusterSettings());
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         var service = new ShardsAvailabilityHealthIndicatorService(
             clusterService,
             mock(AllocationService.class),
@@ -2557,6 +2559,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         when(clusterService.state()).thenReturn(clusterState);
         var clusterSettings = new ClusterSettings(nodeSettings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
+        when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         var allocationService = mock(AllocationService.class);
         when(allocationService.explainShardAllocation(any(), any())).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {
             ShardRouting shardRouting = invocation.getArgument(0);

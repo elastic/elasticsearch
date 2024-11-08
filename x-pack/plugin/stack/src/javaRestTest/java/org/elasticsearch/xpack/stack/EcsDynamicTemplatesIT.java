@@ -13,6 +13,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
+import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -206,6 +207,44 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         verifyEcsMappings(indexName);
     }
 
+    public void testDateFieldsWithDifferentFormats() throws IOException {
+        Map<String, Object> dateFieldsMap = ecsFlatFieldDefinitions.entrySet()
+            .stream()
+            .filter(entry -> "date".equals(entry.getValue().get("type")))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // test with iso8601 format
+        String indexName = "test-date-fields-as-is8601";
+        createTestIndex(indexName);
+        Map<String, Object> document = new HashMap<>();
+        DateFormatter formatter = DateFormatter.forPattern(FormatNames.ISO8601.getName());
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, formatter.formatMillis(System.currentTimeMillis()));
+        }
+        verifyAllDateFields(indexName, document, dateFieldsMap);
+
+        // test with milliseconds since epoch format
+        indexName = "test-date-fields-as-millis";
+        createTestIndex(indexName);
+        document = new HashMap<>();
+        for (String field : dateFieldsMap.keySet()) {
+            document.put(field, System.currentTimeMillis());
+        }
+        verifyAllDateFields(indexName, document, dateFieldsMap);
+    }
+
+    private void verifyAllDateFields(String indexName, Map<String, Object> document, Map<String, Object> dateFieldsMap) throws IOException {
+        indexDocument(indexName, document);
+        final Map<String, Object> rawMappings = getMappings(indexName);
+        final Map<String, Map<String, Object>> flatFieldMappings = new HashMap<>();
+        processRawMappingsSubtree(rawMappings, flatFieldMappings, new HashMap<>(), "");
+        flatFieldMappings.forEach((fieldName, fieldMappings) -> {
+            if (dateFieldsMap.containsKey(fieldName)) {
+                assertType("date", fieldMappings);
+            }
+        });
+    }
+
     private void assertType(String expectedType, Map<String, Object> actualMappings) {
         assertNotNull("expected to get non-null mappings for field", actualMappings);
         assertEquals(expectedType, actualMappings.get("type"));
@@ -312,6 +351,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
         } else {
             indexMappings = ecsDynamicTemplates;
         }
+        indexMappings.put("date_detection", false);
         try (XContentBuilder bodyBuilder = JsonXContent.contentBuilder()) {
             bodyBuilder.startObject();
             bodyBuilder.startObject("settings");
@@ -349,7 +389,7 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
                 return "test";
             }
             case "date" -> {
-                return DateFormatter.forPattern("strict_date_optional_time").formatMillis(System.currentTimeMillis());
+                return DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME.getName()).formatMillis(System.currentTimeMillis());
             }
             case "ip" -> {
                 return NetworkAddress.format(randomIp(true));
@@ -485,9 +525,11 @@ public class EcsDynamicTemplatesIT extends ESRestTestCase {
             );
         });
         fieldToWrongMappingType.forEach((fieldName, actualMappingType) -> {
-            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(fieldName);
+            // if fieldPrefix is not null, we need to remove it from the field name for the ECS lookup
+            String ecsFieldName = fieldPrefix == null ? fieldName : fieldName.substring(fieldPrefix.length());
+            Map<String, Object> fieldMappings = ecsFlatFieldDefinitions.get(ecsFieldName);
             if (fieldMappings == null) {
-                fieldMappings = ecsFlatMultiFieldDefinitions.get(fieldName);
+                fieldMappings = ecsFlatMultiFieldDefinitions.get(ecsFieldName);
             }
             String ecsExpectedType = (String) fieldMappings.get("type");
             logger.error(

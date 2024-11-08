@@ -23,7 +23,7 @@ public class GrokSerializationTests extends AbstractLogicalPlanSerializationTest
         LogicalPlan child = randomChild(0);
         Expression inputExpr = FieldAttributeTests.createFieldAttribute(3, false);
         String pattern = randomAlphaOfLength(5);
-        List<Attribute> extracted = randomList(1, 10, ReferenceAttributeTests::randomReferenceAttribute);
+        List<Attribute> extracted = randomList(1, 10, () -> ReferenceAttributeTests.randomReferenceAttribute(false));
         return new Grok(source, child, inputExpr, Grok.pattern(source, pattern), extracted);
     }
 

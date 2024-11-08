@@ -37,7 +37,6 @@ import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.SimpleMappedFieldType;
 import org.elasticsearch.index.mapper.SortedNumericDocValuesSyntheticFieldLoader;
-import org.elasticsearch.index.mapper.SourceLoader;
 import org.elasticsearch.index.mapper.SourceValueFetcher;
 import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
@@ -470,8 +469,6 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
                             return 0; // Unknown
                         }
 
-                        @Override
-                        public void close() {}
                     };
                 }
 
@@ -711,18 +708,15 @@ public class AggregateDoubleMetricFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        return new CompositeSyntheticFieldLoader(
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        var loader = new CompositeSyntheticFieldLoader(
             leafName(),
             fullPath(),
             new AggregateMetricSyntheticFieldLoader(fullPath(), metrics),
             new CompositeSyntheticFieldLoader.MalformedValuesLayer(fullPath())
         );
+
+        return new SyntheticSourceSupport.Native(loader);
     }
 
     public static class AggregateMetricSyntheticFieldLoader implements CompositeSyntheticFieldLoader.DocValuesLayer {

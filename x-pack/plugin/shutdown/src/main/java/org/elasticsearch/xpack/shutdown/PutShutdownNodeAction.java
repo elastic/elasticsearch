@@ -17,17 +17,13 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.GRACE_PERIOD_ADDED_VERSION;
-import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.REPLACE_SHUTDOWN_TYPE_ADDED_VERSION;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.shutdown.ShutdownPlugin.serializesWithParentTaskAndTimeouts;
 
 public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
@@ -112,18 +108,8 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = gracePeriod;
         }
 
-        @UpdateForV9 // inline when bwc no longer needed
-        public static Request readFrom(StreamInput in) throws IOException {
-            if (serializesWithParentTaskAndTimeouts(in.getTransportVersion())) {
-                return new Request(in);
-            } else {
-                return new Request(TimeValue.THIRTY_SECONDS, TimeValue.THIRTY_SECONDS, in);
-            }
-        }
-
-        private Request(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion());
             this.nodeId = in.readString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
@@ -132,46 +118,15 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             this.gracePeriod = in.readOptionalTimeValue();
         }
 
-        @UpdateForV9 // remove when bwc no longer needed
-        private Request(TimeValue masterNodeTimeout, TimeValue ackTimeout, StreamInput in) throws IOException {
-            super(masterNodeTimeout, ackTimeout);
-            assert serializesWithParentTaskAndTimeouts(in.getTransportVersion()) == false;
-            this.nodeId = in.readString();
-            this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
-            this.reason = in.readString();
-            this.allocationDelay = in.readOptionalTimeValue();
-            if (in.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-                this.targetNodeName = in.readOptionalString();
-            } else {
-                this.targetNodeName = null;
-            }
-            if (in.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-                this.gracePeriod = in.readOptionalTimeValue();
-            } else {
-                this.gracePeriod = null;
-            }
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (serializesWithParentTaskAndTimeouts(out.getTransportVersion())) {
-                super.writeTo(out);
-            }
+            super.writeTo(out);
             out.writeString(nodeId);
-            if (out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)
-                && this.type == SingleNodeShutdownMetadata.Type.REPLACE) {
-                out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
-            } else {
-                out.writeEnum(type);
-            }
+            out.writeEnum(type);
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);
-            if (out.getTransportVersion().onOrAfter(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION)) {
-                out.writeOptionalString(targetNodeName);
-            }
-            if (out.getTransportVersion().onOrAfter(GRACE_PERIOD_ADDED_VERSION)) {
-                out.writeOptionalTimeValue(gracePeriod);
-            }
+            out.writeOptionalString(targetNodeName);
+            out.writeOptionalTimeValue(gracePeriod);
         }
 
         public String getNodeId() {

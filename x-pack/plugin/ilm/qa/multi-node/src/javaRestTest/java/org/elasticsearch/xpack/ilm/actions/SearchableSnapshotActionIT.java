@@ -48,6 +48,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonMap;
+import static org.elasticsearch.cluster.routing.allocation.decider.ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createComposableTemplate;
 import static org.elasticsearch.xpack.TimeSeriesRestDriver.createNewSingletonPolicy;
@@ -921,12 +922,67 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
         }, 30, TimeUnit.SECONDS);
     }
 
+    public void testSearchableSnapshotTotalShardsPerNode() throws Exception {
+        String index = "myindex-" + randomAlphaOfLength(4).toLowerCase(Locale.ROOT);
+        Integer totalShardsPerNode = 2;
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createPolicy(
+            client(),
+            policy,
+            null,
+            null,
+            new Phase(
+                "cold",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean()))
+            ),
+            new Phase(
+                "frozen",
+                TimeValue.ZERO,
+                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+            ),
+            null
+        );
+
+        createIndex(index, Settings.EMPTY);
+        ensureGreen(index);
+        indexDocument(client(), index, true);
+
+        // enable ILM after we indexed a document as otherwise ILM might sometimes run so fast the indexDocument call will fail with
+        // `index_not_found_exception`
+        updateIndexSettings(index, Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy));
+
+        // wait for snapshot successfully mounted and ILM execution completed
+        final String searchableSnapMountedIndexName = SearchableSnapshotAction.PARTIAL_RESTORED_INDEX_PREFIX
+            + SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + index;
+        assertBusy(() -> {
+            logger.info("--> waiting for [{}] to exist...", searchableSnapMountedIndexName);
+            assertTrue(indexExists(searchableSnapMountedIndexName));
+        }, 30, TimeUnit.SECONDS);
+        assertBusy(() -> {
+            triggerStateChange();
+            Step.StepKey stepKeyForIndex = getStepKeyForIndex(client(), searchableSnapMountedIndexName);
+            assertThat(stepKeyForIndex.phase(), is("frozen"));
+            assertThat(stepKeyForIndex.name(), is(PhaseCompleteStep.NAME));
+        }, 30, TimeUnit.SECONDS);
+
+        // validate total_shards_per_node setting
+        Map<String, Object> indexSettings = getIndexSettingsAsMap(searchableSnapMountedIndexName);
+        assertNotNull("expected total_shards_per_node to exist", indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        Integer snapshotTotalShardsPerNode = Integer.valueOf((String) indexSettings.get(INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey()));
+        assertEquals(
+            "expected total_shards_per_node to be " + totalShardsPerNode + ", but got: " + snapshotTotalShardsPerNode,
+            snapshotTotalShardsPerNode,
+            totalShardsPerNode
+        );
+    }
+
     /**
      * Cause a bit of cluster activity using an empty reroute call in case the `wait-for-index-colour` ILM step missed the
      * notification that partial-index is now GREEN.
      */
     private void triggerStateChange() throws IOException {
-        Request rerouteRequest = new Request("POST", "/_cluster/reroute?metric=none");
+        Request rerouteRequest = new Request("POST", "/_cluster/reroute");
         client().performRequest(rerouteRequest);
     }
 }

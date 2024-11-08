@@ -30,7 +30,6 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
@@ -113,12 +112,12 @@ public class CIDRMatch extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var ipEvaluatorSupplier = toEvaluator.apply(ipField);
         return new CIDRMatchEvaluator.Factory(
             source(),
             ipEvaluatorSupplier,
-            matches.stream().map(x -> toEvaluator.apply(x)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
+            matches.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new)
         );
     }
 

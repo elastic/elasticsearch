@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -141,7 +142,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
 
     protected final DocumentMapper createDocumentMapper(XContentBuilder mappings, IndexMode indexMode) throws IOException {
         return switch (indexMode) {
-            case STANDARD -> createDocumentMapper(mappings);
+            case STANDARD, LOOKUP -> createDocumentMapper(mappings);
             case TIME_SERIES -> createTimeSeriesModeDocumentMapper(mappings);
             case LOGSDB -> createLogsModeDocumentMapper(mappings);
         };
@@ -169,13 +170,18 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
     }
 
     protected final DocumentMapper createDocumentMapper(String mappings) throws IOException {
-        MapperService mapperService = createMapperService(mapping(b -> {}));
+        var mapperService = createMapperService(mapping(b -> {}));
         merge(mapperService, mappings);
         return mapperService.documentMapper();
     }
 
     public final MapperService createMapperService(XContentBuilder mappings) throws IOException {
         return createMapperService(getVersion(), mappings);
+    }
+
+    public final MapperService createSytheticSourceMapperService(XContentBuilder mappings) throws IOException {
+        var settings = Settings.builder().put("index.mapping.source.mode", "synthetic").build();
+        return createMapperService(getVersion(), settings, () -> true, mappings);
     }
 
     protected IndexVersion getVersion() {
@@ -301,8 +307,12 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 mapperMetrics
             );
 
-            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping() != null) {
-                mapperService.merge(null, indexSettings.getMode().getDefaultMapping(), MapperService.MergeReason.MAPPING_UPDATE);
+            if (applyDefaultMapping && indexSettings.getMode().getDefaultMapping(indexSettings) != null) {
+                mapperService.merge(
+                    null,
+                    indexSettings.getMode().getDefaultMapping(indexSettings),
+                    MapperService.MergeReason.MAPPING_UPDATE
+                );
             }
 
             return mapperService;
@@ -880,24 +890,6 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, reader),
             new FieldMaskingReader(SourceFieldMapper.RECOVERY_SOURCE_NAME, roundTripReader)
         );
-    }
-
-    protected static XContentBuilder syntheticSourceMapping(CheckedConsumer<XContentBuilder, IOException> buildFields) throws IOException {
-        return topMapping(b -> {
-            b.startObject("_source").field("mode", "synthetic").endObject();
-            b.startObject("properties");
-            buildFields.accept(b);
-            b.endObject();
-        });
-    }
-
-    protected static XContentBuilder syntheticSourceFieldMapping(CheckedConsumer<XContentBuilder, IOException> buildField)
-        throws IOException {
-        return syntheticSourceMapping(b -> {
-            b.startObject("field");
-            buildField.accept(b);
-            b.endObject();
-        });
     }
 
     protected static DirectoryReader wrapInMockESDirectoryReader(DirectoryReader directoryReader) throws IOException {

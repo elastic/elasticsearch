@@ -49,7 +49,7 @@ public class ToVersionTests extends AbstractScalarFunctionTestCase {
         );
 
         // But strings that are shaped like versions do parse to valid versions
-        for (DataType inputType : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType inputType : DataType.stringTypes()) {
             TestCaseSupplier.unary(
                 suppliers,
                 read,

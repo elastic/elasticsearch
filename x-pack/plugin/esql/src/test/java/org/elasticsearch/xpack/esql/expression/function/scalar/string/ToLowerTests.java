@@ -45,9 +45,11 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
         suppliers.add(supplier("keyword unicode", DataType.KEYWORD, () -> randomUnicodeOfLengthBetween(1, 10)));
         suppliers.add(supplier("text ascii", DataType.TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
         suppliers.add(supplier("text unicode", DataType.TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
+        suppliers.add(supplier("semantic_text ascii", DataType.SEMANTIC_TEXT, () -> randomAlphaOfLengthBetween(1, 10)));
+        suppliers.add(supplier("semantic_text unicode", DataType.SEMANTIC_TEXT, () -> randomUnicodeOfLengthBetween(1, 10)));
 
         // add null as parameter
-        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "string");
     }
 
     public void testRandomLocale() {
@@ -68,7 +70,8 @@ public class ToLowerTests extends AbstractConfigurationFunctionTestCase {
             EsqlPlugin.QUERY_RESULT_TRUNCATION_DEFAULT_SIZE.getDefault(Settings.EMPTY),
             "",
             false,
-            Map.of()
+            Map.of(),
+            System.nanoTime()
         );
     }
 

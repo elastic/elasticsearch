@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -33,9 +34,6 @@ import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeIn
  * In case different pass-through objects contain subfields with the same name (excluding the pass-through prefix), their aliases conflict.
  * To resolve this, the pass-through spec specifies which object takes precedence through required parameter "priority"; non-negative
  * integer values are accepted, with the highest priority value winning in case of conflicting aliases.
- *
- * Note that this is an experimental, undocumented mapper type, currently intended for prototyping purposes only.
- * It has not been vetted for use in production systems.
  */
 public class PassThroughObjectMapper extends ObjectMapper {
     public static final String CONTENT_TYPE = "passthrough";
@@ -81,6 +79,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
                 leafName(),
                 context.buildFullName(leafName()),
                 enabled,
+                sourceKeepMode,
                 dynamic,
                 buildMappers(context.createChildContext(leafName(), timeSeriesDimensionSubFields.value(), dynamic)),
                 timeSeriesDimensionSubFields,
@@ -98,13 +97,14 @@ public class PassThroughObjectMapper extends ObjectMapper {
         String name,
         String fullPath,
         Explicit<Boolean> enabled,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Explicit<Boolean> timeSeriesDimensionSubFields,
         int priority
     ) {
         // Subobjects are not currently supported.
-        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), Explicit.IMPLICIT_FALSE, dynamic, mappers);
+        super(name, fullPath, enabled, Optional.of(Subobjects.DISABLED), sourceKeepMode, dynamic, mappers);
         this.timeSeriesDimensionSubFields = timeSeriesDimensionSubFields;
         this.priority = priority;
         if (priority < 0) {
@@ -114,7 +114,16 @@ public class PassThroughObjectMapper extends ObjectMapper {
 
     @Override
     PassThroughObjectMapper withoutMappers() {
-        return new PassThroughObjectMapper(leafName(), fullPath(), enabled, dynamic, Map.of(), timeSeriesDimensionSubFields, priority);
+        return new PassThroughObjectMapper(
+            leafName(),
+            fullPath(),
+            enabled,
+            sourceKeepMode,
+            dynamic,
+            Map.of(),
+            timeSeriesDimensionSubFields,
+            priority
+        );
     }
 
     @Override
@@ -157,6 +166,7 @@ public class PassThroughObjectMapper extends ObjectMapper {
             leafName(),
             fullPath(),
             mergeResult.enabled(),
+            mergeResult.sourceKeepMode(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             containsDimensions,

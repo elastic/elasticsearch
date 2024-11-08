@@ -47,7 +47,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(driverContext.bigArrays(), percentile), driverContext, percentile);
+    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -78,6 +78,10 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -89,6 +93,10 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void close() {
       }
     };
   }
@@ -147,6 +155,11 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
         PercentileDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
       }
     }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

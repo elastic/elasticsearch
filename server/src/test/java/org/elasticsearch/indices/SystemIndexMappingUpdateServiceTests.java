@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -73,7 +74,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
         .setIndexFormat(6)
         .setSettings(getSettings())
         .setMappings(getMappings())
-        .setVersionMetaKey("version")
         .setOrigin("FAKE_ORIGIN")
         .build();
 
@@ -102,7 +102,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 
@@ -136,7 +135,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
         SystemIndexDescriptor d2 = SystemIndexDescriptor.builder()
@@ -145,7 +143,6 @@ public class SystemIndexMappingUpdateServiceTests extends ESTestCase {
             .setMappings(getMappings())
             .setSettings(getSettings())
             .setIndexFormat(6)
-            .setVersionMetaKey("version")
             .setOrigin("FAKE_ORIGIN")
             .build();
 

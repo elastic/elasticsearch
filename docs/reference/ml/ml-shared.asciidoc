@@ -3,7 +3,6 @@ Adaptive allocations configuration object.
 If enabled, the number of allocations of the model is set based on the current load the process gets.
 When the load is high, a new model allocation is automatically created (respecting the value of `max_number_of_allocations` if it's set).
 When the load is low, a model allocation is automatically removed (respecting the value of `min_number_of_allocations` if it's set).
-The number of model allocations cannot be scaled down to less than `1` this way.
 If `adaptive_allocations` is enabled, do not set the number of allocations manually.
 end::adaptive-allocation[]
 
@@ -988,6 +987,7 @@ values are
 +
 --
 * `bert`: Use for BERT-style models
+* `deberta_v2`: Use for DeBERTa v2 and v3-style models
 * `mpnet`: Use for MPNet-style models
 * `roberta`: Use for RoBERTa-style and BART-style models
 * experimental:[] `xlm_roberta`: Use for XLMRoBERTa-style models
@@ -1037,6 +1037,19 @@ sequence. Therefore, do not use `second` in this case.
 
 end::inference-config-nlp-tokenization-truncate[]
 
+tag::inference-config-nlp-tokenization-truncate-deberta-v2[]
+Indicates how tokens are truncated when they exceed `max_sequence_length`.
+The default value is `first`.
++
+--
+* `balanced`: One or both of the first and second sequences may be truncated so as to balance the tokens included from both sequences.
+* `none`: No truncation occurs; the inference request receives an error.
+* `first`: Only the first sequence is truncated.
+* `second`: Only the second sequence is truncated. If there is just one sequence, that sequence is truncated.
+--
+
+end::inference-config-nlp-tokenization-truncate-deberta-v2[]
+
 tag::inference-config-nlp-tokenization-bert-with-special-tokens[]
 Tokenize with special tokens. The tokens typically included in BERT-style tokenization are:
 +
@@ -1050,9 +1063,22 @@ tag::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
 Tokenize with special tokens if `true`.
 end::inference-config-nlp-tokenization-bert-ja-with-special-tokens[]
 
+tag::inference-config-nlp-tokenization-deberta-v2[]
+DeBERTa-style tokenization is to be performed with the enclosed settings.
+end::inference-config-nlp-tokenization-deberta-v2[]
+
 tag::inference-config-nlp-tokenization-max-sequence-length[]
 Specifies the maximum number of tokens allowed to be output by the tokenizer.
 end::inference-config-nlp-tokenization-max-sequence-length[]
+
+tag::inference-config-nlp-tokenization-deberta-v2-with-special-tokens[]
+Tokenize with special tokens. The tokens typically included in DeBERTa-style tokenization are:
++
+--
+* `[CLS]`: The first token of the sequence being classified.
+* `[SEP]`: Indicates sequence separation and sequence end.
+--
+end::inference-config-nlp-tokenization-deberta-v2-with-special-tokens[]
 
 tag::inference-config-nlp-tokenization-roberta[]
 RoBERTa-style tokenization is to be performed with the enclosed settings.

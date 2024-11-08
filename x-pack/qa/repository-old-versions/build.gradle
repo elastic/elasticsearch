@@ -66,7 +66,7 @@ if (OS.current() == OS.WINDOWS) {
   });
 
   int currentMajorVersion = org.elasticsearch.gradle.VersionProperties.elasticsearchVersion.major
-  assert (currentMajorVersion - 2) == 6 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
+  assert (currentMajorVersion - 2) == 7 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'

@@ -64,5 +64,7 @@
       "variadic" : false,
       "returnType" : "time_duration"
     }
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

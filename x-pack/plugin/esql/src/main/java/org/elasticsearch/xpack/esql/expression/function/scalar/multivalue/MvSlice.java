@@ -37,7 +37,6 @@ import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -60,6 +59,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "cartesian_point",
             "cartesian_shape",
             "date",
+            "date_nanos",
             "double",
             "geo_point",
             "geo_shape",
@@ -67,9 +67,15 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
-        description = "Returns a subset of the multivalued field using the start and end index values.",
+        description = """
+            Returns a subset of the multivalued field using the start and end index values.
+            This is most useful when reading from a function that emits multivalued columns
+            in a known order like <<esql-split>> or <<esql-mv_sort>>.""",
+        detailedDescription = """
+            The order that <<esql-multivalued-fields, multivalued fields>> are read from
+            underlying storage is not guaranteed. It is *frequently* ascending, but don't
+            rely on that.""",
         examples = { @Example(file = "ints", tag = "mv_slice_positive"), @Example(file = "ints", tag = "mv_slice_negative") }
     )
     public MvSlice(
@@ -81,6 +87,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
                 "cartesian_point",
                 "cartesian_shape",
                 "date",
+                "date_nanos",
                 "double",
                 "geo_point",
                 "geo_shape",
@@ -178,9 +185,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (start.foldable() && end.foldable()) {
             int startOffset = stringToInt(String.valueOf(start.fold()));
             int endOffset = stringToInt(String.valueOf(end.fold()));
@@ -234,7 +239,7 @@ public class MvSlice extends EsqlScalarFunction implements OptionalArgument, Eva
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 
     static int adjustIndex(int oldOffset, int fieldValueCount, int first) {

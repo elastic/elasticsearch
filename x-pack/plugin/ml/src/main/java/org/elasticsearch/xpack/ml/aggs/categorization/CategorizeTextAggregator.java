@@ -94,11 +94,11 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 true
             );
         }
-        this.categorizers = bigArrays().newObjectArray(1);
+        this.categorizers = context.bigArrays().newObjectArray(1);
         this.similarityThreshold = similarityThreshold;
-        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
-        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays()));
         // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
         this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }

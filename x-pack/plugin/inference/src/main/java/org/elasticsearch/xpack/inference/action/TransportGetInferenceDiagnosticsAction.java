@@ -28,7 +28,8 @@ public class TransportGetInferenceDiagnosticsAction extends TransportNodesAction
     GetInferenceDiagnosticsAction.Request,
     GetInferenceDiagnosticsAction.Response,
     GetInferenceDiagnosticsAction.NodeRequest,
-    GetInferenceDiagnosticsAction.NodeResponse> {
+    GetInferenceDiagnosticsAction.NodeResponse,
+    Void> {
 
     private final HttpClientManager httpClientManager;
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -13,8 +14,6 @@ import org.elasticsearch.action.admin.cluster.configuration.ClearVotingConfigExc
 import org.elasticsearch.action.admin.cluster.configuration.TransportAddVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.cluster.configuration.TransportClearVotingConfigExclusionsAction;
 import org.elasticsearch.action.admin.indices.recovery.RecoveryResponse;
-import org.elasticsearch.action.admin.indices.stats.IndexStats;
-import org.elasticsearch.action.admin.indices.stats.ShardStats;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.coordination.ElectionSchedulerFactory;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MergePolicyConfig;
-import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
@@ -142,7 +140,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             previousTerms = new HashMap<>();
         }
         final Map<String, long[]> result = new HashMap<>();
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (IndexMetadata indexMetadata : state.metadata().indices().values()) {
             final String index = indexMetadata.getIndex().getName();
             final long[] previous = previousTerms.get(index);
@@ -316,7 +314,10 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
 
         Map<String, long[]> primaryTerms = assertAndCapturePrimaryTerms(null);
 
-        client().execute(TransportAddVotingConfigExclusionsAction.TYPE, new AddVotingConfigExclusionsRequest(firstNode)).get();
+        client().execute(
+            TransportAddVotingConfigExclusionsAction.TYPE,
+            new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, firstNode)
+        ).get();
 
         internalCluster().fullRestart(new RestartCallback() {
             @Override
@@ -342,7 +343,8 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
-        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest()).get();
+        client().execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT))
+            .get();
     }
 
     public void testLatestVersionLoaded() throws Exception {
@@ -364,7 +366,7 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 2);
         }
 
-        String metadataUuid = clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID();
+        String metadataUuid = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().getMetadata().clusterUUID();
         assertThat(metadataUuid, not(equalTo("_na_")));
 
         logger.info("--> closing first node, and indexing more data to the second node");
@@ -420,13 +422,16 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
         logger.info("--> running cluster_health (wait for the shards to startup)");
         ensureGreen();
 
-        assertThat(clusterAdmin().prepareState().execute().get().getState().getMetadata().clusterUUID(), equalTo(metadataUuid));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).execute().get().getState().getMetadata().clusterUUID(),
+            equalTo(metadataUuid)
+        );
 
         for (int i = 0; i < 10; i++) {
             assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 3);
         }
 
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(state.metadata().templates().get("template_1").patterns(), equalTo(Collections.singletonList("te*")));
         assertThat(state.metadata().index("test").getAliases().get("test_alias"), notNullValue());
         assertThat(state.metadata().index("test").getAliases().get("test_alias").filter(), notNullValue());
@@ -566,13 +571,6 @@ public class RecoveryFromGatewayIT extends ESIntegTestCase {
                 assertThat("> 0 files should be reused", recoveryState.getIndex().reusedFileCount(), greaterThan(0));
                 assertThat("no translog ops should be recovered", recoveryState.getTranslog().recoveredOperations(), equalTo(0));
             }
-        }
-    }
-
-    public void assertSyncIdsNotNull() {
-        IndexStats indexStats = indicesAdmin().prepareStats("test").get().getIndex("test");
-        for (ShardStats shardStats : indexStats.getShards()) {
-            assertNotNull(shardStats.getCommitStats().getUserData().get(Engine.SYNC_COMMIT_ID));
         }
     }
 

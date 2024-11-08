@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,8 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.util.StringLiteralDeduplicator;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.ToXContentFragment;
@@ -29,7 +32,7 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
 
     public static final NodeFeature SYNTHETIC_SOURCE_KEEP_FEATURE = new NodeFeature("mapper.synthetic_source_keep");
 
-    static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
+    public static final String SYNTHETIC_SOURCE_KEEP_PARAM = "synthetic_source_keep";
 
     // Only relevant for synthetic source mode.
     public enum SourceKeepMode {
@@ -82,11 +85,18 @@ public abstract class Mapper implements ToXContentFragment, Iterable<Mapper> {
     // Setting to SourceKeepMode.ALL is equivalent to disabling synthetic source, so this is not allowed.
     public static final Setting<SourceKeepMode> SYNTHETIC_SOURCE_KEEP_INDEX_SETTING = Setting.enumSetting(
         SourceKeepMode.class,
+        settings -> {
+            var indexMode = IndexSettings.MODE.get(settings);
+            if (indexMode == IndexMode.LOGSDB) {
+                return SourceKeepMode.ARRAYS.toString();
+            } else {
+                return SourceKeepMode.NONE.toString();
+            }
+        },
         "index.mapping.synthetic_source_keep",
-        SourceKeepMode.NONE,
         value -> {
             if (value == SourceKeepMode.ALL) {
-                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value.toString() + "]");
+                throw new IllegalArgumentException("index.mapping.synthetic_source_keep can't be set to [" + value + "]");
             }
         },
         Setting.Property.IndexScope,

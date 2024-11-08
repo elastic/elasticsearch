@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -24,7 +25,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.ToXContent;
@@ -124,9 +124,7 @@ public final class StreamingXContentResponse implements Releasable {
     }
 
     private Iterator<? extends ToXContent> getChunksIterator(StreamingFragment fragment) {
-        return xContentBuilder.getRestApiVersion() == RestApiVersion.V_7
-            ? fragment.fragment().toXContentChunkedV7(params)
-            : fragment.fragment().toXContentChunked(params);
+        return fragment.fragment().toXContentChunked(xContentBuilder.getRestApiVersion(), params);
     }
 
     /**

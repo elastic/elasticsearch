@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.open;
@@ -89,23 +90,26 @@ public class TransportOpenIndexAction extends TransportMasterNodeAction<OpenInde
             listener.onResponse(new OpenIndexResponse(true, true));
             return;
         }
-        OpenIndexClusterStateUpdateRequest updateRequest = new OpenIndexClusterStateUpdateRequest().ackTimeout(request.ackTimeout())
-            .masterNodeTimeout(request.masterNodeTimeout())
-            .indices(concreteIndices)
-            .waitForActiveShards(request.waitForActiveShards());
 
-        indexStateService.openIndices(updateRequest, new ActionListener<>() {
+        indexStateService.openIndices(
+            new OpenIndexClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.waitForActiveShards(),
+                concreteIndices
+            ),
+            new ActionListener<>() {
+                @Override
+                public void onResponse(ShardsAcknowledgedResponse response) {
+                    listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
+                }
 
-            @Override
-            public void onResponse(ShardsAcknowledgedResponse response) {
-                listener.onResponse(new OpenIndexResponse(response.isAcknowledged(), response.isShardsAcknowledged()));
+                @Override
+                public void onFailure(Exception t) {
+                    logger.debug(() -> "failed to open indices [" + Arrays.toString(concreteIndices) + "]", t);
+                    listener.onFailure(t);
+                }
             }
-
-            @Override
-            public void onFailure(Exception t) {
-                logger.debug(() -> "failed to open indices [" + Arrays.toString(concreteIndices) + "]", t);
-                listener.onFailure(t);
-            }
-        });
+        );
     }
 }

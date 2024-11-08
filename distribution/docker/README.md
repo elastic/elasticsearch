@@ -6,6 +6,18 @@ the [DockerBase] enum.
    * Default - this is what most people use, and is based on Ubuntu
    * UBI - the same as the default image, but based upon [RedHat's UBI
      images][ubi], specifically their minimal flavour.
+   * Wolfi - the same as the default image, but based upon [Wolfi](https://github.com/wolfi-dev)
+   * Cloud ESS - this directly extends the Wolfi image, and adds all ES plugins
+     that the ES build generates in an archive directory. It also sets an
+     environment variable that points at this directory. This allows plugins to
+     be installed from the archive instead of the internet, speeding up
+     deployment times. Furthermore this image has
+     * `filebeat` and `metricbeat` included
+     * `wget` included
+     * The `ENTRYPOINT` is just `/sbin/tini`, and the `CMD` is
+     `/app/elasticsearch.sh`. In normal use this file would be bind-mounted
+     in, but the image ships a stub version of this file so that the image
+     can still be tested.
    * Iron Bank - this is the US Department of Defence's repository of digitally
      signed, binary container images including both Free and Open-Source
      software (FOSS) and Commercial off-the-shelf (COTS). In practice, this is
@@ -15,15 +27,9 @@ the [DockerBase] enum.
       * `filebeat` and `metricbeat` are included
       * `wget` is included
       * The `ENTRYPOINT` is just `/bin/tini`, and the `CMD` is
-        `/app/elasticsearc.sh`. In normal use this file would be bind-mounted
+        `/app/elasticsearch.sh`. In normal use this file would be bind-mounted
         in, but the image ships a stub version of this file so that the image
         can still be tested.
-   * Cloud ESS - this directly extends the Cloud image, and adds all ES plugins
-     that the ES build generates in an archive directory. It also sets an
-     environment variable that points at this directory. This allows plugins to
-     be installed from the archive instead of the internet, speeding up
-     deployment times.
-
 The long-term goal is for both Cloud images to be retired in favour of the
 default image.
 

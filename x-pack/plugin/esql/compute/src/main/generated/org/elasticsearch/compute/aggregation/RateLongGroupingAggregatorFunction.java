@@ -85,6 +85,10 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock, timestampsVector);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -96,6 +100,10 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector, timestampsVector);
+      }
+
+      @Override
+      public void close() {
       }
     };
   }
@@ -160,6 +168,11 @@ public final class RateLongGroupingAggregatorFunction implements GroupingAggrega
         RateLongAggregator.combine(state, groupId, timestamps.getLong(valuePosition), values.getLong(valuePosition));
       }
     }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

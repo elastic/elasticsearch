@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -28,7 +29,6 @@ import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.repositories.blobstore.BlobStoreRepository;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
@@ -45,6 +45,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_NAME_FORMAT;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anEmptyMap;
@@ -142,7 +143,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
 
         final SnapshotInfo snapshotInfo = createFullSnapshot("test-repo", "test-snap");
         logger.info("--> delete snap-${uuid}.dat file for this snapshot to simulate concurrent delete");
-        IOUtils.rm(repoPath.resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat"));
+        IOUtils.rm(repoPath.resolve(Strings.format(SNAPSHOT_NAME_FORMAT, snapshotInfo.snapshotId().getUUID())));
 
         expectThrows(
             SnapshotMissingException.class,
@@ -173,7 +174,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
             repoPath.resolve("indices")
                 .resolve(indexRepoId)
                 .resolve("0")
-                .resolve(BlobStoreRepository.SNAPSHOT_PREFIX + snapshotInfo.snapshotId().getUUID() + ".dat")
+                .resolve(Strings.format(SNAPSHOT_NAME_FORMAT, snapshotInfo.snapshotId().getUUID()))
         );
 
         expectThrows(
@@ -738,7 +739,7 @@ public class SnapshotStatusApisIT extends AbstractSnapshotIntegTestCase {
         try {
             waitForBlockOnAnyDataNode("test-repo");
             // Make sure that the create-snapshot task completes on master
-            assertFalse(clusterAdmin().prepareHealth().setWaitForEvents(Priority.LANGUID).get().isTimedOut());
+            assertFalse(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForEvents(Priority.LANGUID).get().isTimedOut());
             final List<SnapshotStatus> snapshotStatus = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, "test-repo")
                 .setMasterNodeTimeout(TimeValue.MINUS_ONE)
                 .get()

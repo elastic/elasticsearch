@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -400,8 +401,13 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                 .andThenApply(startingSeqNo -> {
                     assert startingSeqNo == UNASSIGNED_SEQ_NO || recoveryTarget.state().getStage() == RecoveryState.Stage.TRANSLOG
                         : "unexpected recovery stage [" + recoveryTarget.state().getStage() + "] starting seqno [ " + startingSeqNo + "]";
-                    final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
-                    return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    try {
+                        recoveryTarget.incRef();
+                        final var startRequest = getStartRecoveryRequest(logger, clusterService.localNode(), recoveryTarget, startingSeqNo);
+                        return new StartRecoveryRequestToSend(startRequest, PeerRecoverySourceService.Actions.START_RECOVERY, startRequest);
+                    } finally {
+                        recoveryTarget.decRef();
+                    }
                 })
                 // finally send the start-recovery request
                 .addListener(toSendListener);
@@ -571,7 +577,14 @@ public class PeerRecoveryTargetService implements IndexEventListener {
 
         @Override
         protected CheckedFunction<Void, TransportResponse, Exception> responseMapping(RecoveryTarget recoveryTarget) {
-            return v -> new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+            return v -> {
+                try {
+                    recoveryTarget.incRef();
+                    return new RecoveryTranslogOperationsResponse(recoveryTarget.indexShard().getLocalCheckpoint());
+                } finally {
+                    recoveryTarget.decRef();
+                }
+            };
         }
 
         private void performTranslogOps(

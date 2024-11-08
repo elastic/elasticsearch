@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams.action;
 
@@ -11,7 +12,6 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
@@ -46,8 +46,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
     private final IndexNameExpressionResolver resolver = TestIndexNameExpressionResolver.newInstance();
     private final SystemIndices systemIndices = new SystemIndices(List.of());
     private final DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-        ClusterSettings.createBuiltInClusterSettings(),
-        DataStreamFactoryRetention.emptyFactoryRetention()
+        ClusterSettings.createBuiltInClusterSettings()
     );
 
     public void testGetDataStream() {
@@ -355,8 +354,7 @@ public class TransportGetDataStreamsActionTests extends ESTestCase {
                     )
                     .put(DataStreamGlobalRetentionSettings.DATA_STREAMS_MAX_RETENTION_SETTING.getKey(), globalRetention.maxRetention())
                     .build()
-            ),
-            DataStreamFactoryRetention.emptyFactoryRetention()
+            )
         );
         response = TransportGetDataStreamsAction.innerOperation(
             state,

@@ -13,6 +13,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
 public class ResourceUtils {
+
     static byte[] loadVersionedResourceUTF8(Class<?> clazz, String name, int version, String versionProperty) {
         return loadVersionedResourceUTF8(clazz, name, version, versionProperty, Map.of());
     }
@@ -34,11 +35,12 @@ public class ResourceUtils {
     }
 
     public static String loadResource(Class<?> clazz, String name) throws IOException {
-        InputStream is = clazz.getResourceAsStream(name);
-        if (is == null) {
-            throw new IOException("Resource [" + name + "] not found in classpath.");
+        try (InputStream is = clazz.getResourceAsStream(name)) {
+            if (is == null) {
+                throw new IOException("Resource [" + name + "] not found in classpath.");
+            }
+            return new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
         }
-        return new String(is.readAllBytes(), java.nio.charset.StandardCharsets.UTF_8);
     }
 
 }

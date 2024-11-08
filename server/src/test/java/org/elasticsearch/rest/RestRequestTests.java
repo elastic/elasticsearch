@@ -1,17 +1,20 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
 import org.elasticsearch.test.ESTestCase;
@@ -33,6 +36,7 @@ import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.rest.RestRequest.OPERATOR_REQUEST;
 import static org.elasticsearch.rest.RestRequest.SERVERLESS_REQUEST;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
@@ -84,7 +88,7 @@ public class RestRequestTests extends ESTestCase {
     private <T extends Exception> void runConsumesContentTest(final CheckedConsumer<RestRequest, T> consumer, final boolean expected) {
         final HttpRequest httpRequest = mock(HttpRequest.class);
         when(httpRequest.uri()).thenReturn("");
-        when(httpRequest.content()).thenReturn(new BytesArray(new byte[1]));
+        when(httpRequest.body()).thenReturn(HttpBody.fromBytesReference(new BytesArray(new byte[1])));
         when(httpRequest.getHeaders()).thenReturn(
             Collections.singletonMap("Content-Type", Collections.singletonList(randomFrom("application/json", "application/x-ndjson")))
         );
@@ -130,8 +134,8 @@ public class RestRequestTests extends ESTestCase {
                 .contentOrSourceParam()
                 .v2()
         );
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
-        assertEquals("source and source_content_type parameters are required", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("", Map.of("source", "stuff2")).contentOrSourceParam());
+        assertThat(e.getMessage(), containsString("source and source_content_type parameters are required"));
     }
 
     public void testHasContentOrSourceParam() throws IOException {
@@ -246,8 +250,8 @@ public class RestRequestTests extends ESTestCase {
                 .requiredContent()
         );
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(IllegalStateException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
-        assertEquals("unknown content type", e.getMessage());
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
+        assertThat(e.getMessage(), containsString("unknown content type"));
     }
 
     public void testIsServerlessRequest() {

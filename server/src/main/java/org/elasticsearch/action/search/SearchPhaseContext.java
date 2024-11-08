@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.search;
 
@@ -18,6 +19,7 @@ import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.transport.Transport;
 
 import java.util.concurrent.Executor;
+import java.util.function.Supplier;
 
 /**
  * This class provide contextual state and access to resources across multiple search phases.
@@ -119,7 +121,7 @@ interface SearchPhaseContext extends Executor {
      * of the next phase. If there are no successful operations in the context when this method is executed the search is aborted and
      * a response is returned to the user indicating that all shards have failed.
      */
-    void executeNextPhase(SearchPhase currentPhase, SearchPhase nextPhase);
+    void executeNextPhase(SearchPhase currentPhase, Supplier<SearchPhase> nextPhaseSupplier);
 
     /**
      * Registers a {@link Releasable} that will be closed when the search request finishes or fails.

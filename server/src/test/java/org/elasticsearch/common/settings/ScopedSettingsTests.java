@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
@@ -1135,6 +1136,42 @@ public class ScopedSettingsTests extends ESTestCase {
 
         Settings diffed = clusterSettings.diff(Settings.EMPTY, settings);
         assertTrue(diffed.isEmpty());
+    }
+
+    public void testValidateSecureSettingInsecureOverride() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        String settingName = "something.secure";
+        secureSettings.setString(settingName, "secure");
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").setSecureSettings(secureSettings).build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
+    }
+
+    public void testValidateSecureSettingInInsecureSettings() {
+        String settingName = "something.secure";
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
     }
 
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {

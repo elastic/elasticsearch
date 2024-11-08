@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -175,7 +176,7 @@ public class MetadataUpdateSettingsService {
             }
             final Settings closedSettings = settingsForClosedIndices.build();
             final Settings openSettings = settingsForOpenIndices.build();
-            final boolean preserveExisting = request.isPreserveExisting();
+            final boolean preserveExisting = request.onExisting() == UpdateSettingsClusterStateUpdateRequest.OnExisting.PRESERVE;
 
             RoutingTable.Builder routingTableBuilder = null;
             Metadata.Builder metadataBuilder = Metadata.builder(currentState.metadata());
@@ -198,7 +199,7 @@ public class MetadataUpdateSettingsService {
             }
 
             if (skippedSettings.isEmpty() == false && openIndices.isEmpty() == false) {
-                if (request.reopenShards()) {
+                if (request.onStaticSetting() == UpdateSettingsClusterStateUpdateRequest.OnStaticSetting.REOPEN_INDICES) {
                     // We have non-dynamic settings and open indices. We will unassign all of the shards in these indices so that the new
                     // changed settings are applied when the shards are re-assigned.
                     routingTableBuilder = RoutingTable.builder(

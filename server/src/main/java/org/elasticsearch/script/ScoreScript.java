@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.script;
 
@@ -113,6 +114,11 @@ public abstract class ScoreScript extends DocBasedScript {
     public void setDocument(int docid) {
         super.setDocument(docid);
         this.docId = docid;
+    }
+
+    /** Get the current document. */
+    public int docId() {
+        return docId;
     }
 
     public void setScorer(Scorable scorer) {

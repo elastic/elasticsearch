@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -51,7 +52,7 @@ public interface InferenceServiceResults extends NamedWriteable, ChunkedToXConte
      * When {@link #isStreaming()} is {@code true}, the InferenceAction.Results will subscribe to this publisher.
      * Implementations should follow the {@link java.util.concurrent.Flow.Publisher} spec to stream the chunks.
      */
-    default Flow.Publisher<ChunkedToXContent> publisher() {
+    default Flow.Publisher<? extends ChunkedToXContent> publisher() {
         assert isStreaming() == false : "This must be implemented when isStreaming() == true";
         throw new UnsupportedOperationException("This must be implemented when isStreaming() == true");
     }

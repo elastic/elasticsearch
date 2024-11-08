@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -69,16 +70,6 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 searchOrGetThreadPoolSize,
                 1000,
                 new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
-            )
-        );
-        result.put(
-            ThreadPool.Names.SEARCH_WORKER,
-            new FixedExecutorBuilder(
-                settings,
-                ThreadPool.Names.SEARCH_WORKER,
-                searchOrGetThreadPoolSize,
-                -1,
-                EsExecutors.TaskTrackingConfig.DEFAULT
             )
         );
         result.put(
@@ -179,7 +170,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -189,7 +181,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_WRITE,
                 halfProcMaxAt5,
                 1000,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
             )
         );
         result.put(
@@ -199,7 +192,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_READ,
                 halfProcMaxAt5,
                 2000,
-                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+                EsExecutors.TaskTrackingConfig.DO_NOT_TRACK,
+                true
             )
         );
         result.put(
@@ -209,7 +203,8 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 ThreadPool.Names.SYSTEM_CRITICAL_WRITE,
                 halfProcMaxAt5,
                 1500,
-                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA)
+                new EsExecutors.TaskTrackingConfig(true, indexAutoscalingEWMA),
+                true
             )
         );
         return unmodifiableMap(result);

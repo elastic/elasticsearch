@@ -150,18 +150,23 @@ public class HashAggregationOperator implements Operator {
                     hashStart = System.nanoTime();
                     aggregationNanos += hashStart - aggStart;
                 }
+
+                @Override
+                public void close() {
+                    Releasables.closeExpectNoException(prepared);
+                }
             }
-            AddInput add = new AddInput();
+            try (AddInput add = new AddInput()) {
+                checkState(needsInput(), "Operator is already finishing");
+                requireNonNull(page, "page is null");
 
-            checkState(needsInput(), "Operator is already finishing");
-            requireNonNull(page, "page is null");
+                for (int i = 0; i < prepared.length; i++) {
+                    prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+                }
 
-            for (int i = 0; i < prepared.length; i++) {
-                prepared[i] = aggregators.get(i).prepareProcessPage(blockHash, page);
+                blockHash.add(wrapPage(page), add);
+                hashNanos += System.nanoTime() - add.hashStart;
             }
-
-            blockHash.add(wrapPage(page), add);
-            hashNanos += System.nanoTime() - add.hashStart;
         } finally {
             page.releaseBlocks();
             pagesProcessed++;

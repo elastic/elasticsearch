@@ -2,6 +2,9 @@
 setup:
   - skip:
       features: headers
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       cluster.health:
@@ -13,9 +16,10 @@ Filter single field:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -75,9 +79,10 @@ Filter fields in object:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -142,9 +147,10 @@ Fields under a disabled object - uses _ignored_source:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -236,12 +242,11 @@ Dynamic fields beyond limit - uses _ignored_source:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 total_fields:
                   ignore_dynamic_beyond_limit: true
                   limit: 2
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword
@@ -301,9 +306,10 @@ Field with ignored_malformed:
       indices.create:
         index: index_fls
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               name:
                 type: keyword

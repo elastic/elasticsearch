@@ -441,7 +441,7 @@ public class ExchangeServiceTests extends ESTestCase {
             PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
             sourceHandler.addCompletionListener(sourceCompletionFuture);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,

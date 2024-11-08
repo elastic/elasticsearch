@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.ccs;
@@ -24,7 +25,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -39,7 +39,6 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -62,6 +61,7 @@ import java.util.stream.Collectors;
 
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.ASYNC_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.MRT_FEATURE;
+import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.PIT_FEATURE;
 import static org.elasticsearch.action.admin.cluster.stats.CCSUsageTelemetry.WILDCARD_FEATURE;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
@@ -71,7 +71,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     private static final Logger LOGGER = LogManager.getLogger(CCSUsageTelemetryIT.class);
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     @Override
     protected boolean reuseClusters() {
@@ -85,11 +84,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
     @Rule
     public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
-
-    @BeforeClass
-    protected static void skipIfTelemetryDisabled() {
-        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -621,6 +615,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
         assertThat(telemetry.getTotalCount(), equalTo(2L));
         assertThat(telemetry.getSuccessCount(), equalTo(2L));
+        assertThat(telemetry.getFeatureCounts().get(PIT_FEATURE), equalTo(2L));
     }
 
     public void testCompoundRetrieverSearch() throws ExecutionException, InterruptedException {
@@ -659,7 +654,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         int numShardsRemote = randomIntBetween(2, 10);
         for (String clusterAlias : remoteClusterAlias()) {
             final InternalTestCluster remoteCluster = cluster(clusterAlias);
-            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
+            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
             assertAcked(
                 client(clusterAlias).admin()
                     .indices()
@@ -670,7 +665,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
             assertFalse(
                 client(clusterAlias).admin()
                     .cluster()
-                    .prepareHealth(remoteIndex)
+                    .prepareHealth(TEST_REQUEST_TIMEOUT, remoteIndex)
                     .setWaitForYellowStatus()
                     .setTimeout(TimeValue.timeValueSeconds(10))
                     .get()

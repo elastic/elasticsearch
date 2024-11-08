@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.readonly;
@@ -101,13 +102,18 @@ public class TransportAddIndexBlockAction extends TransportMasterNodeAction<AddI
             return;
         }
 
-        final AddIndexBlockClusterStateUpdateRequest addBlockRequest = new AddIndexBlockClusterStateUpdateRequest(
-            request.getBlock(),
-            task.getId()
-        ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).indices(concreteIndices);
-        indexStateService.addIndexBlock(addBlockRequest, listener.delegateResponse((delegatedListener, t) -> {
-            logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
-            delegatedListener.onFailure(t);
-        }));
+        indexStateService.addIndexBlock(
+            new AddIndexBlockClusterStateUpdateRequest(
+                request.masterNodeTimeout(),
+                request.ackTimeout(),
+                request.getBlock(),
+                task.getId(),
+                concreteIndices
+            ),
+            listener.delegateResponse((delegatedListener, t) -> {
+                logger.debug(() -> "failed to mark indices as readonly [" + Arrays.toString(concreteIndices) + "]", t);
+                delegatedListener.onFailure(t);
+            })
+        );
     }
 }

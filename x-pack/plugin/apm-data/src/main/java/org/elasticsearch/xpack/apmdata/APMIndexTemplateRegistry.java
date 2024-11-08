@@ -16,6 +16,9 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.template.YamlTemplateRegistry;
 
+import java.util.function.Predicate;
+
+import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.isDataStreamsLifecycleOnlyMode;
 import static org.elasticsearch.xpack.apmdata.APMPlugin.APM_DATA_REGISTRY_ENABLED;
 
 /**
@@ -33,7 +36,15 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
         NamedXContentRegistry xContentRegistry,
         FeatureService featureService
     ) {
-        super(nodeSettings, clusterService, threadPool, client, xContentRegistry, featureService);
+        super(
+            nodeSettings,
+            clusterService,
+            threadPool,
+            client,
+            xContentRegistry,
+            featureService,
+            templateFilter(isDataStreamsLifecycleOnlyMode(clusterService.getSettings()))
+        );
     }
 
     @Override
@@ -57,5 +68,10 @@ public class APMIndexTemplateRegistry extends YamlTemplateRegistry {
     @Override
     protected String getOrigin() {
         return ClientHelper.APM_ORIGIN;
+    }
+
+    private static Predicate<String> templateFilter(boolean dslOnlyMode) {
+        // Load ILM files only when the server supports ILM i.e. dsl-only-mode is false
+        return templateName -> dslOnlyMode == false || templateName.endsWith("@ilm") == false;
     }
 }

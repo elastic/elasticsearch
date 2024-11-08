@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.analysis.common;
@@ -27,7 +28,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Arrays;
 
-import static com.carrotsearch.randomizedtesting.RandomizedTest.scaledRandomIntBetween;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
@@ -182,6 +183,9 @@ public class NGramTokenizerFactoryTests extends ESTokenStreamTestCase {
                 assertThat(edgeNGramTokenFilter, instanceOf(EdgeNGramTokenFilter.class));
             }
         }
+        assertWarnings(
+            "The [side] parameter is deprecated and will be removed. Use a [reverse] before and after the [edge_ngram] instead."
+        );
     }
 
     /*`

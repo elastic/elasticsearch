@@ -14,30 +14,38 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.ChunkingSettings;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
-import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.http.MockResponse;
 import org.elasticsearch.test.http.MockWebServer;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderTests;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+import org.elasticsearch.xpack.inference.services.InferenceEventsAssertion;
 import org.elasticsearch.xpack.inference.services.ServiceFields;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModel;
 import org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsModelTests;
 import org.hamcrest.CoreMatchers;
@@ -51,18 +59,22 @@ import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.common.xcontent.XContentHelper.toXContent;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.xpack.inference.Utils.getInvalidModel;
 import static org.elasticsearch.xpack.inference.Utils.getPersistedConfigMap;
+import static org.elasticsearch.xpack.inference.Utils.getRequestConfigMap;
 import static org.elasticsearch.xpack.inference.Utils.inferenceUtilityPool;
 import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+import static org.elasticsearch.xpack.inference.chunking.ChunkingSettingsTests.createRandomChunkingSettingsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
 import static org.elasticsearch.xpack.inference.external.http.Utils.getUrl;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.elasticsearch.xpack.inference.results.TextEmbeddingResultsTests.buildExpectationFloat;
 import static org.elasticsearch.xpack.inference.services.ServiceComponentsTests.createWithEmptySettings;
+import static org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests.createChatCompletionModel;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsServiceSettingsTests.getServiceSettingsMap;
 import static org.elasticsearch.xpack.inference.services.openai.embeddings.OpenAiEmbeddingsTaskSettingsTests.getTaskSettingsMap;
 import static org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettingsTests.getSecretSettingsMap;
@@ -119,7 +131,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -154,7 +165,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap(user),
                     getSecretSettingsMap(secret)
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -178,7 +188,6 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -204,7 +213,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 }
             );
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -222,7 +231,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -240,7 +249,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -258,7 +267,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 assertThat(e.getMessage(), is("Model configuration contains settings [{extra_key=value}] unknown to the [openai] service"));
             });
 
-            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, Set.of(), modelVerificationListener);
+            service.parseRequestConfig("id", TaskType.TEXT_EMBEDDING, config, modelVerificationListener);
         }
     }
 
@@ -279,7 +288,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.TEXT_EMBEDDING,
                 getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -306,7 +314,6 @@ public class OpenAiServiceTests extends ESTestCase {
                 "id",
                 TaskType.COMPLETION,
                 getRequestConfigMap(getServiceSettingsMap(model, null, null), getTaskSettingsMap(null), getSecretSettingsMap(secret)),
-                Set.of(),
                 modelVerificationListener
             );
         }
@@ -333,7 +340,57 @@ public class OpenAiServiceTests extends ESTestCase {
                     getTaskSettingsMap("user"),
                     getSecretSettingsMap("secret")
                 ),
-                Set.of(),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+                var embeddingsModel = (OpenAiEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().uri());
+                assertNull(embeddingsModel.getServiceSettings().organizationId());
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+                assertNull(embeddingsModel.getTaskSettings().user());
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(
+                    getServiceSettingsMap("model", null, null),
+                    getTaskSettingsMap(null),
+                    createRandomChunkingSettingsMap(),
+                    getSecretSettingsMap("secret")
+                ),
+                modelVerificationListener
+            );
+        }
+    }
+
+    public void testParseRequestConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            ActionListener<Model> modelVerificationListener = ActionListener.wrap(model -> {
+                assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+                var embeddingsModel = (OpenAiEmbeddingsModel) model;
+                assertNull(embeddingsModel.getServiceSettings().uri());
+                assertNull(embeddingsModel.getServiceSettings().organizationId());
+                assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+                assertNull(embeddingsModel.getTaskSettings().user());
+                assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+                assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+            }, exception -> fail("Unexpected exception: " + exception));
+
+            service.parseRequestConfig(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                getRequestConfigMap(getServiceSettingsMap("model", null, null), getTaskSettingsMap(null), getSecretSettingsMap("secret")),
                 modelVerificationListener
             );
         }
@@ -412,6 +469,61 @@ public class OpenAiServiceTests extends ESTestCase {
             assertNull(embeddingsModel.getServiceSettings().organizationId());
             assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
             assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap(),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
+        }
+    }
+
+    public void testParsePersistedConfigWithSecrets_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                getSecretSettingsMap("secret")
+            );
+
+            var model = service.parsePersistedConfigWithSecrets(
+                "id",
+                TaskType.TEXT_EMBEDDING,
+                persistedConfig.config(),
+                persistedConfig.secrets()
+            );
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
             assertThat(embeddingsModel.getSecretSettings().apiKey().toString(), is("secret"));
         }
     }
@@ -611,6 +723,49 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null),
+                createRandomChunkingSettingsMap()
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
+    public void testParsePersistedConfig_CreatesAnOpenAiEmbeddingsModelWhenChunkingSettingsNotProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            var persistedConfig = getPersistedConfigMap(
+                getServiceSettingsMap("model", null, null, null, null, true),
+                getTaskSettingsMap(null)
+            );
+
+            var model = service.parsePersistedConfig("id", TaskType.TEXT_EMBEDDING, persistedConfig.config());
+
+            assertThat(model, instanceOf(OpenAiEmbeddingsModel.class));
+
+            var embeddingsModel = (OpenAiEmbeddingsModel) model;
+            assertNull(embeddingsModel.getServiceSettings().uri());
+            assertNull(embeddingsModel.getServiceSettings().organizationId());
+            assertThat(embeddingsModel.getServiceSettings().modelId(), is("model"));
+            assertNull(embeddingsModel.getTaskSettings().user());
+            assertThat(embeddingsModel.getConfigurations().getChunkingSettings(), instanceOf(ChunkingSettings.class));
+            assertNull(embeddingsModel.getSecretSettings());
+        }
+    }
+
     public void testParsePersistedConfig_DoesNotThrowWhenAnExtraKeyExistsInConfig() throws IOException {
         try (var service = createOpenAiService()) {
             var persistedConfig = getPersistedConfigMap(
@@ -687,6 +842,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 mockModel,
                 null,
                 List.of(""),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -741,6 +897,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -761,6 +918,83 @@ public class OpenAiServiceTests extends ESTestCase {
             assertThat(requestMap.get("input"), Matchers.is(List.of("abc")));
             assertThat(requestMap.get("model"), Matchers.is("model"));
             assertThat(requestMap.get("user"), Matchers.is("user"));
+        }
+    }
+
+    public void testInfer_StreamRequest() throws Exception {
+        String responseJson = """
+            data: {\
+                "id":"12345",\
+                "object":"chat.completion.chunk",\
+                "created":123456789,\
+                "model":"gpt-4o-mini",\
+                "system_fingerprint": "123456789",\
+                "choices":[\
+                    {\
+                        "index":0,\
+                        "delta":{\
+                            "content":"hello, world"\
+                        },\
+                        "logprobs":null,\
+                        "finish_reason":null\
+                    }\
+                ]\
+            }
+
+            """;
+        webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result).hasFinishedStream().hasNoErrors().hasEvent("""
+            {"completion":[{"delta":"hello, world"}]}""");
+    }
+
+    private InferenceServiceResults streamChatCompletion() throws IOException {
+        var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
+        try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
+            var model = OpenAiChatCompletionModelTests.createChatCompletionModel(getUrl(webServer), "org", "secret", "model", "user");
+            PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
+            service.infer(
+                model,
+                null,
+                List.of("abc"),
+                true,
+                new HashMap<>(),
+                InputType.INGEST,
+                InferenceAction.Request.DEFAULT_TIMEOUT,
+                listener
+            );
+
+            return listener.actionGet(TIMEOUT);
+        }
+    }
+
+    public void testInfer_StreamRequest_ErrorResponse() throws Exception {
+        String responseJson = """
+            {
+              "error": {
+                "message": "You didn't provide an API key...",
+                "type": "invalid_request_error",
+                "param": null,
+                "code": null
+              }
+            }""";
+        webServer.enqueue(new MockResponse().setResponseCode(401).setBody(responseJson));
+
+        var result = streamChatCompletion();
+
+        InferenceEventsAssertion.assertThat(result)
+            .hasFinishedStream()
+            .hasNoEvents()
+            .hasErrorWithStatusCode(401)
+            .hasErrorContaining("You didn't provide an API key...");
+    }
+
+    public void testSupportsStreaming() throws IOException {
+        try (var service = new OpenAiService(mock(), createWithEmptySettings(mock()))) {
+            assertTrue(service.canStream(TaskType.COMPLETION));
+            assertTrue(service.canStream(TaskType.ANY));
         }
     }
 
@@ -1151,6 +1385,53 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
+    public void testUpdateModelWithEmbeddingDetails_InvalidModelProvided() throws IOException {
+        try (var service = createOpenAiService()) {
+            var model = createChatCompletionModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10)
+            );
+            assertThrows(
+                ElasticsearchStatusException.class,
+                () -> { service.updateModelWithEmbeddingDetails(model, randomNonNegativeInt()); }
+            );
+        }
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(null);
+    }
+
+    public void testUpdateModelWithEmbeddingDetails_NonNullSimilarityInOriginalModel() throws IOException {
+        testUpdateModelWithEmbeddingDetails_Successful(randomFrom(SimilarityMeasure.values()));
+    }
+
+    private void testUpdateModelWithEmbeddingDetails_Successful(SimilarityMeasure similarityMeasure) throws IOException {
+        try (var service = createOpenAiService()) {
+            var embeddingSize = randomNonNegativeInt();
+            var model = OpenAiEmbeddingsModelTests.createModel(
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                randomAlphaOfLength(10),
+                similarityMeasure,
+                randomNonNegativeInt(),
+                randomNonNegativeInt(),
+                randomBoolean()
+            );
+
+            Model updatedModel = service.updateModelWithEmbeddingDetails(model, embeddingSize);
+
+            SimilarityMeasure expectedSimilarityMeasure = similarityMeasure == null ? SimilarityMeasure.DOT_PRODUCT : similarityMeasure;
+            assertEquals(expectedSimilarityMeasure, updatedModel.getServiceSettings().similarity());
+            assertEquals(embeddingSize, updatedModel.getServiceSettings().dimensions().intValue());
+        }
+    }
+
     public void testInfer_UnauthorisedResponse() throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
@@ -1174,6 +1455,7 @@ public class OpenAiServiceTests extends ESTestCase {
                 model,
                 null,
                 List.of("abc"),
+                false,
                 new HashMap<>(),
                 InputType.INGEST,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
@@ -1214,7 +1496,26 @@ public class OpenAiServiceTests extends ESTestCase {
         assertEquals("model", serviceSettings.get(ServiceFields.MODEL_ID));
     }
 
-    public void testChunkedInfer_Batches() throws IOException {
+    public void testChunkedInfer_ChunkingSettingsSet() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(
+            getUrl(webServer),
+            "org",
+            "secret",
+            "model",
+            "user",
+            ChunkingSettingsTests.createRandomChunkingSettings()
+        );
+
+        testChunkedInfer(model);
+    }
+
+    public void testChunkedInfer_ChunkingSettingsNotSet() throws IOException {
+        var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user", (ChunkingSettings) null);
+
+        testChunkedInfer(model);
+    }
+
+    private void testChunkedInfer(OpenAiEmbeddingsModel model) throws IOException {
         var senderFactory = HttpRequestSenderTests.createSenderFactory(threadPool, clientManager);
 
         try (var service = new OpenAiService(senderFactory, createWithEmptySettings(threadPool))) {
@@ -1250,10 +1551,10 @@ public class OpenAiServiceTests extends ESTestCase {
                 """;
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
-            var model = OpenAiEmbeddingsModelTests.createModel(getUrl(webServer), "org", "secret", "model", "user");
             PlainActionFuture<List<ChunkedInferenceServiceResults>> listener = new PlainActionFuture<>();
             service.chunkedInfer(
                 model,
+                null,
                 List.of("foo", "bar"),
                 new HashMap<>(),
                 InputType.INGEST,
@@ -1293,21 +1594,144 @@ public class OpenAiServiceTests extends ESTestCase {
         }
     }
 
-    private OpenAiService createOpenAiService() {
-        return new OpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
+    @SuppressWarnings("checkstyle:LineLength")
+    public void testGetConfiguration() throws Exception {
+        try (var service = createOpenAiService()) {
+            String content = XContentHelper.stripWhitespace(
+                """
+                    {
+                            "provider": "openai",
+                            "task_types": [
+                                 {
+                                     "task_type": "text_embedding",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 },
+                                 {
+                                     "task_type": "completion",
+                                     "configuration": {
+                                         "user": {
+                                             "default_value": null,
+                                             "depends_on": [],
+                                             "display": "textbox",
+                                             "label": "User",
+                                             "order": 1,
+                                             "required": false,
+                                             "sensitive": false,
+                                             "tooltip": "Specifies the user issuing the request.",
+                                             "type": "str",
+                                             "ui_restrictions": [],
+                                             "validations": [],
+                                             "value": ""
+                                         }
+                                     }
+                                 }
+                            ],
+                            "configuration": {
+                                "api_key": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "API Key",
+                                    "order": 1,
+                                    "required": true,
+                                    "sensitive": true,
+                                    "tooltip": "The OpenAI API authentication key. For more details about generating OpenAI API keys, refer to the https://platform.openai.com/account/api-keys.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "organization_id": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "Organization ID",
+                                    "order": 3,
+                                    "required": false,
+                                    "sensitive": false,
+                                    "tooltip": "The unique identifier of your organization.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "rate_limit.requests_per_minute": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "numeric",
+                                    "label": "Rate Limit",
+                                    "order": 6,
+                                    "required": false,
+                                    "sensitive": false,
+                                    "tooltip": "Default number of requests allowed per minute. For text_embedding is 3000. For completion is 500.",
+                                    "type": "int",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "model_id": {
+                                    "default_value": null,
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "Model ID",
+                                    "order": 2,
+                                    "required": true,
+                                    "sensitive": false,
+                                    "tooltip": "The name of the model to use for the inference task.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                },
+                                "url": {
+                                    "default_value": "https://api.openai.com/v1/chat/completions",
+                                    "depends_on": [],
+                                    "display": "textbox",
+                                    "label": "URL",
+                                    "order": 4,
+                                    "required": true,
+                                    "sensitive": false,
+                                    "tooltip": "The OpenAI API endpoint URL. For more information on the URL, refer to the https://platform.openai.com/docs/api-reference.",
+                                    "type": "str",
+                                    "ui_restrictions": [],
+                                    "validations": [],
+                                    "value": null
+                                }
+                            }
+                        }
+                    """
+            );
+            InferenceServiceConfiguration configuration = InferenceServiceConfiguration.fromXContentBytes(
+                new BytesArray(content),
+                XContentType.JSON
+            );
+            boolean humanReadable = true;
+            BytesReference originalBytes = toShuffledXContent(configuration, XContentType.JSON, ToXContent.EMPTY_PARAMS, humanReadable);
+            InferenceServiceConfiguration serviceConfiguration = service.getConfiguration();
+            assertToXContentEquivalent(
+                originalBytes,
+                toXContent(serviceConfiguration, XContentType.JSON, humanReadable),
+                XContentType.JSON
+            );
+        }
     }
 
-    private Map<String, Object> getRequestConfigMap(
-        Map<String, Object> serviceSettings,
-        Map<String, Object> taskSettings,
-        Map<String, Object> secretSettings
-    ) {
-        var builtServiceSettings = new HashMap<>();
-        builtServiceSettings.putAll(serviceSettings);
-        builtServiceSettings.putAll(secretSettings);
-
-        return new HashMap<>(
-            Map.of(ModelConfigurations.SERVICE_SETTINGS, builtServiceSettings, ModelConfigurations.TASK_SETTINGS, taskSettings)
-        );
+    private OpenAiService createOpenAiService() {
+        return new OpenAiService(mock(HttpRequestSender.Factory.class), createWithEmptySettings(threadPool));
     }
 }

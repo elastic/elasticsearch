@@ -1,0 +1,13 @@
+pr: 113967
+summary: "ESQL: Entirely remove META FUNCTIONS"
+area: ES|QL
+type: breaking
+issues: []
+breaking:
+  title: "ESQL: Entirely remove META FUNCTIONS"
+  area: ES|QL
+  details: |
+    Removes an undocumented syntax from ESQL: META FUNCTION. This was never
+    reliable or really useful. Consult the documentation instead.
+  impact: "Removes an undocumented syntax from ESQL: META FUNCTION"
+  notable: false

@@ -115,21 +115,26 @@ that sacrifices result accuracy for improved speed.
 ==== Automatically quantize vectors for kNN search
 
 The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
-The two following quantization strategies are supported:
+The three following quantization strategies are supported:
 
 +
 --
-`int8` - Quantizes each dimension of the vector to 1-byte integers. This can reduce the memory footprint by 75% at the cost of some accuracy.
-`int4` - Quantizes each dimension of the vector to half-byte integers. This can reduce the memory footprint by 87% at the cost of some accuracy.
+`int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
+`int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
+`bbq` - experimental:[] Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
 --
 
-To use a quantized index, you can set your index type to `int8_hnsw` or `int4_hnsw`. When indexing `float` vectors, the current default
+When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See <<dense-vector-knn-search-reranking, oversampling and rescoring>> for more information.
+
+To use a quantized index, you can set your index type to `int8_hnsw`, `int4_hnsw`, or `bbq_hnsw`. When indexing `float` vectors, the current default
 index type is `int8_hnsw`.
 
 NOTE: Quantization will continue to keep the raw float vector values on disk for reranking, reindexing, and quantization improvements over the lifetime of the data.
-This means disk usage will increase by ~25% for `int8` and ~12.5% for `int4` due to the overhead of storing the quantized and raw vectors.
+This means disk usage will increase by ~25% for `int8`, ~12.5% for `int4`, and ~3.1% for `bbq` due to the overhead of storing the quantized and raw vectors.
 
 NOTE: `int4` quantization requires an even number of vector dimensions.
+
+NOTE: experimental:[] `bbq` quantization only supports vector dimensions that are greater than 64.
 
 Here is an example of how to create a byte-quantized index:
 
@@ -166,6 +171,27 @@ PUT my-byte-quantized-index
         "index": true,
         "index_options": {
           "type": "int4_hnsw"
+        }
+      }
+    }
+  }
+}
+--------------------------------------------------
+
+experimental:[] Here is an example of how to create a binary quantized index:
+
+[source,console]
+--------------------------------------------------
+PUT my-byte-quantized-index
+{
+  "mappings": {
+    "properties": {
+      "my_vector": {
+        "type": "dense_vector",
+        "dims": 64,
+        "index": true,
+        "index_options": {
+          "type": "bbq_hnsw"
         }
       }
     }
@@ -301,10 +327,15 @@ by 4x at the cost of some accuracy. See <<dense-vector-quantization, Automatical
 * `int4_hnsw` - This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] in addition to automatically scalar
 quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint
 by 8x at the cost of some accuracy. See <<dense-vector-quantization, Automatically quantize vectors for kNN search>>.
+* experimental:[] `bbq_hnsw` - This utilizes the https://arxiv.org/abs/1603.09320[HNSW algorithm] in addition to automatically binary
+quantization for scalable approximate kNN search with `element_type` of `float`. This can reduce the memory footprint
+by 32x at the cost of accuracy. See <<dense-vector-quantization, Automatically quantize vectors for kNN search>>.
 * `flat` - This utilizes a brute-force search algorithm for exact kNN search. This supports all `element_type` values.
 * `int8_flat` - This utilizes a brute-force search algorithm in addition to automatically scalar quantization. Only supports
 `element_type` of `float`.
 * `int4_flat` - This utilizes a brute-force search algorithm in addition to automatically half-byte scalar quantization. Only supports
+`element_type` of `float`.
+* experimental:[] `bbq_flat` - This utilizes a brute-force search algorithm in addition to automatically binary quantization. Only supports
 `element_type` of `float`.
 --
 `m`:::

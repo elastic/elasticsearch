@@ -378,7 +378,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             equalTo(requiredSpaceForShrink + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
         );
 
-        assertThat(clusterAdmin().prepareHealth(shrinkName).get().getUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, shrinkName).get().getUnassignedShards(), equalTo(1));
 
         // test that the required amount is enough.
         // Adjust the amount since autoscaling calculates a node size to stay below low watermark though the shard can be
@@ -387,7 +387,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assert tooLittleSpaceForShrink <= requiredSpaceForShrink;
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink);
         ClusterRerouteUtils.reroute(client());
-        assertThat(clusterAdmin().prepareHealth(shrinkName).get().getUnassignedShards(), equalTo(1));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, shrinkName).get().getUnassignedShards(), equalTo(1));
         setTotalSpace(dataNode1Name, tooLittleSpaceForShrink + 1);
         ClusterRerouteUtils.reroute(client());
         ensureGreen();
@@ -488,7 +488,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
             equalTo(requiredSpaceForClone + ReactiveStorageDeciderService.NODE_DISK_OVERHEAD)
         );
 
-        assertThat(clusterAdmin().prepareHealth(cloneName).get().getUnassignedShards(), equalTo(resizedShardCount));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, cloneName).get().getUnassignedShards(), equalTo(resizedShardCount));
 
         // test that the required amount is enough.
         // Adjust the amount since autoscaling calculates a node size to stay below low watermark though the shard can be
@@ -497,7 +497,7 @@ public class ReactiveStorageIT extends AutoscalingStorageIntegTestCase {
         assert tooLittleSpaceForClone <= requiredSpaceForClone;
         setTotalSpace(dataNode1Name, tooLittleSpaceForClone);
         ClusterRerouteUtils.reroute(client());
-        assertThat(clusterAdmin().prepareHealth(cloneName).get().getUnassignedShards(), equalTo(resizedShardCount));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, cloneName).get().getUnassignedShards(), equalTo(resizedShardCount));
         setTotalSpace(dataNode1Name, requiredSpaceForClone);
         ClusterRerouteUtils.reroute(client());
         ensureGreen();

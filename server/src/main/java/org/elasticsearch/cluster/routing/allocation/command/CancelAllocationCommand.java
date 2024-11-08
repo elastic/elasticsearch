@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -135,11 +136,13 @@ public class CancelAllocationCommand implements AllocationCommand {
                     allocation.decision(
                         Decision.NO,
                         "cancel_allocation_command",
-                        "can't cancel " + shardId + ", failed to find it on node " + discoNode
+                        "can't cancel [" + index + "][" + shardId + "], failed to find it on node " + discoNode
                     )
                 );
             }
-            throw new IllegalArgumentException("[cancel_allocation] can't cancel " + shardId + ", failed to find it on node " + discoNode);
+            throw new IllegalArgumentException(
+                "[cancel_allocation] can't cancel [" + index + "][" + shardId + "], failed to find it on node " + discoNode
+            );
         }
         if (shardRouting.primary() && allowPrimary == false) {
             if ((shardRouting.initializing() && shardRouting.relocatingNodeId() != null) == false) {
@@ -150,9 +153,11 @@ public class CancelAllocationCommand implements AllocationCommand {
                         allocation.decision(
                             Decision.NO,
                             "cancel_allocation_command",
-                            "can't cancel "
+                            "can't cancel ["
+                                + index
+                                + "]["
                                 + shardId
-                                + " on node "
+                                + "] on node "
                                 + discoNode
                                 + ", shard is primary and "
                                 + shardRouting.state().name().toLowerCase(Locale.ROOT)
@@ -160,9 +165,11 @@ public class CancelAllocationCommand implements AllocationCommand {
                     );
                 }
                 throw new IllegalArgumentException(
-                    "[cancel_allocation] can't cancel "
+                    "[cancel_allocation] can't cancel ["
+                        + index
+                        + "]["
                         + shardId
-                        + " on node "
+                        + "] on node "
                         + discoNode
                         + ", shard is primary and "
                         + shardRouting.state().name().toLowerCase(Locale.ROOT)
@@ -177,7 +184,7 @@ public class CancelAllocationCommand implements AllocationCommand {
             allocation.decision(
                 Decision.YES,
                 "cancel_allocation_command",
-                "shard " + shardId + " on node " + discoNode + " can be cancelled"
+                "shard [" + index + "][" + shardId + "] on node " + discoNode + " can be cancelled"
             )
         );
     }

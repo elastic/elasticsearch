@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBase64;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToBoolean;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianPoint;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToCartesianShape;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDateNanos;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDatetime;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDegrees;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
@@ -58,8 +59,10 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RTrim;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.Space;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Trim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
+import org.elasticsearch.xpack.esql.expression.function.scalar.util.Delay;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
@@ -96,6 +99,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(Signum.ENTRY);
         entries.add(Sin.ENTRY);
         entries.add(Sinh.ENTRY);
+        entries.add(Space.ENTRY);
         entries.add(Sqrt.ENTRY);
         entries.add(StX.ENTRY);
         entries.add(StY.ENTRY);
@@ -105,6 +109,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(ToBoolean.ENTRY);
         entries.add(ToCartesianPoint.ENTRY);
         entries.add(ToDatetime.ENTRY);
+        entries.add(ToDateNanos.ENTRY);
         entries.add(ToDegrees.ENTRY);
         entries.add(ToDouble.ENTRY);
         entries.add(ToGeoShape.ENTRY);
@@ -119,6 +124,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(ToVersion.ENTRY);
         entries.add(Trim.ENTRY);
         entries.add(WildcardLike.ENTRY);
+        entries.add(Delay.ENTRY);
         entries.addAll(AbstractMultivalueFunction.getNamedWriteables());
         return entries;
     }
@@ -160,6 +166,6 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
 
     @Override
     public DataType dataType() {
-        return field.dataType();
+        return field.dataType().noText();
     }
 }

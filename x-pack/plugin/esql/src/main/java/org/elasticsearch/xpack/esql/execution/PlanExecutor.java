@@ -8,7 +8,9 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -16,8 +18,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
 import org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizer;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
@@ -26,8 +27,6 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetricsManager;
 import org.elasticsearch.xpack.esql.stats.QueryMetric;
-
-import java.util.function.BiConsumer;
 
 import static org.elasticsearch.action.ActionListener.wrap;
 
@@ -45,8 +44,8 @@ public class PlanExecutor {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
-        this.mapper = new Mapper(functionRegistry);
-        this.metrics = new Metrics();
+        this.mapper = new Mapper();
+        this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
     }
@@ -56,7 +55,9 @@ public class PlanExecutor {
         String sessionId,
         Configuration cfg,
         EnrichPolicyResolver enrichPolicyResolver,
-        BiConsumer<PhysicalPlan, ActionListener<Result>> runPhase,
+        EsqlExecutionInfo executionInfo,
+        IndicesExpressionGrouper indicesExpressionGrouper,
+        EsqlSession.PlanRunner planRunner,
         ActionListener<Result> listener
     ) {
         final PlanningMetrics planningMetrics = new PlanningMetrics();
@@ -70,11 +71,12 @@ public class PlanExecutor {
             new LogicalPlanOptimizer(new LogicalOptimizerContext(cfg)),
             mapper,
             verifier,
-            planningMetrics
+            planningMetrics,
+            indicesExpressionGrouper
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, runPhase, wrap(x -> {
+        session.execute(request, executionInfo, planRunner, wrap(x -> {
             planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {

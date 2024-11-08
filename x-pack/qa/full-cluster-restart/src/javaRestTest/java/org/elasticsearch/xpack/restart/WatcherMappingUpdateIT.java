@@ -28,7 +28,8 @@ import java.util.concurrent.TimeUnit;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.not;
 
-@UpdateForV9 // Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
+@UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+// Remove the whole test suite (superseded by SystemIndexMappingUpdateServiceIT#testSystemIndexManagerUpgradesMappings)
 public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestCase {
 
     public WatcherMappingUpdateIT(@Name("cluster") FullClusterRestartUpgradeStatus upgradeStatus) {
@@ -75,12 +76,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
                 """);
             client().performRequest(putWatchRequest);
 
-            if (clusterHasFeature(RestTestLegacyFeatures.WATCHES_VERSION_IN_META)) {
-                assertMappingVersion(".watches", getOldClusterVersion());
-            } else {
-                // watches indices from before 7.10 do not have mapping versions in _meta
-                assertNoMappingVersion(".watches");
-            }
+            assertMappingVersion(".watches", getOldClusterVersion());
         } else {
             assertMappingVersion(".watches", Build.current().version());
         }
@@ -100,9 +96,7 @@ public class WatcherMappingUpdateIT extends AbstractXpackFullClusterRestartTestC
         assertBusy(() -> {
             Request mappingRequest = new Request("GET", index + "/_mappings");
             assert isRunningAgainstOldCluster();
-            if (clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_REST_ACCESS_DEPRECATED)) {
-                mappingRequest.setOptions(getWarningHandlerOptions(index));
-            }
+            mappingRequest.setOptions(getWarningHandlerOptions(index));
             Response response = client().performRequest(mappingRequest);
             String responseBody = EntityUtils.toString(response.getEntity(), StandardCharsets.UTF_8);
             assertThat(responseBody, not(containsString("\"version\":\"")));

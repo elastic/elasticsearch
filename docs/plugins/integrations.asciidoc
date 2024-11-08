@@ -91,7 +91,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
   Elasticsearch Grails plugin.
 
 * https://hibernate.org/search/[Hibernate Search]
-  Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transaction from the reference database.
+  Integration with Hibernate ORM, from the Hibernate team. Automatic synchronization of write operations, yet exposes full Elasticsearch capabilities for queries. Can return either Elasticsearch native or re-map queries back into managed entities loaded within transactions from the reference database.
 
 * https://github.com/spring-projects/spring-data-elasticsearch[Spring Data Elasticsearch]:
   Spring Data implementation for Elasticsearch
@@ -104,7 +104,7 @@ Integrations are not plugins, but are external tools or modules that make it eas
 
 * https://pulsar.apache.org/docs/en/io-elasticsearch[Apache Pulsar]:
   The Elasticsearch Sink Connector is used to pull messages from Pulsar topics
-  and persist the messages to a index.
+  and persist the messages to an index.
 
 * https://micronaut-projects.github.io/micronaut-elasticsearch/latest/guide/index.html[Micronaut Elasticsearch Integration]:
   Integration of Micronaut with Elasticsearch

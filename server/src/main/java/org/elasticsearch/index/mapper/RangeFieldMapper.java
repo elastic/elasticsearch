@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -51,12 +52,14 @@ import static org.elasticsearch.index.query.RangeQueryBuilder.LT_FIELD;
 /** A {@link FieldMapper} for indexing numeric and date ranges, and creating queries */
 public class RangeFieldMapper extends FieldMapper {
     public static final NodeFeature NULL_VALUES_OFF_BY_ONE_FIX = new NodeFeature("mapper.range.null_values_off_by_one_fix");
+    public static final NodeFeature DATE_RANGE_INDEXING_FIX = new NodeFeature("mapper.range.date_range_indexing_fix");
 
     public static final boolean DEFAULT_INCLUDE_UPPER = true;
     public static final boolean DEFAULT_INCLUDE_LOWER = true;
 
     public static class Defaults {
         public static final DateFormatter DATE_FORMATTER = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER;
+        public static final Locale LOCALE = DateFieldMapper.DEFAULT_LOCALE;
     }
 
     // this is private since it has a different default
@@ -81,7 +84,7 @@ public class RangeFieldMapper extends FieldMapper {
         private final Parameter<Locale> locale = new Parameter<>(
             "locale",
             false,
-            () -> Locale.ROOT,
+            () -> Defaults.LOCALE,
             (n, c, o) -> LocaleUtils.parse(o.toString()),
             m -> toType(m).locale,
             (xContentBuilder, n, v) -> xContentBuilder.field(n, v.toString()),
@@ -462,47 +465,34 @@ public class RangeFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    List<Range> ranges = type.decodeRanges(value);
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
-        if (copyTo().copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
-        }
-        return new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
-            @Override
-            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                List<Range> ranges = type.decodeRanges(value);
-
-                switch (ranges.size()) {
-                    case 0:
-                        return;
-                    case 1:
-                        b.field(leafName());
-                        ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
-                        break;
-                    default:
-                        b.startArray(leafName());
-                        for (var range : ranges) {
-                            range.toXContent(b, fieldType().dateTimeFormatter);
-                        }
-                        b.endArray();
+                    switch (ranges.size()) {
+                        case 0:
+                            return;
+                        case 1:
+                            b.field(leafName());
+                            ranges.get(0).toXContent(b, fieldType().dateTimeFormatter);
+                            break;
+                        default:
+                            b.startArray(leafName());
+                            for (var range : ranges) {
+                                range.toXContent(b, fieldType().dateTimeFormatter);
+                            }
+                            b.endArray();
+                    }
                 }
-            }
-        };
+            };
+
+            return new SyntheticSourceSupport.Native(loader);
+        }
+
+        return super.syntheticSourceSupport();
     }
 
     /** Class defining a range */

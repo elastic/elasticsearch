@@ -155,7 +155,11 @@
               "ingested",
               "*.ingested",
               "*.start",
-              "*.end"
+              "*.end",
+              "*.indicator.first_seen",
+              "*.indicator.last_seen",
+              "*.indicator.modified_at",
+              "*threat.enrichments.matched.occurred"
             ],
             "unmatch_mapping_type": "object"
           }

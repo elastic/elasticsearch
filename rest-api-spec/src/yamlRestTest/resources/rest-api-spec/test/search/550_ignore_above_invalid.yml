@@ -1,0 +1,63 @@
+---
+ignore_above index setting negative value:
+  - do:
+      catch: bad_request
+      indices.create:
+        index:  test
+        body:
+          settings:
+            index:
+              mapping:
+                ignore_above: -1
+          mappings:
+            properties:
+              keyword:
+                type: keyword
+
+---
+keyword ignore_above mapping setting negative value:
+  - requires:
+      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
+      reason: introduce ignore_above index level setting
+  - do:
+      catch: bad_request
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              keyword:
+                ignore_above: -2
+                type: keyword
+
+---
+flattened ignore_above mapping setting negative value:
+  - requires:
+      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
+      reason: introduce ignore_above index level setting
+  - do:
+      catch: bad_request
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              flattened:
+                ignore_above: -2
+                type: flattened
+
+---
+wildcard ignore_above mapping setting negative value:
+  - requires:
+      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
+      reason: introduce ignore_above index level setting
+  - do:
+      catch: bad_request
+      indices.create:
+        index:  test
+        body:
+          mappings:
+            properties:
+              wildcard:
+                ignore_above: -2
+                type: wildcard

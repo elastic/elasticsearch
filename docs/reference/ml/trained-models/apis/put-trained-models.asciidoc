@@ -773,6 +773,37 @@ include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenizatio
 (Optional, boolean)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-bert-with-special-tokens]
 ====
+`deberta_v2`::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2]
++
+.Properties of deberta_v2
+[%collapsible%open]
+====
+`do_lower_case`:::
+(Optional, boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-do-lower-case]
++
+--
+Defaults to `false`.
+--
+
+`max_sequence_length`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-max-sequence-length]
+
+`span`:::
+(Optional, integer)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-span]
+
+`truncate`:::
+(Optional, string)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-truncate-deberta-v2]
+
+`with_special_tokens`:::
+(Optional, boolean)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-deberta-v2-with-special-tokens]
+====
 `roberta`::
 (Optional, object)
 include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=inference-config-nlp-tokenization-roberta]

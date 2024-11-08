@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -19,6 +20,7 @@ import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
 import org.elasticsearch.action.admin.indices.template.put.PutComponentTemplateAction;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.get.GetRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.search.SearchRequest;
@@ -169,7 +171,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             var indexRequest = new IndexRequest("k8s").opType(DocWriteRequest.OpType.CREATE);
             time = randomBoolean() ? endTime : endTime.plusSeconds(randomIntBetween(1, 99));
             indexRequest.source(DOC.replace("$time", formatInstant(time)), XContentType.JSON);
-            expectThrows(IllegalArgumentException.class, () -> client().index(indexRequest).actionGet());
+            expectThrows(IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class, () -> client().index(indexRequest).actionGet());
         }
 
         // Fetch UpdateTimeSeriesRangeService and increment time range of latest backing index:
@@ -410,7 +412,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             assertResponse(client().search(searchRequest), searchResponse -> {
                 ElasticsearchAssertions.assertNoSearchHits(searchResponse);
                 assertThat(searchResponse.getTotalShards(), equalTo(2));
-                assertThat(searchResponse.getSkippedShards(), equalTo(1));
+                assertThat(searchResponse.getSkippedShards(), equalTo(2));
                 assertThat(searchResponse.getSuccessfulShards(), equalTo(2));
             });
         }
@@ -544,7 +546,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
         var searchRequest = new SearchRequest(dataStreamName);
         searchRequest.source().trackTotalHits(true);
         assertResponse(client().search(searchRequest), searchResponse -> {
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo((long) numBulkRequests * numDocsPerBulk));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
             String id = searchResponse.getHits().getHits()[0].getId();
             assertThat(id, notNullValue());
 

@@ -311,7 +311,7 @@ public class TimeSeriesDataStreamsIT extends ESRestTestCase {
 
     @SuppressWarnings("unchecked")
     public void testDataStreamWithMultipleIndicesAndWriteIndexInDeletePhase() throws Exception {
-        createComposableTemplate(client(), template, dataStream + "*", new Template(null, null, null, null));
+        createComposableTemplate(client(), template, dataStream + "*", Template.builder().build());
         indexDocument(client(), dataStream, true);
 
         createNewSingletonPolicy(client(), policyName, "delete", DeleteAction.NO_SNAPSHOT_DELETE);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -27,7 +28,7 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         buildFile << """
             apply plugin: 'elasticsearch.internal-distribution-bwc-setup'
         """
-        execute("git branch origin/8.0", file("cloned"))
+        execute("git branch origin/8.x", file("cloned"))
         execute("git branch origin/7.16", file("cloned"))
         execute("git branch origin/7.15", file("cloned"))
     }
@@ -113,9 +114,9 @@ class InternalDistributionBwcSetupPluginFuncTest extends AbstractGitAwareGradleF
         result.task(":distribution:bwc:minor:buildBwcDarwinTar").outcome == TaskOutcome.SUCCESS
         and: "assemble task triggered"
         result.output.contains("[8.0.0] > Task :distribution:archives:darwin-tar:extractedAssemble")
-        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+        result.output.contains("expandedRootPath /distribution/bwc/minor/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install")
-        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.0/" +
+        result.output.contains("nested folder /distribution/bwc/minor/build/bwc/checkout-8.x/" +
                         "distribution/archives/darwin-tar/build/install/elasticsearch-8.0.0-SNAPSHOT")
     }
 

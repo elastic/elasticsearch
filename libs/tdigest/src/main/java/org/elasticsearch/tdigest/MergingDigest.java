@@ -21,6 +21,12 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.core.Releasables;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
+import org.elasticsearch.tdigest.arrays.TDigestDoubleArray;
+import org.elasticsearch.tdigest.arrays.TDigestIntArray;
+
 import java.util.AbstractCollection;
 import java.util.Collection;
 import java.util.Iterator;
@@ -62,6 +68,11 @@ import java.util.Iterator;
  * what the AVLTreeDigest uses and no dynamic allocation is required at all.
  */
 public class MergingDigest extends AbstractTDigest {
+    private static final long SHALLOW_SIZE = RamUsageEstimator.shallowSizeOfInstance(MergingDigest.class);
+
+    private final TDigestArrays arrays;
+    private boolean closed = false;
+
     private int mergeCount = 0;
 
     private final double publicCompression;
@@ -70,26 +81,26 @@ public class MergingDigest extends AbstractTDigest {
     // points to the first unused centroid
     private int lastUsedCell;
 
-    // sum_i weight[i] See also unmergedWeight
+    // sum_i weight.get(i) See also unmergedWeight
     private double totalWeight = 0;
 
     // number of points that have been added to each merged centroid
-    private final double[] weight;
+    private final TDigestDoubleArray weight;
     // mean of points added to each merged centroid
-    private final double[] mean;
+    private final TDigestDoubleArray mean;
 
-    // sum_i tempWeight[i]
+    // sum_i tempWeight.get(i)
     private double unmergedWeight = 0;
 
     // this is the index of the next temporary centroid
     // this is a more Java-like convention than lastUsedCell uses
     private int tempUsed = 0;
-    private final double[] tempWeight;
-    private final double[] tempMean;
+    private final TDigestDoubleArray tempWeight;
+    private final TDigestDoubleArray tempMean;
 
     // array used for sorting the temp centroids. This is a field
     // to avoid allocations during operation
-    private final int[] order;
+    private final TDigestIntArray order;
 
     // if true, alternate upward and downward merge passes
     public boolean useAlternatingSort = true;
@@ -102,6 +113,26 @@ public class MergingDigest extends AbstractTDigest {
     // weight limits.
     public static boolean useWeightLimit = true;
 
+    static MergingDigest create(TDigestArrays arrays, double compression) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new MergingDigest(arrays, compression);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
+    static MergingDigest create(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        arrays.adjustBreaker(SHALLOW_SIZE);
+        try {
+            return new MergingDigest(arrays, compression, bufferSize, size);
+        } catch (Exception e) {
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            throw e;
+        }
+    }
+
     /**
      * Allocates a buffer merging t-digest.  This is the normally used constructor that
      * allocates default sized internal arrays.  Other versions are available, but should
@@ -109,8 +140,8 @@ public class MergingDigest extends AbstractTDigest {
      *
      * @param compression The compression factor
      */
-    public MergingDigest(double compression) {
-        this(compression, -1);
+    private MergingDigest(TDigestArrays arrays, double compression) {
+        this(arrays, compression, -1);
     }
 
     /**
@@ -119,9 +150,9 @@ public class MergingDigest extends AbstractTDigest {
      * @param compression Compression factor for t-digest.  Same as 1/\delta in the paper.
      * @param bufferSize  How many samples to retain before merging.
      */
-    public MergingDigest(double compression, int bufferSize) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize) {
         // we can guarantee that we only need ceiling(compression).
-        this(compression, bufferSize, -1);
+        this(arrays, compression, bufferSize, -1);
     }
 
     /**
@@ -131,7 +162,9 @@ public class MergingDigest extends AbstractTDigest {
      * @param bufferSize  Number of temporary centroids
      * @param size        Size of main buffer
      */
-    public MergingDigest(double compression, int bufferSize, int size) {
+    private MergingDigest(TDigestArrays arrays, double compression, int bufferSize, int size) {
+        this.arrays = arrays;
+
         // ensure compression >= 10
         // default size = 2 * ceil(compression)
         // default bufferSize = 5 * size
@@ -205,25 +238,42 @@ public class MergingDigest extends AbstractTDigest {
             bufferSize = 2 * size;
         }
 
-        weight = new double[size];
-        mean = new double[size];
+        TDigestDoubleArray weight = null;
+        TDigestDoubleArray mean = null;
+        TDigestDoubleArray tempWeight = null;
+        TDigestDoubleArray tempMean = null;
+        TDigestIntArray order = null;
 
-        tempWeight = new double[bufferSize];
-        tempMean = new double[bufferSize];
-        order = new int[bufferSize];
+        try {
+            this.weight = weight = arrays.newDoubleArray(size);
+            this.mean = mean = arrays.newDoubleArray(size);
+
+            this.tempWeight = tempWeight = arrays.newDoubleArray(bufferSize);
+            this.tempMean = tempMean = arrays.newDoubleArray(bufferSize);
+            this.order = order = arrays.newIntArray(bufferSize);
+        } catch (Exception e) {
+            Releasables.close(weight, mean, tempWeight, tempMean, order);
+            throw e;
+        }
 
         lastUsedCell = 0;
     }
 
     @Override
+    public long ramBytesUsed() {
+        return SHALLOW_SIZE + weight.ramBytesUsed() + mean.ramBytesUsed() + tempWeight.ramBytesUsed() + tempMean.ramBytesUsed() + order
+            .ramBytesUsed();
+    }
+
+    @Override
     public void add(double x, long w) {
         checkValue(x);
-        if (tempUsed >= tempWeight.length - lastUsedCell - 1) {
+        if (tempUsed >= tempWeight.size() - lastUsedCell - 1) {
             mergeNewValues();
         }
         int where = tempUsed++;
-        tempWeight[where] = w;
-        tempMean[where] = x;
+        tempWeight.set(where, w);
+        tempMean.set(where, x);
         unmergedWeight += w;
         if (x < min) {
             min = x;
@@ -252,23 +302,20 @@ public class MergingDigest extends AbstractTDigest {
     }
 
     private void merge(
-        double[] incomingMean,
-        double[] incomingWeight,
+        TDigestDoubleArray incomingMean,
+        TDigestDoubleArray incomingWeight,
         int incomingCount,
-        int[] incomingOrder,
+        TDigestIntArray incomingOrder,
         double unmergedWeight,
         boolean runBackwards,
         double compression
     ) {
         // when our incoming buffer fills up, we combine our existing centroids with the incoming data,
         // and then reduce the centroids by merging if possible
-        System.arraycopy(mean, 0, incomingMean, incomingCount, lastUsedCell);
-        System.arraycopy(weight, 0, incomingWeight, incomingCount, lastUsedCell);
+        incomingMean.set(incomingCount, mean, 0, lastUsedCell);
+        incomingWeight.set(incomingCount, weight, 0, lastUsedCell);
         incomingCount += lastUsedCell;
 
-        if (incomingOrder == null) {
-            incomingOrder = new int[incomingCount];
-        }
         Sort.stableSort(incomingOrder, incomingMean, incomingCount);
 
         totalWeight += unmergedWeight;
@@ -280,8 +327,8 @@ public class MergingDigest extends AbstractTDigest {
 
         // start by copying the least incoming value to the normal buffer
         lastUsedCell = 0;
-        mean[lastUsedCell] = incomingMean[incomingOrder[0]];
-        weight[lastUsedCell] = incomingWeight[incomingOrder[0]];
+        mean.set(lastUsedCell, incomingMean.get(incomingOrder.get(0)));
+        weight.set(lastUsedCell, incomingWeight.get(incomingOrder.get(0)));
         double wSoFar = 0;
 
         // weight will contain all zeros after this loop
@@ -290,8 +337,8 @@ public class MergingDigest extends AbstractTDigest {
         double k1 = scale.k(0, normalizer);
         double wLimit = totalWeight * scale.q(k1 + 1, normalizer);
         for (int i = 1; i < incomingCount; i++) {
-            int ix = incomingOrder[i];
-            double proposedWeight = weight[lastUsedCell] + incomingWeight[ix];
+            int ix = incomingOrder.get(i);
+            double proposedWeight = weight.get(lastUsedCell) + incomingWeight.get(ix);
             double projectedW = wSoFar + proposedWeight;
             boolean addThis;
             if (useWeightLimit) {
@@ -305,7 +352,7 @@ public class MergingDigest extends AbstractTDigest {
                 // force first and last centroid to never merge
                 addThis = false;
             }
-            if (lastUsedCell == mean.length - 1) {
+            if (lastUsedCell == mean.size() - 1) {
                 // use the last centroid, there's no more
                 addThis = true;
             }
@@ -313,22 +360,26 @@ public class MergingDigest extends AbstractTDigest {
             if (addThis) {
                 // next point will fit
                 // so merge into existing centroid
-                weight[lastUsedCell] += incomingWeight[ix];
-                mean[lastUsedCell] = mean[lastUsedCell] + (incomingMean[ix] - mean[lastUsedCell]) * incomingWeight[ix]
-                    / weight[lastUsedCell];
-                incomingWeight[ix] = 0;
+                weight.set(lastUsedCell, weight.get(lastUsedCell) + incomingWeight.get(ix));
+                mean.set(
+                    lastUsedCell,
+                    mean.get(lastUsedCell) + (incomingMean.get(ix) - mean.get(lastUsedCell)) * incomingWeight.get(ix) / weight.get(
+                        lastUsedCell
+                    )
+                );
+                incomingWeight.set(ix, 0);
             } else {
                 // didn't fit ... move to next output, copy out first centroid
-                wSoFar += weight[lastUsedCell];
+                wSoFar += weight.get(lastUsedCell);
                 if (useWeightLimit == false) {
                     k1 = scale.k(wSoFar / totalWeight, normalizer);
                     wLimit = totalWeight * scale.q(k1 + 1, normalizer);
                 }
 
                 lastUsedCell++;
-                mean[lastUsedCell] = incomingMean[ix];
-                weight[lastUsedCell] = incomingWeight[ix];
-                incomingWeight[ix] = 0;
+                mean.set(lastUsedCell, incomingMean.get(ix));
+                weight.set(lastUsedCell, incomingWeight.get(ix));
+                incomingWeight.set(ix, 0);
             }
         }
         // points to next empty cell
@@ -337,7 +388,7 @@ public class MergingDigest extends AbstractTDigest {
         // sanity check
         double sum = 0;
         for (int i = 0; i < lastUsedCell; i++) {
-            sum += weight[i];
+            sum += weight.get(i);
         }
         assert sum == totalWeight;
         if (runBackwards) {
@@ -345,8 +396,8 @@ public class MergingDigest extends AbstractTDigest {
             Sort.reverse(weight, 0, lastUsedCell);
         }
         if (totalWeight > 0) {
-            min = Math.min(min, mean[0]);
-            max = Math.max(max, mean[lastUsedCell - 1]);
+            min = Math.min(min, mean.get(0));
+            max = Math.max(max, mean.get(lastUsedCell - 1));
         }
     }
 
@@ -387,8 +438,8 @@ public class MergingDigest extends AbstractTDigest {
                 // we have one or more centroids == x, treat them as one
                 // dw will accumulate the weight of all of the centroids at x
                 double dw = 0;
-                for (int i = 0; i < lastUsedCell && Double.compare(mean[i], x) == 0; i++) {
-                    dw += weight[i];
+                for (int i = 0; i < lastUsedCell && Double.compare(mean.get(i), x) == 0; i++) {
+                    dw += weight.get(i);
                 }
                 return dw / 2.0 / size();
             }
@@ -398,31 +449,32 @@ public class MergingDigest extends AbstractTDigest {
             }
             if (x == max) {
                 double dw = 0;
-                for (int i = lastUsedCell - 1; i >= 0 && Double.compare(mean[i], x) == 0; i--) {
-                    dw += weight[i];
+                for (int i = lastUsedCell - 1; i >= 0 && Double.compare(mean.get(i), x) == 0; i--) {
+                    dw += weight.get(i);
                 }
                 return (size() - dw / 2.0) / size();
             }
 
             // initially, we set left width equal to right width
-            double left = (mean[1] - mean[0]) / 2;
+            double left = (mean.get(1) - mean.get(0)) / 2;
             double weightSoFar = 0;
 
             for (int i = 0; i < lastUsedCell - 1; i++) {
-                double right = (mean[i + 1] - mean[i]) / 2;
-                if (x < mean[i] + right) {
-                    double value = (weightSoFar + weight[i] * interpolate(x, mean[i] - left, mean[i] + right)) / size();
+                double right = (mean.get(i + 1) - mean.get(i)) / 2;
+                if (x < mean.get(i) + right) {
+                    double value = (weightSoFar + weight.get(i) * interpolate(x, mean.get(i) - left, mean.get(i) + right)) / size();
                     return Math.max(value, 0.0);
                 }
-                weightSoFar += weight[i];
+                weightSoFar += weight.get(i);
                 left = right;
             }
 
             // for the last element, assume right width is same as left
             int lastOffset = lastUsedCell - 1;
-            double right = (mean[lastOffset] - mean[lastOffset - 1]) / 2;
-            if (x < mean[lastOffset] + right) {
-                return (weightSoFar + weight[lastOffset] * interpolate(x, mean[lastOffset] - right, mean[lastOffset] + right)) / size();
+            double right = (mean.get(lastOffset) - mean.get(lastOffset - 1)) / 2;
+            if (x < mean.get(lastOffset) + right) {
+                return (weightSoFar + weight.get(lastOffset) * interpolate(x, mean.get(lastOffset) - right, mean.get(lastOffset) + right))
+                    / size();
             }
             return 1;
         }
@@ -440,7 +492,7 @@ public class MergingDigest extends AbstractTDigest {
             return Double.NaN;
         } else if (lastUsedCell == 1) {
             // with one data point, all quantiles lead to Rome
-            return mean[0];
+            return mean.get(0);
         }
 
         // we know that there are at least two centroids now
@@ -458,40 +510,40 @@ public class MergingDigest extends AbstractTDigest {
             return max;
         }
 
-        double weightSoFar = weight[0] / 2;
+        double weightSoFar = weight.get(0) / 2;
 
         // if the left centroid has more than one sample, we still know
         // that one sample occurred at min so we can do some interpolation
-        if (weight[0] > 1 && index < weightSoFar) {
+        if (weight.get(0) > 1 && index < weightSoFar) {
             // there is a single sample at min so we interpolate with less weight
-            return weightedAverage(min, weightSoFar - index, mean[0], index);
+            return weightedAverage(min, weightSoFar - index, mean.get(0), index);
         }
 
         // if the right-most centroid has more than one sample, we still know
         // that one sample occurred at max so we can do some interpolation
-        if (weight[n - 1] > 1 && totalWeight - index <= weight[n - 1] / 2) {
-            return max - (totalWeight - index - 1) / (weight[n - 1] / 2 - 1) * (max - mean[n - 1]);
+        if (weight.get(n - 1) > 1 && totalWeight - index <= weight.get(n - 1) / 2) {
+            return max - (totalWeight - index - 1) / (weight.get(n - 1) / 2 - 1) * (max - mean.get(n - 1));
         }
 
         // in between extremes we interpolate between centroids
         for (int i = 0; i < n - 1; i++) {
-            double dw = (weight[i] + weight[i + 1]) / 2;
+            double dw = (weight.get(i) + weight.get(i + 1)) / 2;
             if (weightSoFar + dw > index) {
                 // centroids i and i+1 bracket our current point
                 double z1 = index - weightSoFar;
                 double z2 = weightSoFar + dw - index;
-                return weightedAverage(mean[i], z2, mean[i + 1], z1);
+                return weightedAverage(mean.get(i), z2, mean.get(i + 1), z1);
             }
             weightSoFar += dw;
         }
 
-        assert weight[n - 1] >= 1;
-        assert index >= totalWeight - weight[n - 1];
+        assert weight.get(n - 1) >= 1;
+        assert index >= totalWeight - weight.get(n - 1);
 
         // Interpolate between the last mean and the max.
         double z1 = index - weightSoFar;
-        double z2 = weight[n - 1] / 2.0 - z1;
-        return weightedAverage(mean[n - 1], z1, max, z2);
+        double z2 = weight.get(n - 1) / 2.0 - z1;
+        return weightedAverage(mean.get(n - 1), z1, max, z2);
     }
 
     @Override
@@ -518,7 +570,7 @@ public class MergingDigest extends AbstractTDigest {
 
                     @Override
                     public Centroid next() {
-                        Centroid rc = new Centroid(mean[i], (long) weight[i]);
+                        Centroid rc = new Centroid(mean.get(i), (long) weight.get(i));
                         i++;
                         return rc;
                     }
@@ -553,7 +605,7 @@ public class MergingDigest extends AbstractTDigest {
 
     @Override
     public int byteSize() {
-        return 48 + 8 * (mean.length + weight.length + tempMean.length + tempWeight.length) + 4 * order.length;
+        return 48 + 8 * (mean.size() + weight.size() + tempMean.size() + tempWeight.size()) + 4 * order.size();
     }
 
     @Override
@@ -567,5 +619,14 @@ public class MergingDigest extends AbstractTDigest {
             + (useAlternatingSort ? "alternating" : "stable")
             + "-"
             + (useTwoLevelCompression ? "twoLevel" : "oneLevel");
+    }
+
+    @Override
+    public void close() {
+        if (closed == false) {
+            closed = true;
+            arrays.adjustBreaker(-SHALLOW_SIZE);
+            Releasables.close(weight, mean, tempWeight, tempMean, order);
+        }
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -19,14 +20,11 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.ingest.PutPipelineRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Template;
-import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -197,9 +195,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         // Initialize failure store.
         var rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions())
-                .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                .build()
+            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();
@@ -237,7 +233,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         createDataStream();
 
         String destination = dataStream + "-destination";
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(destination);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, destination);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
         createReroutePipeline(destination);
 
@@ -306,7 +302,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createDataStream() {
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(dataStream);
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream);
         assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
     }
 
@@ -319,9 +315,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
     }
 
     private void createPipeline(String processor) {
-        String pipelineDefinition = Strings.format("{\"processors\": [{%s}]}", processor);
-        BytesReference bytes = new BytesArray(pipelineDefinition);
-        clusterAdmin().putPipeline(new PutPipelineRequest(pipeline, bytes, XContentType.JSON)).actionGet();
+        putJsonPipeline(pipeline, Strings.format("{\"processors\": [{%s}]}", processor));
     }
 
     private void indexDocs(String dataStream, int numDocs, String pipeline) {

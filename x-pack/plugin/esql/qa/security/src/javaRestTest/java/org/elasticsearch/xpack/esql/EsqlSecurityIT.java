@@ -149,24 +149,40 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (String user : List.of("test-admin", "user1")) {
             Response resp = runESQLCommand(user, "from index-user1 | stats sum=sum(value)");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(43.0d)));
-            assertMap(entityAsMap(resp), matcher);
+            assertMap(responseMap, matcher);
         }
 
         for (String user : List.of("test-admin", "user2")) {
             Response resp = runESQLCommand(user, "from index-user2 | stats sum=sum(value)");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
-            assertMap(entityAsMap(resp), matcher);
+            assertMap(responseMap, matcher);
         }
+
         for (var index : List.of("index-user2", "index-user*", "index*")) {
             Response resp = runESQLCommand("metadata1_read2", "from " + index + " | stats sum=sum(value)");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry("columns", List.of(Map.of("name", "sum", "type", "double")))
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher mapMatcher = responseMatcher();
+            if (responseMap.get("took") != null) {
+                mapMatcher = mapMatcher.entry("took", ((Integer) responseMap.get("took")).intValue());
+            }
+            MapMatcher matcher = mapMatcher.entry("columns", List.of(Map.of("name", "sum", "type", "double")))
                 .entry("values", List.of(List.of(72.0d)));
-            assertMap(entityAsMap(resp), matcher);
+            assertMap(responseMap, matcher);
         }
     }
 
@@ -177,11 +193,11 @@ public class EsqlSecurityIT extends ESRestTestCase {
                 "from " + index + " METADATA _index" + "| stats sum=sum(value), index=VALUES(_index)"
             );
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry(
-                "columns",
-                List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword"))
-            ).entry("values", List.of(List.of(72.0d, "index-user2")));
-            assertMap(entityAsMap(resp), matcher);
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
+                .entry("columns", List.of(Map.of("name", "sum", "type", "double"), Map.of("name", "index", "type", "keyword")))
+                .entry("values", List.of(List.of(72.0d, "index-user2")));
+            assertMap(responseMap, matcher);
         }
     }
 
@@ -189,15 +205,18 @@ public class EsqlSecurityIT extends ESRestTestCase {
         for (var index : List.of("first-alias", "first-alias,index-*", "first-*,index-*")) {
             Response resp = runESQLCommand("alias_user1", "from " + index + " METADATA _index" + "| KEEP _index, org, value | LIMIT 10");
             assertOK(resp);
-            MapMatcher matcher = responseMatcher().entry(
-                "columns",
-                List.of(
-                    Map.of("name", "_index", "type", "keyword"),
-                    Map.of("name", "org", "type", "keyword"),
-                    Map.of("name", "value", "type", "double")
+            Map<String, Object> responseMap = entityAsMap(resp);
+            MapMatcher matcher = responseMatcher().entry("took", ((Integer) responseMap.get("took")).intValue())
+                .entry(
+                    "columns",
+                    List.of(
+                        Map.of("name", "_index", "type", "keyword"),
+                        Map.of("name", "org", "type", "keyword"),
+                        Map.of("name", "value", "type", "double")
+                    )
                 )
-            ).entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
-            assertMap(entityAsMap(resp), matcher);
+                .entry("values", List.of(List.of("index-user1", "sales", 31.0d)));
+            assertMap(responseMap, matcher);
         }
     }
 

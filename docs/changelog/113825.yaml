@@ -1,0 +1,12 @@
+pr: 113825
+summary: Cross-cluster search telemetry
+area: Search
+type: feature
+issues: []
+highlight:
+  title: Cross-cluster search telemetry
+  body: |-
+    The cross-cluster search telemetry is collected when cross-cluster searches
+    are performed, and is returned as "ccs" field in `_cluster/stats` output.
+    It also add a new parameter `include_remotes=true` to the `_cluster/stats` API
+    which will collect data from connected remote clusters.

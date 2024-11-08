@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.watcher.transport.actions.put.GetWatcherSett
 import java.io.IOException;
 import java.util.List;
 
+import static org.elasticsearch.rest.RestRequest.Method.GET;
+
 /**
  * Allows retrieving a subset of index settings (those use-settable) for the .watches index.
  * See {@link RestUpdateWatcherSettingsAction} for the setting counterpart.
@@ -29,7 +31,7 @@ public class RestGetWatcherSettingsAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(Route.builder(RestRequest.Method.GET, "/_watcher/settings").build());
+        return List.of(new Route(GET, "/_watcher/settings"));
     }
 
     @Override

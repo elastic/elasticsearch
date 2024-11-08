@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.ml.rest.calendar;
 
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -22,19 +21,15 @@ import java.util.Collections;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.xpack.core.ml.calendars.Calendar.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutCalendarAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, BASE_PATH + "calendars/{" + Calendar.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "calendars/{" + Calendar.ID + "}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(PUT, BASE_PATH + "calendars/{" + ID + "}"));
     }
 
     @Override

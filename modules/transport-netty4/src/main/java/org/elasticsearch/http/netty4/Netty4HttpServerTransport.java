@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -36,6 +37,7 @@ import io.netty.util.AttributeKey;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.NetworkService;
 import org.elasticsearch.common.network.ThreadWatchdog;
@@ -96,6 +98,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     private final TLSConfig tlsConfig;
     private final AcceptChannelHandler.AcceptPredicate acceptChannelPredicate;
     private final HttpValidator httpValidator;
+    private final IncrementalBulkService.Enabled enabled;
     private final ThreadWatchdog threadWatchdog;
     private final int readTimeoutMillis;
 
@@ -134,6 +137,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         this.acceptChannelPredicate = acceptChannelPredicate;
         this.httpValidator = httpValidator;
         this.threadWatchdog = networkService.getThreadWatchdog();
+        this.enabled = new IncrementalBulkService.Enabled(clusterSettings);
 
         this.pipeliningMaxEvents = SETTING_PIPELINING_MAX_EVENTS.get(settings);
 
@@ -279,7 +283,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
     }
 
     public ChannelHandler configureServerChannelHandler() {
-        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator);
+        return new HttpChannelHandler(this, handlingSettings, tlsConfig, acceptChannelPredicate, httpValidator, enabled);
     }
 
     static final AttributeKey<Netty4HttpChannel> HTTP_CHANNEL_KEY = AttributeKey.newInstance("es-http-channel");
@@ -292,19 +296,22 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
         private final TLSConfig tlsConfig;
         private final BiPredicate<String, InetSocketAddress> acceptChannelPredicate;
         private final HttpValidator httpValidator;
+        private final IncrementalBulkService.Enabled enabled;
 
         protected HttpChannelHandler(
             final Netty4HttpServerTransport transport,
             final HttpHandlingSettings handlingSettings,
             final TLSConfig tlsConfig,
             @Nullable final BiPredicate<String, InetSocketAddress> acceptChannelPredicate,
-            @Nullable final HttpValidator httpValidator
+            @Nullable final HttpValidator httpValidator,
+            IncrementalBulkService.Enabled enabled
         ) {
             this.transport = transport;
             this.handlingSettings = handlingSettings;
             this.tlsConfig = tlsConfig;
             this.acceptChannelPredicate = acceptChannelPredicate;
             this.httpValidator = httpValidator;
+            this.enabled = enabled;
         }
 
         @Override
@@ -325,8 +332,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             if (tlsConfig.isTLSEnabled()) {
                 ch.pipeline().addLast("ssl", new SslHandler(tlsConfig.createServerSSLEngine()));
             }
+            final var threadWatchdogActivityTracker = transport.threadWatchdog.getActivityTrackerForCurrentThread();
             ch.pipeline()
-                .addLast("chunked_writer", new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext()))
+                .addLast(
+                    "chunked_writer",
+                    new Netty4WriteThrottlingHandler(transport.getThreadPool().getThreadContext(), threadWatchdogActivityTracker)
+                )
                 .addLast("byte_buf_sizer", NettyByteBufSizer.INSTANCE);
             if (transport.readTimeoutMillis > 0) {
                 ch.pipeline().addLast("read_timeout", new ReadTimeoutHandler(transport.readTimeoutMillis, TimeUnit.MILLISECONDS));
@@ -365,7 +376,12 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                     );
             }
             // combines the HTTP message pieces into a single full HTTP request (with headers and body)
-            final HttpObjectAggregator aggregator = new HttpObjectAggregator(handlingSettings.maxContentLength());
+            final HttpObjectAggregator aggregator = new Netty4HttpAggregator(
+                handlingSettings.maxContentLength(),
+                httpPreRequest -> enabled.get() == false
+                    || ((httpPreRequest.rawPath().endsWith("/_bulk") == false)
+                        || httpPreRequest.rawPath().startsWith("/_xpack/monitoring/_bulk"))
+            );
             aggregator.setMaxCumulationBufferComponents(transport.maxCompositeBufferComponents);
             ch.pipeline()
                 .addLast("decoder_compress", new HttpContentDecompressor()) // this handles request body decompression
@@ -397,11 +413,7 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
             ch.pipeline()
                 .addLast(
                     "pipelining",
-                    new Netty4HttpPipeliningHandler(
-                        transport.pipeliningMaxEvents,
-                        transport,
-                        transport.threadWatchdog.getActivityTrackerForCurrentThread()
-                    )
+                    new Netty4HttpPipeliningHandler(transport.pipeliningMaxEvents, transport, threadWatchdogActivityTracker)
                 );
             transport.serverAcceptedChannel(nettyHttpChannel);
         }

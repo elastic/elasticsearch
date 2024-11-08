@@ -55,5 +55,7 @@
   ],
   "examples" : [
     "ROW d = 5.0\n| EVAL s = EXP(d)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

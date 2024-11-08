@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -74,9 +75,21 @@ public class StatsSummaryTests extends ESTestCase {
         assertThat(stats1, equalTo(stats2));
         assertThat(stats1.hashCode(), equalTo(stats2.hashCode()));
 
+        // Accumulators with same sum, but different counts are not equals
+        stats1.accept(1);
+        stats1.accept(1);
+        stats2.accept(2);
+        assertThat(stats1.getSum(), equalTo(stats2.getSum()));
+        assertThat(stats1.getCount(), not(equalTo(stats2.getCount())));
+        assertThat(stats1, not(equalTo(stats2)));
+        assertThat(stats1.hashCode(), not(equalTo(stats2.hashCode())));
+
         // Accumulators with different values are not equals
-        randomDoubles(randomIntBetween(0, 20)).forEach(stats1);
-        randomDoubles(randomIntBetween(0, 20)).forEach(stats2);
+        stats1.reset();
+        stats2.reset();
+        randomDoubles(randomIntBetween(1, 20)).forEach(stats1.andThen(v -> stats2.accept(v + randomDoubleBetween(0.0, 1.0, false))));
+        assertThat(stats1.getCount(), equalTo(stats2.getCount()));
+        assertThat(stats1.getSum(), not(equalTo(stats2.getSum())));
         assertThat(stats1, not(equalTo(stats2)));
         assertThat(stats1.hashCode(), not(equalTo(stats2.hashCode())));
     }

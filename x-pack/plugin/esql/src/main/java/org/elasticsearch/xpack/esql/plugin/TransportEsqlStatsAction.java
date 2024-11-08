@@ -31,7 +31,8 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     EsqlStatsRequest,
     EsqlStatsResponse,
     EsqlStatsRequest.NodeStatsRequest,
-    EsqlStatsResponse.NodeStatsResponse> {
+    EsqlStatsResponse.NodeStatsResponse,
+    Void> {
 
     static final NodeFeature ESQL_STATS_FEATURE = new NodeFeature("esql.stats_node");
 

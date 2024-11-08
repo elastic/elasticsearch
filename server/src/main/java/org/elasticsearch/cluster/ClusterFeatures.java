@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
 
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.features.NodeFeature;
@@ -243,15 +244,12 @@ public class ClusterFeatures implements Diffable<ClusterFeatures>, ChunkedToXCon
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(
-            Iterators.single((builder, p) -> builder.startArray()),
-            nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).<ToXContent>map(e -> (builder, p) -> {
+        return ChunkedToXContent.builder(params)
+            .array(nodeFeatures.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(), e -> (builder, p) -> {
                 String[] features = e.getValue().toArray(String[]::new);
                 Arrays.sort(features);
                 return builder.startObject().field("node_id", e.getKey()).array("features", features).endObject();
-            }).iterator(),
-            Iterators.single((builder, p) -> builder.endArray())
-        );
+            });
     }
 
     @Override

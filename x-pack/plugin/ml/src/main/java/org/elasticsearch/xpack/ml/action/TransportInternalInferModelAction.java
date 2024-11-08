@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
 import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.inference.InferenceWaitForAllocation;
 import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
-import org.elasticsearch.xpack.ml.inference.adaptiveallocations.ScaleFromZeroFeatureFlag;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.loadingservice.LocalModel;
 import org.elasticsearch.xpack.ml.inference.loadingservice.ModelLoadingService;
@@ -278,12 +277,11 @@ public class TransportInternalInferModelAction extends HandledTransportAction<Re
             if (starting) {
                 message += "; starting deployment of one allocation";
 
-                if (ScaleFromZeroFeatureFlag.isEnabled()) {
-                    waitForAllocation.waitForAssignment(
-                        new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
-                    );
-                    return;
-                }
+                waitForAllocation.waitForAssignment(
+                    new InferenceWaitForAllocation.WaitingRequest(request, responseBuilder, parentTaskId, listener)
+                );
+                logger.debug(message);
+                return;
             }
 
             logger.debug(message);

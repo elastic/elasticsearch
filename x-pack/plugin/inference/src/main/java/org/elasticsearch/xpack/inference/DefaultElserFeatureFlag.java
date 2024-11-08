@@ -16,6 +16,7 @@ public class DefaultElserFeatureFlag {
     private static final FeatureFlag FEATURE_FLAG = new FeatureFlag("inference_default_elser");
 
     public static boolean isEnabled() {
-        return FEATURE_FLAG.isEnabled();
+        return true;
+        // return FEATURE_FLAG.isEnabled();
     }
 }

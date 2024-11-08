@@ -9,5 +9,30 @@
 
 package org.elasticsearch.script.field.vectors;
 
-public class BitMultiDenseVector {
+import org.apache.lucene.util.BytesRef;
+
+import java.util.List;
+
+public class BitMultiDenseVector extends ByteMultiDenseVector {
+    public BitMultiDenseVector(List<byte[]> vectorValues, BytesRef magnitudesBytes, int dims) {
+        super(vectorValues, magnitudesBytes, dims);
+    }
+
+    @Override
+    public void checkDimensions(int qvDims) {
+        if (qvDims != dims) {
+            throw new IllegalArgumentException(
+                "The query vector has a different number of dimensions ["
+                    + qvDims * Byte.SIZE
+                    + "] than the document vectors ["
+                    + dims * Byte.SIZE
+                    + "]."
+            );
+        }
+    }
+
+    @Override
+    public int getDims() {
+        return dims * Byte.SIZE;
+    }
 }

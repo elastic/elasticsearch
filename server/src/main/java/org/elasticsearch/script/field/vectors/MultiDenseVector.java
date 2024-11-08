@@ -19,13 +19,14 @@ public interface MultiDenseVector {
 
     List<float[]> getVectors();
 
-    List<Float> getMagnitudes();
+    float[] getMagnitudes();
 
     boolean isEmpty();
 
     int getDims();
 
     int size();
+
     static void checkDimensions(int dvDims, int qvDims) {
         if (dvDims != qvDims) {
             throw new IllegalArgumentException(
@@ -48,7 +49,7 @@ public interface MultiDenseVector {
         }
 
         @Override
-        public List<Float> getMagnitudes() {
+        public float[] getMagnitudes() {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

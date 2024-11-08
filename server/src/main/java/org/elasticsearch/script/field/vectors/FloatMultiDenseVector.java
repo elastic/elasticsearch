@@ -13,19 +13,19 @@ import org.apache.lucene.util.BytesRef;
 
 import java.util.List;
 
+import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
+
 public class FloatMultiDenseVector implements MultiDenseVector {
 
     private final BytesRef magnitudes;
-    private boolean decodedMagnitude;
+    private float[] magnitudesArray = null;
     private final int dims;
     private final List<float[]> decodedDocVector;
-    private List<Float> decodedMagnitudes;
 
-    public FloatMultiDenseVector(List<float[]> decodedDocVector, List<Float> decodedMagnitudes, BytesRef docVector, BytesRef magnitudes, int dims) {
+    public FloatMultiDenseVector(List<float[]> decodedDocVector, List<Float> decodedMagnitudes, BytesRef magnitudes, int dims) {
         assert decodedDocVector.size() == decodedMagnitudes.size();
+        assert magnitudes.length == decodedMagnitudes.size() * Float.BYTES;
         this.decodedDocVector = decodedDocVector;
-        this.decodedMagnitudes = decodedMagnitudes;
-        this.docVector = docVector;
         this.magnitudes = magnitudes;
         this.dims = dims;
     }
@@ -36,8 +36,11 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     }
 
     @Override
-    public List<Float> getMagnitudes() {
-        return decodedMagnitudes;
+    public float[] getMagnitudes() {
+        if (magnitudesArray == null) {
+            magnitudesArray = getMultiMagnitudes(magnitudes);
+        }
+        return magnitudesArray;
     }
 
     @Override

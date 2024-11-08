@@ -1,6 +1,4 @@
 bad setting fails:
-  - skip:
-      awaits_fix: https://github.com/elastic/elasticsearch/issues/78677
   - requires:
       test_runner_features: allowed_warnings
 

@@ -72,9 +72,6 @@ setup:
 
 ---
 "Test traces-apm-* data stream indexing":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"
-
   - do:
       index:
         index: traces-apm-testing

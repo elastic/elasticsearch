@@ -143,9 +143,6 @@ fetch _seq_no via fields:
 
 ---
 fetch fields with none stored_fields:
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/107466"
-
   - do:
       catch: "bad_request"
       search:

@@ -10,9 +10,6 @@ setup:
 
 ---
 "Test data stream rollover on template installation":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102360"
-
   # Disable the apm-data plugin and delete the traces-apm@template index
   # template so traces-low-prio takes effect.
   - do:

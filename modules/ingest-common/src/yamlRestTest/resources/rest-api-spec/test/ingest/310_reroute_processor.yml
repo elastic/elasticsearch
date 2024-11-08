@@ -42,8 +42,6 @@ teardown:
         expand_wildcards: all
 ---
 "Test first matching router terminates pipeline":
-  - skip:
-      awaits_fix: "https://github.com/elastic/elasticsearch/issues/102144"
   - do:
       ingest.put_pipeline:
         id: "pipeline-with-two-data-stream-processors"

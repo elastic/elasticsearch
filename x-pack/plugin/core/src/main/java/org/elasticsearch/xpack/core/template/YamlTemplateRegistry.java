@@ -253,12 +253,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         try {
             var rawPolicy = loadResource(this.getClass(), "/lifecycle-policies/" + name + ".yaml");
             rawPolicy = TemplateUtils.replaceVariables(rawPolicy, Collections.emptyMap());
-            return LifecyclePolicyUtils.parsePolicy(
-                rawPolicy,
-                name,
-                LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY,
-                XContentType.YAML
-            );
+            return LifecyclePolicyUtils.parsePolicy(rawPolicy, name, LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY, XContentType.YAML);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }

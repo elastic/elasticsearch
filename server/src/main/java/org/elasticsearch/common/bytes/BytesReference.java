@@ -80,7 +80,7 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
      * @deprecated copying bytes is a right place for performance regression and unnecessary allocations.
      * This method exists to serve very few places that struggle to handle reference counted buffers.
      */
-    @Deprecated
+    @Deprecated(forRemoval = true)
     static BytesReference copyBytes(BytesReference bytesReference) {
         byte[] arr = new byte[bytesReference.length()];
         int offset = 0;

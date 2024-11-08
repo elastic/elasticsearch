@@ -19,11 +19,11 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpBody;
@@ -307,20 +307,24 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
      * Please use {@link #releasableContent()} to avoid content copy.
      */
+    @SuppressForbidden(reason = "temporarily support content copy while migrating RestHandlers to ref counted pooled buffers")
     public BytesReference content() {
         return BytesReference.copyBytes(releasableContent());
     }
 
     /**
-     * Returns a reference to the network buffer of HTTP content.
+     * Returns a direct reference to the network buffer containing the request body. The HTTP layers will release their references to this
+     * buffer as soon as they have finished the synchronous steps of processing the request on the network thread, which will by default
+     * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
+     * these synchronous steps, acquire your own reference to this buffer and release it once it's no longer needed.
      */
     public ReleasableBytesReference releasableContent() {
         this.contentConsumed = true;
         var bytes = httpRequest.body().asFull().bytes();
-        assert bytes.hasReferences() : AbstractRefCounted.ALREADY_CLOSED_MESSAGE;
         if (bytes.hasReferences() == false) {
-            var e = new IllegalStateException(AbstractRefCounted.ALREADY_CLOSED_MESSAGE);
+            var e = new IllegalStateException("http releasable content accessed after release");
             logger.error(e.getMessage(), e);
+            assert false : e;
             throw e;
         }
         return bytes;

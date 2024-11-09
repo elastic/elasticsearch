@@ -1,0 +1,5 @@
+pr: 116541
+summary: Update `index.max_result_window` error to point to `search_after` not scroll
+area: Search
+type: enhancement
+issues: []

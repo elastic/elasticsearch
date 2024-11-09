@@ -571,7 +571,7 @@ public class SimpleSearchIT extends ESIntegTestCase {
                     + IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)
             )
         );
-        assertThat(e.toString(), containsString("See the scroll api for a more efficient way to request large data sets"));
+        assertThat(e.toString(), containsString("See search after for a more efficient way to request large data sets"));
     }
 
     private void assertRescoreWindowFails(int windowSize) {

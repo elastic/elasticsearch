@@ -2687,6 +2687,7 @@ max:integer | job_positions:keyword
 ;
 
 stdDeviation
+required_capability: std_deviation
 // tag::stdev[]
 FROM employees
 | STATS STD_DEVIATION(height)
@@ -2700,6 +2701,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationNested
+required_capability: std_deviation
 // tag::docsStatsStdDeviationNestedExpression[]
 FROM employees
 | STATS stdev_salary_change = STD_DEVIATION(MV_MAX(salary_change))
@@ -2714,6 +2716,7 @@ stdev_salary_change:double
 
 
 stdDeviationWithLongs
+required_capability: std_deviation
 FROM employees
 | STATS STD_DEVIATION(avg_worked_seconds)
 ;
@@ -2723,6 +2726,7 @@ STD_DEVIATION(avg_worked_seconds):double
 ;
 
 stdDeviationWithInts
+required_capability: std_deviation
 FROM employees
 | STATS STD_DEVIATION(salary)
 ;
@@ -2732,6 +2736,7 @@ STD_DEVIATION(salary):double
 ;
 
 stdDeviationConstantValue
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 2
 | STATS STD_DEVIATION(languages)
@@ -2742,6 +2747,7 @@ STD_DEVIATION(languages):double
 ;
 
 stdDeviationGrouped
+required_capability: std_deviation
 FROM employees
 | STATS STD_DEVIATION(height) BY languages
 | SORT languages asc
@@ -2757,6 +2763,7 @@ STD_DEVIATION(height):double | languages:integer
 ;
 
 stdDeviationGrouped1
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 1
 | STATS STD_DEVIATION(height)
@@ -2767,6 +2774,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationGrouped2
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 2
 | STATS STD_DEVIATION(height)
@@ -2777,6 +2785,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationGrouped3
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 3
 | STATS STD_DEVIATION(height)
@@ -2787,6 +2796,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationGrouped4
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 4
 | STATS STD_DEVIATION(height)
@@ -2797,6 +2807,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationGrouped5
+required_capability: std_deviation
 FROM employees
 | WHERE languages == 5
 | STATS STD_DEVIATION(height)
@@ -2807,6 +2818,7 @@ STD_DEVIATION(height):double
 ;
 
 stdDeviationNoRows
+required_capability: std_deviation
 FROM employees
 | WHERE languages IS null
 | STATS STD_DEVIATION(languages)

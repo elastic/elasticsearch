@@ -9,7 +9,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -52,12 +51,7 @@ public abstract class InternalAggregation implements Aggregation, NamedWriteable
      * Read from a stream.
      */
     protected InternalAggregation(StreamInput in) throws IOException {
-        final String name = in.readString();
-        if (in instanceof DelayableWriteable.Deduplicator d) {
-            this.name = d.deduplicate(name);
-        } else {
-            this.name = name;
-        }
+        name = in.readString();
         metadata = in.readGenericMap();
     }
 

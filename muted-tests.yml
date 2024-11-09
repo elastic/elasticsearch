@@ -296,6 +296,9 @@ tests:
 - class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
   method: testCollapseAndRemoveUnsupportedPrivileges
   issue: https://github.com/elastic/elasticsearch/issues/116520
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/116536
 
 # Examples:
 #

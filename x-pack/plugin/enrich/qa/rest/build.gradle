@@ -32,3 +32,8 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.4.0")
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("enrich/10_basic/Test using the deprecated elasticsearch_version field results in a warning", "The deprecation message was changed")
+})
+

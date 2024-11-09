@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.remotecluster;
 
+import org.apache.http.util.EntityUtils;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.RequestOptions;
@@ -15,14 +16,9 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
-import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.cluster.util.Version;
-import org.elasticsearch.test.cluster.util.resource.Resource;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.junit.ClassRule;
-import org.junit.rules.RuleChain;
-import org.junit.rules.TestRule;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -32,48 +28,21 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsInAnyOrder;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.nullValue;
 
 /**
- * BWC test which ensures that users and API keys with defined {@code remote_indices} privileges can be used to query legacy remote clusters
+ * A set of BWC tests that can be executed with either RCS 1 or RCS 2 against an older fulfilling cluster.
  */
-public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurityTestCase {
+public abstract class AbstractRemoteClusterSecurityBWCRestIT extends AbstractRemoteClusterSecurityTestCase {
 
-    private static final Version OLD_CLUSTER_VERSION = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    protected abstract boolean isRCS2();
 
-    static {
-        fulfillingCluster = ElasticsearchCluster.local()
-            .version(OLD_CLUSTER_VERSION)
-            .distribution(DistributionType.DEFAULT)
-            .name("fulfilling-cluster")
-            .apply(commonClusterConfig)
-            .setting("xpack.ml.enabled", "false")
-            .build();
-
-        queryCluster = ElasticsearchCluster.local()
-            .version(Version.CURRENT)
-            .distribution(DistributionType.INTEG_TEST)
-            .name("query-cluster")
-            .apply(commonClusterConfig)
-            .setting("xpack.security.remote_cluster_client.ssl.enabled", "true")
-            .setting("xpack.security.remote_cluster_client.ssl.certificate_authorities", "remote-cluster-ca.crt")
-            .rolesFile(Resource.fromClasspath("roles.yml"))
-            .build();
-    }
-
-    @ClassRule
-    // Use a RuleChain to ensure that fulfilling cluster is started before query cluster
-    public static TestRule clusterRule = RuleChain.outerRule(fulfillingCluster).around(queryCluster);
-
-    public void testBwcWithLegacyCrossClusterSearch() throws Exception {
-        final boolean useProxyMode = randomBoolean();
-        // Update remote cluster settings on QC.
-        setupQueryClusterRemoteClusters(useProxyMode);
-        // Ensure remote cluster is connected
-        ensureRemoteFulfillingClusterIsConnected(useProxyMode);
+    public void testBwcCCSViaRCS1orRCS2() throws Exception {
 
         // Fulfilling cluster
         {
@@ -122,19 +91,22 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                   ]
                 }""");
             assertOK(adminClient().performRequest(putRoleRequest));
-            // We need to define the same role on QC and FC in order for CCS to work.
-            final var putRoleRequestFulfilling = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
-            putRoleRequestFulfilling.setJsonEntity("""
-                {
-                  "cluster": ["manage_own_api_key"],
-                  "indices": [
+            if (isRCS2() == false) {
+                // We need to define the same role on QC and FC in order for CCS to work.
+                final var putRoleRequestFulfilling = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
+                putRoleRequestFulfilling.setJsonEntity("""
                     {
-                      "names": ["remote_index1"],
-                      "privileges": ["read", "read_cross_cluster"]
-                    }
-                  ]
-                }""");
-            assertOK(performRequestAgainstFulfillingCluster(putRoleRequestFulfilling));
+                      "cluster": ["manage_own_api_key"],
+                      "indices": [
+                        {
+                          "names": ["remote_index1"],
+                          "privileges": ["read", "read_cross_cluster"]
+                        }
+                      ]
+                    }""");
+                assertOK(performRequestAgainstFulfillingCluster(putRoleRequestFulfilling));
+            }
+
             final var putUserRequest = new Request("PUT", "/_security/user/" + REMOTE_SEARCH_USER);
             putUserRequest.setJsonEntity("""
                 {
@@ -166,7 +138,7 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                       ],
                       "remote_cluster": [
                         {
-                          "privileges": ["monitor_enrich"],
+                          "privileges": ["monitor_enrich", "monitor_stats"],
                           "clusters": ["*"]
                         }
                       ]
@@ -187,38 +159,35 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
 
             // Check that we can search the fulfilling cluster from the querying cluster
             final boolean alsoSearchLocally = randomBoolean();
+            final String remoteClusterName = randomFrom("my_remote_cluster", "*", "my_remote_*");
+            final String remoteIndexName = randomFrom("remote_index1", "*");
             final var searchRequest = new Request(
                 "GET",
                 String.format(
                     Locale.ROOT,
                     "/%s%s:%s/_search?ccs_minimize_roundtrips=%s",
                     alsoSearchLocally ? "local_index," : "",
-                    randomFrom("my_remote_cluster", "*", "my_remote_*"),
-                    randomFrom("remote_index1", "*"),
+                    remoteClusterName,
+                    remoteIndexName,
                     randomBoolean()
                 )
             );
-            final String sendRequestWith = randomFrom("user", "apikey");
-            final Response response = sendRequestWith.equals("user")
-                ? performRequestWithRemoteAccessUser(searchRequest)
-                : performRequestWithApiKey(searchRequest, apiKeyEncoded);
+            String esqlCommand = String.format(Locale.ROOT, "FROM %s,%s:%s | LIMIT 10", "local_index", remoteClusterName, remoteIndexName);
+            // send request with user
+            Response response = performRequestWithRemoteAccessUser(searchRequest);
             assertOK(response);
-            final SearchResponse searchResponse;
             try (var parser = responseAsParser(response)) {
-                searchResponse = SearchResponseUtils.parseSearchResponse(parser);
+                assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
-            try {
-                final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
-                    .map(SearchHit::getIndex)
-                    .collect(Collectors.toList());
-                if (alsoSearchLocally) {
-                    assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
-                } else {
-                    assertThat(actualIndices, containsInAnyOrder("remote_index1"));
-                }
-            } finally {
-                searchResponse.decRef();
+            assertEsqlResponse(performRequestWithRemoteAccessUser(esqlRequest(esqlCommand)));
+
+            // send request with apikey
+            response = performRequestWithApiKey(searchRequest, apiKeyEncoded);
+            assertOK(response);
+            try (var parser = responseAsParser(response)) {
+                assertSearchResponse(SearchResponseUtils.parseSearchResponse(parser), alsoSearchLocally);
             }
+            assertEsqlResponse(performRequestWithApiKey(esqlRequest(esqlCommand), apiKeyEncoded));
         }
     }
 
@@ -231,6 +200,14 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
             final Map<String, Object> remoteInfoMap = responseAsMap(remoteInfoResponse);
             assertThat(remoteInfoMap, hasKey("my_remote_cluster"));
             assertThat(org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.connected", remoteInfoMap), is(true));
+            if (isRCS2()) {
+                assertThat(
+                    org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap),
+                    is("::es_redacted::") // RCS 2.0
+                );
+            } else {
+                assertThat(org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.cluster_credentials", remoteInfoMap), nullValue());
+            }
             if (false == useProxyMode) {
                 assertThat(
                     org.elasticsearch.xcontent.ObjectPath.eval("my_remote_cluster.num_nodes_connected", remoteInfoMap),
@@ -238,18 +215,6 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
                 );
             }
         });
-    }
-
-    private void setupQueryClusterRemoteClusters(boolean useProxyMode) throws IOException {
-        final Settings.Builder builder = Settings.builder();
-        if (useProxyMode) {
-            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
-                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getTransportEndpoint(0));
-        } else {
-            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
-                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getTransportEndpoint(0));
-        }
-        updateClusterSettings(builder.build());
     }
 
     private Response performRequestWithRemoteAccessUser(final Request request) throws IOException {
@@ -262,4 +227,49 @@ public class RemoteClusterSecurityBwcRestIT extends AbstractRemoteClusterSecurit
         return client().performRequest(request);
     }
 
+    private void setupQueryClusterRCS1(boolean useProxyMode) throws IOException {
+        final Settings.Builder builder = Settings.builder();
+        if (useProxyMode) {
+            builder.put("cluster.remote.my_remote_cluster.mode", "proxy")
+                .put("cluster.remote.my_remote_cluster.proxy_address", fulfillingCluster.getTransportEndpoint(0));
+        } else {
+            builder.put("cluster.remote.my_remote_cluster.mode", "sniff")
+                .putList("cluster.remote.my_remote_cluster.seeds", fulfillingCluster.getTransportEndpoint(0));
+        }
+        updateClusterSettings(builder.build());
+    }
+
+    private Request esqlRequest(String command) throws IOException {
+        XContentBuilder body = JsonXContent.contentBuilder();
+        body.startObject();
+        body.field("query", command);
+        body.field("include_ccs_metadata", true);
+        body.endObject();
+        Request request = new Request("POST", "_query");
+        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
+        return request;
+    }
+
+    private void assertSearchResponse(SearchResponse searchResponse, boolean alsoSearchLocally) {
+        try {
+            final List<String> actualIndices = Arrays.stream(searchResponse.getHits().getHits())
+                .map(SearchHit::getIndex)
+                .collect(Collectors.toList());
+            if (alsoSearchLocally) {
+                assertThat(actualIndices, containsInAnyOrder("remote_index1", "local_index"));
+            } else {
+                assertThat(actualIndices, containsInAnyOrder("remote_index1"));
+            }
+        } finally {
+            searchResponse.decRef();
+        }
+    }
+
+    private void assertEsqlResponse(Response response) throws IOException {
+        assertOK(response);
+        String responseAsString = EntityUtils.toString(response.getEntity());
+        assertThat(responseAsString, containsString("\"my_remote_cluster\":{\"status\":\"successful\""));
+        assertThat(responseAsString, containsString("local_bar"));
+        assertThat(responseAsString, containsString("bar"));
+    }
 }

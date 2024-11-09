@@ -360,7 +360,7 @@ final class DefaultSearchContext extends SearchContext {
                         + maxResultWindow
                         + "] but was ["
                         + resultWindow
-                        + "]. See the scroll api for a more efficient way to request large data sets. "
+                        + "]. See the search_after parameter for a more efficient way to request large data sets. "
                         + "This limit can be set by changing the ["
                         + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                         + "] index level setting."

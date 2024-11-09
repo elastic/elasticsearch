@@ -196,7 +196,7 @@ public class DefaultSearchContextTests extends MapperServiceTestCase {
                     "Result window is too large, from + size must be less than or equal to:"
                         + " ["
                         + maxResultWindow
-                        + "] but was [310]. See the scroll api for a more efficient way to request large data sets. "
+                        + "] but was [310]. See the search_after parameter for a more efficient way to request large data sets. "
                         + "This limit can be set by changing the ["
                         + IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey()
                         + "] index level setting."

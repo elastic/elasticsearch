@@ -61,12 +61,10 @@ setup:
   - do:
       indices.delete_index_template:
         name: traces-apm@template
-  - do:
-      cluster.health:
-        wait_for_events: languid
-  - do:
-      indices.get_index_template:
-        name: traces-apm@template
+  - eventually:
+    - do:
+        indices.get_index_template:
+          name: traces-apm@template
   - length: {index_templates: 1}
   - contains: {index_templates: {name: traces-apm@template}}
 

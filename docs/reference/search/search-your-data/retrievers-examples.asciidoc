@@ -1,7 +1,7 @@
 [[retrievers-examples]]
 === Retrievers examples
 
-To show the full functionality, for this set of examples, we'll assume that we have access to a <<semantic-reranking-models,reranker model>> through the inference service.
+To demonstrate the full functionality of retrievers, these examples require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
 
 To begin with, we'll set up the necessary services and have them in place for later use.
 

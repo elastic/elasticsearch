@@ -24,7 +24,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
-import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
@@ -33,10 +32,8 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.query.BoolQueryBuilder;
-import org.elasticsearch.index.query.CoordinatorRewriteContext;
 import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
@@ -65,11 +62,11 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiConsumer;
@@ -79,7 +76,6 @@ import static org.elasticsearch.action.search.SearchAsyncActionTests.getShardsIt
 import static org.elasticsearch.core.Types.forciblyCast;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.mockito.Mockito.mock;
 
@@ -999,134 +995,83 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
     }
 
     public void testCanMatchFilteringOnCoordinatorWithMissingShards() throws Exception {
-        // we'll test that we're executing _tier coordinator rewrite for indices (data stream backing or regular) without any @timestamp
-        // or event.ingested fields
-        // for both data stream backing and regular indices we'll have one index in hot and one UNASSIGNED (targeting warm though).
-        // the warm indices will be skipped as our queries will filter based on _tier: hot and the can match phase will not report error the
-        // missing index even if allow_partial_search_results is false (because the warm index would've not been part of the search anyway)
+        // we'll test that we're executing @timestamp coordinator rewrite for data stream indices
+        // all data stream backing indices are UNASSIGNED and will not match the range query.
+        // the data stream backing indices will be skipped as our query filters based on @timestamp range and the can match phase phase
+        // will not report error the missing indices even if allow_partial_search_results is false (because the data stream indices
+        // would've not been part of the search anyway)
 
-        Map<Index, Settings.Builder> indexNameToSettings = new HashMap<>();
         ClusterState state = ClusterState.EMPTY_STATE;
+        Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
+        Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
 
-        String dataStreamName = randomAlphaOfLengthBetween(10, 20);
-        Index warmDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 1), UUIDs.base64UUID());
-        indexNameToSettings.put(
-            warmDataStreamIndex,
-            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmDataStreamIndex.getUUID())
-                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
-        );
-        Index hotDataStreamIndex = new Index(DataStream.getDefaultBackingIndexName(dataStreamName, 2), UUIDs.base64UUID());
-        indexNameToSettings.put(
-            hotDataStreamIndex,
-            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotDataStreamIndex.getUUID())
-                .put(DataTier.TIER_PREFERENCE, "data_hot")
-        );
-        DataStream dataStream = DataStreamTestHelper.newInstance(dataStreamName, List.of(warmDataStreamIndex, hotDataStreamIndex));
+        List<Index> regularIndices = randomList(1, 5, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
 
-        Index warmRegularIndex = new Index("warm-index", UUIDs.base64UUID());
-        indexNameToSettings.put(
-            warmRegularIndex,
-            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, warmRegularIndex.getUUID())
-                .put(DataTier.TIER_PREFERENCE, "data_warm,data_hot")
-        );
-        Index hotRegularIndex = new Index("hot-index", UUIDs.base64UUID());
-        indexNameToSettings.put(
-            hotRegularIndex,
-            settings(IndexVersion.current()).put(IndexMetadata.SETTING_INDEX_UUID, hotRegularIndex.getUUID())
-                .put(DataTier.TIER_PREFERENCE, "data_hot")
-        );
-
-        List<Index> allIndices = new ArrayList<>(4);
-        allIndices.addAll(dataStream.getIndices());
-        allIndices.add(warmRegularIndex);
-        allIndices.add(hotRegularIndex);
-
-        List<Index> hotIndices = List.of(hotRegularIndex, hotDataStreamIndex);
-        List<Index> warmIndices = List.of(warmRegularIndex, warmDataStreamIndex);
-
-        for (Index index : allIndices) {
-            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(index.getName())
-                .settings(indexNameToSettings.get(index))
-                .numberOfShards(1)
-                .numberOfReplicas(0);
+        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        for (Index dataStreamIndex : dataStream.getIndices()) {
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(dataStreamIndex.getName())
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .putMapping(String.format(Locale.ROOT, """
+                    {
+                      "_doc":{
+                        "properties": {
+                          "%s": {
+                            "type": "date"
+                          }
+                        }
+                      }
+                    }""", DataStream.TIMESTAMP_FIELD_NAME));
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+        for (Index regularIndex : regularIndices) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(regularIndex.getName())
+                .settings(indexSettings(IndexVersion.current(), 1, 0));
             Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
             state = ClusterState.builder(state).metadata(metadataBuilder).build();
         }
 
-        ClusterState finalState = state;
-        CoordinatorRewriteContextProvider coordinatorRewriteContextProvider = new CoordinatorRewriteContextProvider(
-            parserConfig(),
-            mock(Client.class),
-            System::currentTimeMillis,
-            () -> finalState,
-            (index) -> null
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+        // We query a range outside of the timestamp range covered by both datastream indices
+        rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
+
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(rangeQueryBuilder);
+
+        // test that a search doesn't fail if the query filters out the unassigned shards
+        // via the @timestamp range query (coordinator rewrite will eliminate the shards that don't match)
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            regularIndices,
+            contextProviderBuilder.build(),
+            queryBuilder,
+            List.of(),
+            null,
+            dataStream.getIndices(),
+            false,
+            (updatedSearchShardIterators, requests) -> {
+                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                var nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+
+                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
+                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+                boolean allNonSkippedShardAreRegulardIndices = nonSkippedShards.stream()
+                    .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreRegulardIndices, equalTo(true));
+            }
         );
-
-        BoolQueryBuilder boolQueryBuilder = QueryBuilders.boolQuery()
-            .filter(QueryBuilders.termQuery(CoordinatorRewriteContext.TIER_FIELD_NAME, "data_hot"));
-
-        {
-            // test that a search doesn't fail if the query filters out the unassigned shards
-            // via _tier (coordinator rewrite will eliminate the shards that don't match)
-            assignShardsAndExecuteCanMatchPhase(
-                List.of(dataStream),
-                List.of(hotRegularIndex, warmRegularIndex),
-                coordinatorRewriteContextProvider,
-                boolQueryBuilder,
-                List.of(),
-                null,
-                warmIndices,
-                false,
-                (updatedSearchShardIterators, requests) -> {
-                    var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
-                    var nonSkippedShards = updatedSearchShardIterators.stream()
-                        .filter(searchShardIterator -> searchShardIterator.skip() == false)
-                        .toList();
-
-                    boolean allSkippedShardAreFromWarmIndices = skippedShards.stream()
-                        .allMatch(shardIterator -> warmIndices.contains(shardIterator.shardId().getIndex()));
-                    assertThat(allSkippedShardAreFromWarmIndices, equalTo(true));
-                    boolean allNonSkippedShardAreHotIndices = nonSkippedShards.stream()
-                        .allMatch(shardIterator -> hotIndices.contains(shardIterator.shardId().getIndex()));
-                    assertThat(allNonSkippedShardAreHotIndices, equalTo(true));
-                    boolean allRequestMadeToHotIndices = requests.stream()
-                        .allMatch(request -> hotIndices.contains(request.shardId().getIndex()));
-                    assertThat(allRequestMadeToHotIndices, equalTo(true));
-                }
-            );
-        }
-
-        {
-            // test that a search does fail if the query does NOT filter ALL the
-            // unassigned shards
-            CountDownLatch latch = new CountDownLatch(1);
-            Tuple<CanMatchPreFilterSearchPhase, List<ShardSearchRequest>> canMatchPhaseAndRequests = getCanMatchPhaseAndRequests(
-                List.of(dataStream),
-                List.of(hotRegularIndex, warmRegularIndex),
-                coordinatorRewriteContextProvider,
-                boolQueryBuilder,
-                List.of(),
-                null,
-                List.of(hotRegularIndex, warmRegularIndex, warmDataStreamIndex),
-                false,
-                new ActionListener<>() {
-                    @Override
-                    public void onResponse(GroupShardsIterator<SearchShardIterator> searchShardIterators) {
-                        fail(null, "unexpected success with result [%s] while expecting to handle failure with [%s]", searchShardIterators);
-                        latch.countDown();
-                    }
-
-                    @Override
-                    public void onFailure(Exception e) {
-                        assertThat(e, instanceOf(SearchPhaseExecutionException.class));
-                        latch.countDown();
-                    }
-                }
-            );
-
-            canMatchPhaseAndRequests.v1().start();
-            latch.await(10, TimeUnit.SECONDS);
-        }
     }
 
     private void assertAllShardsAreQueried(List<SearchShardIterator> updatedSearchShardIterators, List<ShardSearchRequest> requests) {
@@ -1266,6 +1211,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
         searchRequest.allowPartialSearchResults(allowPartialResults);
+        searchRequest.setPreFilterShardSize(1);
 
         final AliasFilter aliasFilter;
         if (aggregations.isEmpty() == false || randomBoolean()) {
@@ -1451,4 +1397,5 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             );
         }
     }
+
 }

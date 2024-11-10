@@ -54,7 +54,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             indexMetadataMap = in.readMap(IndexMetadata::readFrom);
         } else {
@@ -174,7 +174,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
             out.writeMap(indexMetadataMap, StreamOutput::writeWriteable);
         }

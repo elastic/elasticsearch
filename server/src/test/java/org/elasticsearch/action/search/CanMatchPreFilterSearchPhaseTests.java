@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DateFieldMapper;
@@ -61,6 +62,7 @@ import java.util.Comparator;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -992,6 +994,86 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
     }
 
+    public void testCanMatchFilteringOnCoordinatorWithMissingShards() throws Exception {
+        // we'll test that we're executing @timestamp coordinator rewrite for data stream indices
+        // all data stream backing indices are UNASSIGNED and will not match the range query.
+        // the data stream backing indices will be skipped as our query filters based on @timestamp range and the can match phase phase
+        // will not report error the missing indices even if allow_partial_search_results is false (because the data stream indices
+        // would've not been part of the search anyway)
+
+        ClusterState state = ClusterState.EMPTY_STATE;
+        Index dataStreamIndex1 = new Index(".ds-mydata0001", UUIDs.base64UUID());
+        Index dataStreamIndex2 = new Index(".ds-mydata0002", UUIDs.base64UUID());
+        DataStream dataStream = DataStreamTestHelper.newInstance("mydata", List.of(dataStreamIndex1, dataStreamIndex2));
+
+        List<Index> regularIndices = randomList(1, 5, () -> new Index(randomAlphaOfLength(10), UUIDs.base64UUID()));
+
+        long indexMinTimestamp = randomLongBetween(0, 5000);
+        long indexMaxTimestamp = randomLongBetween(indexMinTimestamp, 5000 * 2);
+        StaticCoordinatorRewriteContextProviderBuilder contextProviderBuilder = new StaticCoordinatorRewriteContextProviderBuilder();
+        for (Index dataStreamIndex : dataStream.getIndices()) {
+            contextProviderBuilder.addIndexMinMaxTimestamps(
+                dataStreamIndex,
+                DataStream.TIMESTAMP_FIELD_NAME,
+                indexMinTimestamp,
+                indexMaxTimestamp
+            );
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(dataStreamIndex.getName())
+                .settings(indexSettings(IndexVersion.current(), 1, 0))
+                .putMapping(String.format(Locale.ROOT, """
+                    {
+                      "_doc":{
+                        "properties": {
+                          "%s": {
+                            "type": "date"
+                          }
+                        }
+                      }
+                    }""", DataStream.TIMESTAMP_FIELD_NAME));
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+        for (Index regularIndex : regularIndices) {
+            IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(regularIndex.getName())
+                .settings(indexSettings(IndexVersion.current(), 1, 0));
+            Metadata.Builder metadataBuilder = Metadata.builder(state.metadata()).put(indexMetadataBuilder);
+            state = ClusterState.builder(state).metadata(metadataBuilder).build();
+        }
+
+        RangeQueryBuilder rangeQueryBuilder = new RangeQueryBuilder(DataStream.TIMESTAMP_FIELD_NAME);
+        // We query a range outside of the timestamp range covered by both datastream indices
+        rangeQueryBuilder.from(indexMaxTimestamp + 1).to(indexMaxTimestamp + 2);
+
+        BoolQueryBuilder queryBuilder = new BoolQueryBuilder().filter(rangeQueryBuilder);
+
+        // test that a search doesn't fail if the query filters out the unassigned shards
+        // via the @timestamp range query (coordinator rewrite will eliminate the shards that don't match)
+
+        assignShardsAndExecuteCanMatchPhase(
+            List.of(dataStream),
+            regularIndices,
+            contextProviderBuilder.build(),
+            queryBuilder,
+            List.of(),
+            null,
+            dataStream.getIndices(),
+            false,
+            (updatedSearchShardIterators, requests) -> {
+                var skippedShards = updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).toList();
+                var nonSkippedShards = updatedSearchShardIterators.stream()
+                    .filter(searchShardIterator -> searchShardIterator.skip() == false)
+                    .toList();
+
+                boolean allSkippedShardAreFromDataStream = skippedShards.stream()
+                    .allMatch(shardIterator -> dataStream.getIndices().contains(shardIterator.shardId().getIndex()));
+                assertThat(allSkippedShardAreFromDataStream, equalTo(true));
+                boolean allNonSkippedShardAreRegulardIndices = nonSkippedShards.stream()
+                    .allMatch(shardIterator -> regularIndices.contains(shardIterator.shardId().getIndex()));
+                assertThat(allNonSkippedShardAreRegulardIndices, equalTo(true));
+            }
+        );
+    }
+
     private void assertAllShardsAreQueried(List<SearchShardIterator> updatedSearchShardIterators, List<ShardSearchRequest> requests) {
         int skippedShards = (int) updatedSearchShardIterators.stream().filter(SearchShardIterator::skip).count();
 
@@ -1016,6 +1098,69 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         SuggestBuilder suggest,
         BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
     ) throws Exception {
+        assignShardsAndExecuteCanMatchPhase(
+            dataStreams,
+            regularIndices,
+            contextProvider,
+            query,
+            aggregations,
+            suggest,
+            List.of(),
+            true,
+            canMatchResultsConsumer
+        );
+    }
+
+    private void assignShardsAndExecuteCanMatchPhase(
+        List<DataStream> dataStreams,
+        List<Index> regularIndices,
+        CoordinatorRewriteContextProvider contextProvider,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
+        List<Index> unassignedIndices,
+        boolean allowPartialResults,
+        BiConsumer<List<SearchShardIterator>, List<ShardSearchRequest>> canMatchResultsConsumer
+    ) throws Exception {
+        AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
+        CountDownLatch latch = new CountDownLatch(1);
+        Tuple<CanMatchPreFilterSearchPhase, List<ShardSearchRequest>> canMatchAndShardRequests = getCanMatchPhaseAndRequests(
+            dataStreams,
+            regularIndices,
+            contextProvider,
+            query,
+            aggregations,
+            suggest,
+            unassignedIndices,
+            allowPartialResults,
+            ActionTestUtils.assertNoFailureListener(iter -> {
+                result.set(iter);
+                latch.countDown();
+            })
+        );
+
+        canMatchAndShardRequests.v1().start();
+        latch.await();
+
+        List<SearchShardIterator> updatedSearchShardIterators = new ArrayList<>();
+        for (SearchShardIterator updatedSearchShardIterator : result.get()) {
+            updatedSearchShardIterators.add(updatedSearchShardIterator);
+        }
+
+        canMatchResultsConsumer.accept(updatedSearchShardIterators, canMatchAndShardRequests.v2());
+    }
+
+    private Tuple<CanMatchPreFilterSearchPhase, List<ShardSearchRequest>> getCanMatchPhaseAndRequests(
+        List<DataStream> dataStreams,
+        List<Index> regularIndices,
+        CoordinatorRewriteContextProvider contextProvider,
+        QueryBuilder query,
+        List<AggregationBuilder> aggregations,
+        SuggestBuilder suggest,
+        List<Index> unassignedIndices,
+        boolean allowPartialResults,
+        ActionListener<GroupShardsIterator<SearchShardIterator>> canMatchActionListener
+    ) {
         Map<String, Transport.Connection> lookup = new ConcurrentHashMap<>();
         DiscoveryNode primaryNode = DiscoveryNodeUtils.create("node_1");
         DiscoveryNode replicaNode = DiscoveryNodeUtils.create("node_2");
@@ -1041,23 +1186,32 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
                 // and none is assigned, the phase is considered as failed meaning that the next phase won't be executed
                 boolean withAssignedPrimaries = randomBoolean() || atLeastOnePrimaryAssigned == false;
                 int numShards = randomIntBetween(1, 6);
-                originalShardIters.addAll(
-                    getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
-                );
-                atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+                if (unassignedIndices.contains(dataStreamIndex)) {
+                    originalShardIters.addAll(getShardsIter(dataStreamIndex, originalIndices, numShards, false, null, null));
+                } else {
+                    originalShardIters.addAll(
+                        getShardsIter(dataStreamIndex, originalIndices, numShards, false, withAssignedPrimaries ? primaryNode : null, null)
+                    );
+                    atLeastOnePrimaryAssigned |= withAssignedPrimaries;
+                }
             }
         }
 
         for (Index regularIndex : regularIndices) {
-            originalShardIters.addAll(
-                getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), randomBoolean(), primaryNode, replicaNode)
-            );
+            if (unassignedIndices.contains(regularIndex)) {
+                originalShardIters.addAll(getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), false, null, null));
+            } else {
+                originalShardIters.addAll(
+                    getShardsIter(regularIndex, originalIndices, randomIntBetween(1, 6), randomBoolean(), primaryNode, replicaNode)
+                );
+            }
         }
         GroupShardsIterator<SearchShardIterator> shardsIter = GroupShardsIterator.sortAndCreate(originalShardIters);
 
         final SearchRequest searchRequest = new SearchRequest();
         searchRequest.indices(indices);
-        searchRequest.allowPartialSearchResults(true);
+        searchRequest.allowPartialSearchResults(allowPartialResults);
+        searchRequest.setPreFilterShardSize(1);
 
         final AliasFilter aliasFilter;
         if (aggregations.isEmpty() == false || randomBoolean()) {
@@ -1117,35 +1271,24 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         );
 
         AtomicReference<GroupShardsIterator<SearchShardIterator>> result = new AtomicReference<>();
-        CountDownLatch latch = new CountDownLatch(1);
-        CanMatchPreFilterSearchPhase canMatchPhase = new CanMatchPreFilterSearchPhase(
-            logger,
-            searchTransportService,
-            (clusterAlias, node) -> lookup.get(node),
-            aliasFilters,
-            Collections.emptyMap(),
-            threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
-            searchRequest,
-            shardsIter,
-            timeProvider,
-            null,
-            true,
-            contextProvider,
-            ActionTestUtils.assertNoFailureListener(iter -> {
-                result.set(iter);
-                latch.countDown();
-            })
+        return new Tuple<>(
+            new CanMatchPreFilterSearchPhase(
+                logger,
+                searchTransportService,
+                (clusterAlias, node) -> lookup.get(node),
+                aliasFilters,
+                Collections.emptyMap(),
+                threadPool.executor(ThreadPool.Names.SEARCH_COORDINATION),
+                searchRequest,
+                shardsIter,
+                timeProvider,
+                null,
+                true,
+                contextProvider,
+                canMatchActionListener
+            ),
+            requests
         );
-
-        canMatchPhase.start();
-        latch.await();
-
-        List<SearchShardIterator> updatedSearchShardIterators = new ArrayList<>();
-        for (SearchShardIterator updatedSearchShardIterator : result.get()) {
-            updatedSearchShardIterators.add(updatedSearchShardIterator);
-        }
-
-        canMatchResultsConsumer.accept(updatedSearchShardIterators, requests);
     }
 
     static class StaticCoordinatorRewriteContextProviderBuilder {
@@ -1254,4 +1397,5 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             );
         }
     }
+
 }

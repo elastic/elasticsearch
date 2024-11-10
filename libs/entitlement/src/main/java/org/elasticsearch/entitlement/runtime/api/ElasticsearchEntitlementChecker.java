@@ -15,8 +15,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.Optional;
 
-import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
-
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
  * API methods for managing the checks.
@@ -24,13 +22,6 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
-
-    /**
-     * Causes entitlements to be enforced.
-     */
-    public void activate() {
-        isActive = true;
-    }
 
     @Override
     public void checkSystemExit(Class<?> callerClass, int status) {
@@ -66,10 +57,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (isActive == false) {
-            logger.debug("Trivially allowed: entitlements are inactive");
-            return true;
-        }
         if (requestingModule == null) {
             logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
             return true;
@@ -81,5 +68,4 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         logger.trace("Not trivially allowed");
         return false;
     }
-
 }

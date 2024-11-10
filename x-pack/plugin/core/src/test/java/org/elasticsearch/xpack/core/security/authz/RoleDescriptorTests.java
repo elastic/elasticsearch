@@ -542,6 +542,34 @@ public class RoleDescriptorTests extends ESTestCase {
             () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q4), XContentType.JSON)
         );
         assertThat(illegalArgumentException.getMessage(), containsString("remote cluster groups must not be null or empty"));
+
+        // one invalid privilege
+        String q5 = """
+            {
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_stats", "read_pipeline"
+                  ],
+                  "clusters": [
+                      "*"
+                  ]
+                }
+              ]
+            }""";
+
+        ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q5), XContentType.JSON)
+        );
+        assertThat(
+            parseException.getMessage(),
+            containsString(
+                "failed to parse remote_cluster for role [test]. "
+                    + "[monitor_enrich, monitor_stats] are the only values allowed for [privileges] within [remote_cluster]. "
+                    + "Found [monitor_stats, read_pipeline]"
+            )
+        );
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {

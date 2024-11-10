@@ -41,7 +41,6 @@ public class IndexActionIT extends ESIntegTestCase {
     public void testAutoGenerateIdNoDuplicates() throws Exception {
         int numberOfIterations = scaledRandomIntBetween(10, 50);
         for (int i = 0; i < numberOfIterations; i++) {
-            Exception firstError = null;
             createIndex("test");
             int numOfDocs = randomIntBetween(10, 100);
             logger.info("indexing [{}] docs", numOfDocs);
@@ -54,9 +53,6 @@ public class IndexActionIT extends ESIntegTestCase {
             int numOfChecks = randomIntBetween(16, 24);
             for (int j = 0; j < numOfChecks; j++) {
                 assertHitCount(prepareSearch("test"), numOfDocs);
-            }
-            if (firstError != null) {
-                fail(firstError.getMessage());
             }
             internalCluster().wipeIndices("test");
         }
@@ -107,16 +103,13 @@ public class IndexActionIT extends ESIntegTestCase {
         List<Callable<Void>> tasks = new ArrayList<>(taskCount);
         final Random random = random();
         for (int i = 0; i < taskCount; i++) {
-            tasks.add(new Callable<Void>() {
-                @Override
-                public Void call() throws Exception {
-                    int docId = random.nextInt(docCount);
-                    DocWriteResponse indexResponse = indexDoc("test", Integer.toString(docId), "field1", "value");
-                    if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
-                        createdCounts.incrementAndGet(docId);
-                    }
-                    return null;
+            tasks.add(() -> {
+                int docId = random.nextInt(docCount);
+                DocWriteResponse indexResponse = indexDoc("test", Integer.toString(docId), "field1", "value");
+                if (indexResponse.getResult() == DocWriteResponse.Result.CREATED) {
+                    createdCounts.incrementAndGet(docId);
                 }
+                return null;
             });
         }
 

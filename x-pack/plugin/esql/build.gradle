@@ -289,34 +289,6 @@ tasks.named('stringTemplates').configure {
   var doubleProperties = prop("Double", "double", "DOUBLE", "Double.BYTES", "DoubleArray")
   var bytesRefProperties = prop("BytesRef", "BytesRef", "BYTES_REF", "org.apache.lucene.util.RamUsageEstimator.NUM_BYTES_OBJECT_REF", "")
   var booleanProperties = prop("Boolean", "boolean", "BOOLEAN", "Byte.BYTES", "BitArray")
-  // enrich
-  File enrichResultBuilderInput = file("src/main/java/org/elasticsearch/xpack/esql/enrich/X-EnrichResultBuilder.java.st")
-  template {
-    it.properties = intProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForInt.java"
-  }
-  template {
-    it.properties = longProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForLong.java"
-  }
-  template {
-    it.properties = doubleProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForDouble.java"
-  }
-  template {
-    it.properties = bytesRefProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBytesRef.java"
-  }
-  template {
-    it.properties = booleanProperties
-    it.inputFile = enrichResultBuilderInput
-    it.outputFile = "org/elasticsearch/xpack/esql/enrich/EnrichResultBuilderForBoolean.java"
-  }
-
 
   File inInputFile = file("src/main/java/org/elasticsearch/xpack/esql/expression/predicate/operator/comparison/X-InEvaluator.java.st")
   template {

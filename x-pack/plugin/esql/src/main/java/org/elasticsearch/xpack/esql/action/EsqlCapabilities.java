@@ -469,6 +469,7 @@ public class EsqlCapabilities {
          */
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
+        DELAY_DEBUG_FN(Build.current().isSnapshot()),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

@@ -110,7 +110,6 @@ tasks.named("yamlRestTest").configure {
     'indices.put_settings/*/*',
     'indices.put_template/*/*',
     'indices.recovery/*/*',
-    'indices.refresh/*/*',
     'indices.resolve_cluster/*/*',
     'indices.rollover/*/*',
     'indices.segments/*/*',

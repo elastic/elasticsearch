@@ -3448,4 +3448,8 @@ public class InternalEngine extends Engine {
     protected long getPreCommitSegmentGeneration() {
         return preCommitSegmentGeneration.get();
     }
+
+    public Set<String> getNotifiedSearchNodeIds(ShardId shardId) {
+        return Set.of();
+    }
 }

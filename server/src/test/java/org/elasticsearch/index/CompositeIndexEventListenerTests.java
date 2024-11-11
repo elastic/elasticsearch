@@ -19,6 +19,7 @@ import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.test.MockLog;
 import org.hamcrest.Matchers;
 
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Consumer;
 import java.util.stream.Collectors;
@@ -49,6 +50,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
                     public void beforeIndexShardRecovery(
                         IndexShard indexShard,
                         IndexSettings indexSettings,
+                        Set<String> notifiedSearchNodeIds,
                         ActionListener<Void> listener
                     ) {
                         if (randomBoolean()) {
@@ -74,6 +76,7 @@ public class CompositeIndexEventListenerTests extends IndexShardTestCase {
             final Consumer<ActionListener<Void>> beforeIndexShardRecoveryRunner = l -> indexEventListener.beforeIndexShardRecovery(
                 shard,
                 shard.indexSettings(),
+                randomSet(0, randomIntBetween(0, 16), () -> randomIdentifier()),
                 l
             );
 

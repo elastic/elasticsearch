@@ -39,6 +39,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -66,6 +67,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Consumer;
@@ -321,6 +323,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
             try (onCompletion) {
+                var engine = (InternalEngine) indexShard.getEngineOrNull();
+                Set<String> notifiedSearchNodeIds = engine.getNotifiedSearchNodeIds(indexShard.shardId());
                 client.execute(
                     StatelessPrimaryRelocationAction.TYPE,
                     new StatelessPrimaryRelocationAction.Request(
@@ -328,7 +332,8 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         indexShard.shardId(),
                         transportService.getLocalNode(),
                         indexShard.routingEntry().allocationId().getId(),
-                        recoveryTarget.clusterStateVersion()
+                        recoveryTarget.clusterStateVersion(),
+                        notifiedSearchNodeIds
                     ),
                     new ActionListener<>() {
                         @Override

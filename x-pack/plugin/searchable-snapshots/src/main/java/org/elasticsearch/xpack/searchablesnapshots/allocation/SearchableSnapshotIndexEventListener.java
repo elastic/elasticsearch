@@ -28,6 +28,8 @@ import org.elasticsearch.xpack.searchablesnapshots.cache.common.CacheKey;
 import org.elasticsearch.xpack.searchablesnapshots.cache.full.CacheService;
 import org.elasticsearch.xpack.searchablesnapshots.store.SearchableSnapshotDirectory;
 
+import java.util.Set;
+
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_INDEX_NAME_SETTING;
 import static org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshots.SNAPSHOT_SNAPSHOT_ID_SETTING;
@@ -58,7 +60,12 @@ public class SearchableSnapshotIndexEventListener implements IndexEventListener 
      * @param indexSettings the shard's index settings
      */
     @Override
-    public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+    public void beforeIndexShardRecovery(
+        IndexShard indexShard,
+        IndexSettings indexSettings,
+        Set<String> notifiedSearchNodeIds,
+        ActionListener<Void> listener
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
         ensureSnapshotIsLoaded(indexShard);
         listener.onResponse(null);

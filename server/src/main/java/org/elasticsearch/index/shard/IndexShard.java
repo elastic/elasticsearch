@@ -1792,12 +1792,16 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     }
 
     public void preRecovery(ActionListener<Void> listener) {
+        preRecoveryWithNotifiedSearchNodeIds(Set.of(), listener);
+    }
+
+    public void preRecoveryWithNotifiedSearchNodeIds(Set<String> notifiedSearchNodeIds, ActionListener<Void> listener) {
         final IndexShardState currentState = this.state; // single volatile read
         if (currentState == IndexShardState.CLOSED) {
             throw new IndexShardNotRecoveringException(shardId, currentState);
         }
         assert currentState == IndexShardState.RECOVERING : "expected a recovering shard " + shardId + " but got " + currentState;
-        indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
+        indexEventListener.beforeIndexShardRecovery(this, indexSettings, notifiedSearchNodeIds, listener);
     }
 
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,

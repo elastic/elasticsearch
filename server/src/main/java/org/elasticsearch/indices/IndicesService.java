@@ -622,7 +622,12 @@ public class IndicesService extends AbstractLifecycleComponent
             volatile boolean reloaded;
 
             @Override
-            public void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+            public void beforeIndexShardRecovery(
+                IndexShard indexShard,
+                IndexSettings indexSettings,
+                Set<String> notifiedSearchNodeIds,
+                ActionListener<Void> listener
+            ) {
                 try {
                     if (indexShard.mapperService() != null) {
                         // we need to reload once, not on every shard recovery in case multiple shards are on the same node

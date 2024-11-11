@@ -27,6 +27,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.core.Strings.format;
@@ -295,12 +296,20 @@ final class CompositeIndexEventListener implements IndexEventListener {
         final IndexShard indexShard,
         final IndexSettings indexSettings,
         final List<IndexEventListener> listeners,
+        final Set<String> notifiedSearchNodeIds,
         final ActionListener<Void> outerListener
     ) {
         callListeners(
             indexShard,
             listeners.stream()
-                .map(iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardRecovery(indexShard, indexSettings, l))
+                .map(
+                    iel -> (Consumer<ActionListener<Void>>) (l) -> iel.beforeIndexShardRecovery(
+                        indexShard,
+                        indexSettings,
+                        notifiedSearchNodeIds,
+                        l
+                    )
+                )
                 .iterator(),
             outerListener
         );
@@ -322,12 +331,19 @@ final class CompositeIndexEventListener implements IndexEventListener {
     public void beforeIndexShardRecovery(
         final IndexShard indexShard,
         final IndexSettings indexSettings,
+        final Set<String> notifiedSearchNodeIds,
         final ActionListener<Void> outerListener
     ) {
-        iterateBeforeIndexShardRecovery(indexShard, indexSettings, listeners, outerListener.delegateResponse((l, e) -> {
-            logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
-            l.onFailure(e);
-        }));
+        iterateBeforeIndexShardRecovery(
+            indexShard,
+            indexSettings,
+            listeners,
+            notifiedSearchNodeIds,
+            outerListener.delegateResponse((l, e) -> {
+                logger.warn(() -> format("failed to invoke the listener before the shard recovery starts for %s", indexShard.shardId()), e);
+                l.onFailure(e);
+            })
+        );
     }
 
     @Override

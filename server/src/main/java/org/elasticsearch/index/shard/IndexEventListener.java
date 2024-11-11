@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
 
+import java.util.Set;
+
 /**
  * An index event listener is the primary extension point for plugins and build-in services
  * to react / listen to per-index and per-shard events. These listeners are registered per-index
@@ -175,9 +177,15 @@ public interface IndexEventListener {
      *
      * @param indexShard    the shard that is about to recover
      * @param indexSettings the shard's index settings
+     * @param notifiedSearchNodeIds list of search nodes where the shard is available
      * @param listener      listener notified when this step completes
      */
-    default void beforeIndexShardRecovery(IndexShard indexShard, IndexSettings indexSettings, ActionListener<Void> listener) {
+    default void beforeIndexShardRecovery(
+        IndexShard indexShard,
+        IndexSettings indexSettings,
+        Set<String> notifiedSearchNodeIds,
+        ActionListener<Void> listener
+    ) {
         listener.onResponse(null);
     }
 

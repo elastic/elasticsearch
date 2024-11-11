@@ -37,6 +37,7 @@ public class ByteLength extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "integer",
         description = "Returns the byte length of a string.",
+        note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "byteLength")
     )
     public ByteLength(

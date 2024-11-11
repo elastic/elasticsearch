@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testBWCSearchStates
   issue: https://github.com/elastic/elasticsearch/issues/116617
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/116618
 
 # Examples:
 #

@@ -23,7 +23,7 @@ This Hot / Frozen – High Availability architecture is intended for organizatio
 ====
 
 [discrete]
-[[hot-frozen-architecture]]
+[[hot-frozen-architecture-diagram]]
 === Architecture
 
 image::images/hot-frozen.png["A Hot/Frozen Highly available architecture"]

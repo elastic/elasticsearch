@@ -1,13 +1,13 @@
-[[geoip-processor]]
-=== GeoIP processor
+[[ip-location-processor]]
+=== IP location processor
 ++++
-<titleabbrev>GeoIP</titleabbrev>
+<titleabbrev>IP Location</titleabbrev>
 ++++
 
-The `geoip` processor adds information about the geographical location of an
+The `ip_location` processor adds information about the geographical location of an
 IPv4 or IPv6 address.
 
-[[geoip-automatic-updates]]
+[[ip-location-automatic-updates]]
 By default, the processor uses the GeoLite2 City, GeoLite2 Country, and GeoLite2
 ASN IP geolocation databases from http://dev.maxmind.com/geoip/geoip2/geolite2/[MaxMind], shared under the
 CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
@@ -28,19 +28,19 @@ If you would like to have {es} download database files directly from Maxmind usi
 license key, see <<put-ip-location-database-api>>.
 
 If {es} can't connect to the endpoint for 30 days all updated databases will become
-invalid. {es} will stop enriching documents with ip geolocation data and will add `tags: ["_geoip_expired_database"]`
+invalid. {es} will stop enriching documents with ip geolocation data and will add `tags: ["_ip_location_expired_database"]`
 field instead.
 
-[[using-ingest-geoip]]
-==== Using the `geoip` Processor in a Pipeline
+[[using-ingest-ip-location]]
+==== Using the `ip_location` Processor in a Pipeline
 
-[[ingest-geoip-options]]
-.`geoip` options
+[[ingest-ip-location-options]]
+.`ip-location` options
 [options="header"]
 |======
 | Name                                     | Required  | Default                                                                            | Description
 | `field`                                  | yes       | -                                                                                  | The field to get the IP address from for the geographical lookup.
-| `target_field`                           | no        | geoip                                                                              | The field that will hold the geographical information looked up from the database.
+| `target_field`                           | no        | ip_location                                                                        | The field that will hold the geographical information looked up from the database.
 | `database_file`                          | no        | GeoLite2-City.mmdb                                                                 | The database filename referring to one of the automatically downloaded GeoLite2 databases (GeoLite2-City.mmdb, GeoLite2-Country.mmdb, or GeoLite2-ASN.mmdb), or the name of a supported database file in the `ingest-geoip` config directory, or the name of a <<get-ip-location-database-api, configured database>> (with the `.mmdb` suffix appended).
 | `properties`                             | no        | [`continent_name`, `country_iso_code`, `country_name`, `region_iso_code`, `region_name`, `city_name`, `location`] *   | Controls what properties are added to the `target_field` based on the ip geolocation lookup.
 | `ignore_missing`                         | no        | `false`                                                                            | If `true` and `field` does not exist, the processor quietly exits without modifying the document
@@ -81,22 +81,22 @@ depend on what has been found and which properties were configured in `propertie
 
 preview::["Do not use the GeoIP2 Anonymous IP, GeoIP2 Connection Type, GeoIP2 Domain, GeoIP2 ISP, and GeoIP2 Enterprise databases in production environments. This functionality is in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but features in technical preview are not subject to the support SLA of official GA features."]
 
-Here is an example that uses the default city database and adds the geographical information to the `geoip` field based on the `ip` field:
+Here is an example that uses the default city database and adds the geographical information to the `ip_location` field based on the `ip` field:
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/geoip
+PUT _ingest/pipeline/ip_location
 {
   "description" : "Add ip geolocation info",
   "processors" : [
     {
-      "geoip" : {
+      "ip_location" : {
         "field" : "ip"
       }
     }
   ]
 }
-PUT my-index-000001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=ip_location
 {
   "ip": "89.160.20.128"
 }
@@ -116,7 +116,7 @@ Which returns:
   "_primary_term": 1,
   "_source": {
     "ip": "89.160.20.128",
-    "geoip": {
+    "ip_location": {
       "continent_name": "Europe",
       "country_name": "Sweden",
       "country_iso_code": "SE",
@@ -136,12 +136,12 @@ this database is downloaded automatically. So this:
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/geoip
+PUT _ingest/pipeline/ip_location
 {
   "description" : "Add ip geolocation info",
   "processors" : [
     {
-      "geoip" : {
+      "ip_location" : {
         "field" : "ip",
         "target_field" : "geo",
         "database_file" : "GeoLite2-Country.mmdb"
@@ -149,7 +149,7 @@ PUT _ingest/pipeline/geoip
     }
   ]
 }
-PUT my-index-000001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=ip_location
 {
   "ip": "89.160.20.128"
 }
@@ -188,19 +188,19 @@ cannot be found:
 
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/geoip
+PUT _ingest/pipeline/ip_location
 {
   "description" : "Add ip geolocation info",
   "processors" : [
     {
-      "geoip" : {
+      "ip_location" : {
         "field" : "ip"
       }
     }
   ]
 }
 
-PUT my-index-000001/_doc/my_id?pipeline=geoip
+PUT my-index-000001/_doc/my_id?pipeline=ip_location
 {
   "ip": "80.231.5.0"
 }
@@ -241,7 +241,7 @@ PUT my_ip_locations
 {
   "mappings": {
     "properties": {
-      "geoip": {
+      "ip_location": {
         "properties": {
           "location": { "type": "geo_point" }
         }
@@ -254,19 +254,19 @@ PUT my_ip_locations
 ////
 [source,console]
 --------------------------------------------------
-PUT _ingest/pipeline/geoip
+PUT _ingest/pipeline/ip_location
 {
   "description" : "Add ip geolocation info",
   "processors" : [
     {
-      "geoip" : {
+      "ip_location" : {
         "field" : "ip"
       }
     }
   ]
 }
 
-PUT my_ip_locations/_doc/1?refresh=true&pipeline=geoip
+PUT my_ip_locations/_doc/1?refresh=true&pipeline=ip_location
 {
   "ip": "89.160.20.128"
 }
@@ -316,7 +316,7 @@ GET /my_ip_locations/_search
         "_id" : "1",
         "_score" : 1.0,
         "_source" : {
-          "geoip" : {
+          "ip_location" : {
             "continent_name" : "Europe",
             "country_name" : "Sweden",
             "country_iso_code" : "SE",

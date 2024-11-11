@@ -51,27 +51,30 @@ import java.util.stream.Stream;
 import static org.elasticsearch.cluster.ClusterState.INFERRED_TRANSPORT_VERSION;
 
 /**
- * This fixes up the transport version from pre-8.8.0 cluster state that was inferred as the minimum possible,
+ * This fixes up the compatibility versions (transport version and system index mapping versions) in cluster state.
+ * Transport version from pre-8.8.0 cluster state was inferred as the minimum possible,
  * due to the master node not understanding cluster state with transport versions added in 8.8.0.
- * Any nodes with the inferred placeholder cluster state is then refreshed with their actual transport version
+ * Any nodes with the inferred placeholder cluster state is then refreshed with their actual transport version.
+ * Same for system index mapping versions: when upgraded from pre-8.11.0, cluster state holds and empty map of system index mapping
+ * versions. Any nodes with an empty system index mapping versions map in cluster state is refreshed with their actual versions.
  */
 @UpdateForV9    // this can be removed in v9
-public class TransportVersionsFixupListener implements ClusterStateListener {
+public class CompatibilityVersionsFixupListener implements ClusterStateListener {
 
-    private static final Logger logger = LogManager.getLogger(TransportVersionsFixupListener.class);
+    private static final Logger logger = LogManager.getLogger(CompatibilityVersionsFixupListener.class);
 
     static final NodeFeature FIX_TRANSPORT_VERSION = new NodeFeature("transport.fix_transport_version");
 
     private static final TimeValue RETRY_TIME = TimeValue.timeValueSeconds(30);
 
-    private final MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue;
+    private final MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue;
     private final ClusterAdminClient client;
     private final Scheduler scheduler;
     private final Executor executor;
     private final Set<String> pendingNodes = Collections.synchronizedSet(new HashSet<>());
     private final FeatureService featureService;
 
-    public TransportVersionsFixupListener(
+    public CompatibilityVersionsFixupListener(
         ClusterService service,
         ClusterAdminClient client,
         FeatureService featureService,
@@ -88,8 +91,8 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         );
     }
 
-    TransportVersionsFixupListener(
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue,
+    CompatibilityVersionsFixupListener(
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue,
         ClusterAdminClient client,
         FeatureService featureService,
         Scheduler scheduler,
@@ -102,11 +105,11 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         this.executor = executor;
     }
 
-    class NodeTransportVersionTask implements ClusterStateTaskListener {
+    class NodeCompatibilityVersionsTask implements ClusterStateTaskListener {
         private final Map<String, CompatibilityVersions> results;
         private final int retryNum;
 
-        NodeTransportVersionTask(Map<String, CompatibilityVersions> results, int retryNum) {
+        NodeCompatibilityVersionsTask(Map<String, CompatibilityVersions> results, int retryNum) {
             this.results = results;
             this.retryNum = retryNum;
         }
@@ -122,9 +125,9 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
         }
     }
 
-    static class TransportVersionUpdater implements ClusterStateTaskExecutor<NodeTransportVersionTask> {
+    static class TransportVersionUpdater implements ClusterStateTaskExecutor<NodeCompatibilityVersionsTask> {
         @Override
-        public ClusterState execute(BatchExecutionContext<NodeTransportVersionTask> context) throws Exception {
+        public ClusterState execute(BatchExecutionContext<NodeCompatibilityVersionsTask> context) throws Exception {
             ClusterState.Builder builder = ClusterState.builder(context.initialState());
             boolean modified = false;
             for (var c : context.taskContexts()) {
@@ -277,7 +280,7 @@ public class TransportVersionsFixupListener implements ClusterStateListener {
             );
 
         if (results.isEmpty() == false) {
-            taskQueue.submitTask("update-transport-version", new NodeTransportVersionTask(results, retryNum), null);
+            taskQueue.submitTask("update-transport-version", new NodeCompatibilityVersionsTask(results, retryNum), null);
         }
     }
 }

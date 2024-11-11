@@ -115,7 +115,7 @@ public final class GetUserPrivilegesResponse extends ActionResponse {
     }
 
     public boolean hasRemoteClusterPrivileges() {
-        return remoteClusterPermissions.hasPrivileges();
+        return remoteClusterPermissions.hasAnyPrivileges();
     }
 
     @Override

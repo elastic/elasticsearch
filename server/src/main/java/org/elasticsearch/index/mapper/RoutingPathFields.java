@@ -37,7 +37,7 @@ import java.util.TreeMap;
 /**
  * Implementation of routing fields, using field matching based on the routing path content.
  */
-public class RoutingPathFields implements RoutingFields {
+public final class RoutingPathFields implements RoutingFields {
 
     private static final int SEED = 0;
 

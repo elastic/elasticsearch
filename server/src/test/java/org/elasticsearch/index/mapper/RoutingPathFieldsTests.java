@@ -57,6 +57,7 @@ public class RoutingPathFieldsTests extends ESTestCase {
         routingPathFields.addUnsignedLong("path.unsigned_long_name", randomLongBetween(0, Long.MAX_VALUE));
         current = routingPathFields.buildHash();
         assertTrue(current.length() > previous.length());
+        assertArrayEquals(current.array(), routingPathFields.buildHash().array());
     }
 
     public void testWithoutBuilder() throws Exception {
@@ -85,5 +86,7 @@ public class RoutingPathFieldsTests extends ESTestCase {
         routingPathFields.addUnsignedLong("path.unsigned_long_name", randomLongBetween(0, Long.MAX_VALUE));
         current = routingPathFields.buildHash();
         assertTrue(current.length() > previous.length());
+        assertArrayEquals(current.array(), routingPathFields.buildHash().array()
+        );
     }
 }

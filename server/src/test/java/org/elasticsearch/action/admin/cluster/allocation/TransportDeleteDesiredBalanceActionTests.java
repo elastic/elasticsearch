@@ -102,7 +102,7 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
         var clusterSettings = ClusterSettings.createBuiltInClusterSettings(settings);
 
         var delegate = new BalancedShardsAllocator();
-        var computer = new DesiredBalanceComputer(clusterSettings, threadPool, delegate) {
+        var computer = new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, delegate) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 

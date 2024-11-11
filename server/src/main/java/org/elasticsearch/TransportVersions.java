@@ -190,7 +190,8 @@ public class TransportVersions {
     public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
     public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
-    public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_788_00_0);
+    public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_788_00_0);
+    public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_789_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

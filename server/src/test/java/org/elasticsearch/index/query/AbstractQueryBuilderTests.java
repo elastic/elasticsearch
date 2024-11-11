@@ -100,10 +100,10 @@ public class AbstractQueryBuilderTests extends ESTestCase {
         int correctSize = 0;
         for (int i = 0; i < capacity; i++) {
             if (i < capacity / 3) {
-                termBuilder.append((char) randomIntBetween(0, 128));
+                termBuilder.append((char) randomIntBetween(0, 127));
                 ++correctSize; // use only one byte for char < 128
             } else if (i < 2 * capacity / 3) {
-                termBuilder.append((char) randomIntBetween(128, 2048));
+                termBuilder.append((char) randomIntBetween(128, 2047));
                 correctSize += 2; // use two bytes for char < 2048
             } else {
                 termBuilder.append((char) randomIntBetween(2048, 4092));

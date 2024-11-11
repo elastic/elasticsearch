@@ -1,7 +1,11 @@
 setup:
   - requires:
-      cluster_features: "gte_v8.8.0"
-      reason: 'rank added in 8.8'
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ transform_rank_rrf_to_retriever ]
+      test_runner_features: capabilities
+      reason: "Support for transforming deprecated rank_rrf queries to the corresponding rrf retriever is required"
   - skip:
       features: "warnings"
 
@@ -212,7 +216,7 @@ setup:
 "RRF rank should fail if size > rank_window_size":
 
   - do:
-      catch: "/\\[rank\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
+      catch: "/\\[rrf\\] requires \\[rank_window_size: 2\\] be greater than or equal to \\[size: 10\\]/"
       search:
         index: test
         body:
@@ -283,4 +287,23 @@ setup:
             rrf:
               rank_window_size: 10
               rank_constant: 0.3
+          size: 10
+
+---
+"RRF rank should fail if we specify both rank and retriever":
+  - do:
+      catch: "/Cannot specify both \\[rank\\] and \\[retriever\\]./"
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          retriever:
+            standard:
+              query:
+                match_all: {}
+          rank:
+            rrf:
+              rank_window_size: 10
+              rank_constant: 10
           size: 10

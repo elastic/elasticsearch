@@ -126,7 +126,7 @@ public abstract class DocumentParserContext {
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
-    private final DocumentDimensions dimensions;
+    private final RoutingFields dimensions;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
     private String id;
@@ -158,7 +158,7 @@ public abstract class DocumentParserContext {
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
-        DocumentDimensions dimensions,
+        RoutingFields dimensions,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
@@ -231,7 +231,7 @@ public abstract class DocumentParserContext {
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
-            DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),
@@ -760,9 +760,9 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * The collection of dimensions for this document.
+     * The collection of routing fields for this document.
      */
-    public DocumentDimensions getDimensions() {
+    public RoutingFields getRoutingFields() {
         return dimensions;
     }
 

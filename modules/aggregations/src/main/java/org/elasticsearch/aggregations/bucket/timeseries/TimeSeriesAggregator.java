@@ -13,6 +13,7 @@ import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -161,11 +162,11 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 if (currentTsidOrd == aggCtx.getTsidHashOrd()) {
                     tsid = currentTsid;
                 } else {
-                    TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
+                    RoutingPathFields routingPathFields = new RoutingPathFields(null);
                     for (TsidConsumer consumer : dimensionConsumers.values()) {
-                        consumer.accept(doc, tsidBuilder);
+                        consumer.accept(doc, routingPathFields);
                     }
-                    currentTsid = tsid = tsidBuilder.buildLegacyTsid().toBytesRef();
+                    currentTsid = tsid = TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
                 }
                 long bucketOrdinal = bucketOrds.add(bucket, tsid);
                 if (bucketOrdinal < 0) { // already seen
@@ -189,6 +190,6 @@ public class TimeSeriesAggregator extends BucketsAggregator {
 
     @FunctionalInterface
     interface TsidConsumer {
-        void accept(int docId, TimeSeriesIdFieldMapper.TimeSeriesIdBuilder tsidBuilder) throws IOException;
+        void accept(int docId, RoutingPathFields routingFields) throws IOException;
     }
 }

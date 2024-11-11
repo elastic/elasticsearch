@@ -64,10 +64,4 @@ public record ExecutorNames(String threadPoolForGet, String threadPoolForSearch,
             throw new IllegalArgumentException(threadPoolForWrite + " is not a valid thread pool");
         }
     }
-
-    public boolean contains(String threadPoolName) {
-        return threadPoolForGet.equals(threadPoolName)
-            || threadPoolForSearch.equals(threadPoolName)
-            || threadPoolForWrite.equals(threadPoolName);
-    }
 }

@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.remotecluster;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -74,7 +75,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
 
     private void clusterShutDownWithRandomSkipUnavailable() throws Exception {
         // skip_unavailable is set to a random boolean value.
-        // However, no clusters are closed. Hence, we do not expect any other behaviour
+        // However, no clusters are stopped. Hence, we do not expect any other behaviour
         // other than a 200-OK.
 
         configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), randomBoolean());
@@ -109,29 +110,31 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         assertThat(remoteClusterDetails.get("status"), is("successful"));
     }
 
+    @SuppressWarnings("unchecked")
     private void remoteClusterShutdownWithSkipUnavailableTrue() throws Exception {
-        // Remote cluster is closed and skip unavailable is set to true.
+        // Remote cluster is stopped and skip unavailable is set to true.
         // We expect no exception and partial results from the remaining open cluster.
 
         configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), true);
 
         try {
-            // Close remote cluster.
+            // Stop remote cluster.
             fulfillingCluster.stop(true);
 
-            // A random query that targets our remote cluster.
+            // A simple query that targets our remote cluster.
             String query = "FROM *,my_remote_cluster:* | LIMIT 10";
             Response response = client().performRequest(esqlRequest(query));
 
             Map<String, Object> map = responseAsMap(response);
-            ArrayList<?> columns = (ArrayList<?>) map.get("columns");
-            ArrayList<?> values = (ArrayList<?>) map.get("values");
-            Map<?, ?> clusters = (Map<?, ?>) map.get("_clusters");
-            Map<?, ?> clusterDetails = (Map<?, ?>) clusters.get("details");
-            Map<?, ?> localClusterDetails = (Map<?, ?>) clusterDetails.get("(local)");
-            Map<?, ?> remoteClusterDetails = (Map<?, ?>) clusterDetails.get("my_remote_cluster");
+            ArrayList<String> columns = (ArrayList<String>) map.get("columns");
+            ArrayList<String> values = (ArrayList<String>) map.get("values");
+            Map<String, ?> clusters = (Map<String, ?>) map.get("_clusters");
+            Map<String, ?> clusterDetails = (Map<String, ?>) clusters.get("details");
+            Map<String, ?> localClusterDetails = (Map<String, ?>) clusterDetails.get("(local)");
+            Map<String, ?> remoteClusterDetails = (Map<String, ?>) clusterDetails.get("my_remote_cluster");
 
-            // Assert partial response
+            // Assert results obtained from the local cluster and that remote cluster was
+            // skipped.
             assertOK(response);
             assertThat((int) map.get("took"), greaterThan(0));
 
@@ -162,16 +165,16 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
     }
 
     private void remoteClusterShutdownWithSkipUnavailableFalse() throws Exception {
-        // Remote cluster is closed and skip_unavailable is set to false.
+        // Remote cluster is stopped and skip_unavailable is set to false.
         // Although the other cluster is open, we expect an Exception.
 
         configureRemoteCluster("my_remote_cluster", fulfillingCluster, true, randomBoolean(), false);
 
         try {
-            // Close remote cluster.
+            // Stop remote cluster.
             fulfillingCluster.stop(true);
 
-            // A random query that targets our remote cluster.
+            // A simple query that targets our remote cluster.
             String query = "FROM *,my_remote_cluster:* | LIMIT 10";
             ResponseException ex = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(query)));
             assertThat(ex.getMessage(), containsString("connect_transport_exception"));
@@ -276,7 +279,7 @@ public class CrossClusterEsqlRCS1UnavailableRemotesIT extends AbstractRemoteClus
         body.endObject();
 
         Request request = new Request("POST", "_query");
-        request.setJsonEntity(org.elasticsearch.common.Strings.toString(body));
+        request.setJsonEntity(Strings.toString(body));
 
         return request;
     }

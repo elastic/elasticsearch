@@ -61,6 +61,9 @@ excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry 
 // Excluded because they create dot-prefixed indices on older versions
 excludeList.add('indices.resolve_index/20_resolve_system_index/*')
 
+// Excluded because the error has changed
+excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
+
 BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
 
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {

@@ -106,18 +106,17 @@ public class FleetDataStreamIT extends ESRestTestCase {
             );
         }
 
-        // The rest of these produce a warning
-        RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
-            .setWarningsHandler(
-                warnings -> List.of(
-                    "this request accesses system indices: [.fleet-artifacts-7], but "
-                        + "in a future major version, direct access to system indices will be prevented by default"
-                ).equals(warnings) == false
-            )
-            .build();
-
         // The base _alias route warns because there is a system index in the response
         {
+            // The rest of these produce a warning
+            RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> List.of(
+                        "this request accesses system indices: [.fleet-artifacts-7, .security-7], but "
+                            + "in a future major version, direct access to system indices will be prevented by default"
+                    ).equals(warnings) == false
+                )
+                .build();
             Request request = new Request("GET", "_alias");
             request.setOptions(consumeWarningsOptions); // The result includes system indices, so we warn
             Response response = client().performRequest(request);
@@ -130,6 +129,14 @@ public class FleetDataStreamIT extends ESRestTestCase {
 
         // Specify a system alias, should warn
         {
+            RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> List.of(
+                        "this request accesses system indices: [.fleet-artifacts-7], but "
+                            + "in a future major version, direct access to system indices will be prevented by default"
+                    ).equals(warnings) == false
+                )
+                .build();
             Request request = new Request("GET", "_alias/.fleet-artifacts");
             request.setOptions(consumeWarningsOptions);
             Response response = client().performRequest(request);
@@ -147,6 +154,14 @@ public class FleetDataStreamIT extends ESRestTestCase {
 
         // Fully specify a system index and alias, should warn
         {
+            RequestOptions consumeWarningsOptions = RequestOptions.DEFAULT.toBuilder()
+                .setWarningsHandler(
+                    warnings -> List.of(
+                        "this request accesses system indices: [.fleet-artifacts-7], but "
+                            + "in a future major version, direct access to system indices will be prevented by default"
+                    ).equals(warnings) == false
+                )
+                .build();
             Request request = new Request("GET", ".fleet-artifacts-7/_alias/.fleet-artifacts");
             request.setOptions(consumeWarningsOptions);
             Response response = client().performRequest(request);

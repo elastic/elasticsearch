@@ -45,6 +45,7 @@ import org.elasticsearch.compute.operator.lookup.EnrichQuerySourceOperator;
 import org.elasticsearch.compute.operator.lookup.MergePositionsOperator;
 import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.core.AbstractRefCounted;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -185,7 +186,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
             case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, (LongBlock) block);
-            default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
+            case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
         };
     }
 
@@ -459,6 +460,7 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     abstract static class TransportRequest extends org.elasticsearch.transport.TransportRequest implements IndicesRequest {
         final String sessionId;
         final ShardId shardId;
+        @Nullable
         final DataType inputDataType;
         final Page inputPage;
         final List<NamedExpression> extractFields;

@@ -195,7 +195,6 @@ public class TransportVersions {
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_789_00_0);
     public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_790_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

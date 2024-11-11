@@ -15,6 +15,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
@@ -22,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.http.HttpInfo;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.IngestInfo;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 import org.elasticsearch.monitor.os.OsInfo;
@@ -42,7 +44,7 @@ import java.util.Map;
 public class NodeInfo extends BaseNodeResponse {
 
     private final String version;
-    private final TransportVersion transportVersion;
+    private final CompatibilityVersions compatibilityVersions;
     private final IndexVersion indexVersion;
     private final Map<String, Integer> componentVersions;
     private final Build build;
@@ -64,15 +66,19 @@ public class NodeInfo extends BaseNodeResponse {
         super(in);
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             version = in.readString();
-            transportVersion = TransportVersion.readVersion(in);
+            if (in.getTransportVersion().isPatchFrom(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16)) {
+                compatibilityVersions = CompatibilityVersions.readVersion(in);
+            } else {
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
+            }
             indexVersion = IndexVersion.readVersion(in);
         } else {
             Version legacyVersion = Version.readVersion(in);
             version = legacyVersion.toString();
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                transportVersion = TransportVersion.readVersion(in);
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.readVersion(in), Map.of()); // unknown mappings versions
             } else {
-                transportVersion = TransportVersion.fromId(legacyVersion.id);
+                compatibilityVersions = new CompatibilityVersions(TransportVersion.fromId(legacyVersion.id), Map.of());
             }
             if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
                 indexVersion = IndexVersion.readVersion(in);
@@ -114,7 +120,7 @@ public class NodeInfo extends BaseNodeResponse {
 
     public NodeInfo(
         String version,
-        TransportVersion transportVersion,
+        CompatibilityVersions compatibilityVersions,
         IndexVersion indexVersion,
         Map<String, Integer> componentVersions,
         Build build,
@@ -134,7 +140,7 @@ public class NodeInfo extends BaseNodeResponse {
     ) {
         super(node);
         this.version = version;
-        this.transportVersion = transportVersion;
+        this.compatibilityVersions = compatibilityVersions;
         this.indexVersion = indexVersion;
         this.componentVersions = componentVersions;
         this.build = build;
@@ -171,7 +177,7 @@ public class NodeInfo extends BaseNodeResponse {
      * The most recent transport version that can be used by this node
      */
     public TransportVersion getTransportVersion() {
-        return transportVersion;
+        return compatibilityVersions.transportVersion();
     }
 
     /**
@@ -186,6 +192,13 @@ public class NodeInfo extends BaseNodeResponse {
      */
     public Map<String, Integer> getComponentVersions() {
         return componentVersions;
+    }
+
+    /**
+     * A map of system index names to versions for their mappings supported by this node.
+     */
+    public Map<String, SystemIndexDescriptor.MappingsVersion> getCompatibilityVersions() {
+        return compatibilityVersions.systemIndexMappingsVersion();
     }
 
     /**
@@ -240,8 +253,10 @@ public class NodeInfo extends BaseNodeResponse {
         } else {
             Version.writeVersion(Version.fromString(version), out);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            TransportVersion.writeVersion(transportVersion, out);
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16)) {
+            compatibilityVersions.writeTo(out);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
+            TransportVersion.writeVersion(compatibilityVersions.transportVersion(), out);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             IndexVersion.writeVersion(indexVersion, out);

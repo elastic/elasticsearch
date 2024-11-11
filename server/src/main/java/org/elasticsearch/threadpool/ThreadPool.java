@@ -66,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
  * thread pools to instantiate.
  */
-public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, TimeSupplier {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
@@ -193,10 +193,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     private final LongSupplier relativeTimeInMillisSupplier;
 
-    private final TimeSupplier relativeTimeSupplier;
-
-    private final TimeSupplier rawRelativeTimeSupplier;
-
     private final ThreadContext threadContext;
 
     @SuppressWarnings("rawtypes")
@@ -300,8 +296,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         );
         this.cachedTimeThread.start();
         this.relativeTimeInMillisSupplier = new RelativeTimeInMillisSupplier(cachedTimeThread);
-        this.relativeTimeSupplier = new RelativeTimeSupplier(cachedTimeThread);
-        this.rawRelativeTimeSupplier = new RawRelativeTimeSupplier();
     }
 
     private static ArrayList<Instrument> setupMetrics(MeterRegistry meterRegistry, String name, ExecutorHolder holder) {
@@ -363,57 +357,15 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.executors = Map.of();
         this.cachedTimeThread = null;
         this.relativeTimeInMillisSupplier = this::relativeTimeInMillis;
-        this.relativeTimeSupplier = new RelativeTimeSupplier(cachedTimeThread);
-        this.rawRelativeTimeSupplier = new RawRelativeTimeSupplier();
         this.threadPoolInfo = new ThreadPoolInfo(List.of());
         this.slowSchedulerWarnThresholdNanos = 0L;
         this.threadContext = new ThreadContext(Settings.EMPTY);
         this.scheduler = null;
     }
 
-    /**
-     * Returns a value of milliseconds that may be used for relative time calculations.
-     *
-     * This method should only be used for calculating time deltas. For an epoch based
-     * timestamp, see {@link #absoluteTimeInMillis()}.
-     */
+    @Override
     public long relativeTimeInMillis() {
         return cachedTimeThread.relativeTimeInMillis();
-    }
-
-    /**
-     * Returns a value of nanoseconds that may be used for relative time calculations.
-     *
-     * This method should only be used for calculating time deltas. For an epoch based
-     * timestamp, see {@link #absoluteTimeInMillis()}.
-     */
-    public long relativeTimeInNanos() {
-        return cachedTimeThread.relativeTimeInNanos();
-    }
-
-    /**
-     * Returns a value of milliseconds that may be used for relative time calculations. Similar to {@link #relativeTimeInMillis()} except
-     * that this method is more expensive: the return value is computed directly from {@link System#nanoTime} and is not cached. You should
-     * use {@link #relativeTimeInMillis()} unless the extra accuracy offered by this method is worth the costs.
-     *
-     * When computing a time interval by comparing relative times in milliseconds, you should make sure that both endpoints use cached
-     * values returned from {@link #relativeTimeInMillis()} or that they both use raw values returned from this method. It doesn't really
-     * make sense to compare a raw value to a cached value, even if in practice the result of such a comparison will be approximately
-     * sensible.
-     */
-    public long rawRelativeTimeInMillis() {
-        return TimeValue.nsecToMSec(System.nanoTime());
-    }
-
-    /**
-     * Returns the value of milliseconds since UNIX epoch.
-     *
-     * This method should only be used for exact date/time formatting. For calculating
-     * time deltas that should not suffer from negative deltas, which are possible with
-     * this method, see {@link #relativeTimeInMillis()}.
-     */
-    public long absoluteTimeInMillis() {
-        return cachedTimeThread.absoluteTimeInMillis();
     }
 
     /**
@@ -423,12 +375,19 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return relativeTimeInMillisSupplier;
     }
 
-    public TimeSupplier relativeTimeSupplier() {
-        return relativeTimeSupplier;
+    @Override
+    public long relativeTimeInNanos() {
+        return cachedTimeThread.relativeTimeInNanos();
     }
 
-    public TimeSupplier rawRelativeTimeSupplier() {
-        return rawRelativeTimeSupplier;
+    @Override
+    public long rawRelativeTimeInMillis() {
+        return TimeValue.nsecToMSec(System.nanoTime());
+    }
+
+    @Override
+    public long absoluteTimeInMillis() {
+        return cachedTimeThread.absoluteTimeInMillis();
     }
 
     @Override
@@ -849,41 +808,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         @Override
         public String toString() {
             return ThreadPool.class.getCanonicalName() + "::relativeTimeInMillis";
-        }
-    }
-
-    private static class RelativeTimeSupplier implements TimeSupplier {
-        private final CachedTimeThread cachedTimeThread;
-
-        private RelativeTimeSupplier(CachedTimeThread cachedTimeThread) {
-            this.cachedTimeThread = cachedTimeThread;
-        }
-
-        @Override
-        public long timeInMillis() {
-            return cachedTimeThread.relativeTimeInMillis();
-        }
-
-        @Override
-        public long timeInNanos() {
-            return cachedTimeThread.relativeTimeInNanos();
-        }
-
-        @Override
-        public String toString() {
-            return ThreadPool.class.getCanonicalName() + "::relativeTimeInMillis";
-        }
-    }
-
-    private static class RawRelativeTimeSupplier implements TimeSupplier {
-        @Override
-        public long timeInMillis() {
-            return TimeValue.nsecToMSec(System.nanoTime());
-        }
-
-        @Override
-        public long timeInNanos() {
-            return System.nanoTime();
         }
     }
 

@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
+import org.elasticsearch.common.TimeSupplier;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
-import org.elasticsearch.common.time.TimeSupplier;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -73,7 +73,11 @@ public class DesiredBalanceComputer {
     private TimeValue progressLogInterval;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
 
-    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeSupplier timeSupplier, ShardsAllocator delegateAllocator) {
+    public DesiredBalanceComputer(
+        ClusterSettings clusterSettings,
+        TimeSupplier timeSupplier,
+        ShardsAllocator delegateAllocator
+    ) {
         this.delegateAllocator = delegateAllocator;
         this.timeSupplier = timeSupplier;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);

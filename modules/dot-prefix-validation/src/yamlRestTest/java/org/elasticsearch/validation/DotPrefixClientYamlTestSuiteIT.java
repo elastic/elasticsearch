@@ -50,7 +50,8 @@ public class DotPrefixClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
             .feature(FAILURE_STORE_ENABLED)
             .setting("xpack.security.enabled", "true")
             .keystore("bootstrap.password", "x-pack-test-password")
-            .user("x_pack_rest_user", "x-pack-test-password");
+            .user("x_pack_rest_user", "x-pack-test-password")
+            .systemProperty("es.queryable_built_in_roles_enabled", "false");
         boolean setNodes = Boolean.parseBoolean(System.getProperty("yaml.rest.tests.set_num_nodes", "true"));
         if (setNodes) {
             clusterBuilder.nodes(2);

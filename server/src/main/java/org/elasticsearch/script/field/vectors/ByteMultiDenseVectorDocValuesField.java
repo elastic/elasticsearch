@@ -118,7 +118,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
         private int idx = 0;
 
         ByteVectorIterator(BytesRef vectorValues, byte[] buffer, int size) {
-            assert vectorValues.length == (buffer.length * Float.BYTES * size);
+            assert vectorValues.length == (buffer.length * size);
             this.vectorValues = vectorValues;
             this.size = size;
             this.buffer = buffer;

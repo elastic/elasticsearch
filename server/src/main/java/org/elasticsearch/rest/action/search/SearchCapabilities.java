@@ -36,6 +36,8 @@ public final class SearchCapabilities {
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
     /** Support multi-dense-vector field mapper. */
     private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
+    /** Support multi-dense-vector script field access. */
+    private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
 
     public static final Set<String> CAPABILITIES;
     static {
@@ -47,6 +49,7 @@ public final class SearchCapabilities {
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
+            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);
         }
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);

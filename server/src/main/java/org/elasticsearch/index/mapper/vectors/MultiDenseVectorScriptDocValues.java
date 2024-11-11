@@ -17,7 +17,7 @@ import java.util.Iterator;
 
 public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
-    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
+    public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a multi-vector field!";
 
     private final int dims;
     protected final MultiDenseVectorSupplier dvSupplier;
@@ -57,7 +57,7 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     @Override
     public BytesRef get(int index) {
         throw new UnsupportedOperationException(
-            "accessing a vector field's value through 'get' or 'value' is not supported, use 'vectorValue' or 'magnitude' instead."
+            "accessing a multi-vector field's value through 'get' or 'value' is not supported, use 'vectorValues' or 'magnitudes' instead."
         );
     }
 

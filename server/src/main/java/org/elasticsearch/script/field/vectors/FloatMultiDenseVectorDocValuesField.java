@@ -57,7 +57,7 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
             assert value.length % (Float.BYTES * dims) == 0;
             numVectors = value.length / (Float.BYTES * dims);
             magnitudesValue = magnitudes.binaryValue();
-            assert magnitudesValue.length == (value.length / numVectors);
+            assert magnitudesValue.length == (Float.BYTES * numVectors);
         } else {
             value = null;
             magnitudesValue = null;

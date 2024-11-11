@@ -641,7 +641,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
                 // update the config - pick the left keys as those in the output
                 type = new UsingJoinType(coreJoin, rightKeys);
-                config = new JoinConfig(type, rightKeys, leftKeys, rightKeys);
+                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
                 join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
             }
             // everything else is unsupported for now

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner.mapper;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -30,6 +31,7 @@ import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -190,12 +192,25 @@ public class Mapper {
             }
 
             PhysicalPlan right = map(bp.right());
-            // no fragment means lookup
+            // if the right is data we can use a hash join directly
             if (right instanceof LocalSourceExec localData) {
                 return new HashJoinExec(
                     join.source(),
                     left,
                     localData,
+                    config.matchFields(),
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.output()
+                );
+            }
+            if (right instanceof FragmentExec fragment
+                && fragment.fragment() instanceof EsRelation relation
+                && relation.indexMode() == IndexMode.LOOKUP) {
+                return new LookupJoinExec(
+                    join.source(),
+                    left,
+                    right,
                     config.matchFields(),
                     config.leftFields(),
                     config.rightFields(),

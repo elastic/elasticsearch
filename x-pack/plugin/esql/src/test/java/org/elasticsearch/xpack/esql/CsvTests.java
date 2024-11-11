@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -542,6 +543,7 @@ public class CsvTests extends ESTestCase {
             exchangeSource,
             exchangeSink,
             Mockito.mock(EnrichLookupService.class),
+            Mockito.mock(LookupFromIndexService.class),
             physicalOperationProviders
         );
 

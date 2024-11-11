@@ -121,10 +121,8 @@ public class CsvTestsDataLoader {
         Map.entry(BOOKS.indexName, BOOKS),
         Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
         // JOIN LOOKUP alias
-        Map.entry(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX, LANGUAGES),
-        Map.entry(CLIENT_IPS.indexName + LOOKUP_INDEX_SUFFIX, CLIENT_IPS),
-        Map.entry("cities" + LOOKUP_INDEX_SUFFIX, AIRPORT_CITY_BOUNDARIES)
-        );
+        Map.entry(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX, LANGUAGES.withIndex(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX))
+    );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");
     private static final EnrichConfig CLIENT_IPS_ENRICH = new EnrichConfig("clientip_policy", "enrich-policy-clientips.json");

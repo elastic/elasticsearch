@@ -140,10 +140,12 @@ Logs::
 Machine Learning::
 * Avoid `ModelAssignment` deadlock {es-pull}109684[#109684]
 * Avoid `catch (Throwable t)` in `AmazonBedrockStreamingChatProcessor` {es-pull}115715[#115715]
+* Allow for `pytorch_inference` results to include zero-dimensional tensors
 * Empty percentile results no longer throw no_such_element_exception in Anomaly Detection jobs {es-pull}116015[#116015] (issue: {es-issue}116013[#116013])
 * Fix NPE in Get Deployment Stats {es-pull}115404[#115404]
 * Fix bug in ML serverless autoscaling which prevented trained model updates from triggering a scale up {es-pull}110734[#110734]
 * Fix stream support for `TaskType.ANY` {es-pull}115656[#115656]
+* Fix parameter initialization for large forecasting models {ml-pull}2759[#2759]
 * Forward bedrock connection errors to user {es-pull}115868[#115868]
 * Ignore unrecognized openai sse fields {es-pull}114715[#114715]
 * Prevent NPE if model assignment is removed while waiting to start {es-pull}115430[#115430]
@@ -355,6 +357,7 @@ Machine Learning::
 * Adding chunking settings to `GoogleVertexAiService,` `AzureAiStudioService,` and `AlibabaCloudSearchService` {es-pull}113981[#113981]
 * Adding chunking settings to `MistralService,` `GoogleAiStudioService,` and `HuggingFaceService` {es-pull}113623[#113623]
 * Adds a new Inference API for streaming responses back to the user. {es-pull}113158[#113158]
+* Allow users to force a detector to shift time series state by a specific amount {ml-pull}2695[#2695]
 * Create `StreamingHttpResultPublisher` {es-pull}112026[#112026]
 * Create an ml node inference endpoint referencing an existing model {es-pull}114750[#114750]
 * Default inference endpoint for ELSER {es-pull}113873[#113873]
@@ -373,6 +376,7 @@ Machine Learning::
 * Stream OpenAI Completion {es-pull}112677[#112677]
 * Support sparse embedding models in the elasticsearch inference service {es-pull}112270[#112270]
 * Switch default chunking strategy to sentence {es-pull}114453[#114453]
+* Update the Pytorch library to version 2.3.1  {ml-pull}2688[#2688]
 * Upgrade to AWS SDK v2 {es-pull}114309[#114309] (issue: {es-issue}110590[#110590])
 * Use the same chunking configurations for models in the Elasticsearch service {es-pull}111336[#111336]
 * Validate streaming HTTP Response {es-pull}112481[#112481]

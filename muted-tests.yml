@@ -112,9 +112,6 @@ tests:
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
   issue: https://github.com/elastic/elasticsearch/issues/112731
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry)}
-  issue: https://github.com/elastic/elasticsearch/issues/115231
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultE5
   issue: https://github.com/elastic/elasticsearch/issues/115361
@@ -279,15 +276,32 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/inference_crud/Test force delete given model with alias referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/116443
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=esql/60_usage/Basic ESQL usage output (telemetry) non-snapshot version}
-  issue: https://github.com/elastic/elasticsearch/issues/116448
 - class: org.elasticsearch.xpack.downsample.ILMDownsampleDisruptionIT
   method: testILMDownsampleRollingRestart
   issue: https://github.com/elastic/elasticsearch/issues/114233
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/data_frame_analytics_crud/Test put config with unknown field in outlier detection analysis}
   issue: https://github.com/elastic/elasticsearch/issues/116458
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/evaluate_data_frame/Test outlier_detection with query}
+  issue: https://github.com/elastic/elasticsearch/issues/116484
+- class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
+  issue: https://github.com/elastic/elasticsearch/issues/116487
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
+  method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
+  issue: https://github.com/elastic/elasticsearch/issues/116523
+- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
+  method: testCollapseAndRemoveUnsupportedPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/116520
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/116536
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=ml/inference_crud/Test force delete given model referenced by pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/116555
 
 # Examples:
 #

@@ -29,8 +29,6 @@ import org.elasticsearch.common.file.AbstractFileWatchingService;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.IOUtils;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
@@ -40,21 +38,30 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 import org.junit.After;
 import org.junit.Before;
 import org.mockito.stubbing.Answer;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.nio.file.AtomicMoveNotSupportedException;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.nio.file.attribute.FileTime;
+import java.time.Instant;
+import java.time.LocalDateTime;
+import java.time.ZoneId;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.BrokenBarrierException;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
 
@@ -64,6 +71,7 @@ import static org.elasticsearch.node.Node.NODE_NAME_SETTING;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -210,24 +218,17 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        CountDownLatch fileProcessingLatch = new CountDownLatch(1);
+        CountDownLatch processFileLatch = new CountDownLatch(1);
+        fileSettingsService.addFileChangedListener(processFileLatch::countDown);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
         writeTestFile(fileSettingsService.watchedFile(), "{}");
 
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
-            } finally {
-                fileProcessingLatch.countDown();
-            }
-        }).when(fileSettingsService).processFileOnServiceStart();
-
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        longAwait(fileProcessingLatch);
+        longAwait(processFileLatch);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
@@ -240,23 +241,8 @@ public class FileSettingsServiceTests extends ESTestCase {
             return null;
         }).when(controller).process(any(), any(XContentParser.class), any(), any());
 
-        CountDownLatch changesOnStartLatch = new CountDownLatch(1);
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
-            } finally {
-                changesOnStartLatch.countDown();
-            }
-        }).when(fileSettingsService).processFileOnServiceStart();
-
-        CountDownLatch changesLatch = new CountDownLatch(1);
-        doAnswer((Answer<?>) invocation -> {
-            try {
-                return invocation.callRealMethod();
-            } finally {
-                changesLatch.countDown();
-            }
-        }).when(fileSettingsService).processFileChanges();
+        CountDownLatch processFileCreationLatch = new CountDownLatch(1);
+        fileSettingsService.addFileChangedListener(processFileCreationLatch::countDown);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         // contents of the JSON don't matter, we just need a file to exist
@@ -265,17 +251,84 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.start();
         fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
 
-        longAwait(changesOnStartLatch);
+        longAwait(processFileCreationLatch);
+
+        CountDownLatch processFileChangeLatch = new CountDownLatch(1);
+        fileSettingsService.addFileChangedListener(processFileChangeLatch::countDown);
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
 
-        // second file change; contents still don't matter
-        writeTestFile(fileSettingsService.watchedFile(), "[]");
-        longAwait(changesLatch);
+        // Touch the file to get an update
+        Instant now = LocalDateTime.now(ZoneId.systemDefault()).toInstant(ZoneOffset.ofHours(0));
+        Files.setLastModifiedTime(fileSettingsService.watchedFile(), FileTime.from(now));
+
+        longAwait(processFileChangeLatch);
 
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testInvalidJSON() throws Exception {
+        doAnswer((Answer<Void>) invocation -> {
+            invocation.getArgument(1, XContentParser.class).map(); // Throw if JSON is invalid
+            ((Consumer<Exception>) invocation.getArgument(3)).accept(null);
+            return null;
+        }).when(controller).process(any(), any(XContentParser.class), any(), any());
+
+        CyclicBarrier fileChangeBarrier = new CyclicBarrier(2);
+        fileSettingsService.addFileChangedListener(() -> awaitOrBust(fileChangeBarrier));
+
+        Files.createDirectories(fileSettingsService.watchedFileDir());
+        // contents of the JSON don't matter, we just need a file to exist
+        writeTestFile(fileSettingsService.watchedFile(), "{}");
+
+        doAnswer((Answer<?>) invocation -> {
+            boolean returnedNormally = false;
+            try {
+                var result = invocation.callRealMethod();
+                returnedNormally = true;
+                return result;
+            } catch (XContentParseException e) {
+                // We're expecting a parse error. processFileChanges specifies that this is supposed to throw ExecutionException.
+                throw new ExecutionException(e);
+            } catch (Throwable e) {
+                throw new AssertionError("Unexpected exception", e);
+            } finally {
+                if (returnedNormally == false) {
+                    // Because of the exception, listeners aren't notified, so we need to activate the barrier ourselves
+                    awaitOrBust(fileChangeBarrier);
+                }
+            }
+        }).when(fileSettingsService).processFileChanges();
+
+        // Establish the initial valid JSON
+        fileSettingsService.start();
+        fileSettingsService.clusterChanged(new ClusterChangedEvent("test", clusterService.state(), ClusterState.EMPTY_STATE));
+        awaitOrBust(fileChangeBarrier);
+
+        // Now break the JSON
+        writeTestFile(fileSettingsService.watchedFile(), "test_invalid_JSON");
+        awaitOrBust(fileChangeBarrier);
+
+        verify(fileSettingsService, times(1)).processFileOnServiceStart(); // The initial state
+        verify(fileSettingsService, times(1)).processFileChanges(); // The changed state
+        verify(fileSettingsService, times(1)).onProcessFileChangesException(
+            argThat(e -> e instanceof ExecutionException && e.getCause() instanceof XContentParseException)
+        );
+
+        // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
+        // referring to fileSettingsService.start(). Rather, it is referring to the initialization
+        // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
+    }
+
+    private static void awaitOrBust(CyclicBarrier barrier) {
+        try {
+            barrier.await(20, TimeUnit.SECONDS);
+        } catch (InterruptedException | BrokenBarrierException | TimeoutException e) {
+            throw new AssertionError("Unexpected exception waiting for barrier", e);
+        }
     }
 
     @SuppressWarnings("unchecked")
@@ -367,30 +420,15 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     // helpers
-    private static void writeTestFile(Path path, String contents) {
-        Path tempFile = null;
+    private static void writeTestFile(Path path, String contents) throws IOException {
+        logger.info("Writing settings file under [{}]", path.toAbsolutePath());
+        Path tempFilePath = createTempFile();
+        Files.writeString(tempFilePath, contents);
         try {
-            logger.info("Creating settings temp file under [{}]", path.toAbsolutePath());
-            tempFile = Files.createTempFile(path.getParent(), path.getFileName().toString(), "tmp");
-            logger.info("Created settings temp file [{}]", tempFile.getFileName());
-            Files.writeString(tempFile, contents);
-
-            try {
-                logger.info("Moving settings temp file to replace [{}]", tempFile.getFileName());
-                Files.move(tempFile, path, REPLACE_EXISTING, ATOMIC_MOVE);
-            } catch (AtomicMoveNotSupportedException e) {
-                logger.info(
-                    "Atomic move was not available. Falling back on non-atomic move for settings temp file to replace [{}]",
-                    tempFile.getFileName()
-                );
-                Files.move(tempFile, path, REPLACE_EXISTING);
-            }
-        } catch (final IOException e) {
-            throw new UncheckedIOException(Strings.format("could not write file [%s]", path.toAbsolutePath()), e);
-        } finally {
-            logger.info("Deleting settings temp file [{}]", tempFile != null ? tempFile.getFileName() : null);
-            // we are ignoring exceptions here, so we do not need handle whether or not tempFile was initialized nor if the file exists
-            IOUtils.deleteFilesIgnoringExceptions(tempFile);
+            Files.move(tempFilePath, path, REPLACE_EXISTING, ATOMIC_MOVE);
+        } catch (AtomicMoveNotSupportedException e) {
+            logger.info("Atomic move not available. Falling back on non-atomic move to write [{}]", path.toAbsolutePath());
+            Files.move(tempFilePath, path, REPLACE_EXISTING);
         }
     }
 
@@ -405,4 +443,5 @@ public class FileSettingsServiceTests extends ESTestCase {
             fail(e, "longAwait: interrupted waiting for CountDownLatch to reach zero");
         }
     }
+
 }

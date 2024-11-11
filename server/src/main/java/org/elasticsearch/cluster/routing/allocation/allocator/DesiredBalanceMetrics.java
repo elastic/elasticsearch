@@ -41,13 +41,13 @@ public class DesiredBalanceMetrics {
     public static final String DESIRED_BALANCE_NODE_DISK_USAGE_METRIC_NAME =
         "es.allocator.desired_balance.allocations.node_disk_usage_bytes.current";
 
-    public static final String CURRENT_NODE_SHARD_COUNT_METRIC_NAME = "es.allocator.allocations.node_shard_count.current";
-    public static final String CURRENT_NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.allocations.node_write_load.current";
-    public static final String CURRENT_NODE_DISK_USAGE_METRIC_NAME = "es.allocator.allocations.node_disk_usage_bytes.current";
+    public static final String CURRENT_NODE_SHARD_COUNT_METRIC_NAME = "es.allocator.allocations.node.shard_count.current";
+    public static final String CURRENT_NODE_WRITE_LOAD_METRIC_NAME = "es.allocator.allocations.node.write_load.current";
+    public static final String CURRENT_NODE_DISK_USAGE_METRIC_NAME = "es.allocator.allocations.node.disk_usage_bytes.current";
     public static final String CURRENT_NODE_UNDESIRED_SHARD_COUNT_METRIC_NAME =
-        "es.allocator.allocations.node_undesired_shard_count.current";
+        "es.allocator.allocations.node.undesired_shard_count.current";
     public static final String CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME =
-        "es.allocator.allocations.node_forecasted_disk_usage_bytes.current";
+        "es.allocator.allocations.node.forecasted_disk_usage_bytes.current";
 
     public static final AllocationStats EMPTY_ALLOCATION_STATS = new AllocationStats(-1, -1, -1);
 

@@ -1,5 +1,5 @@
 [[delete-ip-location-database-api]]
-=== Delete geoip database configuration  API
+=== Delete geoip database configuration API
 ++++
 <titleabbrev>Delete geoip database configuration</titleabbrev>
 ++++

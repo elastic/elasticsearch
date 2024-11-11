@@ -167,8 +167,9 @@ public class DesiredBalanceReconciler {
             Map<DiscoveryNode, NodeAllocationStats> nodeAllocationStats = new HashMap<>(stats.size());
             for (var entry : stats.entrySet()) {
                 var node = allocation.nodes().get(entry.getKey());
-                assert node != null;
-                nodeAllocationStats.put(node, entry.getValue());
+                if (node != null) {
+                    nodeAllocationStats.put(node, entry.getValue());
+                }
             }
             desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), nodeAllocationStats);
         }

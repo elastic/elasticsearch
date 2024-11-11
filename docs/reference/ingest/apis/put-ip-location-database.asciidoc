@@ -17,7 +17,7 @@ PUT _ingest/geoip/database/my-database-id
 {
   "name": "GeoIP2-Domain",
   "maxmind": {
-    "account_id": "1025402"
+    "account_id": "1234567"
   }
 }
 ----

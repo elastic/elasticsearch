@@ -144,6 +144,7 @@ public class ClusterModule extends AbstractModule {
             threadPool,
             clusterPlugins,
             clusterService,
+            clusterInfoService,
             this::reconcile,
             writeLoadForecaster,
             telemetryProvider
@@ -398,6 +399,7 @@ public class ClusterModule extends AbstractModule {
         ThreadPool threadPool,
         List<ClusterPlugin> clusterPlugins,
         ClusterService clusterService,
+        ClusterInfoService clusterInfoService,
         DesiredBalanceReconcilerAction reconciler,
         WriteLoadForecaster writeLoadForecaster,
         TelemetryProvider telemetryProvider
@@ -411,6 +413,8 @@ public class ClusterModule extends AbstractModule {
                 new BalancedShardsAllocator(clusterSettings, writeLoadForecaster),
                 threadPool,
                 clusterService,
+                clusterInfoService,
+                writeLoadForecaster,
                 reconciler,
                 telemetryProvider
             )

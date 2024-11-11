@@ -164,6 +164,8 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             clusterService,
+            () -> ClusterInfo.EMPTY,
+            WriteLoadForecaster.DEFAULT,
             null,
             TelemetryProvider.NOOP
         ) {

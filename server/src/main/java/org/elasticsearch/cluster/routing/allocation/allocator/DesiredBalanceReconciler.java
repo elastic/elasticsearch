@@ -20,6 +20,8 @@ import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
+import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics.AllocationStats;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -34,7 +36,9 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.Iterator;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
@@ -71,8 +75,18 @@ public class DesiredBalanceReconciler {
     private final NodeAllocationOrdering allocationOrdering = new NodeAllocationOrdering();
     private final NodeAllocationOrdering moveOrdering = new NodeAllocationOrdering();
     private final DesiredBalanceMetrics desiredBalanceMetrics;
+    private final AllocationStatsService.StatsProvider statsProvider;
 
-    public DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, DesiredBalanceMetrics desiredBalanceMetrics) {
+    DesiredBalanceReconciler(ClusterSettings clusterSettings, ThreadPool threadPool, DesiredBalanceMetrics desiredBalanceMetrics) {
+        this(clusterSettings, threadPool, desiredBalanceMetrics, desiredBalance -> Map.of());
+    }
+
+    public DesiredBalanceReconciler(
+        ClusterSettings clusterSettings,
+        ThreadPool threadPool,
+        DesiredBalanceMetrics desiredBalanceMetrics,
+        AllocationStatsService.StatsProvider allocationStatsProvider
+    ) {
         this.desiredBalanceMetrics = desiredBalanceMetrics;
         this.undesiredAllocationLogInterval = new FrequencyCappedAction(
             threadPool.relativeTimeInMillisSupplier(),
@@ -83,6 +97,7 @@ public class DesiredBalanceReconciler {
             UNDESIRED_ALLOCATIONS_LOG_THRESHOLD_SETTING,
             value -> this.undesiredAllocationsLogThreshold = value
         );
+        this.statsProvider = allocationStatsProvider;
     }
 
     public void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
@@ -143,8 +158,19 @@ public class DesiredBalanceReconciler {
 
                 logger.debug("Reconciliation is complete");
 
-                desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode());
+                updateDesireBalanceMetrics(allocationStats);
             }
+        }
+
+        private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
+            var stats = statsProvider.stats(desiredBalance);
+            Map<DiscoveryNode, NodeAllocationStats> nodeAllocationStats = new HashMap<>(stats.size());
+            for (var entry : stats.entrySet()) {
+                var node = allocation.nodes().get(entry.getKey());
+                assert node != null;
+                nodeAllocationStats.put(node, entry.getValue());
+            }
+            desiredBalanceMetrics.updateMetrics(allocationStats, desiredBalance.weightsPerNode(), nodeAllocationStats);
         }
 
         private boolean allocateUnassignedInvariant() {

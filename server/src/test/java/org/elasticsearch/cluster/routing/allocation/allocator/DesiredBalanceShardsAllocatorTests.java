@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -36,6 +37,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStr
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceShardsAllocator.DesiredBalanceReconcilerAction;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
@@ -167,6 +169,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             createShardsAllocator(),
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             reconcileAction,
             TelemetryProvider.NOOP
         );
@@ -294,6 +298,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             createShardsAllocator(),
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             reconcileAction,
             TelemetryProvider.NOOP
         );
@@ -396,6 +402,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             new DesiredBalanceComputer(clusterSettings, shardsAllocator, time::get) {
                 @Override
                 public DesiredBalance compute(
@@ -522,6 +530,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
@@ -625,6 +635,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
@@ -732,6 +744,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             delegateAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP
@@ -785,6 +799,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             delegateAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP
@@ -834,6 +850,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             delegateAllocator,
             threadPool,
             clusterService,
+            EmptyClusterInfoService.INSTANCE,
+            WriteLoadForecaster.DEFAULT,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
             TelemetryProvider.NOOP

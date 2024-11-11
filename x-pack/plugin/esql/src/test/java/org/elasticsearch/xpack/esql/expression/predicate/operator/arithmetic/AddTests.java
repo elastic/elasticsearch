@@ -186,6 +186,29 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 true
             )
         );
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                result,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.datePeriodCases(),
+                startsWith("AddDateNanosEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+                warnings,
+                true
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                result,
+                DataType.DATE_NANOS,
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.timeDurationCases(),
+                startsWith("AddDateNanosEvaluator[datetime=Attribute[channel=0], temporalAmount="),
+                warnings,
+                true
+            )
+        );
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
             consumer.accept(
                 new TestCaseSupplier(

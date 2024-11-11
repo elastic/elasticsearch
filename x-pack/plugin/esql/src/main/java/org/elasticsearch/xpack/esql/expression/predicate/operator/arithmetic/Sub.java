@@ -61,7 +61,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            SubDatetimesEvaluator.Factory::new,
+            null
         );
     }
 
@@ -73,7 +74,8 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubLongsEvaluator.Factory::new,
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
-            SubDatetimesEvaluator.Factory::new
+            SubDatetimesEvaluator.Factory::new,
+            null
         );
     }
 

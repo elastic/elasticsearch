@@ -330,6 +330,10 @@ public class EsqlCapabilities {
         LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
 
         /**
+         * Support add and subtract on date nanos
+         */
+        DATE_NANOS_ADD_SUBTRACT(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        /**
          * Support for date_trunc function on date nanos type
          */
         DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),

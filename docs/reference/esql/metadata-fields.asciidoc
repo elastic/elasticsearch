@@ -21,7 +21,7 @@ supported ones are:
   <<keyword,keyword>>.
 
   * experimental::["scoring is experimental and only available in SNAPSHOT versions."]
-  `_score`: the <<query-filter-context#relevance-scores,score>> of each document with respect to the ES|QL query.
+  `_score`: the <<query-filter-context,score>> of each document with respect to the ES|QL query.
 The field is of the type <<number,double>>.
 
 To enable the access to these fields, the <<esql-from,`FROM`>> source command needs

@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.deprecation;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -36,6 +37,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.BiFunction;
 import java.util.function.Function;
@@ -64,6 +66,13 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 .collect(Collectors.toList());
             indexIssues.put(randomAlphaOfLength(10), perIndexIssues);
         }
+        Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
+        for (int i = 0; i < randomIntBetween(0, 10); i++) {
+            List<DeprecationIssue> perDataStreamIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
+                .limit(randomIntBetween(0, 10))
+                .collect(Collectors.toList());
+            dataStreamIssues.put(randomAlphaOfLength(10), perDataStreamIssues);
+        }
         Map<String, List<DeprecationIssue>> pluginIssues = new HashMap<>();
         for (int i = 0; i < randomIntBetween(0, 10); i++) {
             List<DeprecationIssue> perPluginIssues = Stream.generate(DeprecationInfoActionResponseTests::createTestDeprecationIssue)
@@ -71,7 +80,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 .collect(Collectors.toList());
             pluginIssues.put(randomAlphaOfLength(10), perPluginIssues);
         }
-        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, pluginIssues);
+        return new DeprecationInfoAction.Response(clusterIssues, nodeIssues, indexIssues, dataStreamIssues, pluginIssues);
     }
 
     @Override
@@ -105,10 +114,13 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         boolean clusterIssueFound = randomBoolean();
         boolean nodeIssueFound = randomBoolean();
         boolean indexIssueFound = randomBoolean();
+        boolean dataStreamIssueFound = randomBoolean();
         DeprecationIssue foundIssue = createTestDeprecationIssue();
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of(
             (idx, cs) -> indexIssueFound ? foundIssue : null
+        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of(
+            (ds, cs) -> dataStreamIssueFound ? foundIssue : null
         );
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
@@ -128,6 +140,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
+            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             Collections.emptyList()
@@ -200,6 +213,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         DeprecationIssue foundIssue2 = createTestDeprecationIssue(foundIssue1, metaMap2);
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = Collections.emptyList();
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of((idx, cs) -> null);
+        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of((ds, cs) -> null);
 
         NodesDeprecationCheckResponse nodeDeprecationIssues = new NodesDeprecationCheckResponse(
             new ClusterName(randomAlphaOfLength(5)),
@@ -217,6 +231,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
+            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             Collections.emptyList()
@@ -242,8 +257,15 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         settingsBuilder.put("some.undeprecated.property", "someValue3");
         settingsBuilder.putList("some.undeprecated.list.property", List.of("someValue4", "someValue5"));
         Settings inputSettings = settingsBuilder.build();
+        IndexMetadata dataStreamIndexMetadata = IndexMetadata.builder("ds-test-index-1")
+            .settings(inputSettings)
+            .numberOfShards(1)
+            .numberOfReplicas(0)
+            .build();
         Metadata metadata = Metadata.builder()
             .put(IndexMetadata.builder("test").settings(inputSettings).numberOfShards(1).numberOfReplicas(0))
+            .put(dataStreamIndexMetadata, true)
+            .put(DataStream.builder("ds-test", List.of(dataStreamIndexMetadata.getIndex())).build())
             .persistentSettings(inputSettings)
             .build();
 
@@ -258,6 +280,12 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
             Arrays.asList((idx, cs) -> {
                 visibleIndexSettings.set(idx.getSettings());
+            return null;
+        }));
+        AtomicInteger backingIndicesCount = new AtomicInteger(0);
+        List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = Collections.unmodifiableList(
+            Arrays.asList((ds, cs) -> {
+                backingIndicesCount.set(ds.getIndices().size());
                 return null;
             })
         );
@@ -275,6 +303,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
             request,
             nodeDeprecationIssues,
             indexSettingsChecks,
+            dataStreamChecks,
             clusterSettingsChecks,
             Collections.emptyMap(),
             List.of("some.deprecated.property", "some.other.*.deprecated.property")
@@ -293,10 +322,15 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         Assert.assertTrue(resultIndexSettings.getAsList("some.undeprecated.list.property").equals(List.of("someValue4", "someValue5")));
         Assert.assertFalse(resultIndexSettings.hasValue("some.deprecated.property"));
         Assert.assertFalse(resultIndexSettings.hasValue("some.other.bad.deprecated.property"));
+
+        assertThat(backingIndicesCount.get(), equalTo(1));
     }
 
     public void testCtorFailure() {
         Map<String, List<DeprecationIssue>> indexNames = Stream.generate(() -> randomAlphaOfLength(10))
+            .limit(10)
+            .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
+        Map<String, List<DeprecationIssue>> dataStreamNames = Stream.generate(() -> randomAlphaOfLength(10))
             .limit(10)
             .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
         Set<String> shouldCauseFailure = new HashSet<>(RESERVED_NAMES);
@@ -305,7 +339,13 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
                 .collect(Collectors.toMap(Function.identity(), (_k) -> Collections.emptyList()));
             expectThrows(
                 ElasticsearchStatusException.class,
-                () -> new DeprecationInfoAction.Response(Collections.emptyList(), Collections.emptyList(), indexNames, pluginSettingsIssues)
+                () -> new DeprecationInfoAction.Response(
+                    Collections.emptyList(),
+                    Collections.emptyList(),
+                    indexNames,
+                    dataStreamNames,
+                    pluginSettingsIssues
+                )
             );
         }
     }

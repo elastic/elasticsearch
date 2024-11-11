@@ -8,6 +8,7 @@ package org.elasticsearch.xpack.deprecation;
 
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -96,6 +97,10 @@ public class DeprecationChecks {
         IndexDeprecationChecks::storeTypeSettingCheck,
         IndexDeprecationChecks::frozenIndexSettingCheck,
         IndexDeprecationChecks::deprecatedCamelCasePattern
+    );
+
+    static List<BiFunction<DataStream, ClusterState, DeprecationIssue>> DATA_STREAM_CHECKS = List.of(
+        DataStreamDeprecationChecks::oldIndicesCheck
     );
 
     /**

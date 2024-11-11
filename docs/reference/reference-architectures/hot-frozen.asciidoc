@@ -46,7 +46,7 @@ In the links provided above, elastic has performance tested hardware for each of
 
 The following table shows our specific recommendations for nodes in Hot / Frozen architecture. 
 
-[cols="10, 10, 10, 10, 10"]
+[cols="2, 5, 5, 5, 5"]
 |===
 | **Type** | **AWS** | **Azure** | **GCP** | **Physical**
 |image:images/hot.png["Hot data node"] | 
@@ -122,8 +122,9 @@ N2|
 [[hot-frozen-estimate]]
 === How many nodes of each do you need?
 It depends on:
-* The type of data being ingested (e.g., logs, metrics, traces)
-* The retention of searchable data (e.g., 30 days, 90 days, 1 year)
+
+* The type of data being ingested (such as logs, metrics, traces)
+* The retention of searchable data (such as 30 days, 90 days, 1 year)
 * The amount of data you need to ingest each day.
 
 You can https://www.elastic.co/contact[contact us] for an estimate and recommended configuration based on your specific scenario.

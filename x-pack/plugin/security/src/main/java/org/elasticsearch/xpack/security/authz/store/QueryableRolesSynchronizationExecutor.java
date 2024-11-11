@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.NotMasterException;
 import org.elasticsearch.cluster.SimpleBatchedExecutor;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -27,7 +28,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
-import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.common.component.LifecycleListener;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.security.authz.store.QueryableRolesProvider.QueryableRoles;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 
-import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
@@ -53,7 +53,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_MAIN_ALIAS;
 
-public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComponent implements ClusterStateListener {
+public class QueryableRolesSynchronizationExecutor implements ClusterStateListener {
 
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
 
@@ -83,6 +83,8 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
     private final Executor executor;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
+    private volatile boolean stopped = false;
+
     public QueryableRolesSynchronizationExecutor(
         ClusterService clusterService,
         FeatureService featureService,
@@ -102,33 +104,45 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
             Priority.LOW,
             MARK_ROLES_AS_SYNCED_TASK_EXECUTOR
         );
+        this.clusterService.addListener(this);
+        this.clusterService.addLifecycleListener(new LifecycleListener() {
+            @Override
+            public void beforeStop() {
+                logger.info("Stopping built-in roles synchronization executor");
+                stopped = true;
+            }
+        });
     }
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
+        if (stopped) {
+            logger.debug("Built-in roles synchronization executor is stopped, skipping built-in roles synchronization");
+            return false;
+        }
         if (nativeRolesStore.isEnabled() == false) {
-            logger.info("Native role management is not enabled, skipping built-in roles synchronization");
+            logger.trace("Native role management is not enabled, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.clusterRecovered()) {
-            logger.info("Cluster state has not recovered yet, skipping built-in roles synchronization");
+            logger.debug("Cluster state has not recovered yet, skipping built-in roles synchronization");
             return false;
         }
         if (false == state.nodes().isLocalNodeElectedMaster()) {
-            logger.info("Local node is not the master, skipping built-in roles synchronization");
+            logger.trace("Local node is not the master, skipping built-in roles synchronization");
             return false;
         }
         if (state.nodes().getDataNodes().isEmpty()) {
-            logger.info("No data nodes in the cluster, skipping built-in roles synchronization");
+            logger.debug("No data nodes in the cluster, skipping built-in roles synchronization");
             return false;
         }
         // to keep things simple and avoid potential overwrites with an older version of built-in roles,
         // we only sync built-in roles if all nodes are on the same version
         if (isMixedVersionCluster(state.nodes())) {
-            logger.info("Not all nodes are on the same version, skipping built-in roles synchronization");
+            logger.debug("Not all nodes are on the same version, skipping built-in roles synchronization");
             return false;
         }
         if (false == featureService.clusterHasFeature(state, QUERYABLE_BUILT_IN_ROLES_FEATURE)) {
-            logger.info("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
+            logger.debug("Not all nodes support queryable built-in roles, skipping built-in roles synchronization");
             return false;
         }
         return true;
@@ -146,16 +160,26 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
         return false;
     }
 
+    private static boolean isSecurityIndexDeleted(ClusterChangedEvent event) {
+        Index previousIndexState = resolveConcreteSecurityIndex(event.previousState().metadata());
+        Index currentIndexState = resolveConcreteSecurityIndex(event.state().metadata());
+        return previousIndexState != null && currentIndexState == null;
+    }
+
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
         if (false == shouldSyncBuiltInRoles(state)) {
             return;
         }
+        if (isSecurityIndexDeleted(event)) {
+            logger.info("Security index has been deleted, skipping built-in roles synchronization");
+            return;
+        }
         final QueryableRoles roles = builtinRolesProvider.roles();
         final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
         if (roles.roleVersions().equals(currentRolesVersions)) {
-            logger.info("Security index already contains the latest built-in roles indexed, skipping synchronization");
+            logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
         }
 
@@ -164,10 +188,12 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
                 logger.info("Successfully synced built-in roles to security index");
                 synchronizationInProgress.set(false);
             }, e -> {
-                if (false == e instanceof UnavailableShardsException && false == e instanceof IndexNotFoundException) {
+                if (false == e instanceof UnavailableShardsException
+                    && false == e instanceof IndexNotFoundException
+                    && false == e instanceof NotMasterException) {
                     logger.warn("Failed to sync built-in roles to security index", e);
                 } else {
-                    logger.info("Failed to sync built-in roles to security index", e);
+                    logger.trace("Failed to sync built-in roles to security index", e);
                 }
                 synchronizationInProgress.set(false);
             })));
@@ -176,6 +202,10 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
 
     private void syncBuiltinRoles(Map<String, String> currentRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
         // This will create .security index if it does not exist and execute all migrations.
+        if (stopped) {
+            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
+            return;
+        }
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
             if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
@@ -203,6 +233,10 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
         Map<String, String> currentRolesVersions,
         ActionListener<Void> listener
     ) {
+        if (stopped) {
+            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
+            return;
+        }
         nativeRolesStore.deleteRoles(
             securityIndex,
             rolesToDelete,
@@ -219,6 +253,10 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
     }
 
     private void indexRoles(Collection<RoleDescriptor> rolesToIndex, SecurityIndexManager securityIndex, ActionListener<Void> listener) {
+        if (stopped) {
+            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
+            return;
+        }
         nativeRolesStore.putRoles(
             securityIndex,
             WriteRequest.RefreshPolicy.IMMEDIATE,
@@ -280,23 +318,6 @@ public class QueryableRolesSynchronizationExecutor extends AbstractLifecycleComp
             return indices.get(0);
         }
         return null;
-    }
-
-    @Override
-    protected void doStart() {
-        logger.info("Starting built-in roles synchronization executor");
-        clusterService.addListener(this);
-    }
-
-    @Override
-    protected void doStop() {
-        logger.info("Stopping built-in roles synchronization executor");
-        clusterService.removeListener(this);
-    }
-
-    @Override
-    protected void doClose() throws IOException {
-        logger.info("closing built-in roles synchronization executor");
     }
 
     static class MarkBuiltinRolesAsSyncedTask implements ClusterStateTaskListener {

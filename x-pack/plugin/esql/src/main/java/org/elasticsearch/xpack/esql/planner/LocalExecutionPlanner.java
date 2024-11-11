@@ -577,6 +577,14 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
+        // NOCOMMIT this works when the join happens on the coordinator
+        /*
+         * But when it happens on the data node we get a
+         * \_FieldExtractExec[language_code{f}#15, language_name{f}#16]<[]>
+         *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#18], limit[], sort[] estimatedRowSize[62]
+         * Which we'd prefer not to do - at least for now. We already know the fields we're loading
+         * and don't want any local planning.
+         */
         EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
         if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
             throw new IllegalArgumentException("can't plan [" + join + "]");

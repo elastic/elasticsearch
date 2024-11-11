@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.planner.mapper;
 
 import org.elasticsearch.compute.aggregation.AggregatorMode;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -23,9 +24,11 @@ import org.elasticsearch.xpack.esql.plan.logical.join.Join;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -105,19 +108,29 @@ public class LocalMapper {
             PhysicalPlan left = map(binary.left());
             PhysicalPlan right = map(binary.right());
 
-            if (right instanceof LocalSourceExec == false) {
-                throw new EsqlIllegalArgumentException("right side of a join must be a local source");
+            // if the right is data we can use a hash join directly
+            if (right instanceof LocalSourceExec localData) {
+                return new HashJoinExec(
+                    join.source(),
+                    left,
+                    localData,
+                    config.matchFields(),
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.output()
+                );
             }
-
-            return new HashJoinExec(
-                join.source(),
-                left,
-                right,
-                config.matchFields(),
-                config.leftFields(),
-                config.rightFields(),
-                join.output()
-            );
+            if (right instanceof EsSourceExec source && source.indexMode() == IndexMode.LOOKUP) {
+                return new LookupJoinExec(
+                    join.source(),
+                    left,
+                    right,
+                    config.matchFields(),
+                    config.leftFields(),
+                    config.rightFields(),
+                    join.output()
+                );
+            }
         }
 
         return MapperUtils.unsupported(binary);

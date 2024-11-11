@@ -103,6 +103,7 @@ include::search-speed.asciidoc[tag=warm-fs-cache]
 The following file extensions are used for the approximate kNN search:
 Each extension is broken down by the quantization types.
 
+* `vex` for the HNSW graph
 * `vec` for all non-quantized vector values. This includes all element types: `float`, `byte`, and `bit`.
 * `veq` for quantized vectors indexed with <<dense-vector-quantization,`quantization`>>: `int4` or `int8`
 * `veb` for binary vectors indexed with <<dense-vector-quantization,`quantization`>>: `bbq`

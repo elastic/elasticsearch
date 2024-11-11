@@ -249,17 +249,11 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115664
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and non-default sorting}
-  issue: https://github.com/elastic/elasticsearch/issues/116095
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSnapshotRestore {cluster=OLD}
   issue: https://github.com/elastic/elasticsearch/issues/111777
-- class: org.elasticsearch.analysis.common.CommonAnalysisClientYamlTestSuiteIT
-  method: test {yaml=analysis-common/50_char_filters/pattern_replace error handling (too complex pattern)}
-  issue: https://github.com/elastic/elasticsearch/issues/116134
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   method: testLookbackWithIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/116127
@@ -299,9 +293,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
   method: testSearchAndRelocateConcurrentlyRandomReplicas
   issue: https://github.com/elastic/elasticsearch/issues/116145
-- class: org.elasticsearch.xpack.inference.InferenceRestIT
-  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
-  issue: https://github.com/elastic/elasticsearch/issues/114376
 - class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
   method: testHasPrivilegesOtherThanIndex
   issue: https://github.com/elastic/elasticsearch/issues/116376
@@ -328,6 +319,23 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields alias}
+  issue: https://github.com/elastic/elasticsearch/issues/116592
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields}
+  issue: https://github.com/elastic/elasticsearch/issues/116593
+- class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
+  issue: https://github.com/elastic/elasticsearch/issues/116487
+- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
+  method: testCollapseAndRemoveUnsupportedPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/116520
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoTile
+  issue: https://github.com/elastic/elasticsearch/issues/115717
 
 # Examples:
 #

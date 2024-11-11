@@ -10,9 +10,9 @@
 package org.elasticsearch.rest.action.search;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 
-import java.util.Collections;
+import java.util.HashSet;
 import java.util.Set;
 
 /**
@@ -32,25 +32,22 @@ public final class SearchCapabilities {
     private static final String DENSE_VECTOR_DOCVALUE_FIELDS = "dense_vector_docvalue_fields";
     /** Support kql query. */
     private static final String KQL_QUERY_SUPPORTED = "kql_query";
+    /** Support multi-dense-vector field mapper. */
+    private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
 
-    public static final Set<String> CAPABILITIES = capabilities();
-
-    private static Set<String> capabilities() {
-        Set<String> capabilities = Set.of(
-            RANGE_REGEX_INTERVAL_QUERY_CAPABILITY,
-            BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY,
-            BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY,
-            DENSE_VECTOR_DOCVALUE_FIELDS
-        );
-
-        if (Build.current().isSnapshot()) {
-            return Collections.unmodifiableSet(Sets.union(capabilities, snapshotBuildCapabilities()));
+    public static final Set<String> CAPABILITIES;
+    static {
+        HashSet<String> capabilities = new HashSet<>();
+        capabilities.add(RANGE_REGEX_INTERVAL_QUERY_CAPABILITY);
+        capabilities.add(BIT_DENSE_VECTOR_SYNTHETIC_SOURCE_CAPABILITY);
+        capabilities.add(BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY);
+        capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
+        if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
+            capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
         }
-
-        return capabilities;
-    }
-
-    private static Set<String> snapshotBuildCapabilities() {
-        return Set.of(KQL_QUERY_SUPPORTED);
+        if (Build.current().isSnapshot()) {
+            capabilities.add(KQL_QUERY_SUPPORTED);
+        }
+        CAPABILITIES = Set.copyOf(capabilities);
     }
 }

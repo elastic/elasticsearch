@@ -19,7 +19,6 @@ import org.elasticsearch.packaging.util.Platforms;
 import org.elasticsearch.packaging.util.ServerUtils;
 import org.elasticsearch.packaging.util.Shell;
 import org.elasticsearch.packaging.util.Shell.Result;
-import org.junit.Assume;
 import org.junit.BeforeClass;
 
 import java.nio.file.Files;
@@ -113,10 +112,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test40AutoconfigurationNotTriggeredWhenNodeIsMeantToJoinExistingCluster() throws Exception {
-        Assume.assumeFalse(
-            "https://github.com/elastic/elasticsearch/issues/116299",
-            distribution.platform == Distribution.Platform.WINDOWS
-        );
         // auto-config requires that the archive owner and the process user be the same,
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         FileUtils.assertPathsDoNotExist(installation.data);
@@ -130,10 +125,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test41AutoconfigurationNotTriggeredWhenNodeCannotContainData() throws Exception {
-        Assume.assumeFalse(
-            "https://github.com/elastic/elasticsearch/issues/116299",
-            distribution.platform == Distribution.Platform.WINDOWS
-        );
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"voting_only\", \"master\"]");
@@ -146,10 +137,6 @@ public class ArchiveTests extends PackagingTestCase {
     }
 
     public void test42AutoconfigurationNotTriggeredWhenNodeCannotBecomeMaster() throws Exception {
-        Assume.assumeFalse(
-            "https://github.com/elastic/elasticsearch/issues/116299",
-            distribution.platform == Distribution.Platform.WINDOWS
-        );
         // auto-config requires that the archive owner and the process user be the same
         Platforms.onWindows(() -> sh.chown(installation.config, installation.getOwner()));
         ServerUtils.addSettingToExistingConfiguration(installation, "node.roles", "[\"ingest\"]");

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.plugin;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
@@ -15,22 +14,15 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
-import org.elasticsearch.xpack.esql.action.ColumnInfoImpl;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
-import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.junit.Before;
 
 import java.util.List;
 
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
@@ -42,7 +34,7 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
 
     @Override
     protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("match operator available in snapshot builds only", Build.current().isSnapshot());
+        assumeTrue("match operator capability not available", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         return super.run(request);
     }
 
@@ -55,11 +47,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id")));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of("INTEGER")));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1)).item(List.of(6)));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
         }
     }
 
@@ -72,11 +62,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of(("id"))));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(6)));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(6)));
         }
     }
 
@@ -89,12 +77,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of(("id"))));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertThat(values.size(), equalTo(2));
-            assertMap(values, matchesList().item(List.of(1)).item(List.of(6)));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(1), List.of(6)));
         }
     }
 
@@ -123,11 +108,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of(("id"))));
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(), equalTo(List.of(("INTEGER"))));
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(5)));
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
         }
     }
 
@@ -142,14 +125,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.156558871269226)).item(List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 
@@ -164,14 +142,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            // values
-            List<List<Object>> values = getValuesList(resp);
-            assertMap(values, matchesList().item(List.of(1, 1.156558871269226)).item(List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 
@@ -185,12 +158,9 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
             """;
 
         try (var resp = run(query)) {
-            assertThat(resp.columns().stream().map(ColumnInfoImpl::name).toList(), equalTo(List.of("id", "_score")));
-            assertThat(
-                resp.columns().stream().map(ColumnInfoImpl::type).map(DataType::toString).toList(),
-                equalTo(List.of("INTEGER", "DOUBLE"))
-            );
-            assertMap(getValuesList(resp), containsInAnyOrder(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValuesInAnyOrder(resp.values(), List.of(List.of(1, 1.156558871269226), List.of(6, 0.9114001989364624)));
         }
     }
 

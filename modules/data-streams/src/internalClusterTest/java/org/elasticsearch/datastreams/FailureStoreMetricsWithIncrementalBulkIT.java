@@ -11,19 +11,20 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
-import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
@@ -49,14 +50,13 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicLong;
-import java.util.function.Consumer;
 
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.notNullValue;
 
 public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
 
@@ -66,8 +66,7 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
         FailureStoreMetrics.METRIC_REJECTED
     );
 
-    private String dataStream = "data-stream-incremental";
-    private String template = "template-incremental";
+    private static final String DATA_STREAM_NAME = "data-stream-incremental";
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
@@ -86,107 +85,110 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
     }
 
     public void testShortCircuitFailure() throws Exception {
-        putComposableIndexTemplate(true);
-        createDataStream();
+        createDataStreamWithFailureStore();
 
         String coordinatingOnlyNode = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
         AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, coordinatingOnlyNode);
-        IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
+        try (IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest()) {
 
-        AtomicBoolean nextRequested = new AtomicBoolean(true);
-        AtomicLong hits = new AtomicLong(0);
-        while (nextRequested.get()) {
-            nextRequested.set(false);
-            refCounted.incRef();
-            handler.addItems(List.of(indexRequest(dataStream)), refCounted::decRef, () -> nextRequested.set(true));
-            hits.incrementAndGet();
-        }
-        assertBusy(() -> assertTrue(nextRequested.get()));
-        var measurements = collectTelemetry();
-        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), (int) hits.get(), dataStream);
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(0, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
+            AtomicBoolean nextRequested = new AtomicBoolean(true);
+            int successfullyStored = 0;
+            while (nextRequested.get()) {
+                nextRequested.set(false);
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, () -> nextRequested.set(true));
+                successfullyStored++;
+            }
+            assertBusy(() -> assertTrue(nextRequested.get()));
+            var metrics = collectTelemetry();
+            assertDataStreamMetric(metrics, FailureStoreMetrics.METRIC_TOTAL, DATA_STREAM_NAME, successfullyStored);
+            assertDataStreamMetric(metrics, FailureStoreMetrics.METRIC_FAILURE_STORE, DATA_STREAM_NAME, 0);
+            assertDataStreamMetric(metrics, FailureStoreMetrics.METRIC_REJECTED, DATA_STREAM_NAME, 0);
 
-        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
-        GetDataStreamAction.Response getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest)
-            .actionGet();
-        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getName(), equalTo(dataStream));
-        assertThat(getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().size(), equalTo(1));
-        String backingIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getIndices().get(0).getName();
-        assertThat(backingIndex, backingIndexEqualTo(dataStream, 1));
-
-        String node = findShard(resolveIndex(backingIndex), 0);
-        IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
-        long memoryLimit = primaryPressure.stats().getMemoryLimit();
-        long primaryRejections = primaryPressure.stats().getPrimaryRejections();
-        try (Releasable releasable = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
-            while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
-                while (nextRequested.get()) {
-                    nextRequested.set(false);
-                    refCounted.incRef();
-                    List<DocWriteRequest<?>> requests = new ArrayList<>();
-                    for (int i = 0; i < 20; ++i) {
-                        requests.add(indexRequest(dataStream));
+            // Introduce artificial pressure that will reject the following requests
+            String node = findNodeOfPrimaryShard(DATA_STREAM_NAME);
+            IndexingPressure primaryPressure = internalCluster().getInstance(IndexingPressure.class, node);
+            long memoryLimit = primaryPressure.stats().getMemoryLimit();
+            long primaryRejections = primaryPressure.stats().getPrimaryRejections();
+            try (Releasable ignored = primaryPressure.markPrimaryOperationStarted(10, memoryLimit, false)) {
+                while (primaryPressure.stats().getPrimaryRejections() == primaryRejections) {
+                    while (nextRequested.get()) {
+                        nextRequested.set(false);
+                        refCounted.incRef();
+                        List<DocWriteRequest<?>> requests = new ArrayList<>();
+                        for (int i = 0; i < 20; ++i) {
+                            requests.add(indexRequest(DATA_STREAM_NAME));
+                        }
+                        handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
                     }
-                    handler.addItems(requests, refCounted::decRef, () -> nextRequested.set(true));
+                    assertBusy(() -> assertTrue(nextRequested.get()));
                 }
-                assertBusy(() -> assertTrue(nextRequested.get()));
             }
-        }
 
-        while (nextRequested.get()) {
-            nextRequested.set(false);
-            refCounted.incRef();
-            handler.addItems(List.of(indexRequest(dataStream)), refCounted::decRef, () -> nextRequested.set(true));
-        }
-
-        assertBusy(() -> assertTrue(nextRequested.get()));
-
-        PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
-        handler.lastItems(List.of(indexRequest(dataStream)), refCounted::decRef, future);
-
-        BulkResponse bulkResponse = safeGet(future);
-
-        /* The datastream should have a failure store associated with it now */
-        getDataStreamRequest = new GetDataStreamAction.Request(TEST_REQUEST_TIMEOUT, new String[] { "*" });
-        getDataStreamResponse = client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest).actionGet();
-        Index failureStoreIndex = getDataStreamResponse.getDataStreams().get(0).getDataStream().getFailureStoreWriteIndex();
-        String failureStoreIndexName = failureStoreIndex.getName();
-        String failure_node = findShard(resolveIndex(failureStoreIndexName), 0);
-        boolean shardsOnDifferentNodes = node.equals(failure_node) == false;
-
-        for (int i = 0; i < hits.get(); ++i) {
-            assertFalse(bulkResponse.getItems()[i].isFailed());
-            assertTrue(bulkResponse.getItems()[i].getFailureStoreStatus().getLabel().equalsIgnoreCase("NOT_APPLICABLE_OR_UNKNOWN"));
-        }
-
-        int docsRedirectedToFs = 0;
-        int docsInFs = 0;
-        for (int i = (int) hits.get(); i < bulkResponse.getItems().length; ++i) {
-            BulkItemResponse item = bulkResponse.getItems()[i];
-            if (item.isFailed()) {
-                assertFalse(shardsOnDifferentNodes);
-                assertThat(item.getFailure().getCause().getCause(), instanceOf(EsRejectedExecutionException.class));
-                assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("FAILED"));
-                docsRedirectedToFs++;
-            } else {
-                assertTrue(shardsOnDifferentNodes);
-                assertTrue(item.getFailureStoreStatus().getLabel().equalsIgnoreCase("USED"));
-                docsInFs++;
+            while (nextRequested.get()) {
+                nextRequested.set(false);
+                refCounted.incRef();
+                handler.addItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, () -> nextRequested.set(true));
             }
+
+            assertBusy(() -> assertTrue(nextRequested.get()));
+
+            PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
+            handler.lastItems(List.of(indexRequest(DATA_STREAM_NAME)), refCounted::decRef, future);
+
+            BulkResponse bulkResponse = safeGet(future);
+
+            for (int i = 0; i < bulkResponse.getItems().length; ++i) {
+                // the first requests were successful
+                boolean hasFailed = i >= successfullyStored;
+                assertThat(bulkResponse.getItems()[i].isFailed(), is(hasFailed));
+                assertThat(bulkResponse.getItems()[i].getFailureStoreStatus(), is(IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN));
+            }
+
+            metrics = collectTelemetry();
+            assertDataStreamMetric(metrics, FailureStoreMetrics.METRIC_TOTAL, DATA_STREAM_NAME, bulkResponse.getItems().length);
+            assertDataStreamMetric(
+                metrics,
+                FailureStoreMetrics.METRIC_REJECTED,
+                DATA_STREAM_NAME,
+                bulkResponse.getItems().length - successfullyStored
+            );
+            assertDataStreamMetric(metrics, FailureStoreMetrics.METRIC_FAILURE_STORE, DATA_STREAM_NAME, 0);
         }
-        measurements = collectTelemetry();
-        assertMeasurements(measurements.get(FailureStoreMetrics.METRIC_TOTAL), bulkResponse.getItems().length, dataStream);
-        assertEquals(bulkResponse.getItems().length - hits.get(), measurements.get(FailureStoreMetrics.METRIC_FAILURE_STORE).size());
-        assertEquals(docsRedirectedToFs, measurements.get(FailureStoreMetrics.METRIC_REJECTED).size());
     }
 
-    private void createDataStream() {
-        final var createDataStreamRequest = new CreateDataStreamAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, dataStream);
-        assertAcked(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest).actionGet());
+    private void createDataStreamWithFailureStore() throws IOException {
+        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(
+            "template-incremental"
+        );
+        request.indexTemplate(
+            ComposableIndexTemplate.builder()
+                .indexPatterns(List.of(DATA_STREAM_NAME + "*"))
+                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
+                .template(new Template(null, new CompressedXContent("""
+                    {
+                      "dynamic": false,
+                      "properties": {
+                        "@timestamp": {
+                          "type": "date"
+                        },
+                        "count": {
+                            "type": "long"
+                        }
+                      }
+                    }"""), null))
+                .build()
+        );
+        assertAcked(safeGet(client().execute(TransportPutComposableIndexTemplateAction.TYPE, request)));
+
+        final var createDataStreamRequest = new CreateDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
+            DATA_STREAM_NAME
+        );
+        assertAcked(safeGet(client().execute(CreateDataStreamAction.INSTANCE, createDataStreamRequest)));
     }
 
     private static Map<String, List<Measurement>> collectTelemetry() {
@@ -203,71 +205,38 @@ public class FailureStoreMetricsWithIncrementalBulkIT extends ESIntegTestCase {
         return measurements;
     }
 
-    private void assertMeasurements(List<Measurement> measurements, int expectedSize, String expectedDataStream) {
-        assertMeasurements(measurements, expectedSize, expectedDataStream, (Consumer<Measurement>) null);
+    private void assertDataStreamMetric(Map<String, List<Measurement>> metrics, String metric, String dataStreamName, int expectedValue) {
+        List<Measurement> measurements = metrics.get(metric);
+        assertThat(measurements, notNullValue());
+        long totalValue = measurements.stream()
+            .filter(m -> m.attributes().get("data_stream").equals(dataStreamName))
+            .mapToLong(Measurement::getLong)
+            .sum();
+        assertThat(totalValue, equalTo((long) expectedValue));
     }
 
-    private void assertMeasurements(
-        List<Measurement> measurements,
-        int expectedSize,
-        String expectedDataStream,
-        FailureStoreMetrics.ErrorLocation location
-    ) {
-        assertMeasurements(
-            measurements,
-            expectedSize,
-            expectedDataStream,
-            measurement -> assertEquals(location.name(), measurement.attributes().get("error_location"))
-        );
-    }
-
-    private void assertMeasurements(
-        List<Measurement> measurements,
-        int expectedSize,
-        String expectedDataStream,
-        Consumer<Measurement> customAssertion
-    ) {
-        assertEquals(expectedSize, measurements.size());
-        for (Measurement measurement : measurements) {
-            assertEquals(expectedDataStream, measurement.attributes().get("data_stream"));
-            if (customAssertion != null) {
-                customAssertion.accept(measurement);
-            }
-        }
-    }
-
-    private static IndexRequest indexRequest(String dataStream) {
+    private static IndexRequest indexRequest(String dataStreamName) {
         String time = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.formatMillis(System.currentTimeMillis());
         String value = "1";
-        IndexRequest indexRequest = new IndexRequest(dataStream).opType(DocWriteRequest.OpType.CREATE)
+        return new IndexRequest(dataStreamName).opType(DocWriteRequest.OpType.CREATE)
             .source(Strings.format("{\"%s\":\"%s\", \"count\": %s}", DEFAULT_TIMESTAMP_FIELD, time, value), XContentType.JSON);
-        return indexRequest;
     }
 
-    private void putComposableIndexTemplate(boolean failureStore) throws IOException {
-        TransportPutComposableIndexTemplateAction.Request request = new TransportPutComposableIndexTemplateAction.Request(template);
-        request.indexTemplate(
-            ComposableIndexTemplate.builder()
-                .indexPatterns(List.of(dataStream + "*"))
-                .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, failureStore))
-                .template(new Template(null, new CompressedXContent("""
-                    {
-                      "dynamic": false,
-                      "properties": {
-                        "@timestamp": {
-                          "type": "date"
-                        },
-                        "count": {
-                            "type": "long"
-                        }
-                      }
-                    }"""), null))
-                .build()
+    protected static String findNodeOfPrimaryShard(String dataStreamName) {
+        GetDataStreamAction.Request getDataStreamRequest = new GetDataStreamAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            new String[] { dataStreamName }
         );
-        client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet();
-    }
+        GetDataStreamAction.Response getDataStreamResponse = safeGet(client().execute(GetDataStreamAction.INSTANCE, getDataStreamRequest));
+        assertThat(getDataStreamResponse.getDataStreams().size(), equalTo(1));
+        DataStream dataStream = getDataStreamResponse.getDataStreams().getFirst().getDataStream();
+        assertThat(dataStream.getName(), equalTo(DATA_STREAM_NAME));
+        assertThat(dataStream.getIndices().size(), equalTo(1));
+        String backingIndex = dataStream.getIndices().getFirst().getName();
+        assertThat(backingIndex, backingIndexEqualTo(DATA_STREAM_NAME, 1));
 
-    protected static String findShard(Index index, int shardId) {
+        Index index = resolveIndex(backingIndex);
+        int shardId = 0;
         for (String node : internalCluster().getNodeNames()) {
             var indicesService = internalCluster().getInstance(IndicesService.class, node);
             IndexService indexService = indicesService.indexService(index);

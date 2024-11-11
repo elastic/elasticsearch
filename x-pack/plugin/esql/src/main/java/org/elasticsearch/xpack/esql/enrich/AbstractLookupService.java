@@ -460,6 +460,9 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
     abstract static class TransportRequest extends org.elasticsearch.transport.TransportRequest implements IndicesRequest {
         final String sessionId;
         final ShardId shardId;
+        /**
+         * For mixed clusters with nodes <8.14, this will be null.
+         */
         @Nullable
         final DataType inputDataType;
         final Page inputPage;

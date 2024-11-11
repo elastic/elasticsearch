@@ -209,6 +209,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 true
             )
         );
+
         suppliers.addAll(TestCaseSupplier.dateCases().stream().<TestCaseSupplier>mapMulti((tds, consumer) -> {
             consumer.accept(
                 new TestCaseSupplier(

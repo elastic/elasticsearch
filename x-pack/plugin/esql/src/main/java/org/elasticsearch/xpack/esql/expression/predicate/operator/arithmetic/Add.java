@@ -22,7 +22,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.xpack.esql.core.util.DateUtils.asDateTime;
@@ -135,7 +137,13 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
 
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
-        return DateUtils.toLong(DateUtils.toInstant(dateNanos).plus(temporalAmount));
+        // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
+        return DateUtils.toLong(
+            Instant.from(
+                ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
+                    .plus(temporalAmount)
+            )
+        );
     }
 
     @Override

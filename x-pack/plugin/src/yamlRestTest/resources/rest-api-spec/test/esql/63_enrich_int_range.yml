@@ -170,8 +170,6 @@ teardown:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
-        - "Line 1:29: evaluation of [ak::integer] failed, treating result as null. Only first 20 failures recorded."
-        - "Line 1:29: org.elasticsearch.xpack.esql.core.InvalidArgumentException: Cannot parse number [immortal]"
       esql.query:
         body:
           query: 'FROM employees | ENRICH ages-policy ON name | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

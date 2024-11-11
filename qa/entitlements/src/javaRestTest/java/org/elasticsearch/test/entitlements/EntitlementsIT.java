@@ -23,16 +23,17 @@ import static org.hamcrest.Matchers.containsString;
 @ESTestCase.WithoutSecurityManager
 public class EntitlementsIT extends ESRestTestCase {
 
+    private static final String ENTITLEMENT_BRIDGE_JAR_NAME = System.getProperty("tests.entitlement-bridge.jar-name");
+
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.INTEG_TEST)
         .plugin("entitlement-qa")
         .systemProperty("es.entitlements.enabled", "true")
         .setting("xpack.security.enabled", "false")
-        .jvmArg("-Dentitlement.test=true")
         .jvmArg("-Djdk.attach.allowAttachSelf=true")
         .jvmArg("-XX:+EnableDynamicAgentLoading")
-        .jvmArg("--patch-module=java.base=lib/entitlement-bridge/elasticsearch-entitlement-bridge-9.0.0-SNAPSHOT.jar")
+        .jvmArg("--patch-module=java.base=lib/entitlement-bridge/" + ENTITLEMENT_BRIDGE_JAR_NAME)
         .jvmArg("--add-exports=java.base/org.elasticsearch.entitlement.bridge=org.elasticsearch.entitlement")
         .build();
 
@@ -42,7 +43,9 @@ public class EntitlementsIT extends ESRestTestCase {
     }
 
     public void testCheckSystemExit() {
-        var exception = expectThrows(IOException.class, () -> { client().performRequest(new Request("GET", "/_check_system_exit")); });
+        var exception = expectThrows(IOException.class, () -> {
+            client().performRequest(new Request("GET", "/_entitlement/_check_system_exit"));
+        });
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 }

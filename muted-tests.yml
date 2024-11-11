@@ -249,9 +249,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115664
 - class: org.elasticsearch.indices.mapping.UpdateMappingIntegrationIT
   issue: https://github.com/elastic/elasticsearch/issues/116126
-- class: org.elasticsearch.smoketest.SmokeTestMultiNodeClientYamlTestSuiteIT
-  method: test {yaml=logsdb/10_settings/logsdb with default ignore dynamic beyond limit and non-default sorting}
-  issue: https://github.com/elastic/elasticsearch/issues/116095
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111319
 - class: org.elasticsearch.upgrades.FullClusterRestartIT

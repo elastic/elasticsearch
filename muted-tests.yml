@@ -322,6 +322,12 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields alias}
+  issue: https://github.com/elastic/elasticsearch/issues/116592
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields}
+  issue: https://github.com/elastic/elasticsearch/issues/116593
 
 # Examples:
 #

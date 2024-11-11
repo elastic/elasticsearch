@@ -278,6 +278,9 @@ tests:
 - class: org.elasticsearch.upgrades.SearchStatesIT
   method: testCanMatch
   issue: https://github.com/elastic/elasticsearch/issues/116618
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test20NoAutoGenerationWhenAutoConfigurationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/116619
 
 # Examples:
 #

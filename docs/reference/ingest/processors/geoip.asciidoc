@@ -13,7 +13,7 @@ ASN IP geolocation databases from http://dev.maxmind.com/geoip/geoip2/geolite2/[
 CC BY-SA 4.0 license. It automatically downloads these databases if your nodes can connect to `storage.googleapis.com` domain and either:
 
 * `ingest.geoip.downloader.eager.download` is set to true
-* your cluster has at least one pipeline with a `geoip` processor
+* your cluster has at least one pipeline with a `geoip` or `ip_location` processor
 
 {es} automatically downloads updates for these databases from the Elastic GeoIP
 endpoint:
@@ -429,7 +429,7 @@ The `geoip` processor supports the following setting:
 
     The maximum number of results that should be cached. Defaults to `1000`.
 
-Note that these settings are node settings and apply to all `geoip` processors, i.e. there is one cache for all defined `geoip` processors.
+Note that these settings are node settings and apply to all `geoip` and `ip_location` processors, i.e. there is a single cache for all such processors.
 
 [[geoip-cluster-settings]]
 ===== Cluster settings

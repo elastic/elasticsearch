@@ -132,19 +132,17 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         );
     }
 
-    public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger, boolean incrementVersion)
-        throws Exception {
-        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
-
+    public static void writeJsonFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
+        String jsonWithVersion = Strings.format(json, version);
         logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
-        logger.info(Strings.format(json, version));
+        logger.info(jsonWithVersion);
 
-        Files.writeString(tempFilePath, Strings.format(json, version));
+        Files.writeString(tempFilePath, jsonWithVersion);
         int retryCount = 0;
         do {
             try {
@@ -165,15 +163,6 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
     private static long retryDelay(int retryCount) {
         return 100 * (1 << retryCount) + Randomness.get().nextInt(10);
-    }
-
-    public static void writeJSONFile(String node, String json, AtomicLong versionCounter, Logger logger) throws Exception {
-        writeJSONFile(node, json, versionCounter, logger, true);
-    }
-
-    public static void writeJSONFileWithoutVersionIncrement(String node, String json, AtomicLong versionCounter, Logger logger)
-        throws Exception {
-        writeJSONFile(node, json, versionCounter, logger, false);
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupCleanupClusterStateListener(String node) {
@@ -267,7 +256,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        writeJSONFile(masterNode, testJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
     }
 
@@ -282,7 +271,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         // In internal cluster tests, the nodes share the config directory, so when we write with the data node path
         // the master will pick it up on start
-        writeJSONFile(dataNode, testJSON, versionCounter, logger);
+        writeJsonFile(dataNode, testJSON, logger, versionCounter.incrementAndGet());
 
         logger.info("--> start master node");
         final String masterNode = internalCluster().startMasterOnlyNode();
@@ -310,7 +299,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(masterFileSettingsService.watching()));
 
         logger.info("--> write some settings");
-        writeJSONFile(masterNode, testJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
 
         logger.info("--> restart master");
@@ -388,7 +377,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
     }
 
@@ -412,14 +401,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
         // write valid json without version increment to simulate ES being able to process settings after a restart (usually, this would be
         // due to a code change)
-        writeJSONFileWithoutVersionIncrement(masterNode, testJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testJSON, logger, versionCounter.get());
         internalCluster().restartNode(masterNode);
         ensureGreen();
 
@@ -448,14 +437,14 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         assertTrue(masterFileSettingsService.watching());
         assertFalse(dataFileSettingsService.watching());
 
-        writeJSONFile(masterNode, testErrorJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
         AtomicLong metadataVersion = savedClusterState.v2();
         assertClusterStateNotSaved(savedClusterState.v1(), metadataVersion);
         assertHasErrors(metadataVersion, "not_cluster_settings");
 
         // write json with new error without version increment to simulate ES failing to process settings after a restart for a new reason
         // (usually, this would be due to a code change)
-        writeJSONFileWithoutVersionIncrement(masterNode, testOtherErrorJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testOtherErrorJSON, logger, versionCounter.get());
         assertHasErrors(metadataVersion, "not_cluster_settings");
         internalCluster().restartNode(masterNode);
         ensureGreen();
@@ -483,7 +472,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         assertTrue(masterFileSettingsService.watching());
 
-        writeJSONFile(masterNode, testJSON, versionCounter, logger);
+        writeJsonFile(masterNode, testJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "50mb");
 
         internalCluster().stopCurrentMasterNode();
@@ -498,13 +487,15 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         savedClusterState = setupCleanupClusterStateListener(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), testCleanupJSON, versionCounter, logger);
+        String node1 = internalCluster().getMasterName();
+        writeJsonFile(node1, testCleanupJSON, logger, versionCounter.incrementAndGet());
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), testJSON43mb, versionCounter, logger);
+        String node = internalCluster().getMasterName();
+        writeJsonFile(node, testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }

@@ -73,7 +73,7 @@ public class SnapshotsAndFileSettingsIT extends AbstractSnapshotIntegTestCase {
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
-        FileSettingsServiceIT.writeJSONFile(node, json, versionCounter, logger);
+        FileSettingsServiceIT.writeJsonFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {

@@ -1225,21 +1225,20 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     }
                 }
 
-                    // move shard on each iteration
-                    for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
-                        allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
-                    }
-                    for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
-                        allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
-                    }
+                // move shard on each iteration
+                for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
+                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
                 }
-
-                @Override
-                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                    throw new AssertionError("only used for allocation explain");
+                for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
+                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
                 }
             }
-        );
+
+            @Override
+            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                throw new AssertionError("only used for allocation explain");
+            }
+        });
 
         assertThatLogger(() -> {
             var iteration = new AtomicInteger(0);
@@ -1347,7 +1346,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), () -> 0L, allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

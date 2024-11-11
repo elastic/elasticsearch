@@ -586,6 +586,21 @@ public class Security extends Plugin
         License.OperationMode.ENTERPRISE
     );
 
+    public static final boolean QUERYABLE_BUILT_IN_ROLES_ENABLED;
+
+    static {
+        final var propertyValue = System.getProperty("es.queryable_built_in_roles_enabled");
+        if (propertyValue == null) {
+            QUERYABLE_BUILT_IN_ROLES_ENABLED = true;
+        } else if ("false".equals(propertyValue)) {
+            QUERYABLE_BUILT_IN_ROLES_ENABLED = false;
+        } else {
+            throw new IllegalStateException(
+                "system property [es.queryable_built_in_roles_enabled] may only be set to [false], but was [" + propertyValue + "]"
+            );
+        }
+    }
+
     private static final Logger logger = LogManager.getLogger(Security.class);
 
     private Settings settings;
@@ -1174,17 +1189,20 @@ public class Security extends Plugin
         DestructiveOperations destructiveOperations = new DestructiveOperations(settings, clusterService.getClusterSettings());
         crossClusterAccessAuthcService.set(new CrossClusterAccessAuthenticationService(clusterService, apiKeyService, authcService.get()));
         components.add(crossClusterAccessAuthcService.get());
-        QueryableRolesProvider queryableRolesProvider = new QueryableReservedRolesProvider(reservedRolesStore); // TODO: Make this
-                                                                                                                // injectable
-        QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
-            clusterService,
-            featureService,
-            queryableRolesProvider,
-            nativeRolesStore,
-            systemIndices.getMainIndexManager(),
-            threadPool
-        );
-        components.add(queryableRolesSynchronizationExecutor);
+
+        if (QUERYABLE_BUILT_IN_ROLES_ENABLED) {
+            QueryableRolesProvider queryableRolesProvider = new QueryableReservedRolesProvider(reservedRolesStore); // TODO: Make this
+            // injectable
+            QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
+                clusterService,
+                featureService,
+                queryableRolesProvider,
+                nativeRolesStore,
+                systemIndices.getMainIndexManager(),
+                threadPool
+            );
+            components.add(queryableRolesSynchronizationExecutor);
+        }
         securityInterceptor.set(
             new SecurityServerTransportInterceptor(
                 settings,

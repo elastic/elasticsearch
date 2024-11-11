@@ -32,8 +32,10 @@ import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService.CreateDataStreamClusterStateUpdateRequest;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.allocator.AllocationActionMultiListener;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -42,6 +44,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.indices.SystemDataStreamDescriptor;
@@ -79,6 +82,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         private final MetadataCreateIndexService createIndexService;
         private final MetadataCreateDataStreamService metadataCreateDataStreamService;
         private final AutoCreateIndex autoCreateIndex;
+        private final ProjectResolver projectResolver;
         private final SystemIndices systemIndices;
 
         private final MasterServiceTaskQueue<CreateIndexTask> taskQueue;
@@ -94,7 +98,8 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             MetadataCreateDataStreamService metadataCreateDataStreamService,
             AutoCreateIndex autoCreateIndex,
             SystemIndices systemIndices,
-            AllocationService allocationService
+            AllocationService allocationService,
+            ProjectResolver projectResolver
         ) {
             super(
                 NAME,
@@ -111,6 +116,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
             this.createIndexService = createIndexService;
             this.metadataCreateDataStreamService = metadataCreateDataStreamService;
             this.autoCreateIndex = autoCreateIndex;
+            this.projectResolver = projectResolver;
             this.taskQueue = clusterService.createTaskQueue("auto-create", Priority.URGENT, batchExecutionContext -> {
                 final var listener = new AllocationActionMultiListener<CreateIndexResponse>(threadPool.getThreadContext());
                 final var taskContexts = batchExecutionContext.taskContexts();
@@ -145,7 +151,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
         ) {
             taskQueue.submitTask(
                 "auto create [" + request.index() + "]",
-                new CreateIndexTask(request, listener),
+                new CreateIndexTask(request, projectResolver.getProjectId(), listener),
                 request.masterNodeTimeout()
             );
         }
@@ -157,10 +163,12 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
         private final class CreateIndexTask implements ClusterStateTaskListener {
             private final CreateIndexRequest request;
+            private final ProjectId projectId;
             private final ActionListener<CreateIndexResponse> listener;
 
-            private CreateIndexTask(CreateIndexRequest request, ActionListener<CreateIndexResponse> listener) {
+            private CreateIndexTask(CreateIndexRequest request, ProjectId projectId, ActionListener<CreateIndexResponse> listener) {
                 this.request = request;
+                this.projectId = projectId;
                 this.listener = listener;
             }
 
@@ -239,7 +247,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 );
                 final boolean isSystemDataStream = dataStreamDescriptor != null;
                 final boolean isSystemIndex = isSystemDataStream == false && systemIndices.isSystemIndex(request.index());
-                final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata().getProject());
+                final ComposableIndexTemplate template = resolveTemplate(request, currentState.metadata().getProject(projectId));
                 final boolean isDataStream = isSystemIndex == false
                     && (isSystemDataStream || (template != null && template.getDataStreamTemplate() != null));
 
@@ -252,6 +260,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         );
                     }
 
+                    @FixForMultiProject(description = "create data stream needs to be aware of project")
                     CreateDataStreamClusterStateUpdateRequest createRequest = new CreateDataStreamClusterStateUpdateRequest(
                         request.index(),
                         dataStreamDescriptor,
@@ -268,7 +277,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         request.isInitializeFailureStore()
                     );
 
-                    final var dataStream = clusterState.metadata().getProject().dataStreams().get(request.index());
+                    final var dataStream = clusterState.metadata().getProject(projectId).dataStreams().get(request.index());
                     final var backingIndexName = dataStream.getIndices().get(0).getName();
                     final var indexNames = dataStream.getFailureIndices().getIndices().isEmpty()
                         ? List.of(backingIndexName)
@@ -291,7 +300,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                         }
                     } else {
                         // This will throw an exception if the index does not exist and creating it is prohibited
-                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(indexName, currentState);
+                        final boolean shouldAutoCreate = autoCreateIndex.shouldAutoCreate(
+                            indexName,
+                            currentState.metadata().getProject(projectId)
+                        );
 
                         if (shouldAutoCreate == false) {
                             // The index already exists.
@@ -319,9 +331,9 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             throw new IllegalStateException(message);
                         }
 
-                        updateRequest = buildSystemIndexUpdateRequest(indexName, descriptor);
+                        updateRequest = buildSystemIndexUpdateRequest(projectId, indexName, descriptor);
                     } else if (isSystemIndex) {
-                        updateRequest = buildUpdateRequest(indexName);
+                        updateRequest = buildUpdateRequest(projectId, indexName);
 
                         if (Objects.isNull(request.settings())) {
                             updateRequest.settings(SystemIndexDescriptor.DEFAULT_SETTINGS);
@@ -333,7 +345,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                             throw new IllegalStateException(message);
                         }
                     } else {
-                        updateRequest = buildUpdateRequest(indexName);
+                        updateRequest = buildUpdateRequest(projectId, indexName);
                     }
 
                     assert updateRequest.performReroute() == false
@@ -350,9 +362,10 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 }
             }
 
-            private CreateIndexClusterStateUpdateRequest buildUpdateRequest(String indexName) {
+            private CreateIndexClusterStateUpdateRequest buildUpdateRequest(ProjectId projectId, String indexName) {
                 CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
                     request.cause(),
+                    projectId,
                     indexName,
                     request.index()
                 ).performReroute(false);
@@ -360,7 +373,11 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                 return updateRequest;
             }
 
-            private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(String indexName, SystemIndexDescriptor descriptor) {
+            private CreateIndexClusterStateUpdateRequest buildSystemIndexUpdateRequest(
+                ProjectId projectId,
+                String indexName,
+                SystemIndexDescriptor descriptor
+            ) {
                 String mappings = descriptor.getMappings();
                 Settings settings = descriptor.getSettings();
                 String aliasName = descriptor.getAliasName();
@@ -370,6 +387,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
 
                 CreateIndexClusterStateUpdateRequest updateRequest = new CreateIndexClusterStateUpdateRequest(
                     request.cause(),
+                    projectId,
                     concreteIndexName,
                     request.index()
                 ).performReroute(false);

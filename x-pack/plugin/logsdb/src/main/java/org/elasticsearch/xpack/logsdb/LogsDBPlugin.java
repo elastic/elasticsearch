@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Function;
 
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 
@@ -29,9 +30,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
 
     private final Settings settings;
     private final SyntheticSourceLicenseService licenseService;
+    private static final String CLUSTER_LOGSDB_SERVERLESS_ENABLED = "cluster.logsdb.serverless.enabled";
     public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
         "cluster.logsdb.enabled",
-        false,
+        settings -> String.valueOf(settings.getAsBoolean(CLUSTER_LOGSDB_SERVERLESS_ENABLED, false)),
         Setting.Property.Dynamic,
         Setting.Property.NodeScope
     );

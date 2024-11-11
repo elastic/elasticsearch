@@ -1,10 +1,10 @@
 [[get-ip-location-database-api]]
-=== Get geoip database configuration API
+=== Get IP geolocation database configuration API
 ++++
-<titleabbrev>Get geoip database configuration</titleabbrev>
+<titleabbrev>Get IP geolocation database configuration</titleabbrev>
 ++++
 
-Returns information about one or more geoip database configurations.
+Returns information about one or more IP geolocation database configurations.
 
 [source,console]
 ----
@@ -49,7 +49,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[get-ip-location-database-api-specific-ex]]
-===== Get information for a specific geoip database configuration
+===== Get information for a specific IP geolocation database configuration
 
 [source,console]
 ----

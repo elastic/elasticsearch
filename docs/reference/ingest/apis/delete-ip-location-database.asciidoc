@@ -1,10 +1,10 @@
 [[delete-ip-location-database-api]]
-=== Delete geoip database configuration API
+=== Delete IP geolocation database configuration API
 ++++
-<titleabbrev>Delete geoip database configuration</titleabbrev>
+<titleabbrev>Delete IP geolocation database configuration</titleabbrev>
 ++++
 
-Deletes a geoip database configuration.
+Deletes a IP geolocation database configuration.
 
 [source,console]
 ----
@@ -46,7 +46,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
 [[delete-ip-location-database-api-specific-ex]]
-===== Delete a specific geoip database configuration
+===== Delete a specific IP geolocation database configuration
 
 [source,console]
 ----

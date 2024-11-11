@@ -1,7 +1,7 @@
 [[put-ip-location-database-api]]
-=== Create or update geoip database configuration API
+=== Create or update IP geolocation database configuration API
 ++++
-<titleabbrev>Create or update geoip database configuration</titleabbrev>
+<titleabbrev>Create or update IP geolocation database configuration</titleabbrev>
 ++++
 
 Creates or updates an IP geolocation database configuration.

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.embeddings;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -255,6 +256,10 @@ public class GoogleVertexAiEmbeddingsTaskSettingsTests extends AbstractBWCWireSe
         GoogleVertexAiEmbeddingsTaskSettings instance,
         TransportVersion version
     ) {
+        if (version.before(TransportVersions.VERTEX_AI_INPUT_TYPE_ADDED)) {
+            // default to null input type if node is on a version before input type was introduced
+            return new GoogleVertexAiEmbeddingsTaskSettings(instance.autoTruncate(), null);
+        }
         return instance;
     }
 

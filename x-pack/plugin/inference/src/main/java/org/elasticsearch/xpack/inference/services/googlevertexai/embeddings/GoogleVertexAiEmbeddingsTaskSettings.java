@@ -105,7 +105,14 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     }
 
     public GoogleVertexAiEmbeddingsTaskSettings(StreamInput in) throws IOException {
-        this(in.readOptionalBoolean(), in.readOptionalEnum(InputType.class));
+        this.autoTruncate = in.readOptionalBoolean();
+
+        var inputType = (in.getTransportVersion().onOrAfter(TransportVersions.VERTEX_AI_INPUT_TYPE_ADDED))
+            ? in.readOptionalEnum(InputType.class)
+            : null;
+
+        validateInputType(inputType);
+        this.inputType = inputType;
     }
 
     private static void validateInputType(InputType inputType) {
@@ -142,7 +149,10 @@ public class GoogleVertexAiEmbeddingsTaskSettings implements TaskSettings {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(this.autoTruncate);
-        out.writeOptionalEnum(this.inputType);
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.VERTEX_AI_INPUT_TYPE_ADDED)) {
+            out.writeOptionalEnum(this.inputType);
+        }
     }
 
     @Override

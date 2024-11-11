@@ -1,4 +1,4 @@
-[[delete-geoip-database-api]]
+[[delete-ip-location-database-api]]
 === Delete geoip database configuration  API
 ++++
 <titleabbrev>Delete geoip database configuration</titleabbrev>
@@ -13,18 +13,18 @@ DELETE /_ingest/geoip/database/my-database-id
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
 
-[[delete-geoip-database-api-request]]
+[[delete-ip-location-database-api-request]]
 ==== {api-request-title}
 
 `DELETE /_ingest/geoip/database/<database>`
 
-[[delete-geoip-database-api-prereqs]]
+[[delete-ip-location-database-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
-[[delete-geoip-database-api-path-params]]
+[[delete-ip-location-database-api-path-params]]
 ==== {api-path-parms-title}
 
 `<database>`::
@@ -35,17 +35,17 @@ DELETE /_ingest/geoip/database/my-database-id
 --
 
 
-[[delete-geoip-database-api-query-params]]
+[[delete-ip-location-database-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 
-[[delete-geoip-database-api-example]]
+[[delete-ip-location-database-api-example]]
 ==== {api-examples-title}
 
 
-[[delete-geoip-database-api-specific-ex]]
+[[delete-ip-location-database-api-specific-ex]]
 ===== Delete a specific geoip database configuration
 
 [source,console]

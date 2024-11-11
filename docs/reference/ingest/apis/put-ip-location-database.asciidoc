@@ -1,4 +1,4 @@
-[[put-geoip-database-api]]
+[[put-ip-location-database-api]]
 === Create or update geoip database configuration API
 ++++
 <titleabbrev>Create or update geoip database configuration</titleabbrev>
@@ -23,19 +23,19 @@ PUT _ingest/geoip/database/my-database-id
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
-[[put-geoip-database-api-request]]
+[[put-ip-location-database-api-request]]
 ==== {api-request-title}
 
 `PUT /_ingest/geoip/database/<database>`
 
-[[put-geoip-database-api-prereqs]]
+[[put-ip-location-database-api-prereqs]]
 ==== {api-prereq-title}
 
 * If the {es} {security-features} are enabled, you must have the
 `manage` <<privileges-list-cluster,cluster privilege>> to use this API.
 
 
-[[put-geoip-database-api-path-params]]
+[[put-ip-location-database-api-path-params]]
 ==== {api-path-parms-title}
 
 `<database>`::
@@ -43,15 +43,15 @@ PUT _ingest/geoip/database/my-database-id
 __
 (Required, string) ID of the database configuration to create or update.
 
-[[put-geoip-database-api-query-params]]
+[[put-ip-location-database-api-query-params]]
 ==== {api-query-parms-title}
 
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
-[[put-geoip-database-api-request-body]]
+[[put-ip-location-database-api-request-body]]
 ==== {api-request-body-title}
 
-// tag::geoip-database-object[]
+// tag::ip-location-database-object[]
 `name`::
 (Required, string)
 The provider-assigned name of the IP geolocation database to download.
@@ -63,9 +63,9 @@ the database, as well as any provider-specific configuration necessary for such 
 +
 At present, the only supported provider is `maxmind`, and the maxmind provider
 requires that an `account_id` (string) is configured.
-// end::geoip-database-object[]
+// end::ip-location-database-object[]
 
-[[geoip-database-configuration-licensing]]
+[[ip-location-database-configuration-licensing]]
 ==== Licensing
 
 Downloading databases from third party providers is a commercial feature that requires an

@@ -213,7 +213,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
             ,"remote_cluster":[
                     {
                        "privileges":[
-                          "monitor_enrich"
+                          "monitor_enrich", "monitor_stats"
                        ],
                        "clusters":[
                           "remote-1"
@@ -221,7 +221,7 @@ public class RestGetUserPrivilegesActionTests extends ESTestCase {
                     },
                     {
                        "privileges":[
-                          "monitor_enrich"
+                          "monitor_enrich", "monitor_stats"
                        ],
                        "clusters":[
                           "remote-2",

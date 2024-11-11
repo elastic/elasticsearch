@@ -354,7 +354,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         } else {
             resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
                 original,
-                clusterState,
+                projectState.metadata(),
                 indexNameExpressionResolver,
                 remoteClusterService,
                 timeProvider.absoluteStartMillis()

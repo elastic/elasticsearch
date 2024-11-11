@@ -14,7 +14,6 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.security.support.SecurityMigrations;
@@ -29,7 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
 import java.util.function.Supplier;
@@ -46,17 +44,14 @@ import static org.hamcrest.Matchers.emptyIterable;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.iterableWithSize;
-import static org.hamcrest.Matchers.notNullValue;
 
 public final class QueryRoleIT extends SecurityInBasicRestTestCase {
 
     private static final String READ_SECURITY_USER_AUTH_HEADER = "Basic cmVhZF9zZWN1cml0eV91c2VyOnJlYWQtc2VjdXJpdHktcGFzc3dvcmQ=";
 
     public void testSimpleQueryAllRoles() throws Exception {
-        // when .security index does not exist, it should be created automatically with the reserved roles indexed
-        waitForSecurityIndex();
-        assertQuery("", 32, roles -> assertThat(roles, iterableWithSize(10)));
         createRandomRole();
+
         // 32 built-in reserved roles
         assertQuery("", 1 + 32, roles -> {
             // default size is 10
@@ -64,20 +59,6 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
         });
         assertQuery("""
             {"query":{"match_all":{}},"from":33}""", 1 + 32, roles -> assertThat(roles, emptyIterable()));
-    }
-
-    private static void waitForSecurityIndex() throws Exception {
-        assertBusy(() -> {
-            try {
-                final Request request = new Request("GET", "_cluster/state/metadata/.security");
-                Map<String, String> roles = ObjectPath.createFromResponse(adminClient().performRequest(request))
-                    // TODO: do not depend on concrete security index name -> resolve it from .security alias
-                    .evaluate("metadata.indices.\\.security-7.queryable_built_in_roles");
-                assertThat(roles, is(notNullValue()));
-            } catch (ResponseException e) {
-                fail("Failed to retrieve .security index metadata");
-            }
-        }, 90, TimeUnit.SECONDS);
     }
 
     public void testDisallowedFields() throws Exception {

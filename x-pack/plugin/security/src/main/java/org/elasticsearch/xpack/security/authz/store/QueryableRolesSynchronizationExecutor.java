@@ -58,7 +58,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private static final Logger logger = LogManager.getLogger(QueryableRolesSynchronizationExecutor.class);
 
     public static final NodeFeature QUERYABLE_BUILT_IN_ROLES_FEATURE = new NodeFeature("security.queryable_built_in_roles");
-    public static final String METADATA_QUERYABLE_BUILT_IN_ROLES = "queryable_built_in_roles";
+    public static final String METADATA_QUERYABLE_BUILT_IN_ROLES_VERSION = "queryable_built_in_roles_version";
 
     private static final SimpleBatchedExecutor<MarkBuiltinRolesAsSyncedTask, Map<String, String>> MARK_ROLES_AS_SYNCED_TASK_EXECUTOR =
         new SimpleBatchedExecutor<>() {
@@ -160,24 +160,14 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         return false;
     }
 
-    private static boolean isSecurityIndexDeleted(ClusterChangedEvent event) {
-        Index previousIndexState = resolveConcreteSecurityIndex(event.previousState().metadata());
-        Index currentIndexState = resolveConcreteSecurityIndex(event.state().metadata());
-        return previousIndexState != null && currentIndexState == null;
-    }
-
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
         if (false == shouldSyncBuiltInRoles(state)) {
             return;
         }
-        if (isSecurityIndexDeleted(event)) {
-            logger.info("Security index has been deleted, skipping built-in roles synchronization");
-            return;
-        }
         final QueryableRoles roles = builtinRolesProvider.roles();
-        final Map<String, String> currentRolesVersions = readIndexedRolesVersion(state);
+        final Map<String, String> currentRolesVersions = readBuiltInRolesVersion(state);
         if (roles.roleVersions().equals(currentRolesVersions)) {
             logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
             return;
@@ -292,12 +282,12 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         );
     }
 
-    private Map<String, String> readIndexedRolesVersion(ClusterState state) {
+    private Map<String, String> readBuiltInRolesVersion(ClusterState state) {
         final IndexMetadata indexMetadata = resolveSecurityIndexMetadata(state.metadata());
         if (indexMetadata == null) {
             return null;
         }
-        return indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
+        return indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_VERSION);
     }
 
     private static IndexMetadata resolveSecurityIndexMetadata(final Metadata metadata) {
@@ -346,13 +336,13 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             if (indexMetadata == null) {
                 throw new IndexNotFoundException(index);
             }
-            Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES);
+            Map<String, String> existingValue = indexMetadata.getCustomData(METADATA_QUERYABLE_BUILT_IN_ROLES_VERSION);
             if (Objects.equals(expected, existingValue)) {
                 IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexMetadata);
                 if (value != null) {
-                    indexMetadataBuilder.putCustom(METADATA_QUERYABLE_BUILT_IN_ROLES, value);
+                    indexMetadataBuilder.putCustom(METADATA_QUERYABLE_BUILT_IN_ROLES_VERSION, value);
                 } else {
-                    indexMetadataBuilder.removeCustom(METADATA_QUERYABLE_BUILT_IN_ROLES);
+                    indexMetadataBuilder.removeCustom(METADATA_QUERYABLE_BUILT_IN_ROLES_VERSION);
                 }
                 indexMetadataBuilder.version(indexMetadataBuilder.version() + 1);
                 ImmutableOpenMap.Builder<String, IndexMetadata> builder = ImmutableOpenMap.builder(state.metadata().indices());

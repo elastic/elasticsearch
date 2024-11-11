@@ -192,7 +192,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 result,
                 DataType.DATE_NANOS,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.datePeriodCases(),
+                TestCaseSupplier.datePeriodCases(0, 0, 0, 10, 13, 32),
                 startsWith("AddDateNanosEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 warnings,
                 true
@@ -203,7 +203,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
                 result,
                 DataType.DATE_NANOS,
                 TestCaseSupplier.dateNanosCases(),
-                TestCaseSupplier.timeDurationCases(),
+                TestCaseSupplier.timeDurationCases(0, 604800000L),
                 startsWith("AddDateNanosEvaluator[datetime=Attribute[channel=0], temporalAmount="),
                 warnings,
                 true
@@ -307,7 +307,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
 
     private static String addErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         try {
-            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "datetime or numeric");
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "date_nanos, datetime or numeric");
         } catch (IllegalStateException e) {
             // This means all the positional args were okay, so the expected error is from the combination
             return "[+] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";

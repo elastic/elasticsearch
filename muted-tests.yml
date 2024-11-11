@@ -325,6 +325,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.threadpool.SimpleThreadPoolIT
+  method: testThreadPoolMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/108320
 
 # Examples:
 #

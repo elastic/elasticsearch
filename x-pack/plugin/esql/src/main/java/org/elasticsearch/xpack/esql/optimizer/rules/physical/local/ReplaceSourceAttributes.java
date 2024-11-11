@@ -42,19 +42,26 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             if (tsid == null || timestamp == null) {
                 throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
             }
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), List.of(docId, tsid, timestamp), plan.query());
+            MetadataAttribute scoring = getScoringAttribute(plan);
+            List<Attribute> attributes = scoring != null ? List.of(docId, tsid, timestamp, scoring) : List.of(docId, tsid, timestamp);
+            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
         } else {
-            // extract and pass _score metadata attribute, if present
-            MetadataAttribute scoring = null;
-            for (Attribute attr : plan.output()) {
-                String name = attr.name();
-                if (attr instanceof MetadataAttribute metadataAttribute && name.equals(MetadataAttribute.SCORE)) {
-                    scoring = metadataAttribute;
-                    break;
-                }
-            }
+            MetadataAttribute scoring = getScoringAttribute(plan);
             List<Attribute> attributes = scoring != null ? List.of(docId, scoring) : List.of(docId);
             return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
         }
+    }
+
+    private static MetadataAttribute getScoringAttribute(EsSourceExec plan) {
+        // extract and populate _score metadata attribute, if present
+        MetadataAttribute scoring = null;
+        for (Attribute attr : plan.output()) {
+            String name = attr.name();
+            if (attr instanceof MetadataAttribute metadataAttribute && name.equals(MetadataAttribute.SCORE)) {
+                scoring = metadataAttribute;
+                break;
+            }
+        }
+        return scoring;
     }
 }

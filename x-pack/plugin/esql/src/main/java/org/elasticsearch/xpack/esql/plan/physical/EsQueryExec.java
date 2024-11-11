@@ -334,8 +334,4 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
             return searchOrder;
         }
     }
-
-    public boolean scoring() {
-        return attrs.stream().anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(SCORE_FIELD.getName()));
-    }
 }

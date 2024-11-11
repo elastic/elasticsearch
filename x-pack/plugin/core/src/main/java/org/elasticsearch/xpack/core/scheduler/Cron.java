@@ -15,7 +15,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
-import java.time.temporal.ChronoField;
+import java.time.temporal.ChronoUnit;
 import java.util.Calendar;
 import java.util.Iterator;
 import java.util.Locale;
@@ -303,30 +303,24 @@ public class Cron implements ToXContentFragment {
      * @return the next valid time (since the epoch)
      */
     public long getNextValidTimeAfter(final long time) {
-        // move ahead one second, since we're computing the time *after* the
-        // given time
-        final long afterTime = time + 1000;
-        // CronTrigger does not deal with milliseconds
-        LocalDateTime ldt = LocalDateTime.ofInstant(Instant.ofEpochMilli(afterTime), timeZone.toZoneId())
-            .with(ChronoField.MILLI_OF_SECOND, 0);
+        LocalDateTime afterTime = LocalDateTime.ofInstant(Instant.ofEpochMilli(time), timeZone.toZoneId()).plusSeconds(1);
+        LocalDateTime ldt = afterTime.truncatedTo(ChronoUnit.SECONDS);
 
         boolean gotOne = false;
-        // loop until we've computed the next time, or we've past the endTime
         while (gotOne == false) {
-
-            if (ldt.getYear() > 2999) { // prevent endless loop...
+            if (ldt.getYear() > 2999) {
                 return -1;
             }
 
-            SortedSet<Integer> st = null;
-            int t = 0;
+            SortedSet<Integer> st;
+            int t;
 
             int sec = ldt.getSecond();
             int min = ldt.getMinute();
 
-            // get second.................................................
+            // get second
             st = seconds.tailSet(sec);
-            if (st != null && st.size() != 0) {
+            if (st != null && st.isEmpty() == false) {
                 sec = st.first();
             } else {
                 sec = seconds.first();
@@ -339,9 +333,9 @@ public class Cron implements ToXContentFragment {
             int hr = ldt.getHour();
             t = -1;
 
-            // get minute.................................................
+            // get minute
             st = minutes.tailSet(min);
-            if (st != null && st.size() != 0) {
+            if (st != null && st.isEmpty() == false) {
                 t = min;
                 min = st.first();
             } else {
@@ -349,9 +343,7 @@ public class Cron implements ToXContentFragment {
                 hr++;
             }
             if (min != t) {
-                ldt = ldt.withSecond(0);
-                ldt = ldt.withMinute(min);
-                ldt = setCalendarHour(ldt, hr);
+                ldt = ldt.withSecond(0).withMinute(min).withHour(hr);
                 continue;
             }
             ldt = ldt.withMinute(min);
@@ -360,20 +352,17 @@ public class Cron implements ToXContentFragment {
             int day = ldt.getDayOfMonth();
             t = -1;
 
-            // get hour...................................................
+            // get hour
             st = hours.tailSet(hr);
-            if (st != null && st.size() != 0) {
+            if (st != null && st.isEmpty() == false) {
                 t = hr;
                 hr = st.first();
             } else {
                 hr = hours.first();
-                day++; //@TODO: Check this does not excede the last day of the month
+                day++;
             }
             if (hr != t) {
-                ldt = ldt.withSecond(0);
-                ldt = ldt.withMinute(0);
-                ldt = ldt.withDayOfMonth(day);
-                ldt = setCalendarHour(ldt, hr);
+                ldt = ldt.withSecond(0).withMinute(0).withDayOfMonth(day).withHour(hr);
                 continue;
             }
             ldt = ldt.withHour(hr);
@@ -383,102 +372,49 @@ public class Cron implements ToXContentFragment {
             t = -1;
             int tmon = mon;
 
-            // get day...................................................
+            // get day
             boolean dayOfMSpec = daysOfMonth.contains(NO_SPEC) == false;
             boolean dayOfWSpec = daysOfWeek.contains(NO_SPEC) == false;
-            if (dayOfMSpec && dayOfWSpec == false) { // get day by day of month rule
+            if (dayOfMSpec && dayOfWSpec == false) {
                 st = daysOfMonth.tailSet(day);
                 if (lastdayOfMonth) {
-                    if (nearestWeekday == false) {
-                        t = day;
-                        day = getLastDayOfMonth(mon, ldt.getYear());
-                        day -= lastdayOffset;
-                        if (t > day) {
-                            mon++;
-                            if (mon > 12) {
-                                mon = 1;
-                                tmon = 3333; // ensure test of mon != tmon further below fails
-                                ldt = ldt.plusYears(1);
-                            }
-                            day = 1;
+                    t = day;
+                    day = ldt.withDayOfMonth(ldt.toLocalDate().lengthOfMonth()).getDayOfMonth() - lastdayOffset;
+                    if (t > day) {
+                        mon++;
+                        if (mon > 12) {
+                            mon = 1;
+                            tmon = 3333;
+                            ldt = ldt.plusYears(1);
                         }
-                    } else {
-                        t = day;
-                        day = getLastDayOfMonth(mon, ldt.getYear());
-                        day -= lastdayOffset;
-
-                        Calendar tcal = Calendar.getInstance(timeZone, Locale.ROOT);
-                        tcal.set(Calendar.SECOND, 0);
-                        tcal.set(Calendar.MINUTE, 0);
-                        tcal.set(Calendar.HOUR_OF_DAY, 0);
-                        tcal.set(Calendar.DAY_OF_MONTH, day);
-                        tcal.set(Calendar.MONTH, mon - 1);
-                        tcal.set(Calendar.YEAR, ldt.getYear());
-
-                        int ldom = getLastDayOfMonth(mon, ldt.getYear());
-                        int dow = tcal.get(Calendar.DAY_OF_WEEK);
-
-                        if (dow == Calendar.SATURDAY && day == 1) {
-                            day += 2;
-                        } else if (dow == Calendar.SATURDAY) {
-                            day -= 1;
-                        } else if (dow == Calendar.SUNDAY && day == ldom) {
-                            day -= 2;
-                        } else if (dow == Calendar.SUNDAY) {
-                            day += 1;
-                        }
-
-                        tcal.set(Calendar.SECOND, sec);
-                        tcal.set(Calendar.MINUTE, min);
-                        tcal.set(Calendar.HOUR_OF_DAY, hr);
-                        tcal.set(Calendar.DAY_OF_MONTH, day);
-                        tcal.set(Calendar.MONTH, mon - 1);
-                        long nTime = tcal.getTimeInMillis();
-                        if (nTime < afterTime) {
-                            day = 1;
-                            mon++;
-                        }
+                        day = 1;
                     }
                 } else if (nearestWeekday) {
                     t = day;
                     day = daysOfMonth.first();
+                    LocalDateTime tcal = ldt.withDayOfMonth(day);
+                    int ldom = tcal.toLocalDate().lengthOfMonth();
+                    int dow = tcal.getDayOfWeek().getValue();
 
-                    Calendar tcal = Calendar.getInstance(timeZone, Locale.ROOT);
-                    tcal.set(Calendar.SECOND, 0);
-                    tcal.set(Calendar.MINUTE, 0);
-                    tcal.set(Calendar.HOUR_OF_DAY, 0);
-                    tcal.set(Calendar.DAY_OF_MONTH, day);
-                    tcal.set(Calendar.MONTH, mon - 1);
-                    tcal.set(Calendar.YEAR, ldt.getYear());
-
-                    int ldom = getLastDayOfMonth(mon, ldt.getYear());
-                    int dow = tcal.get(Calendar.DAY_OF_WEEK);
-
-                    if (dow == Calendar.SATURDAY && day == 1) {
+                    if (dow == 6 && day == 1) {
                         day += 2;
-                    } else if (dow == Calendar.SATURDAY) {
+                    } else if (dow == 6) {
                         day -= 1;
-                    } else if (dow == Calendar.SUNDAY && day == ldom) {
+                    } else if (dow == 7 && day == ldom) {
                         day -= 2;
-                    } else if (dow == Calendar.SUNDAY) {
+                    } else if (dow == 7) {
                         day += 1;
                     }
 
-                    tcal.set(Calendar.SECOND, sec);
-                    tcal.set(Calendar.MINUTE, min);
-                    tcal.set(Calendar.HOUR_OF_DAY, hr);
-                    tcal.set(Calendar.DAY_OF_MONTH, day);
-                    tcal.set(Calendar.MONTH, mon - 1);
-                    long nTime = tcal.getTimeInMillis();
-                    if (nTime < afterTime) {
-                        day = daysOfMonth.first();
+                    tcal = tcal.withSecond(sec).withMinute(min).withHour(hr).withDayOfMonth(day);
+                    if (tcal.isBefore(afterTime)) {
+                        day = 1;
                         mon++;
                     }
-                } else if (st != null && st.size() != 0) {
+                } else if (st != null && st.isEmpty() == false) {
                     t = day;
                     day = st.first();
-                    // make sure we don't over-run a short month, such as february
-                    int lastDay = getLastDayOfMonth(mon, ldt.getYear());
+                    int lastDay = ldt.withDayOfMonth(ldt.toLocalDate().lengthOfMonth()).getDayOfMonth();
                     if (day > lastDay) {
                         day = daysOfMonth.first();
                         mon++;
@@ -489,19 +425,13 @@ public class Cron implements ToXContentFragment {
                 }
 
                 if (day != t || mon != tmon) {
-                    ldt = ldt.withSecond(0);
-                    ldt = ldt.withMinute(0);
-                    ldt = ldt.withHour(0);
-                    ldt = ldt.withDayOfMonth(day);
-                    ldt = ldt.withMonth(mon);
+                    ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(day).withMonth(mon);
                     continue;
                 }
-            } else if (dayOfWSpec && dayOfMSpec == false) { // get day by day of week rule
-                if (lastdayOfWeek) { // are we looking for the last XXX day of
-                    // the month?
-                    int dow = daysOfWeek.first(); // desired
-                    // d-o-w
-                    int cDow = ldt.getDayOfWeek().getValue(); // current d-o-w
+            } else if (dayOfWSpec && dayOfMSpec == false) {
+                if (lastdayOfWeek) {
+                    int dow = daysOfWeek.first();
+                    int cDow = ldt.getDayOfWeek().getValue();
                     int daysToAdd = 0;
                     if (cDow < dow) {
                         daysToAdd = dow - cDow;
@@ -510,19 +440,13 @@ public class Cron implements ToXContentFragment {
                         daysToAdd = dow + (7 - cDow);
                     }
 
-                    int lDay = getLastDayOfMonth(mon, ldt.getYear());
+                    int lDay = ldt.withDayOfMonth(ldt.toLocalDate().lengthOfMonth()).getDayOfMonth();
 
-                    if (day + daysToAdd > lDay) { // did we already miss the
-                        // last one?
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(1);
-                        ldt = ldt.withMonth(mon + 1);
+                    if (day + daysToAdd > lDay) {
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(1).withMonth(mon + 1);
                         continue;
                     }
 
-                    // find date of last occurrence of this day in this month...
                     while ((day + daysToAdd + 7) <= lDay) {
                         daysToAdd += 7;
                     }
@@ -530,19 +454,13 @@ public class Cron implements ToXContentFragment {
                     day += daysToAdd;
 
                     if (daysToAdd > 0) {
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(day);
-                        ldt = ldt.withMonth(mon);
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(day).withMonth(mon);
                         continue;
                     }
 
                 } else if (nthdayOfWeek != 0) {
-                    // are we looking for the Nth XXX day in the month?
-                    int dow = daysOfWeek.first(); // desired
-                    // d-o-w
-                    int cDow = ldt.getDayOfWeek().getValue(); // current d-o-w
+                    int dow = daysOfWeek.first();
+                    int cDow = ldt.getDayOfWeek().getValue();
                     int daysToAdd = 0;
                     if (cDow < dow) {
                         daysToAdd = dow - cDow;
@@ -550,10 +468,7 @@ public class Cron implements ToXContentFragment {
                         daysToAdd = dow + (7 - cDow);
                     }
 
-                    boolean dayShifted = false;
-                    if (daysToAdd > 0) {
-                        dayShifted = true;
-                    }
+                    boolean dayShifted = daysToAdd > 0;
 
                     day += daysToAdd;
                     int weekOfMonth = day / 7;
@@ -563,27 +478,18 @@ public class Cron implements ToXContentFragment {
 
                     daysToAdd = (nthdayOfWeek - weekOfMonth) * 7;
                     day += daysToAdd;
-                    if (daysToAdd < 0 || day > getLastDayOfMonth(mon, ldt.getYear())) {
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(1);
-                        ldt = ldt.withMonth(mon + 1);
+                    if (daysToAdd < 0 || day > ldt.withDayOfMonth(ldt.toLocalDate().lengthOfMonth()).getDayOfMonth()) {
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(1).withMonth(mon + 1);
                         continue;
                     } else if (daysToAdd > 0 || dayShifted) {
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(day);
-                        ldt = ldt.withMonth(mon);
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(day).withMonth(mon);
                         continue;
                     }
                 } else {
-                    int cDow = ldt.getDayOfWeek().getValue(); // current d-o-w
-                    int dow = daysOfWeek.first(); // desired
-                    // d-o-w
+                    int cDow = ldt.getDayOfWeek().getValue();
+                    int dow = daysOfWeek.first();
                     st = daysOfWeek.tailSet(cDow);
-                    if (st != null && st.size() > 0) {
+                    if (st != null && st.isEmpty() == false) {
                         dow = st.first();
                     }
 
@@ -595,29 +501,18 @@ public class Cron implements ToXContentFragment {
                         daysToAdd = dow + (7 - cDow);
                     }
 
-                    int lDay = getLastDayOfMonth(mon, ldt.getYear());
+                    int lDay = ldt.withDayOfMonth(ldt.toLocalDate().lengthOfMonth()).getDayOfMonth();
 
-                    if (day + daysToAdd > lDay) { // will we pass the end of
-                        // the month?
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(1);
-                        ldt = ldt.withMonth(mon + 1);
+                    if (day + daysToAdd > lDay) {
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(1).withMonth(mon + 1);
                         continue;
-                    } else if (daysToAdd > 0) { // are we swithing days?
-                        ldt = ldt.withSecond(0);
-                        ldt = ldt.withMinute(0);
-                        ldt = ldt.withHour(0);
-                        ldt = ldt.withDayOfMonth(day + daysToAdd);
-                        ldt = ldt.withMonth(mon);
+                    } else if (daysToAdd > 0) {
+                        ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(day + daysToAdd).withMonth(mon);
                         continue;
                     }
                 }
-            } else { // dayOfWSpec && dayOfMSpec == false
+            } else {
                 return -1;
-                // throw new UnsupportedOperationException(
-                // "Support for specifying both a day-of-week AND a day-of-month parameter is not implemented.");
             }
             ldt = ldt.withDayOfMonth(day);
 
@@ -625,16 +520,12 @@ public class Cron implements ToXContentFragment {
             int year = ldt.getYear();
             t = -1;
 
-            // test for expressions that never generate a valid fire date,
-            // but keep looping...
             if (year > MAX_YEAR) {
                 return -1;
-                // throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
             }
 
-            // get month...................................................
             st = months.tailSet(mon);
-            if (st != null && st.size() != 0) {
+            if (st != null && st.isEmpty() == false) {
                 t = mon;
                 mon = st.first();
             } else {
@@ -642,12 +533,7 @@ public class Cron implements ToXContentFragment {
                 year++;
             }
             if (mon != t) {
-                ldt = ldt.withSecond(0);
-                ldt = ldt.withMinute(0);
-                ldt = ldt.withHour(0);
-                ldt = ldt.withDayOfMonth(1);
-                ldt = ldt.withMonth(mon);
-                ldt = ldt.withYear(year);
+                ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(1).withMonth(mon).withYear(year);
                 continue;
             }
             ldt = ldt.withMonth(mon);
@@ -655,31 +541,24 @@ public class Cron implements ToXContentFragment {
             year = ldt.getYear();
             t = -1;
 
-            // get year...................................................
             st = years.tailSet(year);
-            if (st != null && st.size() != 0) {
+            if (st != null && st.isEmpty() == false) {
                 t = year;
                 year = st.first();
             } else {
                 return -1;
-                // throw new ElasticsearchIllegalArgumentException("given time is not supported by cron [" + formatter.print(time) + "]");
             }
 
             if (year != t) {
-                ldt = ldt.withSecond(0);
-                ldt = ldt.withMinute(0);
-                ldt = ldt.withHour(0);
-                ldt = ldt.withDayOfMonth(1);
-                ldt = ldt.withMonth(1);
-                ldt = ldt.withYear(year);
+                ldt = ldt.withSecond(0).withMinute(0).withHour(0).withDayOfMonth(1).withMonth(1).withYear(year);
                 continue;
             }
             ldt = ldt.withYear(year);
 
             gotOne = true;
-        } // while( done == false )
+        }
 
-         return ldt.atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+        return ldt.atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
     }
 
     public String expression() {
@@ -1384,14 +1263,17 @@ public class Cron implements ToXContentFragment {
         return integer;
     }
 
-    /** Emulate behaviour of Calendar.set(Calendar.HOUR_OF_DAY, hour)
-     *  when hour == 24 by rolling over to the next dat
-     **/
-    private LocalDateTime setCalendarHour(LocalDateTime ldt, int hour) {
-        if (hour == 24) {
-            return ldt.plusDays(1).withHour(0);
-        } else {
-            return ldt.withHour(hour);
+    /**
+     * Advance the calendar to the particular hour paying particular attention
+     * to daylight saving problems.
+     *
+     * @param cal the calendar to operate on
+     * @param hour the hour to set
+     */
+    private static void setCalendarHour(Calendar cal, int hour) {
+        cal.set(java.util.Calendar.HOUR_OF_DAY, hour);
+        if (cal.get(java.util.Calendar.HOUR_OF_DAY) != hour && hour != 24) {
+            cal.set(java.util.Calendar.HOUR_OF_DAY, hour + 1);
         }
     }
 

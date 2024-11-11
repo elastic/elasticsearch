@@ -129,7 +129,7 @@ public class CronTimezoneTests extends ESTestCase {
 
         long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
         System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
-        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2025-03-30T01:00:00Z").toEpochMilli()));
+        assertThat(Instant.ofEpochMilli(nextValidTimeAfter), equalTo(Instant.parse("2025-03-30T01:30:00Z")));
     }
 
     public void testForGMTRetardTransitionTriggerSkipSecondExecution() {

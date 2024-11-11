@@ -163,12 +163,18 @@ public abstract class BaseEqlSpecTestCase extends RemoteClusterAwareEqlRestTestC
         if (maxSamplesPerKey > 0) {
             builder.field("max_samples_per_key", maxSamplesPerKey);
         }
+        if (randomBoolean()) {
+            builder.field("allow_partial_search_results", randomBoolean());
+        }
         builder.endObject();
 
         Request request = new Request("POST", "/" + index + "/_eql/search");
         Boolean ccsMinimizeRoundtrips = ccsMinimizeRoundtrips();
         if (ccsMinimizeRoundtrips != null) {
             request.addParameter("ccs_minimize_roundtrips", ccsMinimizeRoundtrips.toString());
+        }
+        if (randomBoolean()) {
+            request.addParameter("allow_partial_search_results", String.valueOf(randomBoolean()));
         }
         int timeout = Math.toIntExact(timeout().millis());
         RequestConfig config = RequestConfig.copy(RequestConfig.DEFAULT)

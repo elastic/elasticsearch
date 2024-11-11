@@ -205,7 +205,7 @@ public class PartialSearchResultsIT extends AbstractEqlIntegTestCase {
         request = new EqlSearchRequest().indices("test-*").query("sequence [process where value == 0] [process where value == 2]");
         shouldFail(request);
 
-        // sequence query with missing event on unavailable shard. THIS IS A FALSE POSITIVE
+        // sequence query with missing event on unavailable shard.
         request = new EqlSearchRequest().indices("test-*")
             .query("sequence with maxspan=10s  [process where value == 1] ![process where value == 2] [process where value == 3]");
         shouldFail(request);

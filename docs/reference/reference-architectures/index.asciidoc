@@ -21,7 +21,7 @@ These reference architectures are recommendations and should be adapted to fit y
 | *Architecture* | *When to use*
 | <<hot-frozen-architecture>>
 
-The Hot / Frozen – High Availability architecture is cost optimized for large time-series datasets. 
+A high availability architecture that is cost optimized for large time-series datasets. 
 
 a| 
 * Have a requirement for cost effective long term data storage (many months or years) 

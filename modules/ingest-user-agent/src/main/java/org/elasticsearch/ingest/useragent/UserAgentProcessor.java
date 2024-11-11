@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.useragent;
 
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -261,6 +262,9 @@ public class UserAgentProcessor extends AbstractProcessor {
         }
     }
 
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // This can be removed in V10. It's not possible to create an instance with the ecs property in V9, and all instances created by V8 or
+    // earlier will have been fixed when upgraded to V9.
     static boolean maybeUpgradeConfig(Map<String, Object> config) {
         // Instances created using ES 8.x (or earlier) may have the 'ecs' config entry.
         // This was ignored in 8.x and is unsupported in 9.0.

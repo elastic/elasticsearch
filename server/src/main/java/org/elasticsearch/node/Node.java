@@ -181,8 +181,8 @@ public class Node implements Closeable {
      *
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
-    public Node(Environment environment, Consumer<Map<Module, String>> pluginModules) {
-        this(NodeConstruction.prepareConstruction(environment, pluginModules, new NodeServiceProvider(), true));
+    public Node(Environment environment, Consumer<Map<Module, String>> setPluginModules) {
+        this(NodeConstruction.prepareConstruction(environment, setPluginModules, new NodeServiceProvider(), true));
     }
 
     /**

@@ -106,7 +106,8 @@ public class WatcherScheduleEngineBenchmark {
                     () -> {
                         throw new IllegalArgumentException("settings must have [node.name]");
                     }
-                )
+                ),
+                c -> {}
             ).start()
         ) {
             final Client client = node.client();

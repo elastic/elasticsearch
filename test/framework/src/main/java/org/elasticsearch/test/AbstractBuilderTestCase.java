@@ -444,7 +444,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
                 throw new AssertionError("node.name must be set");
             });
             PluginsService pluginsService;
-            pluginsService = new MockPluginsService(nodeSettings, env, plugins);
+            pluginsService = new MockPluginsService(nodeSettings, env, plugins, c -> {});
 
             ClusterService clusterService = new ClusterService(
                 Settings.EMPTY,

@@ -28,6 +28,7 @@ import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Consumer;
 import java.util.function.Predicate;
 
 public class MockPluginsService extends PluginsService {
@@ -43,8 +44,13 @@ public class MockPluginsService extends PluginsService {
      * @param environment      The environment for the plugin
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+    public MockPluginsService(
+        Settings settings,
+        Environment environment,
+        Collection<Class<? extends Plugin>> classpathPlugins,
+        Consumer<Map<Module, String>> setPluginModules
+    ) {
+        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile(), setPluginModules);
 
         final Path configPath = environment.configFile();
 

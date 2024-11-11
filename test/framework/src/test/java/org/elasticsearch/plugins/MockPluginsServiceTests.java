@@ -60,7 +60,8 @@ public class MockPluginsServiceTests extends ESTestCase {
         this.mockPluginsService = new MockPluginsService(
             pathHomeSetting,
             TestEnvironment.newEnvironment(pathHomeSetting),
-            classpathPlugins
+            classpathPlugins,
+            c -> {}
         );
 
     }

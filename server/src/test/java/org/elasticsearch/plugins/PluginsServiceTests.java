@@ -66,7 +66,7 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile()) {
+        return new PluginsService(settings, null, null, TestEnvironment.newEnvironment(settings).pluginsFile(), c -> {}) {
             @Override
             protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
                 // tests don't run modular
@@ -80,7 +80,7 @@ public class PluginsServiceTests extends ESTestCase {
             .put("my.setting", "test")
             .put(IndexModule.INDEX_STORE_TYPE_SETTING.getKey(), IndexModule.Type.NIOFS.getSettingsKey())
             .build();
-        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), classpathPlugins);
+        return new MockPluginsService(settings, TestEnvironment.newEnvironment(settings), classpathPlugins, c -> {});
     }
 
     // This test uses a mock in order to use plugins from the classpath

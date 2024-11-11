@@ -402,14 +402,4 @@ public abstract class SearchContext implements Releasable {
     public abstract SourceLoader newSourceLoader();
 
     public abstract IdLoader newIdLoader();
-
-    /**
-     * Specify whether we should load innerHits for this request or not.
-     * This is useful for nested retrievers, where we don't want to compute inner hits for nested results
-     * that won't actually be used.
-     * Instead, we only compute inner hits for the top-level compound retriever.
-     */
-    public boolean skipInnerHits() {
-        return request() != null && request().skipInnerHits();
-    }
 }

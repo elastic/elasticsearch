@@ -190,7 +190,7 @@ public class TransportVersions {
     public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
     public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
-    public static final TransportVersion INNER_HITS_DISABLED_FOR_REQUEST = def(8_788_00_0);
+    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_788_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
@@ -39,6 +40,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
@@ -218,5 +220,17 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected static void assertValues(Iterator<Iterator<Object>> actualValues, Iterable<Iterable<Object>> expectedValues) {
         assertThat(getValuesList(actualValues), equalTo(getValuesList(expectedValues)));
+    }
+
+    protected static void assertValuesInAnyOrder(Iterator<Iterator<Object>> actualValues, Iterable<Iterable<Object>> expectedValues) {
+        List<List<Object>> items = new ArrayList<>();
+        for (Iterable<Object> outter : expectedValues) {
+            var item = new ArrayList<>();
+            for (var inner : outter) {
+                item.add(inner);
+            }
+            items.add(item);
+        }
+        assertThat(getValuesList(actualValues), containsInAnyOrder(items.toArray()));
     }
 }

@@ -16,4 +16,5 @@ module org.elasticsearch.kql {
 
     exports org.elasticsearch.xpack.kql;
     exports org.elasticsearch.xpack.kql.parser;
+    exports org.elasticsearch.xpack.kql.query;
 }

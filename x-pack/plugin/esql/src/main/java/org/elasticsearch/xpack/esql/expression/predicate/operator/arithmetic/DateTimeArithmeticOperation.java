@@ -180,7 +180,18 @@ public abstract class DateTimeArithmeticOperation extends EsqlArithmeticOperatio
 
             return millisEvaluator.apply(source(), toEvaluator.apply(datetimeArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else if (dataType() == DATE_NANOS) {
+            // One of the arguments has to be a date_nanos and the other a temporal amount.
+            Expression dateNanosArgument;
+            Expression temporalAmountArgument;
+            if (left().dataType() == DATE_NANOS) {
+                dateNanosArgument = left();
+                temporalAmountArgument = right();
+            } else {
+                dateNanosArgument = right();
+                temporalAmountArgument = left();
+            }
 
+            return nanosEvaluator.apply(source(), toEvaluator.apply(dateNanosArgument), (TemporalAmount) temporalAmountArgument.fold());
         } else {
             return super.toEvaluator(toEvaluator);
         }

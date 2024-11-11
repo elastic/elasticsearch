@@ -24,6 +24,12 @@ PUT _ingest/ip_location/database/my-database-1
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
+IMPORTANT: The IPinfo configuration shown below requires a token. Because the token is sensitive information,
+it is stored as a <<secure-settings,secure setting>> in {es} named `ingest.ip_location.downloader.ipinfo.token`. Only
+one IPinfo token is currently allowed per {es} cluster. A valid token must be in the secure settings in order
+to download from IPinfo. The token setting does not take effect until all nodes are restarted or a
+<<cluster-nodes-reload-secure-settings, `reload_secure_settings`>> request is executed.
+
 [source,console]
 ----
 PUT _ingest/ip_location/database/my-database-2

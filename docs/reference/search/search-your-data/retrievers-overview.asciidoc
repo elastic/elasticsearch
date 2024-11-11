@@ -27,8 +27,6 @@ Returns top documents from a <<search-api-knn,knn search>>, in the context of a 
 Combines and ranks multiple first-stage retrievers using the reciprocal rank fusion (RRF) algorithm.
 Allows you to combine multiple result sets with different relevance indicators into a single result set.
 An RRF retriever is a *compound retriever*, where its `filter` element is propagated to its sub retrievers.
-* <<rule-retriever,*Rule Retriever*>>.
-Applies <<query-rules,query rules>> to the query before returning results.
 * <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>.
 Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.

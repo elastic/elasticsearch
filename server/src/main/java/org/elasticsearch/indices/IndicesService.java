@@ -34,11 +34,12 @@ import org.elasticsearch.action.support.RefCountAwareThreadedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -1713,7 +1714,7 @@ public class IndicesService extends AbstractLifecycleComponent
         IndexSettings indexSettings) -> canDeleteIndexContents(index);
     private final IndexDeletionAllowedPredicate ALWAYS_TRUE = (Index index, IndexSettings indexSettings) -> true;
 
-    public AliasFilter buildAliasFilter(ClusterState state, String index, Set<String> resolvedExpressions) {
+    public AliasFilter buildAliasFilter(ProjectState project, String index, Set<String> resolvedExpressions) {
         /* Being static, parseAliasFilter doesn't have access to whatever guts it needs to parse a query. Instead of passing in a bunch
          * of dependencies we pass in a function that can perform the parsing. */
         CheckedFunction<BytesReference, QueryBuilder, IOException> filterParser = bytes -> {
@@ -1723,18 +1724,19 @@ public class IndicesService extends AbstractLifecycleComponent
                 return parseTopLevelQuery(parser);
             }
         };
-        String[] aliases = indexNameExpressionResolver.filteringAliases(state, index, resolvedExpressions);
+
+        final ProjectMetadata metadata = project.metadata();
+        String[] aliases = indexNameExpressionResolver.filteringAliases(metadata, index, resolvedExpressions);
         if (aliases == null) {
             return AliasFilter.EMPTY;
         }
 
-        Metadata metadata = state.metadata();
-        IndexAbstraction ia = state.metadata().getProject().getIndicesLookup().get(index);
+        IndexAbstraction ia = metadata.getIndicesLookup().get(index);
         DataStream dataStream = ia.getParentDataStream();
         if (dataStream != null) {
             String dataStreamName = dataStream.getName();
             List<QueryBuilder> filters = Arrays.stream(aliases)
-                .map(name -> metadata.getProject().dataStreamAliases().get(name))
+                .map(name -> metadata.dataStreamAliases().get(name))
                 .filter(dataStreamAlias -> dataStreamAlias.getFilter(dataStreamName) != null)
                 .map(dataStreamAlias -> {
                     try {
@@ -1758,7 +1760,7 @@ public class IndicesService extends AbstractLifecycleComponent
                 }
             }
         } else {
-            IndexMetadata indexMetadata = metadata.getProject().index(index);
+            IndexMetadata indexMetadata = metadata.index(index);
             return AliasFilter.of(ShardSearchRequest.parseAliasFilter(filterParser, indexMetadata, aliases), aliases);
         }
     }

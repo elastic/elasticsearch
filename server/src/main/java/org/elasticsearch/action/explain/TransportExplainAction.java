@@ -115,7 +115,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
     protected void resolveRequest(ProjectState state, InternalRequest request) {
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(state.metadata(), request.request().index());
         @FixForMultiProject
-        final AliasFilter aliasFilter = searchService.buildAliasFilter(state.cluster(), request.concreteIndex(), indicesAndAliases);
+        final AliasFilter aliasFilter = searchService.buildAliasFilter(state, request.concreteIndex(), indicesAndAliases);
         request.request().filteringAlias(aliasFilter);
     }
 

@@ -96,7 +96,7 @@ public class TransportClusterSearchShardsAction extends TransportMasterNodeReadA
         Map<String, AliasFilter> indicesAndFilters = new HashMap<>();
         Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(project.metadata(), request.indices());
         for (String index : concreteIndices) {
-            final AliasFilter aliasFilter = indicesService.buildAliasFilter(clusterState, index, indicesAndAliases);
+            final AliasFilter aliasFilter = indicesService.buildAliasFilter(project, index, indicesAndAliases);
             final String[] aliases = indexNameExpressionResolver.indexAliases(
                 project.metadata(),
                 index,

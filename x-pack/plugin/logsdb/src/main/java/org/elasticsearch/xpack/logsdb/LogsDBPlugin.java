@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseService.FALLBACK_SETTING;
 

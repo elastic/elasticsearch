@@ -1,7 +1,12 @@
 [[retrievers-examples]]
 === Retrievers examples
 
+Learn how to combine different retrievers in these hands-on examples.
 To demonstrate the full functionality of retrievers, these examples require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
+
+[discrete]
+[[retrievers-examples-setup]]
+==== Add example data
 
 To begin with, we'll set up the necessary services and have them in place for later use.
 
@@ -96,7 +101,7 @@ Now that we also have our documents in place, let's try to run some queries usin
 
 [discrete]
 [[retrievers-examples-combining-standard-knn-retrievers-with-rrf]]
-==== Combining query and kNN with RRF
+==== Example: Combining query and kNN with RRF
 
 First, let's examine how to combine two different types of queries: a `kNN` query and a
 `query_string` query. While these queries may produce scores in different ranges, we can use

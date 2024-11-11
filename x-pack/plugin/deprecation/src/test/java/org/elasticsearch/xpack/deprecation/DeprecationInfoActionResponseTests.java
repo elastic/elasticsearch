@@ -119,6 +119,7 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks = List.of((s) -> clusterIssueFound ? foundIssue : null);
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = List.of(
             (idx, cs) -> indexIssueFound ? foundIssue : null
+        );
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = List.of(
             (ds, cs) -> dataStreamIssueFound ? foundIssue : null
         );
@@ -280,8 +281,9 @@ public class DeprecationInfoActionResponseTests extends AbstractWireSerializingT
         List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks = Collections.unmodifiableList(
             Arrays.asList((idx, cs) -> {
                 visibleIndexSettings.set(idx.getSettings());
-            return null;
-        }));
+                return null;
+            })
+        );
         AtomicInteger backingIndicesCount = new AtomicInteger(0);
         List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks = Collections.unmodifiableList(
             Arrays.asList((ds, cs) -> {

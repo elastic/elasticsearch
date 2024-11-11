@@ -130,8 +130,7 @@ public class FailedNodeRoutingTests extends ESAllocationTestCase {
 
         // Log the node versions (for debugging if necessary)
         for (DiscoveryNode discoveryNode : state.nodes().getDataNodes().values()) {
-            Version nodeVer = discoveryNode.getVersion();
-            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), nodeVer);
+            logger.info("--> node [{}] has version [{}]", discoveryNode.getId(), discoveryNode.getBuildVersion());
         }
 
         // randomly create some indices

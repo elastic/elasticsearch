@@ -9,7 +9,7 @@
 
 package org.elasticsearch.script.field.vectors;
 
-import java.util.List;
+import java.util.Iterator;
 
 public interface MultiDenseVector {
 
@@ -17,7 +17,7 @@ public interface MultiDenseVector {
         checkDimensions(getDims(), qvDims);
     }
 
-    List<float[]> getVectors();
+    Iterator<float[]> getVectors();
 
     float[] getMagnitudes();
 
@@ -44,7 +44,7 @@ public interface MultiDenseVector {
             + " use isEmpty() to check for a missing vector value";
 
         @Override
-        public List<float[]> getVectors() {
+        public Iterator<float[]> getVectors() {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

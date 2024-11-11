@@ -11,7 +11,7 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.util.List;
+import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
 
@@ -20,18 +20,19 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     private final BytesRef magnitudes;
     private float[] magnitudesArray = null;
     private final int dims;
-    private final List<float[]> decodedDocVector;
+    private final int numVectors;
+    private final Iterator<float[]> decodedDocVector;
 
-    public FloatMultiDenseVector(List<float[]> decodedDocVector, List<Float> decodedMagnitudes, BytesRef magnitudes, int dims) {
-        assert decodedDocVector.size() == decodedMagnitudes.size();
-        assert magnitudes.length == decodedMagnitudes.size() * Float.BYTES;
+    public FloatMultiDenseVector(Iterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
+        assert magnitudes.length == numVectors * Float.BYTES;
         this.decodedDocVector = decodedDocVector;
         this.magnitudes = magnitudes;
+        this.numVectors = numVectors;
         this.dims = dims;
     }
 
     @Override
-    public List<float[]> getVectors() {
+    public Iterator<float[]> getVectors() {
         return decodedDocVector;
     }
 
@@ -55,6 +56,6 @@ public class FloatMultiDenseVector implements MultiDenseVector {
 
     @Override
     public int size() {
-        return decodedDocVector.size();
+        return numVectors;
     }
 }

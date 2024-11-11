@@ -11,11 +11,11 @@ package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
 
-import java.util.List;
+import java.util.Iterator;
 
 public class BitMultiDenseVector extends ByteMultiDenseVector {
-    public BitMultiDenseVector(List<byte[]> vectorValues, BytesRef magnitudesBytes, int dims) {
-        super(vectorValues, magnitudesBytes, dims);
+    public BitMultiDenseVector(Iterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+        super(vectorValues, magnitudesBytes, numVecs, dims);
     }
 
     @Override

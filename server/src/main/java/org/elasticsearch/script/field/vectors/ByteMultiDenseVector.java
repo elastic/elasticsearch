@@ -12,34 +12,30 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
-import java.util.List;
+import java.util.Iterator;
 
 public class ByteMultiDenseVector implements MultiDenseVector {
 
-    protected final List<byte[]> vectorValues;
+    protected final Iterator<byte[]> vectorValues;
+    protected final int numVecs;
     protected final int dims;
 
-    private List<float[]> floatDocVectors;
+    private Iterator<float[]> floatDocVectors;
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
 
-    public ByteMultiDenseVector(List<byte[]> vectorValues, BytesRef magnitudesBytes, int dims) {
+    public ByteMultiDenseVector(Iterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+        assert magnitudesBytes.length == numVecs * Float.BYTES;
         this.vectorValues = vectorValues;
+        this.numVecs = numVecs;
         this.dims = dims;
         this.magnitudesBytes = magnitudesBytes;
     }
 
     @Override
-    public List<float[]> getVectors() {
+    public Iterator<float[]> getVectors() {
         if (floatDocVectors == null) {
-            floatDocVectors = new java.util.ArrayList<>(vectorValues.size());
-            for (byte[] vectorValue : vectorValues) {
-                float[] floatDocVector = new float[dims];
-                for (int i = 0; i < dims; i++) {
-                    floatDocVector[i] = vectorValue[i];
-                }
-                floatDocVectors.add(floatDocVector);
-            }
+            floatDocVectors = new ByteToFloatIteratorWrapper(vectorValues, dims);
         }
         return floatDocVectors;
     }
@@ -64,6 +60,32 @@ public class ByteMultiDenseVector implements MultiDenseVector {
 
     @Override
     public int size() {
-        return vectorValues.size();
+        return numVecs;
+    }
+
+    static class ByteToFloatIteratorWrapper implements Iterator<float[]> {
+        private final Iterator<byte[]> byteIterator;
+        private final float[] buffer;
+        private final int dims;
+
+        ByteToFloatIteratorWrapper(Iterator<byte[]> byteIterator, int dims) {
+            this.byteIterator = byteIterator;
+            this.buffer = new float[dims];
+            this.dims = dims;
+        }
+
+        @Override
+        public boolean hasNext() {
+            return byteIterator.hasNext();
+        }
+
+        @Override
+        public float[] next() {
+            byte[] next = byteIterator.next();
+            for (int i = 0; i < dims; i++) {
+                buffer[i] = next[i];
+            }
+            return buffer;
+        }
     }
 }

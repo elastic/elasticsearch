@@ -33,9 +33,7 @@ import java.util.function.Supplier;
  */
 public class SnapshotShutdownProgressTracker {
 
-    /**
-     * How frequently shard snapshot progress is logged after receiving local node shutdown metadata.
-     */
+    /** How frequently shard snapshot progress is logged after receiving local node shutdown metadata. */
     public static final Setting<TimeValue> SNAPSHOT_PROGRESS_DURING_SHUTDOWN_LOG_INTERVAL_SETTING = Setting.timeSetting(
         "snapshots.shutdown.progress.interval",
         TimeValue.timeValueSeconds(5),
@@ -173,7 +171,7 @@ public class SnapshotShutdownProgressTracker {
      * pause.
      */
     public void onClusterStatePausingSetForAllShardSnapshots() {
-        assert this.shutdownStartMillis == -1
+        assert this.shutdownStartMillis != -1
             : "Should not have left shutdown mode before finishing processing the cluster state update with shutdown";
         this.shutdownFinishedSignallingPausingMillis = threadPool.relativeTimeInMillis();
         logger.debug(() -> Strings.format("Pause signals have been set for all shard snapshots on data node [%s]", getLocalNodeId.get()));

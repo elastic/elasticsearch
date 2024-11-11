@@ -19,6 +19,7 @@ import java.time.temporal.ChronoUnit;
 import java.time.zone.ZoneOffsetTransition;
 import java.time.zone.ZoneRules;
 
+import static java.time.Instant.ofEpochMilli;
 import static java.util.TimeZone.getTimeZone;
 import static org.hamcrest.CoreMatchers.equalTo;
 import static org.hamcrest.CoreMatchers.not;
@@ -129,7 +130,7 @@ public class CronTimezoneTests extends ESTestCase {
 
         long nextValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
         System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
-        assertThat(Instant.ofEpochMilli(nextValidTimeAfter), equalTo(Instant.parse("2025-03-30T01:30:00Z")));
+        assertThat(ofEpochMilli(nextValidTimeAfter), equalTo(Instant.parse("2025-03-30T01:30:00Z")));
     }
 
     public void testForGMTRetardTransitionTriggerSkipSecondExecution() {
@@ -141,11 +142,11 @@ public class CronTimezoneTests extends ESTestCase {
 
         long firstValidTimeAfter = cron.getNextValidTimeAfter(beforeTransitionEpoch);
         System.out.println("nextValidTimeAfter = " + firstValidTimeAfter);
-        assertThat(firstValidTimeAfter, equalTo(Instant.parse("2024-10-27T00:30:00Z").toEpochMilli()));
+        assertThat(ofEpochMilli(firstValidTimeAfter), equalTo(Instant.parse("2024-10-27T00:30:00Z")));
 
         long nextValidTimeAfter = cron.getNextValidTimeAfter(firstValidTimeAfter);
         System.out.println("nextValidTimeAfter = " + nextValidTimeAfter);
-        assertThat(nextValidTimeAfter, equalTo(Instant.parse("2024-10-28T01:30:00Z").toEpochMilli()));
+        assertThat(ofEpochMilli(nextValidTimeAfter), equalTo(Instant.parse("2024-10-28T01:30:00Z")));
     }
 
     // This test checks that once per minute crons will be unaffected by a DST transition
@@ -174,15 +175,15 @@ public class CronTimezoneTests extends ESTestCase {
         Instant insideTransition;
         if (transition.isGap()) {
             insideTransition = transition.getInstant().plus(10, ChronoUnit.MINUTES);
-            Instant nextTrigger = Instant.ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
+            Instant nextTrigger = ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
             assertThat(nextTrigger, equalTo(insideTransition.plus(1, ChronoUnit.MINUTES)));
         } else {
             insideTransition = transition.getInstant().minus(10, ChronoUnit.MINUTES);
-            Instant nextTrigger = Instant.ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
+            Instant nextTrigger = ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
             assertThat(nextTrigger, equalTo(insideTransition.plus(1, ChronoUnit.MINUTES)));
 
             insideTransition = insideTransition.plus(transition.getDuration());
-            nextTrigger = Instant.ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
+            nextTrigger = ofEpochMilli(cron.getNextValidTimeAfter(insideTransition.toEpochMilli()));
             assertThat(nextTrigger, equalTo(insideTransition.plus(1, ChronoUnit.MINUTES)));
         }
     }
@@ -215,7 +216,7 @@ public class CronTimezoneTests extends ESTestCase {
 
             long nextTrigger = cron.getNextValidTimeAfter(transition.getInstant().minus(10, ChronoUnit.MINUTES).toEpochMilli());
 
-            assertThat(Instant.ofEpochMilli(nextTrigger), equalTo(transition.getInstant().plusSeconds(600)));
+            assertThat(ofEpochMilli(nextTrigger), equalTo(transition.getInstant().plusSeconds(600)));
         } else {
             LocalDateTime targetTime = transition.getDateTimeAfter().plusMinutes(10);
             var cron = new Cron("0 " + targetTime.getMinute() + " " + targetTime.getHour() + " * * ?", getTimeZone(timezone));
@@ -225,7 +226,7 @@ public class CronTimezoneTests extends ESTestCase {
                 transition.getInstant().minusSeconds(transition.getDuration().toSeconds()).minus(10, ChronoUnit.MINUTES).toEpochMilli()
             );
 
-            assertThat(Instant.ofEpochMilli(firstTrigger), equalTo(transition.getInstant().plusSeconds(600)));
+            assertThat(ofEpochMilli(firstTrigger), equalTo(transition.getInstant().plusSeconds(600)));
 
             var repeatTrigger = firstTrigger + (1000 * 10L);
 

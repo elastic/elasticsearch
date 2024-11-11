@@ -47,27 +47,6 @@ BIT_LENGTH(string_exp) <1>
 include-tagged::{sql-specs}/docs/docs.csv-spec[stringBitLength]
 --------------------------------------------------
 
-[[sql-functions-string-byte-length]]
-==== `BYTE_LENGTH`
-
-.Synopsis:
-[source, sql]
---------------------------------------------------
-BYTE_LENGTH(string_exp) <1>
---------------------------------------------------
-*Input*:
-
-<1> string expression. If `null`, the function returns `null`.
-
-*Output*: integer
-
-*Description*: Returns the length in bytes of the `string_exp` input expression.
-
-[source, sql]
---------------------------------------------------
-include-tagged::{sql-specs}/docs/docs.csv-spec[stringByteLength]
---------------------------------------------------
-
 [[sql-functions-string-char]]
 ==== `CHAR`
 

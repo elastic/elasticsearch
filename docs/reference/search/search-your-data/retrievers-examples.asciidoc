@@ -10,9 +10,8 @@ To demonstrate the full functionality of retrievers, these examples require acce
 
 To begin with, we'll set up the necessary services and have them in place for later use.
 
-[source,js]
+[source,console]
 ----
-// Setup rerank task stored as `my-rerank-model`
 PUT _inference/rerank/my-rerank-model
 {
  "service": "cohere",
@@ -25,7 +24,7 @@ PUT _inference/rerank/my-rerank-model
 //NOTCONSOLE
 
 Now that we have our reranking service in place, lets create the `retrievers_example` index, and add some documents to it.
-[source,js]
+[source,console]
 ----
 PUT retrievers_example
 {
@@ -49,11 +48,7 @@ PUT retrievers_example
        }
    }
 }
-----
-//NOTCONSOLE
 
-[source,js]
-----
 POST /retrievers_example/_doc/1
 {
  "vector": [0.23, 0.67, 0.89],
@@ -94,8 +89,10 @@ POST /retrievers_example/_doc/5
  "topic": ["documentation", "observability", "elastic"]
 }
 
+POST /retrievers_example/_refresh
+
 ----
-//NOTCONSOLE
+// NOTCONSOLE
 
 Now that we also have our documents in place, let's try to run some queries using retrievers.
 
@@ -112,7 +109,7 @@ To implement this in the retriever framework, we start with the top-level elemen
 retriever. This retriever operates on top of two other retrievers: a `knn` retriever and a
 `standard` retriever. Our query structure would look like this:
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
@@ -146,10 +143,51 @@ GET /retrievers_example/_search
            "rank_constant": 1
        }
    },
-   "_source": ["text", "topic"]
+   "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST[setup:retrievers_examples]
+
+Which would return the following response based on the final rrf score for each result
+
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
 
 [discrete]
 [[retrievers-examples-collapsing-retriever-results]]
@@ -160,7 +198,7 @@ up using the `collapse` parameter with our retriever. This enables grouping resu
 any field and returns only the highest-scoring document from each group. In this example
 we'll collapse our results based on the `year` field.
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
@@ -198,13 +236,109 @@ GET /retrievers_example/_search
        "field": "year",
        "inner_hits": {
            "name": "topic related documents",
-           "_source": ["text", "year"]
+           "_source": ["year"]
        }
    },
-   "_source": ["text", "topic"]
+    "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST[setup:retrievers_examples]
+
+Which would return the following response collapsed results
+
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334,
+                "fields": {
+                    "year": [
+                        2024
+                    ]
+                },
+                "inner_hits": {
+                    "topic related documents": {
+                        "hits": {
+                            "total": {
+                                "value": 2,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.8333334,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "1",
+                                    "_score": 0.8333334,
+                                    "_source": {
+                                        "year": 2024
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "3",
+                                    "_score": 0.25,
+                                    "_source": {
+                                        "year": 2024
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334,
+                "fields": {
+                    "year": [
+                        2023
+                    ]
+                },
+                "inner_hits": {
+                    "topic related documents": {
+                        "hits": {
+                            "total": {
+                                "value": 1,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.8333334,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example",
+                                    "_id": "2",
+                                    "_score": 0.8333334,
+                                    "_source": {
+                                        "year": 2023
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
 
 [discrete]
 [[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]
@@ -214,7 +348,7 @@ Previously, we used a `text_similarity_reranker` retriever within an `rrf` retri
 Because retrievers support full composability, we can also rerank the results of an
 `rrf` retriever. Let's apply this to our first example.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
@@ -255,11 +389,11 @@ GET retrievers_example/_search
            "inference_text": "What are the state of the art applications of AI in information retrieval?"
        }
    },
-   "_source": ["text", "topic"]
+   "_source": false
 }
 
 ----
-//NOTCONSOLE
+// TEST[skip:no_access_to_reranker]
 
 [discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
@@ -269,7 +403,7 @@ For this example, we'll replace our semantic query with the `my-rerank-model`
 reranker we previously configured. Since this is a reranker, it needs an initial pool of
 documents to work with. In this case, we'll filter for documents about `ai` topics.
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
@@ -309,13 +443,10 @@ GET /retrievers_example/_search
             "rank_constant": 1
         }
     },
-    "_source": [
-        "text",
-        "topic"
-    ]
+    "_source": false
 }
 ----
-//NOTCONSOLE
+// TEST[skip:no_access_to_reranker]
 
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
@@ -323,7 +454,7 @@ GET /retrievers_example/_search
 
 Full composability means we can chain together multiple retrievers of the same type. For instance, imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
@@ -355,14 +486,10 @@ GET retrievers_example/_search
            "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
        }
    },
-   "_source": [
-       "text",
-       "topic"
-   ]
+    "_source": false
 }
 ----
-//NOTCONSOLE
-
+// TEST[skip:no_access_to_reranker]
 
 Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
@@ -380,7 +507,7 @@ the `terms` aggregation for the `topic` field will include all results, not just
 from the 2 nested retrievers, i.e. all documents whose `year` field is greater than 2023, and whose `topic` field
 matches the term `elastic`.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
@@ -412,10 +539,7 @@ GET retrievers_example/_search
             "rank_constant": 1
         }
     },
-    "_source": [
-        "text",
-        "topic"
-    ],
+    "_source": false,
     "aggs": {
         "topics": {
             "terms": {
@@ -425,4 +549,258 @@ GET retrievers_example/_search
     }
 }
 ----
-//NOTCONSOLE
+// TEST[setup:retrievers_examples]
+
+The output of which would look like the following:
+[source, console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 4,
+            "relation": "eq"
+        },
+        "max_score": 0.5833334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "5",
+                "_score": 0.5833334
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "4",
+                "_score": 0.5
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.33333334
+            }
+        ]
+    },
+    "aggregations": {
+        "topics": {
+            "doc_count_error_upper_bound": 0,
+            "sum_other_doc_count": 0,
+            "buckets": [
+                {
+                    "key": "ai",
+                    "doc_count": 3
+                },
+                {
+                    "key": "elastic",
+                    "doc_count": 2
+                },
+                {
+                    "key": "assistant",
+                    "doc_count": 1
+                },
+                {
+                    "key": "documentation",
+                    "doc_count": 1
+                },
+                {
+                    "key": "information_retrieval",
+                    "doc_count": 1
+                },
+                {
+                    "key": "llm",
+                    "doc_count": 1
+                },
+                {
+                    "key": "observability",
+                    "doc_count": 1
+                },
+                {
+                    "key": "security",
+                    "doc_count": 1
+                }
+            ]
+        }
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+
+
+[discrete]
+[[retrievers-examples-explain-multiple-rrf]]
+==== Example: Explainability with multiple retrievers
+By adding `explain: true` to the request, each retriever will now provide a detailed explanation of all the steps
+and calculations that took place for the final score to be computed. Composability is fully supported as well in the context of `explain`, and
+each retriever will provide its own explanation, as we can see in the example below
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "elastic"
+                            }
+                        }
+                    }
+                },
+                {
+                    "rrf": {
+                        "retrievers": [
+                            {
+                                "standard": {
+                                    "query": {
+                                        "query_string": {
+                                            "query": "(information retrieval) OR (artificial intelligence)",
+                                            "default_field": "text"
+                                        }
+                                    }
+                                }
+                            },
+                            {
+                                "knn": {
+                                    "field": "vector",
+                                    "query_vector": [
+                                        0.23,
+                                        0.67,
+                                        0.89
+                                    ],
+                                    "k": 3,
+                                    "num_candidates": 5
+                                }
+                            }
+                        ],
+                        "rank_window_size": 10,
+                        "rank_constant": 1
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false,
+    "size": 1,
+    "explain": true
+}
+----
+// TEST[setup:retrievers_examples]
+
+The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
+[source, console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 5,
+            "relation": "eq"
+        },
+        "max_score": 0.5,
+        "hits": [
+            {
+                "_shard": "[retrievers_example][0]",
+                "_node": "jn_rdZFKS3-UgWVsVdj2Vg",
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.5,
+                "_explanation": {
+                    "value": 0.5,
+                    "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                    "details": [
+                        {
+                            "value": 0,
+                            "description": "rrf score: [0], result not found in query at index [0]",
+                            "details": []
+                        },
+                        {
+                            "value": 1,
+                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                            "details": [
+                                {
+                                    "value": 0.8333334,
+                                    "description": "rrf score: [0.8333334] computed for initial ranks [2, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
+                                    "details": [
+                                        {
+                                            "value": 2,
+                                            "description": "rrf score: [0.33333334], for rank [2] in query at index [0] computed as [1 / (2 + 1)], for matching query with score",
+                                            "details": [
+                                                {
+                                                    "value": 2.8129659,
+                                                    "description": "sum of:",
+                                                    "details": [
+                                                        {
+                                                            "value": 1.4064829,
+                                                            "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
+                                                            "details": [
+                                                                {
+                                                                    ...
+                                                                }
+                                                            ]
+                                                        },
+                                                        {
+                                                            "value": 1.4064829,
+                                                            "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
+                                                            "details": [
+                                                                {
+                                                                    ...
+                                                                }
+                                                            ]
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        },
+                                        {
+                                            "value": 1,
+                                            "description": "rrf score: [0.5], for rank [1] in query at index [1] computed as [1 / (1 + 1)], for matching query with score",
+                                            "details": [
+                                                {
+                                                    "value": 1,
+                                                    "description": "doc [0] with an original score of [1.0] is at rank [1] from the following source queries.",
+                                                    "details": [
+                                                        {
+                                                            "value": 1,
+                                                            "description": "found vector with calculated similarity: 1.0",
+                                                            "details": []
+                                                        }
+                                                    ]
+                                                }
+                                            ]
+                                        }
+                                    ]
+                                }
+                            ]
+                        }
+                    ]
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/"\.\.\."/$body.hits.hits.0._explanation.details/]

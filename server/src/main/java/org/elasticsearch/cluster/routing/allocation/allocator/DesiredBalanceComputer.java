@@ -330,7 +330,7 @@ public class DesiredBalanceComputer {
                 nextReportTime = currentTime + timeWarningInterval;
             }
 
-            if (hasComputationConverged(hasChanges, i)) {
+            if (hasChanges == false && hasEnoughIterations(i)) {
                 logger.debug(
                     "Desired balance computation for [{}] converged after [{}] and [{}] iterations",
                     desiredBalanceInput.index(),
@@ -410,8 +410,8 @@ public class DesiredBalanceComputer {
     }
 
     // visible for testing
-    boolean hasComputationConverged(boolean hasRoutingChanges, int currentIteration) {
-        return hasRoutingChanges == false;
+    boolean hasEnoughIterations(int currentIteration) {
+        return true;
     }
 
     private static Map<ShardId, ShardAssignment> collectShardAssignments(RoutingNodes routingNodes) {

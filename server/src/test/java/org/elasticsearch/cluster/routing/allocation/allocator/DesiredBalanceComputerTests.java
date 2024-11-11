@@ -55,7 +55,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -87,7 +86,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -1206,7 +1204,6 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
-
         var currentTime = new AtomicLong(0L);
         TimeProvider timeProvider = TimeProviderUtils.create(() -> currentTime.addAndGet(eachIterationDuration));
 
@@ -1228,20 +1225,21 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                     }
                 }
 
-                // move shard on each iteration
-                for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
+                    // move shard on each iteration
+                    for (var shard : allocation.routingNodes().node("node-0").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-1", 0L, "test", allocation.changes());
+                    }
+                    for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
+                        allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
+                    }
                 }
-                for (var shard : allocation.routingNodes().node("node-1").shardsWithState(STARTED).toList()) {
-                    allocation.routingNodes().relocateShard(shard, "node-0", 0L, "test", allocation.changes());
-                }
-            }
 
-            @Override
-            public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
-                throw new AssertionError("only used for allocation explain");
+                @Override
+                public ShardAllocationDecision decideShardAllocation(ShardRouting shard, RoutingAllocation allocation) {
+                    throw new AssertionError("only used for allocation explain");
+                }
             }
-        });
+        );
 
         assertThatLogger(() -> {
             var iteration = new AtomicInteger(0);
@@ -1349,7 +1347,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), () -> 0L, allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

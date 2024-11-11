@@ -136,7 +136,7 @@ class org.elasticsearch.script.field.vectors.MultiDenseVector {
     MultiDenseVector EMPTY
     float[] getMagnitudes()
 
-    Iterator<float[]> getVectors()
+    Iterator getVectors()
     boolean isEmpty()
     int getDims()
     int size()

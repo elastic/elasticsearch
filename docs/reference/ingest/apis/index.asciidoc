@@ -32,9 +32,9 @@ preview::["The commercial IP geolocation database download management APIs are i
 
 Use the following APIs to configure and manage commercial IP geolocation database downloads:
 
-* <<put-geoip-database-api>> to create or update a database configuration
-* <<get-geoip-database-api>> to retrieve a database configuration
-* <<delete-geoip-database-api>> to delete a database configuration
+* <<put-ip-location-database-api>> to create or update a database configuration
+* <<get-ip-location-database-api>> to retrieve a database configuration
+* <<delete-ip-location-database-api>> to delete a database configuration
 
 include::put-pipeline.asciidoc[]
 include::get-pipeline.asciidoc[]
@@ -42,6 +42,6 @@ include::delete-pipeline.asciidoc[]
 include::simulate-pipeline.asciidoc[]
 include::simulate-ingest.asciidoc[]
 include::geoip-stats.asciidoc[]
-include::put-geoip-database.asciidoc[]
-include::get-geoip-database.asciidoc[]
-include::delete-geoip-database.asciidoc[]
+include::put-ip-location-database.asciidoc[]
+include::get-ip-location-database.asciidoc[]
+include::delete-ip-location-database.asciidoc[]

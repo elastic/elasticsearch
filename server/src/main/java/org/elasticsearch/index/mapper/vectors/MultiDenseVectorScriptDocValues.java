@@ -13,6 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.script.field.vectors.MultiDenseVector;
 
+import java.util.Iterator;
+
 public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
 
     public static final String MISSING_VECTOR_FIELD_MESSAGE = "A document doesn't have a value for a vector field!";
@@ -41,7 +43,7 @@ public class MultiDenseVectorScriptDocValues extends ScriptDocValues<BytesRef> {
     /**
      * Get multi-dense vector's value as an array of floats
      */
-    public float[][] getVectorValues() {
+    public Iterator<float[]> getVectorValues() {
         return getCheckedVector().getVectors();
     }
 

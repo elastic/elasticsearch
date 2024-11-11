@@ -13,7 +13,7 @@ to download from Maxmind. The license key setting does not take effect until all
 
 [source,console]
 ----
-PUT _ingest/ip_location/database/my-database-id
+PUT _ingest/ip_location/database/my-database-1
 {
   "name": "GeoIP2-Domain",
   "maxmind": {
@@ -22,6 +22,18 @@ PUT _ingest/ip_location/database/my-database-id
 }
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
+
+[source,console]
+----
+PUT _ingest/ip_location/database/my-database-2
+{
+  "name": "standard_location",
+  "ipinfo": {
+  }
+}
+----
+// TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
+
 
 [[put-ip-location-database-api-request]]
 ==== {api-request-title}

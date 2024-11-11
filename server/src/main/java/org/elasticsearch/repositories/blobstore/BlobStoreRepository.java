@@ -3496,7 +3496,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 shardId,
                 snapshotId,
                 fileName,
-                snapshotStatus.getStage(),
+                shardSnapshotStage,
                 e.getMessage(),
                 e.getStackTrace()
             );

@@ -158,28 +158,17 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
-    public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
-        writeJSONFile(node, json, logger, versionCounter, true);
-    }
-
-    public static void writeJSONFileWithoutVersionIncrement(String node, String json, Logger logger, AtomicLong versionCounter)
-        throws Exception {
-        writeJSONFile(node, json, logger, versionCounter, false);
-    }
-
-    public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter, boolean incrementVersion)
-        throws Exception {
-        long version = incrementVersion ? versionCounter.incrementAndGet() : versionCounter.get();
-
+    public static void writeJSONFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
+        String jsonWithVersion = Strings.format(json, version);
         logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
-        logger.info(Strings.format(json, version));
+        logger.info(jsonWithVersion);
 
-        Files.writeString(tempFilePath, Strings.format(json, version));
+        Files.writeString(tempFilePath, jsonWithVersion);
         int retryCount = 0;
         do {
             try {
@@ -340,7 +329,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        String node1 = internalCluster().getMasterName();
+        writeJSONFile(node1, testJSON, logger, versionCounter.incrementAndGet());
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
@@ -353,7 +343,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        String node = internalCluster().getMasterName();
+        writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -393,7 +384,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        String node1 = internalCluster().getMasterName();
+        writeJSONFile(node1, testJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -435,7 +427,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         );
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        String node = internalCluster().getMasterName();
+        writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
         awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -485,7 +478,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
         var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        String node1 = internalCluster().getMasterName();
+        writeJSONFile(node1, emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -510,7 +504,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             }
         );
 
-        writeJSONFile(internalCluster().getMasterName(), testErrorJSON, logger, versionCounter);
+        String node = internalCluster().getMasterName();
+        writeJSONFile(node, testErrorJSON, logger, versionCounter.incrementAndGet());
         awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -535,7 +530,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             var closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
             assertTrue(closeIndexResponse.isAcknowledged());
 
-            writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+            String node = internalCluster().getMasterName();
+            writeJSONFile(node, testJSON, logger, versionCounter.incrementAndGet());
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 
@@ -570,7 +566,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             }
         } finally {
             savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-            writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+            String node = internalCluster().getMasterName();
+            writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 

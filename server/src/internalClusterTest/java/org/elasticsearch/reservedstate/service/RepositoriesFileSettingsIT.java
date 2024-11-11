@@ -100,7 +100,7 @@ public class RepositoriesFileSettingsIT extends ESIntegTestCase {
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
-        FileSettingsServiceIT.writeJsonFile(node, json, logger, versionCounter.incrementAndGet());
+        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {

@@ -266,6 +266,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/data_frame_analytics_crud/Test delete given stopped config}
   issue: https://github.com/elastic/elasticsearch/issues/116608
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {categorize.Categorize}
+  issue: https://github.com/elastic/elasticsearch/issues/116434
 
 # Examples:
 #

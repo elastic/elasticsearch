@@ -9,6 +9,11 @@
 
 package org.elasticsearch.common.time;
 
+/**
+ * An interface encapsulating the different methods for getting relative and absolute time. The main
+ * implementation of this is {@link org.elasticsearch.threadpool.ThreadPool}. To make it clear that a
+ * {@code ThreadPool} is being passed around only to get time, it is preferred to use this interface.
+ */
 public interface TimeProvider {
 
     /**

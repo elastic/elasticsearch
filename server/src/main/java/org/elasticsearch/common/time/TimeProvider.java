@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.time;
 
-public interface TimeSupplier {
+public interface TimeProvider {
 
     /**
      * Returns a value of milliseconds that may be used for relative time calculations.

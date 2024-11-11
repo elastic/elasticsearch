@@ -40,9 +40,10 @@ import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationComman
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.Randomness;
-import org.elasticsearch.common.TimeSupplier;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
@@ -1207,14 +1208,14 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
 
         var currentTime = new AtomicLong(0L);
-        TimeSupplier timeSupplier = () -> currentTime.addAndGet(eachIterationDuration);
+        TimeProvider timeProvider = TimeProviderUtils.create(() -> currentTime.addAndGet(eachIterationDuration));
 
         // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
         // prevents interrupting a long computation.
         var clusterSettings = createBuiltInClusterSettings(
             Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
         );
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeSupplier, new ShardsAllocator() {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeProvider, new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
@@ -1348,7 +1349,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class)::relativeTimeInMillis, allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

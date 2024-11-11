@@ -16,7 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.TimeSupplier;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -66,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
  * thread pools to instantiate.
  */
-public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, TimeSupplier {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, TimeProvider {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 

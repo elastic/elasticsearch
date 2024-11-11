@@ -19,10 +19,10 @@ import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
-import org.elasticsearch.common.TimeSupplier;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
@@ -50,7 +50,7 @@ public class DesiredBalanceComputer {
     private static final Logger logger = LogManager.getLogger(DesiredBalanceComputer.class);
 
     private final ShardsAllocator delegateAllocator;
-    private final TimeSupplier timeSupplier;
+    private final TimeProvider timeProvider;
 
     // stats
     protected final MeanMetric iterations = new MeanMetric();
@@ -75,11 +75,11 @@ public class DesiredBalanceComputer {
 
     public DesiredBalanceComputer(
         ClusterSettings clusterSettings,
-        TimeSupplier timeSupplier,
+        TimeProvider timeProvider,
         ShardsAllocator delegateAllocator
     ) {
         this.delegateAllocator = delegateAllocator;
-        this.timeSupplier = timeSupplier;
+        this.timeProvider = timeProvider;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);
         clusterSettings.initializeAndWatch(
             MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING,
@@ -279,7 +279,7 @@ public class DesiredBalanceComputer {
 
         final int iterationCountReportInterval = computeIterationCountReportInterval(routingAllocation);
         final long timeWarningInterval = progressLogInterval.millis();
-        final long computationStartedTime = timeSupplier.timeInMillis();
+        final long computationStartedTime = timeProvider.relativeTimeInMillis();
         long nextReportTime = computationStartedTime + timeWarningInterval;
 
         int i = 0;
@@ -327,7 +327,7 @@ public class DesiredBalanceComputer {
 
             i++;
             final int iterations = i;
-            final long currentTime = timeSupplier.timeInMillis();
+            final long currentTime = timeProvider.relativeTimeInMillis();
             final boolean reportByTime = nextReportTime <= currentTime;
             final boolean reportByIterationCount = i % iterationCountReportInterval == 0;
             if (reportByTime || reportByIterationCount) {

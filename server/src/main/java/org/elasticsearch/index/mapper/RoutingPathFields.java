@@ -37,7 +37,7 @@ import java.util.TreeMap;
 /**
  * Implementation of routing fields, using field matching based on the routing path content.
  */
-public class RoutingPathFields implements RoutingFields {
+public final class RoutingPathFields implements RoutingFields {
 
     private static final int SEED = 0;
 
@@ -65,11 +65,11 @@ public class RoutingPathFields implements RoutingFields {
         this.routingBuilder = routingBuilder;
     }
 
-    final SortedMap<BytesRef, List<BytesReference>> routingValues() {
+    SortedMap<BytesRef, List<BytesReference>> routingValues() {
         return Collections.unmodifiableSortedMap(routingValues);
     }
 
-    final IndexRouting.ExtractFromSource.Builder routingBuilder() {
+    IndexRouting.ExtractFromSource.Builder routingBuilder() {
         return routingBuilder;
     }
 

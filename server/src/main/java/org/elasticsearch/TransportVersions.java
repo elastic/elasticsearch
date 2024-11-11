@@ -189,7 +189,8 @@ public class TransportVersions {
     public static final TransportVersion LOGSDB_TELEMETRY = def(8_784_00_0);
     public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
     public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
-    public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_787_00_0);
+    public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
+    public static final TransportVersion EQL_ALLOW_PARTIAL_SEARCH_RESULTS = def(8_788_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

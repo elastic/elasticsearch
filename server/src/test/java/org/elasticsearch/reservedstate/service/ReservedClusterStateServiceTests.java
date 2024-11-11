@@ -10,6 +10,7 @@
 package org.elasticsearch.reservedstate.service;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateAckListener;
@@ -39,6 +40,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.ArgumentMatchers;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -63,7 +65,9 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -280,11 +284,9 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
     }
 
     public void testLastUpdateIsApplied() throws Exception {
-        ClusterState state0 = ClusterState.builder(new ClusterName("test")).version(1000).build();
-        ClusterState state1 = ClusterState.builder(new ClusterName("test")).version(1001).build();
-        ClusterState state2 = ClusterState.builder(new ClusterName("test")).version(1002).build();
+        ClusterName clusterName = new ClusterName("test");
         ReservedStateUpdateTask realTask = new ReservedStateUpdateTask(
-            "test",
+            clusterName.value(),
             null,
             ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
             Map.of(),
@@ -292,24 +294,90 @@ public class ReservedClusterStateServiceTests extends ESTestCase {
             errorState -> fail("Unexpected error"),
             ActionListener.noop()
         );
-        ReservedStateUpdateTask task1 = spy(realTask);
-        doReturn(state1).when(task1).execute(any());
-        ReservedStateUpdateTask task2 = spy(realTask);
-        doReturn(state2).when(task2).execute(any());
-        RerouteService rerouteService = mock(RerouteService.class);
-        ReservedStateUpdateTaskExecutor taskExecutor = new ReservedStateUpdateTaskExecutor(rerouteService);
-        ClusterState newState = taskExecutor.execute(
-            new ClusterStateTaskExecutor.BatchExecutionContext<>(
-                state0,
-                List.of(new TestTaskContext<>(task1), new TestTaskContext<>(task2)),
-                () -> null
-            )
+        var updates = mockUpdateSequence(2, clusterName, realTask);
+        ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
+        ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
         );
 
-        assertThat("State should be the final state", newState, sameInstance(state2));
+        assertThat("State should be the final state", newState, sameInstance(updates.states().get(updates.states().size() - 1)));
+
         // Only process the final task; the intermediate ones can be skipped
-        verify(task1, times(0)).execute(any());
-        verify(task2, times(1)).execute(any());
+        verify(updates.tasks().get(0), times(0)).execute(any());
+        verify(updates.tasks().get(1), times(1)).execute(any());
+    }
+
+    public void testLastSuccessfulUpdateIsApplied() throws Exception {
+        ClusterName clusterName = new ClusterName("test");
+        ReservedStateUpdateTask realTask = new ReservedStateUpdateTask(
+            clusterName.value(),
+            null,
+            ReservedStateVersionCheck.HIGHER_VERSION_ONLY,
+            Map.of(),
+            Set.of(),
+            errorState -> fail("Unexpected error"),
+            ActionListener.noop()
+        ) {
+            @Override
+            ActionListener<ActionResponse.Empty> listener() {
+                var superListener = super.listener();
+                return new ActionListener<>() {
+                    @Override
+                    public void onResponse(ActionResponse.Empty empty) {
+                        superListener.onResponse(empty);
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        superListener.onFailure(e);
+                    }
+                };
+            }
+        };
+
+        var updates = mockUpdateSequence(3, clusterName, realTask);
+
+        // Inject an error in the last update
+        reset(updates.tasks().get(2));
+        doThrow(UnsupportedOperationException.class).when(updates.tasks().get(2)).execute(any());
+
+        ClusterState state0 = ClusterState.builder(clusterName).version(1000).build();
+        ClusterState newState = new ReservedStateUpdateTaskExecutor(mock(RerouteService.class)).execute(
+            new ClusterStateTaskExecutor.BatchExecutionContext<>(state0, updates.taskContexts(), () -> null)
+        );
+
+        assertThat("State should be the last successful state", newState, sameInstance(updates.states().get(1)));
+
+        // Only process the final task; the intermediate ones can be skipped
+        verify(updates.tasks().get(2), times(1)).execute(any()); // Tried the last one, it failed
+        verify(updates.tasks().get(1), times(1)).execute(any()); // Tried the second-last one, it succeeded
+        verify(updates.tasks().get(0), times(0)).execute(any()); // Didn't bother trying the first one
+    }
+
+    /**
+     * @param tasks Mockito spies configured to return a specific state
+     * @param states the corresponding states returned by {@link #tasks}
+     */
+    private record MockUpdateSequence(List<ReservedStateUpdateTask> tasks, List<ClusterState> states) {
+        public List<TestTaskContext<ReservedStateUpdateTask>> taskContexts() {
+            return tasks.stream().map(TestTaskContext::new).toList();
+        }
+    }
+
+    /**
+     * @return a sequence of updates that bump the version starting from 1001.
+     */
+    private MockUpdateSequence mockUpdateSequence(int quantity, ClusterName clusterName, ReservedStateUpdateTask realTask) {
+        List<ReservedStateUpdateTask> tasks = new ArrayList<>(quantity);
+        List<ClusterState> states = new ArrayList<>(quantity);
+        for (int i = 0; i < quantity; i++) {
+            ClusterState state = ClusterState.builder(clusterName).version(1001 + i).build();
+            ReservedStateUpdateTask task = spy(realTask);
+            doReturn(state).when(task).execute(any());
+            tasks.add(task);
+            states.add(state);
+        }
+        return new MockUpdateSequence(tasks, states);
     }
 
     public void testUpdateErrorState() {

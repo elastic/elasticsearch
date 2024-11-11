@@ -39,17 +39,28 @@ public class ReservedStateUpdateTaskExecutor implements ClusterStateTaskExecutor
         if (taskContexts.isEmpty()) {
             return initState;
         }
-        // Only the last update is relevant; the others can be skipped
-        var taskContext = taskContexts.get(taskContexts.size() - 1);
-        ClusterState clusterState = initState;
-        try (var ignored = taskContext.captureResponseHeaders()) {
-            var task = taskContext.getTask();
-            clusterState = task.execute(clusterState);
-            taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
-        } catch (Exception e) {
-            taskContext.onFailure(e);
+
+        // Only the last update is relevant; the others can be skipped.
+        // However, if that last update task fails, we should fall back to the preceding one.
+        for (var iterator = taskContexts.listIterator(taskContexts.size()); iterator.hasPrevious();) {
+            var taskContext = iterator.previous();
+            ClusterState clusterState = initState;
+            try (var ignored = taskContext.captureResponseHeaders()) {
+                var task = taskContext.getTask();
+                clusterState = task.execute(clusterState);
+                taskContext.success(() -> task.listener().onResponse(ActionResponse.Empty.INSTANCE));
+                logger.debug("Update task succeeded");
+                return clusterState;
+            } catch (Exception e) {
+                taskContext.onFailure(e);
+                if (iterator.hasPrevious()) {
+                    logger.warn("Update task failed; will try the previous update task");
+                }
+            }
         }
-        return clusterState;
+
+        logger.warn("All {} update tasks failed; returning initial state", taskContexts.size());
+        return initState;
     }
 
     @Override

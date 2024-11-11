@@ -281,6 +281,9 @@ tests:
 - class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
   method: test20NoAutoGenerationWhenAutoConfigurationDisabled
   issue: https://github.com/elastic/elasticsearch/issues/116619
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/116620
 
 # Examples:
 #

@@ -184,6 +184,12 @@ public class TransportVersions {
     public static final TransportVersion INDEX_MODE_LOOKUP = def(8_779_00_0);
     public static final TransportVersion INDEX_REQUEST_REMOVE_METERING = def(8_780_00_0);
     public static final TransportVersion CPU_STAT_STRING_PARSING = def(8_781_00_0);
+    public static final TransportVersion QUERY_RULES_RETRIEVER = def(8_782_00_0);
+    public static final TransportVersion ESQL_CCS_EXEC_INFO_WITH_FAILURES = def(8_783_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY = def(8_784_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
+    public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
+    public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

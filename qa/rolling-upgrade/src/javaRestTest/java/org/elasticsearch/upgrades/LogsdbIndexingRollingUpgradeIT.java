@@ -13,6 +13,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.test.rest.ObjectPath;
@@ -21,15 +22,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.io.IOException;
 import java.io.InputStream;
 import java.time.Instant;
+import java.util.Locale;
 import java.util.Map;
 
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.enableLogsdbByDefault;
 import static org.elasticsearch.upgrades.LogsIndexModeRollingUpgradeIT.getWriteBackingIndex;
 import static org.elasticsearch.upgrades.TsdbIT.formatInstant;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.greaterThanOrEqualTo;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCase {
 
@@ -73,7 +72,7 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
         if (isOldCluster()) {
             startTrial();
             enableLogsdbByDefault();
-            createTemplate(dataStreamName, "3", TEMPLATE);
+            createTemplate(dataStreamName, getClass().getSimpleName().toLowerCase(Locale.ROOT), TEMPLATE);
 
             Instant startTime = Instant.now().minusSeconds(60 * 60);
             bulkIndex(dataStreamName, 4, 1024, startTime);
@@ -233,7 +232,13 @@ public class LogsdbIndexingRollingUpgradeIT extends AbstractRollingUpgradeTestCa
     protected static void startTrial() throws IOException {
         Request startTrial = new Request("POST", "/_license/start_trial");
         startTrial.addParameter("acknowledge", "true");
-        assertOK(client().performRequest(startTrial));
+        try {
+            assertOK(client().performRequest(startTrial));
+        } catch (ResponseException e) {
+            var responseBody = entityAsMap(e.getResponse());
+            String error = ObjectPath.evaluate(responseBody, "error_message");
+            assertThat(error, containsString("Trial was already activated."));
+        }
     }
 
     static Map<String, Object> getIndexSettingsWithDefaults(String index) throws IOException {

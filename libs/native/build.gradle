@@ -14,11 +14,16 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
-  api project(':libs:elasticsearch-core')
-  api project(':libs:elasticsearch-logging')
+  api project(':libs:core')
+  api project(':libs:logging')
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
+}
+
+tasks.named("test").configure {
+  // this is necessary so that VectorSystemPropertyTests can invoke java
+  systemProperty "tests.system_call_filter", "false"
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

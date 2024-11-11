@@ -218,9 +218,9 @@ public class Verifier {
 
     /**
      * Implementation limitation, for now.
-     * Check for patterns like this: `... | WHERE match(..) | ... | EVAL whatever = _score | ... | WHERE match() ... `.
-     * This is currently disallowed because of the fact that both such match/qstr/etc. would get pushed down together (as an AND) to ES.
-     * Hence any such supposedly "intermediate" _score (for the first query) cannot be determined, as it would be identical to the
+     * Check for patterns like this: `... | WHERE match(...) | ... | EVAL whatever = _score | ... | WHERE match() ... `.
+     * This is currently disallowed because both match/qstr/etc. would get pushed down together (as an AND) to ES.
+     * Hence, any such supposedly "intermediate" _score (for the first query) cannot be determined, as it would be identical to the
      * (final) _score of the combined queries.
      */
     private static void checkScoreManipulationBetweenMultipleFulltextExpressions(LogicalPlan p, Set<Failure> failures) {

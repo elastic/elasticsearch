@@ -124,7 +124,7 @@ class org.elasticsearch.index.mapper.vectors.DenseVectorScriptDocValues {
 }
 
 class org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValues {
-    Iterator<float[]> getVectorValues()
+    Iterator getVectorValues()
     float[] getMagnitudes()
 }
 

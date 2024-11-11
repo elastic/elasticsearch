@@ -25,10 +25,8 @@ Use the following APIs to get statistics about ingest processing:
 the <<geoip-processor,`geoip` processor>>.
 
 [discrete]
-[[ingest-geoip-database-apis]]
-=== Ingest GeoIP Database APIs
-
-preview::["The commercial IP geolocation database download management APIs are in technical preview and may be changed or removed in a future release. Elastic will work to fix any issues, but this feature is not subject to the support SLA of official GA features."]
+[[ingest-ip-location-database-apis]]
+=== Ingest IP Location Database APIs
 
 Use the following APIs to configure and manage commercial IP geolocation database downloads:
 

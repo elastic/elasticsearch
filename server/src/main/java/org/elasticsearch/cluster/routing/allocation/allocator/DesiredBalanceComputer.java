@@ -73,11 +73,7 @@ public class DesiredBalanceComputer {
     private TimeValue progressLogInterval;
     private long maxBalanceComputationTimeDuringIndexCreationMillis;
 
-    public DesiredBalanceComputer(
-        ClusterSettings clusterSettings,
-        TimeProvider timeProvider,
-        ShardsAllocator delegateAllocator
-    ) {
+    public DesiredBalanceComputer(ClusterSettings clusterSettings, TimeProvider timeProvider, ShardsAllocator delegateAllocator) {
         this.delegateAllocator = delegateAllocator;
         this.timeProvider = timeProvider;
         clusterSettings.initializeAndWatch(PROGRESS_LOG_INTERVAL_SETTING, value -> this.progressLogInterval = value);

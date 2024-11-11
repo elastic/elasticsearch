@@ -183,10 +183,13 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         Block block,
         DataType inputDataType
     ) {
+        if (inputDataType == null) {
+            return QueryList.rawTermQueryList(field, searchExecutionContext, block);
+        }
         return switch (inputDataType) {
             case IP -> QueryList.ipTermQueryList(field, searchExecutionContext, (BytesRefBlock) block);
             case DATETIME -> QueryList.dateTermQueryList(field, searchExecutionContext, (LongBlock) block);
-            case null, default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
+            default -> QueryList.rawTermQueryList(field, searchExecutionContext, block);
         };
     }
 

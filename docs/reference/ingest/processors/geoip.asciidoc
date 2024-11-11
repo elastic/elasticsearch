@@ -71,7 +71,8 @@ The fields actually added depend on what has been found and which properties wer
 depend on what has been found and which properties were configured in `properties`.
 * If the GeoIP2 Enterprise database is used, then the following fields may be added under the `target_field`: `ip`,
 `country_iso_code`, `country_name`, `continent_code`, `continent_name`, `region_iso_code`, `region_name`, `city_name`, `postal_code`, `timezone`,
-`location`, `accuracy_radius`, `asn`, `organization_name`, `network`, `hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`,
+`location`, `accuracy_radius`, `country_confidence`, `city_confidence`, `postal_confidence`, `asn`, `organization_name`, `network`,
+`hosting_provider`, `tor_exit_node`, `anonymous_vpn`, `anonymous`, `public_proxy`,
 `residential_proxy`, `domain`, `isp`, `isp_organization_name`, `mobile_country_code`, `mobile_network_code`, `user_type`, and
 `connection_type`. The fields actually added depend on what has been found and which properties were configured in `properties`.
 

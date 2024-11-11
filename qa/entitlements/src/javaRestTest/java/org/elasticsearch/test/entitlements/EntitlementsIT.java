@@ -43,9 +43,10 @@ public class EntitlementsIT extends ESRestTestCase {
     }
 
     public void testCheckSystemExit() {
-        var exception = expectThrows(IOException.class, () -> {
-            client().performRequest(new Request("GET", "/_entitlement/_check_system_exit"));
-        });
+        var exception = expectThrows(
+            IOException.class,
+            () -> { client().performRequest(new Request("GET", "/_entitlement/_check_system_exit")); }
+        );
         assertThat(exception.getMessage(), containsString("not_entitled_exception"));
     }
 }

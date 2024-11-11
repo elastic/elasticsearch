@@ -14,13 +14,12 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.cluster.util.Version;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
-import org.junit.Before;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
@@ -62,14 +61,6 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(cluster);
 
     private String testRestCluster = cluster.getHttpAddresses();
-
-    @Before
-    public void setup() {
-        assumeFalse(
-            "Testing upgrades from before CompatibilityVersions held mapping versions in cluster state",
-            testFeatureService.clusterHasFeature(RestTestLegacyFeatures.SYSTEM_INDICES_MAPPING_VERSION_IN_CLUSTER_STATE.id())
-        );
-    }
 
     @Override
     protected String getTestRestCluster() {
@@ -116,7 +107,19 @@ public class SystemIndexMappingUpgradeIT extends ESRestTestCase {
         return (Map<String, Object>) (objectMap.get(field));
     }
 
+    @UpdateForV9()
     public void testGrowShrinkUpgradeUpdatesSystemIndexMapping() throws Exception {
+        /*
+         * From 8.11, CompatibilityVersions  holds a map of system index names to their mappings versions, alongside the transport version.
+         * See https://github.com/elastic/elasticsearch/pull/99307
+         * The problem was fixed in 8.16.1/8.17, so we want to test upgrade from a cluster pre-8.11 to a cluster post-8.16.0
+         * For testing the first condition, we use a synthetic cluster feature. The second condition is implied, as the fix and this test
+         * are applied only to post-8.16.0
+         */
+        assumeFalse(
+            "Testing upgrades from before CompatibilityVersions held mapping versions in cluster state",
+            testFeatureService.clusterHasFeature("gte_v8.11.0")
+        );
 
         // Upgrade node 0 and 1 to the current version, leave node 2 to the BwC version
         logger.info("Upgrading node 0 to version {}", Version.CURRENT);

@@ -199,8 +199,10 @@ public class CompatibilityVersionsFixupListener implements ClusterStateListener 
          * see NodeFeaturesFixupListener).
          * We also can't use transport version, as that is unreliable for upgrades from versions before 8.8
          * (see TransportVersionFixupListener).
-         * So the only thing we can use is release version.
-         * This is ok here, as Serverless will never hit this case, so the node feature fetch action will never be called on Serverless.
+         * So the only thing we can use is release version. This is ok here, as Serverless will never hit this case, so the node
+         * feature fetch action will never be called on Serverless.
+         * The problem affects 8.11+, but as we fixed the problem in 8.16.1 and 8.17.0 (by adding systemIndexMappingsVersion to
+         * NodesInfoResponse), we can fix only nodes with version > 8.16.0.
          * This whole class will be removed in ES v9.
          */
         queries.add(

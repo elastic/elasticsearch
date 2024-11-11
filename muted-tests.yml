@@ -287,6 +287,9 @@ tests:
 - class: org.elasticsearch.smoketest.MlWithSecurityIT
   method: test {yaml=ml/inference_crud/Test force delete given model referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/116624
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/116628
 
 # Examples:
 #

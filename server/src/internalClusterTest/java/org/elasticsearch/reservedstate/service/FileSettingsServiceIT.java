@@ -487,15 +487,13 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         ensureStableCluster(3);
 
         savedClusterState = setupCleanupClusterStateListener(internalCluster().getMasterName());
-        String node1 = internalCluster().getMasterName();
-        writeJSONFile(node1, testCleanupJSON, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), testCleanupJSON, logger, versionCounter.incrementAndGet());
 
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
         savedClusterState = setupClusterStateListener(internalCluster().getMasterName());
-        String node = internalCluster().getMasterName();
-        writeJSONFile(node, testJSON43mb, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), testJSON43mb, logger, versionCounter.incrementAndGet());
 
         assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }

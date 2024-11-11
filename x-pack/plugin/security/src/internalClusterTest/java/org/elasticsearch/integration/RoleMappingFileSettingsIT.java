@@ -329,8 +329,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        String node1 = internalCluster().getMasterName();
-        writeJSONFile(node1, testJSON, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter.incrementAndGet());
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
@@ -343,8 +342,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        String node = internalCluster().getMasterName();
-        writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -384,8 +382,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        String node1 = internalCluster().getMasterName();
-        writeJSONFile(node1, testJSON, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -478,8 +475,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
         var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        String node1 = internalCluster().getMasterName();
-        writeJSONFile(node1, emptyJSON, logger, versionCounter.incrementAndGet());
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 

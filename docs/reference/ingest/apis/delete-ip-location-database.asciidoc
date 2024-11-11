@@ -8,7 +8,7 @@ Deletes a geoip database configuration.
 
 [source,console]
 ----
-DELETE /_ingest/geoip/database/my-database-id
+DELETE /_ingest/ip_location/database/my-database-id
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
@@ -16,7 +16,7 @@ DELETE /_ingest/geoip/database/my-database-id
 [[delete-ip-location-database-api-request]]
 ==== {api-request-title}
 
-`DELETE /_ingest/geoip/database/<database>`
+`DELETE /_ingest/ip_location/database/<database>`
 
 [[delete-ip-location-database-api-prereqs]]
 ==== {api-prereq-title}
@@ -50,6 +50,6 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [source,console]
 ----
-DELETE /_ingest/geoip/database/example-database-id
+DELETE /_ingest/ip_location/database/example-database-id
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]

@@ -8,7 +8,7 @@ Returns information about one or more geoip database configurations.
 
 [source,console]
 ----
-GET /_ingest/geoip/database/my-database-id
+GET /_ingest/ip_location/database/my-database-id
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 
@@ -17,9 +17,9 @@ GET /_ingest/geoip/database/my-database-id
 [[get-ip-location-database-api-request]]
 ==== {api-request-title}
 
-`GET /_ingest/geoip/database/<database>`
+`GET /_ingest/ip_location/database/<database>`
 
-`GET /_ingest/geoip/database`
+`GET /_ingest/ip_location/database`
 
 [[get-ip-location-database-api-prereqs]]
 ==== {api-prereq-title}
@@ -53,7 +53,7 @@ include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 [source,console]
 ----
-GET /_ingest/geoip/database/my-database-id
+GET /_ingest/ip_location/database/my-database-id
 ----
 // TEST[skip:we don't want to leak the enterprise-geoip-downloader task, which touching these APIs would cause. Therefore, skip this test.]
 

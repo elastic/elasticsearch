@@ -328,6 +328,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
   method: test {p0=esql/60_enrich/Enrich on keyword with fields}
   issue: https://github.com/elastic/elasticsearch/issues/116593
+- class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
+  issue: https://github.com/elastic/elasticsearch/issues/116487
 
 # Examples:
 #

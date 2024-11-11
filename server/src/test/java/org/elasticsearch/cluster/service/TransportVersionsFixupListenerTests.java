@@ -27,7 +27,6 @@ import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
 import org.mockito.ArgumentCaptor;
@@ -35,14 +34,11 @@ import org.mockito.ArgumentCaptor;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 import java.util.concurrent.Executor;
 
-import static java.util.Map.entry;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.everyItem;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.same;
@@ -81,7 +77,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         return tvs;
     }
 
-    private static NodesInfoResponse getResponse(Map<String, CompatibilityVersions> responseData) {
+    private static NodesInfoResponse getResponse(Map<String, TransportVersion> responseData) {
         return new NodesInfoResponse(
             ClusterName.DEFAULT,
             responseData.entrySet()
@@ -211,19 +207,10 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
             action.capture()
         );
-        action.getValue()
-            .onResponse(
-                getResponse(
-                    Map.ofEntries(
-                        entry("node1", new CompatibilityVersions(NEXT_TRANSPORT_VERSION, Map.of())),
-                        entry("node2", new CompatibilityVersions(NEXT_TRANSPORT_VERSION, Map.of()))
-                    )
-                )
-            );
+        action.getValue().onResponse(getResponse(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
         verify(taskQueue).submitTask(anyString(), task.capture(), any());
 
-        assertThat(task.getValue().results().keySet(), equalTo(Set.of("node1", "node2")));
-        assertThat(task.getValue().results().values(), everyItem(equalTo(NEXT_TRANSPORT_VERSION)));
+        assertThat(task.getValue().results(), equalTo(Map.of("node1", NEXT_TRANSPORT_VERSION, "node2", NEXT_TRANSPORT_VERSION)));
     }
 
     public void testConcurrentChangesDoNotOverlap() {
@@ -272,17 +259,12 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         Scheduler scheduler = mock(Scheduler.class);
         Executor executor = mock(Executor.class);
 
-        var compatibilityVersions = new CompatibilityVersions(
-            TransportVersion.current(),
-            Map.of(".system-index-1", new SystemIndexDescriptor.MappingsVersion(1, 1234))
-        );
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
-            .nodes(node(Version.CURRENT, Version.CURRENT, Version.CURRENT))
+            .nodes(node(NEXT_VERSION, NEXT_VERSION, NEXT_VERSION))
             .nodeIdsToCompatibilityVersions(
-                Map.ofEntries(
-                    entry("node0", compatibilityVersions),
-                    entry("node1", new CompatibilityVersions(TransportVersions.V_8_8_0, Map.of())),
-                    entry("node2", new CompatibilityVersions(TransportVersions.V_8_8_0, Map.of()))
+                Maps.transformValues(
+                    versions(NEXT_TRANSPORT_VERSION, TransportVersions.V_8_8_0, TransportVersions.V_8_8_0),
+                    transportVersion -> new CompatibilityVersions(transportVersion, Map.of())
                 )
             )
             .build();

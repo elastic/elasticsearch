@@ -26,7 +26,6 @@ import org.elasticsearch.client.internal.support.AbstractClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
@@ -79,7 +78,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
+                    TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
                     null,
@@ -157,7 +156,7 @@ public class RemoteClusterNodesActionTests extends ESTestCase {
             nodeInfos.add(
                 new NodeInfo(
                     Build.current().version(),
-                    new CompatibilityVersions(TransportVersion.current(), Map.of()),
+                    TransportVersion.current(),
                     IndexVersion.current(),
                     Map.of(),
                     null,

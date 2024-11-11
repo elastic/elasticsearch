@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -453,7 +452,7 @@ public class AutoscalingNodesInfoServiceTests extends AutoscalingTestCase {
         OsInfo osInfo = new OsInfo(randomLong(), processors, Processors.of((double) processors), null, null, null, null);
         return new org.elasticsearch.action.admin.cluster.node.info.NodeInfo(
             Build.current().version(),
-            new CompatibilityVersions(TransportVersion.current(), Map.of()),
+            TransportVersion.current(),
             IndexVersion.current(),
             Map.of(),
             Build.current(),

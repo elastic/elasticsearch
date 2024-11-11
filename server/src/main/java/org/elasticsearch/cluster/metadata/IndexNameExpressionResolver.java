@@ -63,6 +63,8 @@ import java.util.function.Predicate;
  * - Resolve expressions to concrete indices
  * - Resolve expressions to data stream names
  * - Resolve expressions to resources (meaning indices, data streams and aliases)
+ * Note: This class is performance sensitive, so we pay extra attention on the data structure usage and we avoid streams and iterators when possible
+ * in favor of the classic for-i loops.
  */
 public class IndexNameExpressionResolver {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IndexNameExpressionResolver.class);
@@ -480,7 +482,9 @@ public class IndexNameExpressionResolver {
                     && context.getOptions().includeFailureIndices()) {
                         // Collect the data streams involved
                         Set<DataStream> aliasDataStreams = new HashSet<>();
-                        for (Index index : indexAbstraction.getIndices()) {
+                        List<Index> indices = indexAbstraction.getIndices();
+                        for (int i = 0, n = indices.size(); i < n; i++) {
+                            Index index = indices.get(i);
                             aliasDataStreams.add(indicesLookup.get(index.getName()).getParentDataStream());
                         }
                         for (DataStream dataStream : aliasDataStreams) {
@@ -508,7 +512,9 @@ public class IndexNameExpressionResolver {
 
     private static void resolveIndicesForDataStream(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
         if (shouldIncludeRegularIndices(context.getOptions())) {
-            for (Index index : dataStream.getIndices()) {
+            List<Index> indices = dataStream.getIndices();
+            for (int i = 0, n = indices.size(); i < n; i++) {
+                Index index = indices.get(i);
                 if (shouldTrackConcreteIndex(context, index)) {
                     concreteIndicesResult.add(index);
                 }
@@ -517,7 +523,9 @@ public class IndexNameExpressionResolver {
         if (shouldIncludeFailureIndices(context.getOptions())) {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
-                for (Index index : dataStream.getFailureIndices().getIndices()) {
+                List<Index> failureIndices = dataStream.getFailureIndices().getIndices();
+                for (int i = 0, n = failureIndices.size(); i < n; i++) {
+                    Index index = failureIndices.get(i);
                     if (shouldTrackConcreteIndex(context, index)) {
                         concreteIndicesResult.add(index);
                     }
@@ -892,7 +900,8 @@ public class IndexNameExpressionResolver {
                     .toArray(AliasMetadata[]::new);
             }
             List<String> aliases = null;
-            for (AliasMetadata aliasMetadata : aliasCandidates) {
+            for (int i = 0; i < aliasCandidates.length; i++) {
+                AliasMetadata aliasMetadata = aliasCandidates[i];
                 if (requiredAlias.test(aliasMetadata)) {
                     // If required - add it to the list of aliases
                     if (aliases == null) {
@@ -946,7 +955,8 @@ public class IndexNameExpressionResolver {
         for (String expression : resolvedExpressions) {
             IndexAbstraction indexAbstraction = state.metadata().getIndicesLookup().get(expression);
             if (indexAbstraction != null && indexAbstraction.getType() == Type.ALIAS) {
-                for (Index index : indexAbstraction.getIndices()) {
+                for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
+                    Index index = indexAbstraction.getIndices().get(i);
                     String concreteIndex = index.getName();
                     if (norouting.contains(concreteIndex) == false) {
                         AliasMetadata aliasMetadata = state.metadata().index(concreteIndex).getAliases().get(indexAbstraction.getName());
@@ -975,7 +985,8 @@ public class IndexNameExpressionResolver {
                     continue;
                 }
                 if (dataStream.getIndices() != null) {
-                    for (Index index : dataStream.getIndices()) {
+                    for (int i = 0, n = dataStream.getIndices().size(); i < n; i++) {
+                        Index index = dataStream.getIndices().get(i);
                         String concreteIndex = index.getName();
                         routings = collectRoutings(routings, paramRouting, norouting, concreteIndex);
                     }
@@ -1020,8 +1031,8 @@ public class IndexNameExpressionResolver {
             Set<String> r = Sets.newHashSet(Strings.splitStringByCommaToArray(routing));
             Map<String, Set<String>> routings = new HashMap<>();
             String[] concreteIndices = metadata.getConcreteAllIndices();
-            for (String index : concreteIndices) {
-                routings.put(index, r);
+            for (int i = 0; i < concreteIndices.length; i++) {
+                routings.put(concreteIndices[i], r);
             }
             return routings;
         }
@@ -1473,7 +1484,8 @@ public class IndexNameExpressionResolver {
                 resources.add(indexAbstraction.getName());
             } else {
                 if (shouldIncludeRegularIndices(context.getOptions())) {
-                    for (Index index : indexAbstraction.getIndices()) {
+                    for (int i = 0, n = indexAbstraction.getIndices().size(); i < n; i++) {
+                        Index index = indexAbstraction.getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
                             resources.add(index.getName());
@@ -1482,7 +1494,8 @@ public class IndexNameExpressionResolver {
                 }
                 if (indexAbstraction.getType() == Type.DATA_STREAM && shouldIncludeFailureIndices(context.getOptions())) {
                     DataStream dataStream = (DataStream) indexAbstraction;
-                    for (Index index : dataStream.getFailureIndices().getIndices()) {
+                    for (int i = 0, n = dataStream.getFailureIndices().getIndices().size(); i < n; i++) {
+                        Index index = dataStream.getFailureIndices().getIndices().get(i);
                         IndexMetadata indexMetadata = context.state.metadata().index(index);
                         if (indexMetadata.getState() != excludeState) {
                             resources.add(index.getName());
@@ -1826,7 +1839,8 @@ public class IndexNameExpressionResolver {
             final Set<String> resolvedSystemDataStreams = new HashSet<>();
             final SortedMap<String, IndexAbstraction> indicesLookup = metadata.getIndicesLookup();
             boolean matchedIndex = false;
-            for (Index concreteIndex : concreteIndices) {
+            for (int i = 0; i < concreteIndices.length; i++) {
+                Index concreteIndex = concreteIndices[i];
                 IndexMetadata idxMetadata = metadata.index(concreteIndex);
                 String name = concreteIndex.getName();
                 if (idxMetadata.isSystem() && systemIndexAccessPredicate.test(name) == false) {

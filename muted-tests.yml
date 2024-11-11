@@ -284,6 +284,9 @@ tests:
 - class: org.elasticsearch.packaging.test.BootstrapCheckTests
   method: test20RunWithBootstrapChecks
   issue: https://github.com/elastic/elasticsearch/issues/116620
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/inference_crud/Test force delete given model referenced by pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/116624
 
 # Examples:
 #

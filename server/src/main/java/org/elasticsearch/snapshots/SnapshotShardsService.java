@@ -407,7 +407,6 @@ public final class SnapshotShardsService extends AbstractLifecycleComponent impl
             } else {
                 // shard snapshot currently running, mark for pause
                 localShardSnapshotStatus.pauseIfNotCompleted(notifyOnAbortTaskRunner::enqueueTask);
-                snapshotShutdownProgressTracker.incNumberOfShardSnapshotsWithPausingOrInactiveState(shardId, entry.snapshot());
             }
         }
     }

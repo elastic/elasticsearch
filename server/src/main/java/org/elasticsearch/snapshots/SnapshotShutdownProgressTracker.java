@@ -24,7 +24,6 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.Supplier;
 
@@ -53,8 +52,6 @@ public class SnapshotShutdownProgressTracker {
     private volatile TimeValue progressLoggerInterval;
     private Scheduler.Cancellable scheduledProgressLoggerFuture;
 
-    private AtomicBoolean inShutdown = new AtomicBoolean(false);
-
     /**
      * The time at which the cluster state update began that found a shutdown signal for this node. Negative value means unset (node is not
      * shutting down).
@@ -79,12 +76,6 @@ public class SnapshotShutdownProgressTracker {
      * Also tracks the absolute start time of registration, to report duration on de-registration.
      */
     private final Map<String, Long> shardSnapshotRequests = ConcurrentCollections.newConcurrentMap();
-
-    /**
-     * Tracks the total number of shard snapshots that were active and signaled to pause. Shard snapshots could finish successfully before
-     * checking for the pause signal; or never actively start before being aborted and their state is cleared away.
-     */
-    private final AtomicLong totalShardSnapshotsSetToPausing = new AtomicLong();
 
     /**
      * Track how the shard snapshots reach completion during shutdown: did they fail, succeed or pause?
@@ -143,7 +134,6 @@ public class SnapshotShutdownProgressTracker {
                 Finished signalling shard snapshots to pause at [{}]. \
                 Number shard snapshots running [{}]. \
                 Number shard snapshots waiting for master node reply to status update request [{}] \
-                Total shard snapshots set to pausing [{}] \
                 Shard snapshot completion stats since shutdown began: Done [{}]; Failed [{}]; Aborted [{}]; Paused [{}]\
                 """,
             getLocalNodeId.get(),
@@ -151,7 +141,6 @@ public class SnapshotShutdownProgressTracker {
             shutdownFinishedSignallingPausingMillis,
             numberOfShardSnapshotsInProgressOnDataNode.get(),
             shardSnapshotRequests.size(),
-            totalShardSnapshotsSetToPausing.get(),
             doneCount.get(),
             failureCount.get(),
             abortedCount.get(),
@@ -163,7 +152,7 @@ public class SnapshotShutdownProgressTracker {
      * Called as soon as a node shutdown signal is received.
      */
     public void onClusterStateAddShutdown() {
-        assert inShutdown() == false : "Expected not to be tracking anything. Call shutdown remove before adding shutdown again";
+        assert this.shutdownStartMillis == -1 : "Expected not to be tracking anything. Call shutdown remove before adding shutdown again";
 
         // Reset these values when a new shutdown occurs, to minimize/eliminate chances of racing if shutdown is later removed and async
         // shard snapshots updates continue to occur.
@@ -177,8 +166,6 @@ public class SnapshotShutdownProgressTracker {
 
         // Start logging periodic progress reports.
         scheduleProgressLogger();
-
-        setShutdown(true);
     }
 
     /**
@@ -186,7 +173,8 @@ public class SnapshotShutdownProgressTracker {
      * pause.
      */
     public void onClusterStatePausingSetForAllShardSnapshots() {
-        assert inShutdown() : "Should not have left shutdown mode before finishing processing the cluster state update with shutdown";
+        assert this.shutdownStartMillis == -1
+            : "Should not have left shutdown mode before finishing processing the cluster state update with shutdown";
         this.shutdownFinishedSignallingPausingMillis = threadPool.relativeTimeInMillis();
         logger.debug(() -> Strings.format("Pause signals have been set for all shard snapshots on data node [%s]", getLocalNodeId.get()));
     }
@@ -196,7 +184,7 @@ public class SnapshotShutdownProgressTracker {
      * case, no further shutdown shard snapshot progress reporting is desired.
      */
     public void onClusterStateRemoveShutdown() {
-        assert inShutdown() : "Expected a call to add shutdown mode before a call to remove shutdown mode.";
+        assert shutdownStartMillis != -1 : "Expected a call to add shutdown mode before a call to remove shutdown mode.";
 
         // Reset the shutdown specific trackers.
         this.shutdownStartMillis = -1;
@@ -204,16 +192,6 @@ public class SnapshotShutdownProgressTracker {
 
         // Turn off the progress logger, which we only want to run during shutdown.
         cancelProgressLogger();
-
-        setShutdown(false);
-    }
-
-    private boolean inShutdown() {
-        return inShutdown.get();
-    }
-
-    private void setShutdown(boolean val) {
-        inShutdown.set(val);
     }
 
     /**
@@ -250,11 +228,6 @@ public class SnapshotShutdownProgressTracker {
                 }
             }
         }
-    }
-
-    public void incNumberOfShardSnapshotsWithPausingOrInactiveState(ShardId shardId, Snapshot snapshot) {
-        logger.debug(() -> Strings.format("Pausing shard (shard ID: [%s]) in snapshot ([%s])", shardId, snapshot));
-        totalShardSnapshotsSetToPausing.incrementAndGet();
     }
 
     /**

@@ -1,0 +1,5 @@
+pr: 116591
+summary: "[ES|QL] Add support for `byte_length` scalar function"
+area: ES|QL
+type: feature
+issues: []

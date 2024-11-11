@@ -367,7 +367,7 @@ public class Cron implements ToXContentFragment {
                 hr = st.first();
             } else {
                 hr = hours.first();
-                day++;
+                day++; //@TODO: Check this does not excede the last day of the month
             }
             if (hr != t) {
                 ldt = ldt.withSecond(0);

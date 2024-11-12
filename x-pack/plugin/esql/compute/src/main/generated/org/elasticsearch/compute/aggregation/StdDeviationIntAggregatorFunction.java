@@ -33,12 +33,12 @@ public final class StdDeviationIntAggregatorFunction implements AggregatorFuncti
 
   private final DriverContext driverContext;
 
-  private final StdDeviationIntAggregator.StdDeviationIntState state;
+  private final StdDeviationStates.StdDeviationState state;
 
   private final List<Integer> channels;
 
   public StdDeviationIntAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDeviationIntAggregator.StdDeviationIntState state) {
+      StdDeviationStates.StdDeviationState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

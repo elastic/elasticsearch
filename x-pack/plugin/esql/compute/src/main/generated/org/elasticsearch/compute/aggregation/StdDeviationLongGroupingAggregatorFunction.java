@@ -30,14 +30,14 @@ public final class StdDeviationLongGroupingAggregatorFunction implements Groupin
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDeviationLongAggregator.GroupingStdDeviationLongState state;
+  private final StdDeviationStates.GroupingStdDeviationState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StdDeviationLongGroupingAggregatorFunction(List<Integer> channels,
-      StdDeviationLongAggregator.GroupingStdDeviationLongState state, DriverContext driverContext) {
+      StdDeviationStates.GroupingStdDeviationState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -191,7 +191,7 @@ public final class StdDeviationLongGroupingAggregatorFunction implements Groupin
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationLongAggregator.GroupingStdDeviationLongState inState = ((StdDeviationLongGroupingAggregatorFunction) input).state;
+    StdDeviationStates.GroupingStdDeviationState inState = ((StdDeviationLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StdDeviationLongAggregator.combineStates(state, groupId, inState, position);
   }

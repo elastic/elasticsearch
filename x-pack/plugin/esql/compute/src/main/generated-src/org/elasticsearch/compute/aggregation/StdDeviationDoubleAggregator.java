@@ -8,16 +8,13 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
-import org.elasticsearch.core.Releasables;
 
 /**
  * A standard deviation aggregation definition for double.
@@ -32,27 +29,19 @@ import org.elasticsearch.core.Releasables;
 @GroupingAggregator
 public class StdDeviationDoubleAggregator {
 
-    public static StdDeviationDoubleState initSingle() {
-        return new StdDeviationDoubleState();
+    public static StdDeviationStates.StdDeviationState initSingle() {
+        return new StdDeviationStates.StdDeviationState();
     }
 
-    public static void combine(StdDeviationDoubleState state, double value) {
+    public static void combine(StdDeviationStates.StdDeviationState state, double value) {
         state.add(value);
     }
 
-    public static void combineIntermediate(StdDeviationDoubleState state, double mean, double m2, long count) {
+    public static void combineIntermediate(StdDeviationStates.StdDeviationState state, double mean, double m2, long count) {
         state.combine(mean, m2, count);
     }
 
-    public static void evaluateIntermediate(StdDeviationDoubleState state, DriverContext driverContext, Block[] blocks, int offset) {
-        assert blocks.length >= offset + 3;
-        BlockFactory blockFactory = driverContext.blockFactory();
-        blocks[offset + 0] = blockFactory.newConstantDoubleBlockWith(state.mean(), 1);
-        blocks[offset + 1] = blockFactory.newConstantDoubleBlockWith(state.m2(), 1);
-        blocks[offset + 2] = blockFactory.newConstantLongBlockWith(state.count(), 1);
-    }
-
-    public static Block evaluateFinal(StdDeviationDoubleState state, DriverContext driverContext) {
+    public static Block evaluateFinal(StdDeviationStates.StdDeviationState state, DriverContext driverContext) {
         final long count = state.count();
         final double m2 = state.m2();
         if (count == 0 || Double.isFinite(m2) == false) {
@@ -61,67 +50,38 @@ public class StdDeviationDoubleAggregator {
         return driverContext.blockFactory().newConstantDoubleBlockWith(state.evaluateFinal(), 1);
     }
 
-    public static GroupingStdDeviationDoubleState initGrouping(BigArrays bigArrays) {
-        return new GroupingStdDeviationDoubleState(bigArrays);
+    public static StdDeviationStates.GroupingStdDeviationState initGrouping(BigArrays bigArrays) {
+        return new StdDeviationStates.GroupingStdDeviationState(bigArrays);
     }
 
-    public static void combine(GroupingStdDeviationDoubleState current, int groupId, double value) {
+    public static void combine(StdDeviationStates.GroupingStdDeviationState current, int groupId, double value) {
         current.add(groupId, value);
     }
 
     public static void combineStates(
-        GroupingStdDeviationDoubleState current,
+        StdDeviationStates.GroupingStdDeviationState current,
         int groupId,
-        GroupingStdDeviationDoubleState state,
+        StdDeviationStates.GroupingStdDeviationState state,
         int statePosition
     ) {
-        var st = state.states.get(statePosition);
-        if (st != null) {
-            current.combine(groupId, st.mean(), st.m2(), st.count());
-        }
+        current.combine(groupId, state.getOrNull(statePosition));
     }
 
-    public static void combineIntermediate(GroupingStdDeviationDoubleState state, int groupId, double mean, double m2, long count) {
+    public static void combineIntermediate(
+        StdDeviationStates.GroupingStdDeviationState state,
+        int groupId,
+        double mean,
+        double m2,
+        long count
+    ) {
         state.combine(groupId, mean, m2, count);
     }
 
-    public static void evaluateIntermediate(
-        GroupingStdDeviationDoubleState state,
-        Block[] blocks,
-        int offset,
-        IntVector selected,
-        DriverContext driverContext
-    ) {
-        assert blocks.length >= offset + 3 : "blocks=" + blocks.length + ",offset=" + offset;
-        try (
-            var meanBuilder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var m2Builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount());
-            var countBuilder = driverContext.blockFactory().newLongBlockBuilder(selected.getPositionCount());
-        ) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                final var groupId = selected.getInt(i);
-                final var st = groupId < state.states.size() ? state.states.get(groupId) : null;
-                if (st != null) {
-                    meanBuilder.appendDouble(st.mean());
-                    m2Builder.appendDouble(st.m2());
-                    countBuilder.appendLong(st.count());
-                } else {
-                    meanBuilder.appendNull();
-                    m2Builder.appendNull();
-                    countBuilder.appendNull();
-                }
-            }
-            blocks[offset + 0] = meanBuilder.build();
-            blocks[offset + 1] = m2Builder.build();
-            blocks[offset + 2] = countBuilder.build();
-        }
-    }
-
-    public static Block evaluateFinal(GroupingStdDeviationDoubleState state, IntVector selected, DriverContext driverContext) {
+    public static Block evaluateFinal(StdDeviationStates.GroupingStdDeviationState state, IntVector selected, DriverContext driverContext) {
         try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final var groupId = selected.getInt(i);
-                final var st = groupId < state.states.size() ? state.states.get(groupId) : null;
+                final var st = state.getOrNull(groupId);
                 if (st != null) {
                     final var m2 = st.m2();
                     if (Double.isFinite(m2) == false) {
@@ -134,101 +94,6 @@ public class StdDeviationDoubleAggregator {
                 }
             }
             return builder.build();
-        }
-    }
-
-    static final class StdDeviationDoubleState implements AggregatorState {
-
-        private WelfordAlgorithm welfordAlgorithm;
-
-        StdDeviationDoubleState() {
-            this(0, 0, 0);
-        }
-
-        StdDeviationDoubleState(double mean, double m2, long count) {
-            this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
-        }
-
-        public void add(double value) {
-            welfordAlgorithm.add(value);
-        }
-
-        public void combine(double mean, double m2, long count) {
-            welfordAlgorithm.add(mean, m2, count);
-        }
-
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, DriverContext driverContext) {
-            StdDeviationDoubleAggregator.evaluateIntermediate(this, driverContext, blocks, offset);
-        }
-
-        @Override
-        public void close() {}
-
-        public double mean() {
-            return welfordAlgorithm.mean();
-        }
-
-        public double m2() {
-            return welfordAlgorithm.m2();
-        }
-
-        public long count() {
-            return welfordAlgorithm.count();
-        }
-
-        public double evaluateFinal() {
-            return welfordAlgorithm.evaluate();
-        }
-    }
-
-    static final class GroupingStdDeviationDoubleState implements GroupingAggregatorState {
-
-        private ObjectArray<StdDeviationDoubleState> states;
-        private final BigArrays bigArrays;
-
-        GroupingStdDeviationDoubleState(BigArrays bigArrays) {
-            this.states = bigArrays.newObjectArray(1);
-            this.bigArrays = bigArrays;
-        }
-
-        public void combine(int groupId, double meanValue, double m2Value, long countValue) {
-            ensureCapacity(groupId);
-            var state = states.get(groupId);
-            if (state == null) {
-                state = new StdDeviationDoubleState(meanValue, m2Value, countValue);
-                states.set(groupId, state);
-            } else {
-                state.combine(meanValue, m2Value, countValue);
-            }
-        }
-
-        public void add(int groupId, double value) {
-            ensureCapacity(groupId);
-            var state = states.get(groupId);
-            if (state == null) {
-                state = new StdDeviationDoubleState();
-                states.set(groupId, state);
-            }
-            state.add(value);
-        }
-
-        private void ensureCapacity(int groupId) {
-            states = bigArrays.grow(states, groupId + 1);
-        }
-
-        @Override
-        public void toIntermediate(Block[] blocks, int offset, IntVector selected, DriverContext driverContext) {
-            StdDeviationDoubleAggregator.evaluateIntermediate(this, blocks, offset, selected, driverContext);
-        }
-
-        @Override
-        public void close() {
-            Releasables.close(states);
-        }
-
-        void enableGroupIdTracking(SeenGroupIds seenGroupIds) {
-            // noop - we handle the null states inside `toIntermediate` and `evaluateFinal`
         }
     }
 }

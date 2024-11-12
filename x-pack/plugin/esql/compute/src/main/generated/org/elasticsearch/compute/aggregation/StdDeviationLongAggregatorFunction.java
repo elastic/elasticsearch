@@ -31,12 +31,12 @@ public final class StdDeviationLongAggregatorFunction implements AggregatorFunct
 
   private final DriverContext driverContext;
 
-  private final StdDeviationLongAggregator.StdDeviationLongState state;
+  private final StdDeviationStates.StdDeviationState state;
 
   private final List<Integer> channels;
 
   public StdDeviationLongAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDeviationLongAggregator.StdDeviationLongState state) {
+      StdDeviationStates.StdDeviationState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

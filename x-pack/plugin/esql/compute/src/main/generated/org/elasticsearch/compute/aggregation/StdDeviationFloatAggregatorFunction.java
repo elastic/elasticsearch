@@ -33,12 +33,12 @@ public final class StdDeviationFloatAggregatorFunction implements AggregatorFunc
 
   private final DriverContext driverContext;
 
-  private final StdDeviationFloatAggregator.StdDeviationFloatState state;
+  private final StdDeviationStates.StdDeviationState state;
 
   private final List<Integer> channels;
 
   public StdDeviationFloatAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDeviationFloatAggregator.StdDeviationFloatState state) {
+      StdDeviationStates.StdDeviationState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

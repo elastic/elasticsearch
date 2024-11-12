@@ -3266,7 +3266,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
             "<.marvel-{now/d}>",
             "name2",
             "<.logstash-{now/M{uuuu.MM}}>"
-        );
+        ).v1();
         assertThat(result.size(), equalTo(4));
         assertThat(result, contains("name1", dataMathIndex1, "name2", dateMathIndex2));
     }

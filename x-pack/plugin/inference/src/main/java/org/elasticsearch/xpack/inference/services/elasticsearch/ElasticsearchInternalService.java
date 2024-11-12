@@ -500,7 +500,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
 
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType(), true).validate(this, model, listener);
     }
 
     @Override

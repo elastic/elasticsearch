@@ -1463,7 +1463,7 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             );
 
             var request = (InferModelAction.Request) invocationOnMock.getArguments()[1];
-            assertThat(request.getId(), is("custom-model"));
+            assertThat(request.getId(), is(randomInferenceEntityId));
             return Void.TYPE;
         }).when(client).execute(eq(InferModelAction.INSTANCE), any(), any());
         when(client.threadPool()).thenReturn(threadPool);

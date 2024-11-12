@@ -649,8 +649,8 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
-
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
+    private final SetOnce<QueryableRolesProvider> queryableRolesProvider = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
     // submit migration jobs doesn't get out of hand and retries forever if they fail. Reset by a
@@ -1191,12 +1191,13 @@ public class Security extends Plugin
         components.add(crossClusterAccessAuthcService.get());
 
         if (QUERYABLE_BUILT_IN_ROLES_ENABLED) {
-            QueryableRolesProvider queryableRolesProvider = new QueryableReservedRolesProvider(reservedRolesStore); // TODO: Make this
-            // injectable
+            if (queryableRolesProvider.get() == null) {
+                queryableRolesProvider.set(new QueryableReservedRolesProvider(reservedRolesStore));
+            }
             QueryableRolesSynchronizationExecutor queryableRolesSynchronizationExecutor = new QueryableRolesSynchronizationExecutor(
                 clusterService,
                 featureService,
-                queryableRolesProvider,
+                queryableRolesProvider.get(),
                 nativeRolesStore,
                 systemIndices.getMainIndexManager(),
                 threadPool
@@ -2351,6 +2352,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
+        loadSingletonExtensionAndSetOnce(loader, queryableRolesProvider, QueryableRolesProvider.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

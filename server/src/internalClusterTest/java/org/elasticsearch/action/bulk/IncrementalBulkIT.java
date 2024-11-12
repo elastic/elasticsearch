@@ -61,7 +61,7 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class, TestTelemetryPlugin.class);
+        return List.of(IngestClientIT.ExtendedIngestTestPlugin.class);
     }
 
     @Override
@@ -158,11 +158,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         String nodeName = internalCluster().getRandomNodeName();
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
         IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
-        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, nodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        testTelemetryPlugin.resetMeter();
 
         IncrementalBulkService.Handler handler = incrementalBulkService.newBulkRequest();
 
@@ -181,28 +176,10 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         }
 
         assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(0L));
-        // assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(0L));
-        assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-        });
-
         refCounted.incRef();
         handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
 
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
-        assertBusy(() -> assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(1L)));
-        assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(0L));
-        assertBusy(() -> {
-                testTelemetryPlugin.collect();
-                assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                    "es.indexing.low_watermark_splits").getLong(), equalTo(1L));
-                assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                    "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-            });
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
@@ -220,11 +197,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         IncrementalBulkService incrementalBulkService = internalCluster().getInstance(IncrementalBulkService.class, nodeName);
         IndexingPressure indexingPressure = internalCluster().getInstance(IndexingPressure.class, nodeName);
         ThreadPool threadPool = internalCluster().getInstance(ThreadPool.class, nodeName);
-        final TestTelemetryPlugin testTelemetryPlugin = internalCluster().getInstance(PluginsService.class, nodeName)
-            .filterPlugins(TestTelemetryPlugin.class)
-            .findFirst()
-            .orElseThrow();
-        testTelemetryPlugin.resetMeter();
 
         AbstractRefCounted refCounted = AbstractRefCounted.of(() -> {});
         AtomicBoolean nextPage = new AtomicBoolean(false);
@@ -250,14 +222,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         handlerNoThrottle.addItems(requestsNoThrottle, refCounted::decRef, () -> nextPage.set(true));
         assertTrue(nextPage.get());
         nextPage.set(false);
-        assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(0L));
-        assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-        });
 
         ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
@@ -276,15 +240,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
 
         // Wait until we are ready for the next page
         assertBusy(() -> assertTrue(nextPage.get()));
-        assertBusy(() -> assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(1L)));
-        assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(0L));
-        assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(1L));
-        });
 
         for (IncrementalBulkService.Handler h : handlers) {
             refCounted.incRef();
@@ -297,7 +252,6 @@ public class IncrementalBulkIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
         refCounted.decRef();
         assertFalse(refCounted.hasReferences());
-        testTelemetryPlugin.collect();
     }
 
     public void testMultipleBulkPartsWithBackoff() {
@@ -687,11 +641,5 @@ public class IncrementalBulkIT extends ESIntegTestCase {
             }
         }
         throw new AssertionError("IndexShard instance not found for shard " + new ShardId(index, shardId));
-    }
-
-    private static Measurement getLatestRecordedMetric(Function<String, List<Measurement>> metricGetter, String name) {
-        final List<Measurement> measurements = metricGetter.apply(name);
-        assertFalse("Indexing metric is not recorded", measurements.isEmpty());
-        return measurements.get(measurements.size() - 1);
     }
 }

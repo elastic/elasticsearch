@@ -175,3 +175,39 @@ COUNT():long | category:category
            3 | .*?connection.+?error.*?
            1 | .*?disconnected.*?
 ;
+
+on null
+required_capability: categorize
+
+FROM sample_data
+  | EVAL x = null
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | category:category
+;
+
+on null string
+required_capability: categorize
+
+FROM sample_data
+  | EVAL x = null::string
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | category:category
+;
+
+filtering out all data
+required_capability: categorize
+
+FROM sample_data
+  | WHERE @timestamp < "2023-10-23T00:00:00Z"
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:category
+;

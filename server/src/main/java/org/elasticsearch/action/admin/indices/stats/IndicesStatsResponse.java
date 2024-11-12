@@ -57,6 +57,10 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             indexMetadataMap = in.readMap(IndexMetadata::readFrom);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            in.readMap(IndexMetadata.State::readFrom);  // Read and discard the index state
         } else {
             indexHealthMap = Map.of();
             indexMetadataMap = Map.of();

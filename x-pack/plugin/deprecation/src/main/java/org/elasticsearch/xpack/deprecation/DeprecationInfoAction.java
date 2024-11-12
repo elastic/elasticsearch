@@ -274,7 +274,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             IndexNameExpressionResolver indexNameExpressionResolver,
             Request request,
             NodesDeprecationCheckResponse nodeDeprecationResponse,
-            List<Function<IndexMetadata, DeprecationIssue>> indexSettingsChecks,
+            List<BiFunction<IndexMetadata, ClusterState, DeprecationIssue>> indexSettingsChecks,
             List<BiFunction<DataStream, ClusterState, DeprecationIssue>> dataStreamChecks,
             List<Function<ClusterState, DeprecationIssue>> clusterSettingsChecks,
             Map<String, List<DeprecationIssue>> pluginSettingIssues,
@@ -293,7 +293,10 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
                 IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
-                List<DeprecationIssue> singleIndexIssues = filterChecks(indexSettingsChecks, c -> c.apply(indexMetadata));
+                List<DeprecationIssue> singleIndexIssues = filterChecks(
+                    indexSettingsChecks,
+                    c -> c.apply(indexMetadata, stateWithSkippedSettingsRemoved)
+                );
                 if (singleIndexIssues.size() > 0) {
                     indexSettingsIssues.put(concreteIndex, singleIndexIssues);
                 }

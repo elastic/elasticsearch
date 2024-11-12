@@ -85,7 +85,6 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         when(discoveryNodes.stream()).thenAnswer(i -> Stream.of(mockNode));
         when(discoveryNodes.iterator()).thenAnswer(i -> Iterators.single(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
         when(state.getNodes()).thenReturn(discoveryNodes); // it is really ridiculous we have nodes() and getNodes()...
         when(clusterService.state()).thenReturn(state);

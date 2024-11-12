@@ -283,7 +283,7 @@ public interface Role {
         public Builder addRemoteClusterPermissions(RemoteClusterPermissions remoteClusterPermissions) {
             Objects.requireNonNull(remoteClusterPermissions, "remoteClusterPermissions must not be null");
             assert this.remoteClusterPermissions == null : "addRemoteClusterPermissions should only be called once";
-            if (remoteClusterPermissions.hasPrivileges()) {
+            if (remoteClusterPermissions.hasAnyPrivileges()) {
                 remoteClusterPermissions.validate();
             }
             this.remoteClusterPermissions = remoteClusterPermissions;

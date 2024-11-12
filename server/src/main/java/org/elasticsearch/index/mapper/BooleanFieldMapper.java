@@ -499,7 +499,7 @@ public class BooleanFieldMapper extends FieldMapper {
         }
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addBoolean(fieldType().name(), value).validate(context.indexSettings());
+            context.getRoutingFields().addBoolean(fieldType().name(), value);
         }
         if (indexed) {
             context.doc().add(new StringField(fieldType().name(), value ? Values.TRUE : Values.FALSE, Field.Store.NO));

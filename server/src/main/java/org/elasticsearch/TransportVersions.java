@@ -193,7 +193,8 @@ public class TransportVersions {
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
     public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_788_00_0);
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_789_00_0);
-    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_790_00_0);
+    public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_790_00_0);
+    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

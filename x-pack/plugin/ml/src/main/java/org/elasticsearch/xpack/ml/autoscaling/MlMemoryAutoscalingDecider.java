@@ -259,7 +259,7 @@ class MlMemoryAutoscalingDecider {
             .map(result -> {
                 MlMemoryAutoscalingCapacity capacity = ensureScaleDown(
                     result,
-                    MlMemoryAutoscalingCapacity.from(context.currentCapacity()).build()
+                    context.currentCapacity() == null ? null : MlMemoryAutoscalingCapacity.from(context.currentCapacity()).build()
                 );
                 if (capacity == null) {
                     return null;

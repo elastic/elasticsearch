@@ -327,12 +327,33 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116593
 - class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
   issue: https://github.com/elastic/elasticsearch/issues/116487
-- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
-  method: testCollapseAndRemoveUnsupportedPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/116520
-- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
-  method: testGeoShapeGeoTile
-  issue: https://github.com/elastic/elasticsearch/issues/115717
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testInvalidJSON
+  issue: https://github.com/elastic/elasticsearch/issues/116521
+- class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
+  method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
+  issue: https://github.com/elastic/elasticsearch/issues/116523
+- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
+  method: testMatchAllQuery
+  issue: https://github.com/elastic/elasticsearch/issues/116536
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {categorize.Categorize}
+  issue: https://github.com/elastic/elasticsearch/issues/116434
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testBWCSearchStates
+  issue: https://github.com/elastic/elasticsearch/issues/116617
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/116618
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test20NoAutoGenerationWhenAutoConfigurationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/116619
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/116620
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/116628
 
 # Examples:
 #

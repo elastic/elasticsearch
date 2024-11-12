@@ -105,9 +105,10 @@ public final class BitsetFilterCache
         boolean loadFiltersEagerlySetting = settings.getValue(INDEX_LOAD_RANDOM_ACCESS_FILTERS_EAGERLY_SETTING);
         boolean isStateless = DiscoveryNode.isStateless(settings.getNodeSettings());
         if (isStateless) {
-            return DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
-                && loadFiltersEagerlySetting
-                && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings());
+            return loadFiltersEagerlySetting
+                && (DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.SEARCH_ROLE)
+                    || (DiscoveryNode.hasRole(settings.getNodeSettings(), DiscoveryNodeRole.INDEX_ROLE)
+                        && INDEX_FAST_REFRESH_SETTING.get(settings.getSettings())));
         } else {
             return loadFiltersEagerlySetting;
         }

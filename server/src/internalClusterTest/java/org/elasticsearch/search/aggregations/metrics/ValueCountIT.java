@@ -67,7 +67,7 @@ public class ValueCountIT extends ESIntegTestCase {
 
     public void testUnmapped() throws Exception {
         assertResponse(prepareSearch("idx_unmapped").setQuery(matchAllQuery()).addAggregation(count("count").field("value")), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(0L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(0L));
 
             ValueCount valueCount = response.getAggregations().get("count");
             assertThat(valueCount, notNullValue());

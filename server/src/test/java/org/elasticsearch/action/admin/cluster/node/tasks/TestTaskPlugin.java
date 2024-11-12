@@ -196,7 +196,7 @@ public class TestTaskPlugin extends Plugin implements ActionPlugin, NetworkPlugi
         }
     }
 
-    public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static class NodesRequest extends BaseNodesRequest {
         private final String requestName;
         private boolean shouldStoreResult = false;
         private boolean shouldBlock = true;

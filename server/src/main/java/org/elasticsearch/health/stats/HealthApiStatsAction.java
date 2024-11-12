@@ -39,7 +39,7 @@ public class HealthApiStatsAction extends ActionType<HealthApiStatsAction.Respon
         super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> {
+    public static class Request extends BaseNodesRequest {
 
         public Request() {
             super((String[]) null);

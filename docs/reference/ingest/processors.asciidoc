@@ -77,7 +77,10 @@ Computes a hash of the document’s content.
 Converts geo-grid definitions of grid tiles or cells to regular bounding boxes or polygons which describe their shape.
 
 <<geoip-processor, `geoip` processor>>::
-Adds information about the geographical location of an IPv4 or IPv6 address.
+Adds information about the geographical location of an IPv4 or IPv6 address from a Maxmind database.
+
+<<ip-location-processor, `ip_location` processor>>::
+Adds information about the geographical location of an IPv4 or IPv6 address from an ip geolocation database.
 
 <<network-direction-processor, `network_direction` processor>>::
 Calculates the network direction given a source IP address, destination IP address, and a list of internal networks.
@@ -185,6 +188,9 @@ Executes another pipeline.
 <<reroute-processor, `reroute` processor>>::
 Reroutes documents to another target index or data stream.
 
+<<terminate-processor, `terminate` processor>>::
+Terminates the current ingest pipeline, causing no further processors to be run.
+
 [discrete]
 [[ingest-process-category-array-json-handling]]
 === Array/JSON handling processors
@@ -242,6 +248,7 @@ include::processors/grok.asciidoc[]
 include::processors/gsub.asciidoc[]
 include::processors/html_strip.asciidoc[]
 include::processors/inference.asciidoc[]
+include::processors/ip-location.asciidoc[]
 include::processors/join.asciidoc[]
 include::processors/json.asciidoc[]
 include::processors/kv.asciidoc[]
@@ -258,6 +265,7 @@ include::processors/set.asciidoc[]
 include::processors/set-security-user.asciidoc[]
 include::processors/sort.asciidoc[]
 include::processors/split.asciidoc[]
+include::processors/terminate.asciidoc[]
 include::processors/trim.asciidoc[]
 include::processors/uppercase.asciidoc[]
 include::processors/url-decode.asciidoc[]

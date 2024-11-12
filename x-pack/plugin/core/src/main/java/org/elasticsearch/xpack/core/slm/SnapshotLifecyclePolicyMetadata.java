@@ -192,7 +192,7 @@ public class SnapshotLifecyclePolicyMetadata implements SimpleDiffable<SnapshotL
         builder.field(POLICY.getPreferredName(), policy);
         builder.field(HEADERS.getPreferredName(), headers);
         builder.field(VERSION.getPreferredName(), version);
-        builder.timeField(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);
+        builder.timestampFieldsFromUnixEpochMillis(MODIFIED_DATE_MILLIS.getPreferredName(), MODIFIED_DATE.getPreferredName(), modifiedDate);
         if (Objects.nonNull(lastSuccess)) {
             builder.field(LAST_SUCCESS.getPreferredName(), lastSuccess);
         }

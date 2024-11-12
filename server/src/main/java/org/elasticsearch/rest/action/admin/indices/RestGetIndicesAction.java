@@ -15,7 +15,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -27,7 +26,6 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Set;
 
-import static org.elasticsearch.common.util.set.Sets.addToCopy;
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestRequest.Method.HEAD;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -41,8 +39,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Using `include_type_name` in get indices requests"
         + " is deprecated. The parameter will be removed in the next major version.";
 
-    private static final Set<String> COMPATIBLE_RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, INCLUDE_TYPE_NAME_PARAMETER);
-
     @Override
     public List<Route> routes() {
         return List.of(new Route(GET, "/{index}"), new Route(HEAD, "/{index}"));
@@ -55,13 +51,6 @@ public class RestGetIndicesAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        // starting with 7.0 we don't include types by default in the response to GET requests
-        if (request.getRestApiVersion() == RestApiVersion.V_7
-            && request.hasParam(INCLUDE_TYPE_NAME_PARAMETER)
-            && request.method().equals(GET)) {
-            deprecationLogger.compatibleCritical("get_indices_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         final GetIndexRequest getIndexRequest = new GetIndexRequest();
         getIndexRequest.indices(indices);
@@ -84,14 +73,5 @@ public class RestGetIndicesAction extends BaseRestHandler {
     @Override
     protected Set<String> responseParams() {
         return Settings.FORMAT_PARAMS;
-    }
-
-    @Override
-    protected Set<String> responseParams(RestApiVersion restApiVersion) {
-        if (restApiVersion == RestApiVersion.V_7) {
-            return COMPATIBLE_RESPONSE_PARAMS;
-        } else {
-            return responseParams();
-        }
     }
 }

@@ -11,6 +11,8 @@ package org.elasticsearch.search.retriever;
 
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.util.SetOnce;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.search.MultiSearchRequest;
@@ -18,9 +20,9 @@ import org.elasticsearch.action.search.MultiSearchResponse;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.TransportMultiSearchAction;
-import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.fetch.StoredFieldsContext;
@@ -122,10 +124,17 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                 public void onResponse(MultiSearchResponse items) {
                     List<ScoreDoc[]> topDocs = new ArrayList<>();
                     List<Exception> failures = new ArrayList<>();
+                    // capture the max status code returned by any of the responses
+                    int statusCode = RestStatus.OK.getStatus();
+                    List<String> retrieversWithFailures = new ArrayList<>();
                     for (int i = 0; i < items.getResponses().length; i++) {
                         var item = items.getResponses()[i];
                         if (item.isFailure()) {
                             failures.add(item.getFailure());
+                            retrieversWithFailures.add(innerRetrievers.get(i).retriever().getName());
+                            if (ExceptionsHelper.status(item.getFailure()).getStatus() > statusCode) {
+                                statusCode = ExceptionsHelper.status(item.getFailure()).getStatus();
+                            }
                         } else {
                             assert item.getResponse() != null;
                             var rankDocs = getRankDocs(item.getResponse());
@@ -134,7 +143,14 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
                         }
                     }
                     if (false == failures.isEmpty()) {
-                        IllegalStateException ex = new IllegalStateException("Search failed - some nested retrievers returned errors.");
+                        assert statusCode != RestStatus.OK.getStatus();
+                        final String errMessage = "["
+                            + getName()
+                            + "] search failed - retrievers '"
+                            + retrieversWithFailures
+                            + "' returned errors. "
+                            + "All failures are attached as suppressed exceptions.";
+                        Exception ex = new ElasticsearchStatusException(errMessage, RestStatus.fromCode(statusCode));
                         failures.forEach(ex::addSuppressed);
                         listener.onFailure(ex);
                     } else {
@@ -160,7 +176,12 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
 
     @Override
     public final QueryBuilder topDocsQuery() {
-        throw new IllegalStateException(getName() + " cannot be nested");
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
+    }
+
+    @Override
+    public final QueryBuilder explainQuery() {
+        throw new IllegalStateException("Should not be called, missing a rewrite?");
     }
 
     @Override
@@ -172,9 +193,10 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
     public ActionRequestValidationException validate(
         SearchSourceBuilder source,
         ActionRequestValidationException validationException,
+        boolean isScroll,
         boolean allowPartialSearchResults
     ) {
-        validationException = super.validate(source, validationException, allowPartialSearchResults);
+        validationException = super.validate(source, validationException, isScroll, allowPartialSearchResults);
         if (source.size() > rankWindowSize) {
             validationException = addValidationError(
                 "["
@@ -190,9 +212,15 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         if (allowPartialSearchResults) {
             validationException = addValidationError(
-                "cannot specify a compound retriever and [allow_partial_search_results]",
+                "cannot specify [" + getName() + "] and [allow_partial_search_results]",
                 validationException
             );
+        }
+        if (isScroll) {
+            validationException = addValidationError("cannot specify [" + getName() + "] and [scroll]", validationException);
+        }
+        for (RetrieverSource innerRetriever : innerRetrievers) {
+            validationException = innerRetriever.retriever().validate(source, validationException, isScroll, allowPartialSearchResults);
         }
         return validationException;
     }
@@ -208,26 +236,16 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return Objects.hash(innerRetrievers);
     }
 
-    private SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
+    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
             .size(rankWindowSize);
+        // apply the pre-filters downstream once
         if (preFilterQueryBuilders.isEmpty() == false) {
             retrieverBuilder.getPreFilterQueryBuilders().addAll(preFilterQueryBuilders);
         }
         retrieverBuilder.extractToSearchSourceBuilder(sourceBuilder, true);
-
-        // apply the pre-filters
-        if (preFilterQueryBuilders.size() > 0) {
-            QueryBuilder query = sourceBuilder.query();
-            BoolQueryBuilder newQuery = new BoolQueryBuilder();
-            if (query != null) {
-                newQuery.must(query);
-            }
-            preFilterQueryBuilders.forEach(newQuery::filter);
-            sourceBuilder.query(newQuery);
-        }
 
         // Record the shard id in the sort result
         List<SortBuilder<?>> sortBuilders = sourceBuilder.sorts() != null ? new ArrayList<>(sourceBuilder.sorts()) : new ArrayList<>();

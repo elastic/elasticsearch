@@ -8,6 +8,7 @@
 package org.elasticsearch.integration;
 
 import org.apache.logging.log4j.Logger;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.settings.ClusterUpdateSettingsRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
@@ -20,6 +21,7 @@ import org.elasticsearch.cluster.metadata.ReservedStateErrorMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
@@ -42,10 +44,12 @@ import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAc
 import org.junit.After;
 
 import java.io.ByteArrayInputStream;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -59,8 +63,8 @@ import java.util.function.Consumer;
 import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVERY_MAX_BYTES_PER_SEC_SETTING;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
-import static org.elasticsearch.xpack.security.authc.support.mapper.ClusterStateRoleMapper.RESERVED_ROLE_MAPPING_SUFFIX;
 import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -72,6 +76,7 @@ import static org.mockito.Mockito.mock;
 /**
  * Tests that file settings service can properly add role mappings.
  */
+@LuceneTestCase.SuppressFileSystems("*")
 public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
     private static AtomicLong versionCounter = new AtomicLong(1);
@@ -148,36 +153,42 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
              }
         }""";
 
-    @Override
-    protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
-        Settings.Builder builder = Settings.builder()
-            .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // some tests make use of cluster-state based role mappings
-            .put("xpack.security.authc.cluster_state_role_mappings.enabled", true);
-        return builder.build();
-    }
-
     @After
     public void cleanUp() {
         updateClusterSettings(Settings.builder().putNull("indices.recovery.max_bytes_per_sec"));
     }
 
-    public static void writeJSONFile(String node, String json, Logger logger, AtomicLong versionCounter) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
+    public static void writeJSONFile(String node, String json, Logger logger, Long version) throws Exception {
         FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-        assertTrue(fileSettingsService.watching());
-
-        Files.deleteIfExists(fileSettingsService.watchedFile());
 
         Files.createDirectories(fileSettingsService.watchedFileDir());
         Path tempFilePath = createTempFile();
 
+        String jsonWithVersion = Strings.format(json, version);
         logger.info("--> before writing JSON config to node {} with path {}", node, tempFilePath);
-        logger.info(Strings.format(json, version));
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
-        logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
+        logger.info(jsonWithVersion);
+
+        Files.writeString(tempFilePath, jsonWithVersion);
+        int retryCount = 0;
+        do {
+            try {
+                // this can fail on Windows because of timing
+                Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+                logger.info("--> after writing JSON config to node {} with path {}", node, tempFilePath);
+                return;
+            } catch (IOException e) {
+                logger.info("--> retrying writing a settings file [{}]", retryCount);
+                if (retryCount == 4) { // retry 5 times
+                    throw e;
+                }
+                Thread.sleep(retryDelay(retryCount));
+                retryCount++;
+            }
+        } while (true);
+    }
+
+    private static long retryDelay(int retryCount) {
+        return 100 * (1 << retryCount) + Randomness.get().nextInt(10);
     }
 
     public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node, String expectedKey) {
@@ -191,6 +202,29 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
                 if (reservedState != null) {
                     ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
                     if (handlerMetadata != null && handlerMetadata.keys().contains(expectedKey)) {
+                        clusterService.removeListener(this);
+                        metadataVersion.set(event.state().metadata().version());
+                        savedClusterState.countDown();
+                    }
+                }
+            }
+        });
+
+        return new Tuple<>(savedClusterState, metadataVersion);
+    }
+
+    // Wait for any file metadata
+    public static Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {
+        ClusterService clusterService = internalCluster().clusterService(node);
+        CountDownLatch savedClusterState = new CountDownLatch(1);
+        AtomicLong metadataVersion = new AtomicLong(-1);
+        clusterService.addListener(new ClusterStateListener() {
+            @Override
+            public void clusterChanged(ClusterChangedEvent event) {
+                ReservedStateMetadata reservedState = event.state().metadata().reservedStateMetadata().get(FileSettingsService.NAMESPACE);
+                if (reservedState != null) {
+                    ReservedStateHandlerMetadata handlerMetadata = reservedState.handlers().get(ReservedRoleMappingAction.NAME);
+                    if (handlerMetadata != null) {
                         clusterService.removeListener(this);
                         metadataVersion.set(event.state().metadata().version());
                         savedClusterState.countDown();
@@ -295,7 +329,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         ensureGreen();
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter.incrementAndGet());
 
         assertRoleMappingsSaveOK(savedClusterState.v1(), savedClusterState.v2());
         logger.info("---> cleanup cluster settings...");
@@ -308,7 +342,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
 
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -348,7 +382,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         }
 
         var savedClusterState = setupClusterStateListener(internalCluster().getMasterName(), "everyone_kibana");
-        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+        writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -359,27 +393,39 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 "everyone_kibana",
-                "everyone_kibana " + RESERVED_ROLE_MAPPING_SUFFIX,
+                ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"),
                 "_everyone_kibana",
-                "everyone_fleet " + RESERVED_ROLE_MAPPING_SUFFIX,
+                ExpressionRoleMapping.addReadOnlySuffix("everyone_fleet"),
                 "zzz_mapping",
                 "123_mapping"
             )
         );
 
-        int readOnlyCount = 0;
-        // assert that cluster-state role mappings come last
+        List<Boolean> readOnlyFlags = new ArrayList<>();
         for (ExpressionRoleMapping mapping : response.mappings()) {
-            readOnlyCount = mapping.getName().endsWith(RESERVED_ROLE_MAPPING_SUFFIX) ? readOnlyCount + 1 : readOnlyCount;
+            boolean isReadOnly = ExpressionRoleMapping.hasReadOnlySuffix(mapping.getName())
+                && mapping.getMetadata().get("_read_only") != null;
+            readOnlyFlags.add(isReadOnly);
         }
-        // Two sourced from cluster-state
-        assertEquals(readOnlyCount, 2);
+        // assert that cluster-state role mappings come last
+        assertThat(readOnlyFlags, contains(false, false, false, false, true, true));
 
         // it's possible to delete overlapping native role mapping
         assertTrue(client().execute(DeleteRoleMappingAction.INSTANCE, deleteRequest("everyone_kibana")).actionGet().isFound());
 
+        // Fetch a specific file based role
+        request = new GetRoleMappingsRequest();
+        request.setNames(ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"));
+        response = client().execute(GetRoleMappingsAction.INSTANCE, request).get();
+        assertTrue(response.hasMappings());
+        assertThat(
+            Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
+            containsInAnyOrder(ExpressionRoleMapping.addReadOnlySuffix("everyone_kibana"))
+        );
+
         savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        String node = internalCluster().getMasterName();
+        writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
         awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -429,7 +475,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
         // save an empty file to clear any prior state, this ensures we don't get a stale file left over by another test
         var savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
 
-        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+        writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter.incrementAndGet());
         boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -454,7 +500,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             }
         );
 
-        writeJSONFile(internalCluster().getMasterName(), testErrorJSON, logger, versionCounter);
+        String node = internalCluster().getMasterName();
+        writeJSONFile(node, testErrorJSON, logger, versionCounter.incrementAndGet());
         awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
         assertTrue(awaitSuccessful);
 
@@ -479,7 +526,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             var closeIndexResponse = indicesAdmin().close(new CloseIndexRequest(INTERNAL_SECURITY_MAIN_INDEX_7)).get();
             assertTrue(closeIndexResponse.isAcknowledged());
 
-            writeJSONFile(internalCluster().getMasterName(), testJSON, logger, versionCounter);
+            String node = internalCluster().getMasterName();
+            writeJSONFile(node, testJSON, logger, versionCounter.incrementAndGet());
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 
@@ -514,7 +562,8 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             }
         } finally {
             savedClusterState = setupClusterStateListenerForCleanup(internalCluster().getMasterName());
-            writeJSONFile(internalCluster().getMasterName(), emptyJSON, logger, versionCounter);
+            String node = internalCluster().getMasterName();
+            writeJSONFile(node, emptyJSON, logger, versionCounter.incrementAndGet());
             boolean awaitSuccessful = savedClusterState.v1().await(20, TimeUnit.SECONDS);
             assertTrue(awaitSuccessful);
 
@@ -557,7 +606,7 @@ public class RoleMappingFileSettingsIT extends NativeRealmIntegTestCase {
             Arrays.stream(response.mappings()).map(ExpressionRoleMapping::getName).toList(),
             containsInAnyOrder(
                 Arrays.stream(mappings)
-                    .map(mapping -> mapping + (readOnly ? " " + RESERVED_ROLE_MAPPING_SUFFIX : ""))
+                    .map(mapping -> readOnly ? ExpressionRoleMapping.addReadOnlySuffix(mapping) : mapping)
                     .toArray(String[]::new)
             )
         );

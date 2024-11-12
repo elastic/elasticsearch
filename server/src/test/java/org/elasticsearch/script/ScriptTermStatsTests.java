@@ -16,6 +16,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
@@ -48,9 +49,9 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // Partial match
         assertAllDocs(
-            Set.of(new Term("field", "foo"), new Term("field", "baz")),
+            Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
             ScriptTermStats::matchedTermsCount,
-            Map.of("doc-1", equalTo(1), "doc-2", equalTo(1), "doc-3", equalTo(0))
+            Map.of("doc-1", equalTo(2), "doc-2", equalTo(1), "doc-3", equalTo(0))
         );
 
         // Always returns 0 when no term is provided.
@@ -211,12 +212,12 @@ public class ScriptTermStatsTests extends ESTestCase {
         // With missing terms
         {
             assertAllDocs(
-                Set.of(new Term("field", "foo"), new Term("field", "baz")),
+                Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
                 ScriptTermStats::termFreq,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsSummary(2, 1, 0, 1))),
-                    Map.entry("doc-2", equalTo(new StatsSummary(2, 2, 0, 2))),
-                    Map.entry("doc-3", equalTo(new StatsSummary(2, 0, 0, 0)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(3, 2, 0, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(3, 2, 0, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(3, 0, 0, 0)))
                 )
             );
         }
@@ -274,10 +275,10 @@ public class ScriptTermStatsTests extends ESTestCase {
         // With missing terms
         {
             assertAllDocs(
-                Set.of(new Term("field", "foo"), new Term("field", "baz")),
+                Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
                 ScriptTermStats::termPositions,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsSummary(1, 1, 1, 1))),
+                    Map.entry("doc-1", equalTo(new StatsSummary(2, 4, 1, 3))),
                     Map.entry("doc-2", equalTo(new StatsSummary(2, 3, 1, 2))),
                     Map.entry("doc-3", equalTo(new StatsSummary()))
                 )
@@ -311,7 +312,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
             Document doc = new Document();
             doc.add(new TextField("id", "doc-1", Field.Store.YES));
-            doc.add(new TextField("field", "foo bar", Field.Store.YES));
+            doc.add(new TextField("field", "foo bar qux", Field.Store.YES));
             w.addDocument(doc);
 
             doc = new Document();
@@ -336,10 +337,11 @@ public class ScriptTermStatsTests extends ESTestCase {
         withIndexSearcher(searcher -> {
             for (LeafReaderContext leafReaderContext : searcher.getLeafContexts()) {
                 IndexReader reader = leafReaderContext.reader();
+                StoredFields storedFields = reader.storedFields();
                 DocIdSetIterator docIdSetIterator = DocIdSetIterator.all(reader.maxDoc());
                 ScriptTermStats termStats = new ScriptTermStats(searcher, leafReaderContext, docIdSetIterator::docID, terms);
                 while (docIdSetIterator.nextDoc() <= reader.maxDoc()) {
-                    String docId = reader.document(docIdSetIterator.docID()).get("id");
+                    String docId = storedFields.document(docIdSetIterator.docID()).get("id");
                     if (expectedValues.containsKey(docId)) {
                         assertThat(function.apply(termStats), expectedValues.get(docId));
                     }

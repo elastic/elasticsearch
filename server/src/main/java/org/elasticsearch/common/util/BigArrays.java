@@ -452,7 +452,13 @@ public class BigArrays {
         }
 
         @Override
-        public T set(long index, T value) {
+        public void set(long index, T value) {
+            assert index >= 0 && index < size();
+            array[(int) index] = value;
+        }
+
+        @Override
+        public T getAndSet(long index, T value) {
             assert index >= 0 && index < size();
             @SuppressWarnings("unchecked")
             T ret = (T) array[(int) index];

@@ -134,7 +134,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
@@ -151,14 +151,15 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNotNull(responseRef.get().get(1));
             assertNull(responseRef.get().get(1).fetchResult());
-            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(1).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(84, responseRef.get().get(1).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.isEmpty());
             assertEquals(2, mockSearchPhaseContext.numSuccess.get());
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -219,7 +220,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
@@ -236,7 +237,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertNotNull(responseRef.get());
             assertNotNull(responseRef.get().get(0));
             assertNull(responseRef.get().get(0).fetchResult());
-            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value);
+            assertEquals(1, responseRef.get().get(0).queryResult().topDocs().topDocs.totalHits.value());
             assertEquals(42, responseRef.get().get(0).queryResult().topDocs().topDocs.scoreDocs[0].doc);
             assertNull(responseRef.get().get(1));
 
@@ -246,6 +247,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertEquals(1, mockSearchPhaseContext.releasedSearchContexts.size());
             assertTrue(mockSearchPhaseContext.releasedSearchContexts.contains(new ShardSearchContextId("", 2L)));
             assertNull(responseRef.get().get(1));
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -306,7 +308,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 new NoopCircuitBreaker(CircuitBreaker.REQUEST),
                 () -> false,
                 SearchProgressListener.NOOP,
-                mockSearchPhaseContext.searchRequest,
+                mockSearchPhaseContext.getRequest(),
                 results.length(),
                 exc -> {}
             )
@@ -322,6 +324,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
             assertThat(mockSearchPhaseContext.failures, hasSize(1));
             assertThat(mockSearchPhaseContext.failures.get(0).getCause(), instanceOf(UncheckedIOException.class));
             assertThat(mockSearchPhaseContext.releasedSearchContexts, hasSize(1)); // phase execution will clean up on the contexts
+            mockSearchPhaseContext.results.close();
         }
     }
 
@@ -371,6 +374,7 @@ public class DfsQueryPhaseTests extends ESTestCase {
                 ssr.source().subSearches().get(2).getQueryBuilder()
             )
         );
+        mspc.results.close();
     }
 
     private SearchPhaseController searchPhaseController() {

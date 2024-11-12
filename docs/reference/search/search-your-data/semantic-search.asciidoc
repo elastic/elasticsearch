@@ -8,6 +8,8 @@ Using an NLP model enables you to extract text embeddings out of text.
 Embeddings are vectors that provide a numeric representation of a text.
 Pieces of content with similar meaning have similar representations.
 
+image::images/semantic-options.svg[Overview of semantic search workflows in {es}]
+
 You have several options for using NLP models in the {stack}:
 
 * use the `semantic_text` workflow (recommended)
@@ -104,7 +106,9 @@ IMPORTANT: For the easiest way to perform semantic search in the {stack}, refer 
 
 
 include::semantic-search-semantic-text.asciidoc[]
+include::semantic-text-hybrid-search[]
 include::semantic-search-inference.asciidoc[]
 include::semantic-search-elser.asciidoc[]
 include::cohere-es.asciidoc[]
 include::semantic-search-deploy-model.asciidoc[]
+include::ingest-vectors.asciidoc[]

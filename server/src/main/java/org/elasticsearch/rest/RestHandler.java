@@ -198,16 +198,6 @@ public interface RestHandler {
             }
 
             /**
-            * @deprecated Use {@link #deprecatedForRemoval(String, RestApiVersion)} if the intent is deprecate the path and remove in the
-             * next major version. Use {@link #deprecateAndKeep(String)} if the intent is to deprecate the path but not remove it.
-             * This method will delegate to {@link #deprecatedForRemoval(String, RestApiVersion)}.
-             */
-            @Deprecated(since = "9.0.0", forRemoval = true)
-            public RouteBuilder deprecated(String deprecationMessage, RestApiVersion lastFullySupportedVersion) {
-                return deprecatedForRemoval(deprecationMessage, lastFullySupportedVersion);
-            }
-
-            /**
              * Marks that the route being built has been deprecated (for some reason -- the deprecationMessage) for removal. Notes the last
              * major version in which the path is fully supported without compatibility headers. If this path is being replaced by another
              * then use {@link #replaces(Method, String, RestApiVersion)} instead.

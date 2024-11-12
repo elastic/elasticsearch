@@ -50,4 +50,8 @@ public class OnGoingMerge {
     public List<SegmentCommitInfo> getMergedSegments() {
         return oneMerge.segments;
     }
+
+    public MergePolicy.OneMerge getMerge() {
+        return oneMerge;
+    }
 }

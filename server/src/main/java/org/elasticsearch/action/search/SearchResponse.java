@@ -787,7 +787,8 @@ public class SearchResponse extends ActionResponse implements ChunkedToXContentO
          *              This will be false for local-cluster (non-CCS) only searches.
          */
         public boolean hasRemoteClusters() {
-            return total > 1 || clusterInfo.keySet().stream().anyMatch(alias -> alias != RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            return total > 1
+                || clusterInfo.keySet().stream().anyMatch(alias -> alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY) == false);
         }
 
     }

@@ -397,7 +397,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                newDocMap.put(fieldName, result);
+                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }
@@ -446,7 +446,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map) {
+                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                        // Inference has already been computed, or there is no inference required.
                         continue;
                     }
                     int order = 0;

@@ -51,7 +51,7 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
     public void setup() {
         scriptService = new ScriptService(
             Settings.EMPTY,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );
@@ -95,9 +95,6 @@ public class ClusterStateRoleMapperTests extends ESTestCase {
             verify(mapping1).isEnabled();
             verify(mapping2).isEnabled();
             verify(mapping3).isEnabled();
-            verify(mapping1).getName();
-            verify(mapping2).getName();
-            verify(mapping3).getName();
             verify(mapping2).getExpression();
             verify(mapping3).getExpression();
             verify(mapping3).getRoleNames(same(scriptService), same(expressionModel));

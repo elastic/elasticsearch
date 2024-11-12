@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.Explanation;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -18,7 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information
@@ -168,5 +169,10 @@ public final class RRFRankDoc extends RankDoc {
         builder.field("positions", positions);
         builder.field("scores", scores);
         builder.field("rankConstant", rankConstant);
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.RRF_QUERY_REWRITE;
     }
 }

@@ -439,7 +439,8 @@ final class FaceIJK {
         // convert each vertex to lat/lng
         // adjust the face of each vertex as appropriate and introduce
         // edge-crossing vertices as needed
-        final CellBoundary boundary = new CellBoundary();
+        final LatLng[] points = new LatLng[CellBoundary.MAX_CELL_BNDRY_VERTS];
+        int numPoints = 0;
         final CoordIJK scratch = new CoordIJK(0, 0, 0);
         final FaceIJK fijk = new FaceIJK(this.face, scratch);
         final int[][] coord = isResolutionClassIII ? VERTEX_CLASSIII : VERTEX_CLASSII;
@@ -501,21 +502,19 @@ final class FaceIJK {
 
                 // find the intersection and add the lat/lng point to the result
                 final Vec2d inter = Vec2d.v2dIntersect(orig2d0, orig2d1, edge0, edge1);
-                final LatLng point = inter.hex2dToGeo(fijkOrient.face, adjRes, true);
-                boundary.add(point);
+                points[numPoints++] = inter.hex2dToGeo(fijkOrient.face, adjRes, true);
             }
 
             // convert vertex to lat/lng and add to the result
             // vert == start + NUM_PENT_VERTS is only used to test for possible
             // intersection on last edge
             if (vert < start + Constants.NUM_PENT_VERTS) {
-                final LatLng point = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
-                boundary.add(point);
+                points[numPoints++] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
             }
             lastFace = fijk.face;
             lastCoord.reset(fijk.coord.i, fijk.coord.j, fijk.coord.k);
         }
-        return boundary;
+        return new CellBoundary(points, numPoints);
     }
 
     /**
@@ -547,7 +546,8 @@ final class FaceIJK {
         // convert each vertex to lat/lng
         // adjust the face of each vertex as appropriate and introduce
         // edge-crossing vertices as needed
-        final CellBoundary boundary = new CellBoundary();
+        final LatLng[] points = new LatLng[CellBoundary.MAX_CELL_BNDRY_VERTS];
+        int numPoints = 0;
         final CoordIJK scratch1 = new CoordIJK(0, 0, 0);
         final FaceIJK fijk = new FaceIJK(this.face, scratch1);
         final CoordIJK scratch2 = isResolutionClassIII ? new CoordIJK(0, 0, 0) : null;
@@ -616,8 +616,7 @@ final class FaceIJK {
                 */
                 final boolean isIntersectionAtVertex = orig2d0.numericallyIdentical(inter) || orig2d1.numericallyIdentical(inter);
                 if (isIntersectionAtVertex == false) {
-                    final LatLng point = inter.hex2dToGeo(this.face, adjRes, true);
-                    boundary.add(point);
+                    points[numPoints++] = inter.hex2dToGeo(this.face, adjRes, true);
                 }
             }
 
@@ -625,13 +624,12 @@ final class FaceIJK {
             // vert == start + NUM_HEX_VERTS is only used to test for possible
             // intersection on last edge
             if (vert < start + Constants.NUM_HEX_VERTS) {
-                final LatLng point = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
-                boundary.add(point);
+                points[numPoints++] = fijk.coord.ijkToGeo(fijk.face, adjRes, true);
             }
             lastFace = fijk.face;
             lastOverage = overage;
         }
-        return boundary;
+        return new CellBoundary(points, numPoints);
     }
 
     /**

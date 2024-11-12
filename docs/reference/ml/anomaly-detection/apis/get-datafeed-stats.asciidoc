@@ -7,7 +7,7 @@
 <titleabbrev>Get {dfeed} statistics</titleabbrev>
 ++++
 
-Retrieves usage information for {dfeeds}.
+Retrieves usage information for {ml-docs}/ml-ad-run-jobs.html#ml-ad-datafeeds[{dfeeds}].
 
 [[ml-get-datafeed-stats-request]]
 == {api-request-title}

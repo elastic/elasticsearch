@@ -14,7 +14,7 @@ import org.elasticsearch.transport.TransportRequest;
 
 import java.io.IOException;
 
-public class ClearPrivilegesCacheRequest extends BaseNodesRequest<ClearPrivilegesCacheRequest> {
+public class ClearPrivilegesCacheRequest extends BaseNodesRequest {
 
     private String[] applicationNames;
     private boolean clearRolesCache = false;

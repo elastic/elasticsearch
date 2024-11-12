@@ -1,0 +1,36 @@
+
+// Incomplete expressions
+mapped_string :
+mapped_string <
+mapped_string >
+mapped_string >=
+mapped_string <=
+>= foo
+: "foo"
+: foo
+
+// Parentheses mismatch
+mapped_string: (foo bar
+mapped_string: foo bar)
+NOT mapped_string:foo OR mapped_string_2:foo bar)
+NOT (mapped_string:foo AND) mapped_string_2:foo bar
+
+// Quotes mismatch
+mapped_string: "foo bar
+mapped_string: foo bar"
+
+// Can't nest grouping terms parentheses
+mapped_string:(foo (bar))
+
+// Bad syntax for nested fields:
+mapped_nested { mapped_string: bar }
+
+// Missing escape sequences:
+mapped_string: foo:bar
+mapped_string: (foo and bar)
+mapped_string: (foo or bar)
+mapped_string: foo not bar
+mapped_string: foo { bar }
+mapped_string: foo (bar)
+mapped_string: foo "bar"
+mapped_string: "foo "bar""

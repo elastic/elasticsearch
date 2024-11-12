@@ -98,7 +98,16 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
         return new DataSourceResponse.ObjectMappingParametersGenerator(() -> {
             var parameters = new HashMap<String, Object>();
 
-            if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED) {
+            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "true" to "false".
+            // TODO enable subobjects: auto
+            // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
+            // copy_to.
+            var subobjects = ESTestCase.randomValueOtherThan(
+                ObjectMapper.Subobjects.AUTO,
+                () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
+            );
+
+            if (request.parentSubobjects() == ObjectMapper.Subobjects.DISABLED || subobjects == ObjectMapper.Subobjects.DISABLED) {
                 // "enabled: false" is not compatible with subobjects: false
                 // changing "dynamic" from parent context is not compatible with subobjects: false
                 // changing subobjects value is not compatible with subobjects: false
@@ -110,23 +119,13 @@ public class DefaultMappingParametersHandler implements DataSourceHandler {
             }
 
             if (ESTestCase.randomBoolean()) {
+                parameters.put("subobjects", subobjects.toString());
+            }
+            if (ESTestCase.randomBoolean()) {
                 parameters.put("dynamic", ESTestCase.randomFrom("true", "false", "strict", "runtime"));
             }
             if (ESTestCase.randomBoolean()) {
                 parameters.put("enabled", ESTestCase.randomFrom("true", "false"));
-            }
-            // Changing subobjects from subobjects: false is not supported, but we can f.e. go from "true" to "false".
-            // TODO enable subobjects: auto
-            // It is disabled because it currently does not have auto flattening and that results in asserts being triggered when using
-            // copy_to.
-            if (ESTestCase.randomBoolean()) {
-                parameters.put(
-                    "subobjects",
-                    ESTestCase.randomValueOtherThan(
-                        ObjectMapper.Subobjects.AUTO,
-                        () -> ESTestCase.randomFrom(ObjectMapper.Subobjects.values())
-                    ).toString()
-                );
             }
 
             if (ESTestCase.randomBoolean()) {

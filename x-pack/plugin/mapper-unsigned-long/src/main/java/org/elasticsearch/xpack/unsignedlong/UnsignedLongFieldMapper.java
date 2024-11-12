@@ -645,12 +645,12 @@ public class UnsignedLongFieldMapper extends FieldMapper {
         }
 
         if (dimension && numericValue != null) {
-            context.getDimensions().addUnsignedLong(fieldType().name(), numericValue).validate(context.indexSettings());
+            context.getRoutingFields().addUnsignedLong(fieldType().name(), numericValue);
         }
 
         List<Field> fields = new ArrayList<>();
         if (indexed && hasDocValues) {
-            fields.add(new LongField(fieldType().name(), numericValue));
+            fields.add(new LongField(fieldType().name(), numericValue, Field.Store.NO));
         } else if (hasDocValues) {
             fields.add(new SortedNumericDocValuesField(fieldType().name(), numericValue));
         } else if (indexed) {

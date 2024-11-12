@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.ToMask;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -31,7 +32,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
@@ -73,7 +73,6 @@ public final class Case extends EsqlScalarFunction {
             "ip",
             "keyword",
             "long",
-            "text",
             "unsigned_long",
             "version" },
         description = """
@@ -195,12 +194,12 @@ public final class Case extends EsqlScalarFunction {
 
     private TypeResolution resolveValueType(Expression value, int position) {
         if (dataType == null || dataType == NULL) {
-            dataType = value.dataType();
+            dataType = value.dataType().noText();
             return TypeResolution.TYPE_RESOLVED;
         }
         return TypeResolutions.isType(
             value,
-            t -> t == dataType,
+            t -> t.noText() == dataType,
             sourceText(),
             TypeResolutions.ParamOrdinal.fromIndex(position),
             dataType.typeName()
@@ -341,7 +340,12 @@ public final class Case extends EsqlScalarFunction {
                  * Rather than go into depth about this in the warning message,
                  * we just say "false".
                  */
-                Warnings.createWarningsTreatedAsFalse(driverContext.warningsMode(), conditionSource),
+                Warnings.createWarningsTreatedAsFalse(
+                    driverContext.warningsMode(),
+                    conditionSource.source().getLineNumber(),
+                    conditionSource.source().getColumnNumber(),
+                    conditionSource.text()
+                ),
                 condition.get(driverContext),
                 value.get(driverContext)
             );

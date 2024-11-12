@@ -19,6 +19,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -57,6 +58,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
         var commonFields = fromMap(map, new ValidationException());
 
         return new AnthropicChatCompletionTaskSettings(commonFields);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        return fromRequestMap(new HashMap<>(newSettings));
     }
 
     private record CommonFields(int maxTokens, Double temperature, Double topP, Integer topK) {}
@@ -127,6 +133,11 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return false; // maxTokens is non-optional
+    }
+
+    @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
@@ -156,7 +167,7 @@ public class AnthropicChatCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_ANTHROPIC_INTEGRATION_ADDED;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override

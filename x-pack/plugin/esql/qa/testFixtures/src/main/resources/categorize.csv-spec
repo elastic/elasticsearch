@@ -16,7 +16,6 @@ count:long | sum:long |     avg:double     | count_distinct:long | category:cate
          1 |  1232382 | 1232382.0          |                   1 | .*?Disconnected.*?
 ;
 
-
 values aggs
 required_capability: categorize
 
@@ -58,5 +57,108 @@ ROW message = ["connected to a", "connected to b", "disconnected"]
 
 COUNT():long | category:category
            2 | .*?connected.+?to.*?
+           1 | .*?disconnected.*?
+;
+
+mv via eval
+required_capability: categorize
+
+FROM sample_data
+  | EVAL message = MV_APPEND(message, "Banana")
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:category
+           7 | .*?Banana.*?
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+mv via eval const
+required_capability: categorize
+
+FROM sample_data
+  | EVAL message = ["Banana", "Bread"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:category
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
+on TO_UPPER
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(TO_UPPER(message))
+  | SORT category
+;
+
+COUNT():long | category:category
+           3 | .*?CONNECTED.+?TO.*?
+           3 | .*?CONNECTION.+?ERROR.*?
+           1 | .*?DISCONNECTED.*?
+;
+
+on CONCAT
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " banana"))
+  | SORT category
+;
+
+COUNT():long | category:category
+           3 | .*?Connected.+?to.+?banana.*?
+           3 | .*?Connection.+?error.+?banana.*?
+           1 | .*?Disconnected.+?banana.*?
+;
+
+on CONCAT
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " banana"))
+  | SORT category
+;
+
+COUNT():long | category:category
+           3 | .*?Connected.+?to.+?banana.*?
+           3 | .*?Connection.+?error.+?banana.*?
+           1 | .*?Disconnected.+?banana.*?
+;
+
+on REVERSE(CONCAT())
+required_capability: categorize
+# NOCOMIT needs fn_reverse_grapheme
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(REVERSE(CONCAT(message, " 👍🏽😊")))
+  | SORT category
+;
+
+COUNT():long | category:category
+           1 | .*?😊👍🏽.+?detcennocsiD.*?
+           3 | .*?😊👍🏽.+?ot.+?detcennoC.*?
+           3 | .*?😊👍🏽.+?rorre.+?noitcennoC.*?
+;
+
+and then TO_LOWER
+required_capability: categorize
+required_capability: categorize_makes_keyword
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | EVAL category=TO_LOWER(category)
+  | SORT category
+;
+
+COUNT():long | category:category
+           3 | .*?connected.+?to.*?
+           3 | .*?connection.+?error.*?
            1 | .*?disconnected.*?
 ;

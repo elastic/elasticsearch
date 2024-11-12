@@ -3450,7 +3450,7 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         return ClusterState.builder(new ClusterName("_name")).metadata(mdBuilder).build();
     }
 
-    private static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
+    static IndexMetadata.Builder indexBuilder(String index, Settings additionalSettings) {
         return IndexMetadata.builder(index).settings(indexSettings(IndexVersion.current(), 1, 0).put(additionalSettings));
     }
 

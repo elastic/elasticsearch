@@ -87,11 +87,15 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return config;
+        return getConfigAsMap(true);
     }
 
-    public Map<String, Object> parseConfigAsMap() {
-        return deepCopy(config, false);
+    public Map<String, Object> getConfigAsMap(boolean unmodifiable) {
+        if (unmodifiable) {
+            return config; // already unmodifiable
+        } else {
+            return deepCopy(config, false);
+        }
     }
 
     @SuppressWarnings("unchecked")

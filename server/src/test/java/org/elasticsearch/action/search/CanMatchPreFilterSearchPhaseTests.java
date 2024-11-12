@@ -1442,7 +1442,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         private final Map<Index, DateFieldRangeInfo> fields = new HashMap<>();
 
         private void addIndexMinMaxTimestamps(Index index, String fieldName, long minTimeStamp, long maxTimestamp) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1480,7 +1480,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
             long minTimestampForEventIngested,
             long maxTimestampForEventIngested
         ) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 
@@ -1518,7 +1518,7 @@ public class CanMatchPreFilterSearchPhaseTests extends ESTestCase {
         }
 
         private void addIndex(Index index) {
-            if (clusterState.metadata().index(index) != null) {
+            if (clusterState.metadata().getProject().index(index) != null) {
                 throw new IllegalArgumentException("Min/Max timestamps for " + index + " were already defined");
             }
 

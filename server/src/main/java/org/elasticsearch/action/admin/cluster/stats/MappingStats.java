@@ -54,8 +54,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         Map<String, FieldStats> fieldTypes = new HashMap<>();
         Set<String> concreteFieldNames = new HashSet<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
-        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
-        for (IndexMetadata indexMetadata : metadata) {
+        final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getProject().getMappingsByHash().size());
+        for (IndexMetadata indexMetadata : metadata.getProject()) {
             if (indexMetadata.isSystem()) {
                 // Don't include system indices in statistics about mappings,
                 // we care about the user's indices.
@@ -172,7 +172,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             });
         }
         long totalMappingSizeBytes = 0L;
-        for (MappingMetadata mappingMetadata : metadata.getMappingsByHash().values()) {
+        for (MappingMetadata mappingMetadata : metadata.getProject().getMappingsByHash().values()) {
             totalMappingSizeBytes += mappingMetadata.source().compressed().length;
         }
         return new MappingStats(

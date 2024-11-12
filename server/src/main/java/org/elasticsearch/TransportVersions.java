@@ -10,6 +10,7 @@
 package org.elasticsearch;
 
 import org.elasticsearch.core.Assertions;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.UpdateForV9;
 
 import java.lang.reflect.Field;
@@ -193,6 +194,17 @@ public class TransportVersions {
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
     public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_788_00_0);
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_789_00_0);
+
+    /*
+     * WARNING: DO NOT MERGE INTO MAIN!
+     * This is the transport version used for all multi-project changes.
+     * This is above any possible transport version that could exist on main during multi-project branch development.
+     * We don't care about BwC during initial development. Before this code is merged into main,
+     * this variable needs to be changed to a regular transport version following the same rules as above.
+     */
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // change to a v9 version number when bumping to 9.0
+    @FixForMultiProject
+    public static final TransportVersion MULTI_PROJECT = def(8_999_999);
 
     /*
      * STOP! READ THIS FIRST! No, really,

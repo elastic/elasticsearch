@@ -159,7 +159,11 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
         assert requestNodes != null && requestNodes.isEmpty() == false;
 
         logger.debug(() -> "prevalidate node removal for nodes " + requestNodes);
-        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(clusterState);
+        ClusterStateHealth clusterStateHealth = new ClusterStateHealth(
+            clusterState,
+            clusterState.metadata().getProject().getConcreteAllIndices(),
+            clusterState.metadata().getProject().id()
+        );
         Metadata metadata = clusterState.metadata();
         DiscoveryNodes clusterNodes = clusterState.getNodes();
         if (clusterStateHealth.getStatus() == ClusterHealthStatus.GREEN || clusterStateHealth.getStatus() == ClusterHealthStatus.YELLOW) {
@@ -187,7 +191,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
             .collect(Collectors.toSet());
         // If all red indices are searchable snapshot indices, it is safe to remove any node.
         Set<String> redNonSSIndices = redIndices.stream()
-            .map(metadata::index)
+            .map(metadata.getProject()::index)
             .filter(i -> i.isSearchableSnapshot() == false)
             .map(im -> im.getIndex().getName())
             .collect(Collectors.toSet());
@@ -223,7 +227,7 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // (Index, ClusterShardHealth) of all red shards
                 .map(
                     redIndexShardHealthTuple -> new ShardId(
-                        metadata.index(redIndexShardHealthTuple.v1()).getIndex(),
+                        metadata.getProject().index(redIndexShardHealthTuple.v1()).getIndex(),
                         redIndexShardHealthTuple.v2().getShardId()
                     )
                 ) // Convert to ShardId

@@ -14,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -173,6 +174,11 @@ public abstract class Plugin implements Closeable {
          * to track task removal by registering a RemovedTaskListener.
          */
         TaskManager taskManager();
+
+        /**
+         * The project resolver for the cluster. This should be used to determine the active project against which a request should execute
+         */
+        ProjectResolver projectResolver();
     }
 
     /**

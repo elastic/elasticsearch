@@ -936,21 +936,22 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             dataStreamName,
             List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
         );
+        ProjectMetadata project = clusterState.getMetadata().getProject();
 
-        DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
-        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, clusterState.getMetadata());
+        DataStream dataStream = project.dataStreams().get(dataStreamName);
+        Index result = dataStream.selectTimeSeriesWriteIndex(currentTime, project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(2, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(1)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 2, start2.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(3, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
 
-        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), clusterState.getMetadata());
+        result = dataStream.selectTimeSeriesWriteIndex(currentTime.minus(6, ChronoUnit.HOURS), project);
         assertThat(result, equalTo(dataStream.getIndices().get(0)));
         assertThat(result.getName(), equalTo(DataStream.getDefaultBackingIndexName(dataStreamName, 1, start1.toEpochMilli())));
     }
@@ -971,23 +972,31 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
             assertThat(dataStream, notNullValue());
             assertThat(dataStream.getIndices(), hasSize(2));
             assertThat(
-                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                IndexSettings.TIME_SERIES_START_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
+                ),
                 equalTo(start1)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(0)).getSettings()),
+                IndexSettings.TIME_SERIES_END_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(0)).getSettings()
+                ),
                 equalTo(end1)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_START_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                IndexSettings.TIME_SERIES_START_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
+                ),
                 equalTo(start2)
             );
             assertThat(
-                IndexSettings.TIME_SERIES_END_TIME.get(clusterState.getMetadata().index(dataStream.getIndices().get(1)).getSettings()),
+                IndexSettings.TIME_SERIES_END_TIME.get(
+                    clusterState.getMetadata().getProject().index(dataStream.getIndices().get(1)).getSettings()
+                ),
                 equalTo(end2)
             );
 
@@ -1049,7 +1058,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 dataStreamName,
                 List.of(Tuple.tuple(start1, end1), Tuple.tuple(start2, end2))
             );
-            DataStream dataStream = clusterState.getMetadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = clusterState.getMetadata().getProject().dataStreams().get(dataStreamName);
 
             {
                 // IndexMetadata not found case:
@@ -1294,7 +1303,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(2500),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1306,7 +1315,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(0),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1320,7 +1329,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(6000),
-                metadata::index,
+                metadata.getProject()::index,
                 null,
                 () -> now
             );
@@ -1333,7 +1342,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
                 TimeValue.timeValueMillis(0),
-                metadata::index,
+                metadata.getProject()::index,
                 genThreeAndFivePredicate,
                 () -> now
             );
@@ -1367,7 +1376,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention()).isEmpty(), is(true));
+            assertThat(
+                dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, randomGlobalRetention()).isEmpty(),
+                is(true)
+            );
         }
 
         {
@@ -1386,7 +1398,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1405,7 +1417,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, globalRetention);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, globalRetention);
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1422,7 +1434,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.size(), is(2));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1440,7 +1456,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
 
             assertThat(backingIndices.size(), is(4));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
@@ -1461,7 +1481,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.isEmpty(), is(true));
         }
 
@@ -1479,7 +1503,11 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadata = builder.build();
 
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, randomGlobalRetention());
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(
+                metadata.getProject()::index,
+                () -> now,
+                randomGlobalRetention()
+            );
             assertThat(backingIndices.isEmpty(), is(true));
         }
     }
@@ -1514,13 +1542,13 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no retention configured so we expect an empty list
             testRetentionReference.set(null);
-            assertThat(dataStream.getIndicesPastRetention(metadata::index, () -> now, null).isEmpty(), is(true));
+            assertThat(dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null).isEmpty(), is(true));
         }
 
         {
             // retention period where oldIndex is too old, but newIndex should be retained
             testRetentionReference.set(TimeValue.timeValueMillis(2500));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.size(), is(3));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
             assertThat(backingIndices.get(1).getName(), is(dataStream.getIndices().get(1).getName()));
@@ -1530,7 +1558,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // even though all indices match the write index should not be returned
             testRetentionReference.set(TimeValue.timeValueMillis(0));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
 
             assertThat(backingIndices.size(), is(6));
             assertThat(backingIndices.get(0).getName(), is(dataStream.getIndices().get(0).getName()));
@@ -1544,7 +1572,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // no index matches the retention age
             testRetentionReference.set(TimeValue.timeValueMillis(9000));
-            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata::index, () -> now, null);
+            List<Index> backingIndices = dataStream.getIndicesPastRetention(metadata.getProject()::index, () -> now, null);
             assertThat(backingIndices.isEmpty(), is(true));
         }
     }
@@ -1594,10 +1622,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 2000
             String thirdGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 3);
-            Index thirdIndex = metadata.index(thirdGeneration).getIndex();
+            Index thirdIndex = metadata.getProject().index(thirdGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForThirdIndex = dataStream.getDownsamplingRoundsFor(
                 thirdIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
 
@@ -1606,10 +1634,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             // expecting all rounds to match this index
@@ -1655,10 +1683,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1679,10 +1707,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
             // generation time is now - 40000
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1702,10 +1730,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             Metadata metadata = builder.build();
 
             String firstGeneration = DataStream.getDefaultBackingIndexName(dataStreamName, 1);
-            Index firstIndex = metadata.index(firstGeneration).getIndex();
+            Index firstIndex = metadata.getProject().index(firstGeneration).getIndex();
             List<DataStreamLifecycle.Downsampling.Round> roundsForFirstIndex = dataStream.getDownsamplingRoundsFor(
                 firstIndex,
-                metadata::index,
+                metadata.getProject()::index,
                 () -> now
             );
             assertThat(roundsForFirstIndex.size(), is(0));
@@ -1735,7 +1763,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         {
             // false for indices not part of the data stream
-            assertThat(dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata::index), is(false));
+            assertThat(
+                dataStream.isIndexManagedByDataStreamLifecycle(new Index("standalone_index", "uuid"), metadata.getProject()::index),
+                is(false)
+            );
         }
 
         {
@@ -1755,7 +1786,10 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata newMetadata = newBuilder.build();
             assertThat(
-                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(unmanagedDataStream.getIndices().get(1), newMetadata::index),
+                unmanagedDataStream.isIndexManagedByDataStreamLifecycle(
+                    unmanagedDataStream.getIndices().get(1),
+                    newMetadata.getProject()::index
+                ),
                 is(false)
             );
         }
@@ -1774,7 +1808,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
             );
             Metadata metadataIlm = builderWithIlm.build();
             for (Index index : ds.getIndices()) {
-                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(false));
+                assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(false));
             }
         }
 
@@ -1795,7 +1829,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
                 );
                 Metadata metadataIlm = builderWithIlm.build();
                 for (Index index : ds.getIndices()) {
-                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm::index), is(true));
+                    assertThat(ds.isIndexManagedByDataStreamLifecycle(index, metadataIlm.getProject()::index), is(true));
                 }
             }
         }
@@ -1803,7 +1837,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
         {
             // true otherwise
             for (Index index : dataStream.getIndices()) {
-                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata::index), is(true));
+                assertThat(dataStream.isIndexManagedByDataStreamLifecycle(index, metadata.getProject()::index), is(true));
             }
         }
     }
@@ -1833,7 +1867,7 @@ public class DataStreamTests extends AbstractXContentSerializingTestCase<DataStr
 
         List<Index> backingIndices = dataStream.getNonWriteIndicesOlderThan(
             TimeValue.timeValueMillis(2500),
-            metadata::index,
+            metadata.getProject()::index,
             null,
             () -> now
         );

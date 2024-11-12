@@ -153,7 +153,7 @@ public class DeleteDataStreamTransportAction extends AcknowledgedTransportMaster
 
         Set<Index> backingIndicesToRemove = new HashSet<>();
         for (String dataStreamName : dataStreams) {
-            DataStream dataStream = currentState.metadata().dataStreams().get(dataStreamName);
+            DataStream dataStream = currentState.metadata().getProject().dataStreams().get(dataStreamName);
             assert dataStream != null;
             backingIndicesToRemove.addAll(dataStream.getIndices());
             backingIndicesToRemove.addAll(dataStream.getFailureIndices().getIndices());

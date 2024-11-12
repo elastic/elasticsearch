@@ -2,7 +2,7 @@
   "jobs": [
     {
       "enabled": true,
-      "pipeline_slug": "elasticsearch-pull-request",
+      "pipeline_slug": "elasticsearch-multi-project-pull-request",
       "allow_org_users": true,
       "allowed_repo_permissions": [
         "admin",

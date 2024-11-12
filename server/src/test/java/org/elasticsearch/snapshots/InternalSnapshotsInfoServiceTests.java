@@ -374,7 +374,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
         } else {
             // simulate deletion of the index
             applyClusterState("delete index " + indexName, clusterState -> deleteIndex(clusterState, indexName));
-            assertFalse(clusterService.state().metadata().hasIndex(indexName));
+            assertFalse(clusterService.state().metadata().getProject().hasIndex(indexName));
         }
 
         assertThat(snapshotsInfoService.numberOfKnownSnapshotShardSizes(), equalTo(0));
@@ -404,7 +404,7 @@ public class InternalSnapshotsInfoServiceTests extends ESTestCase {
     }
 
     private ClusterState addUnassignedShards(final ClusterState currentState, String indexName, int numberOfShards) {
-        assertThat(currentState.metadata().hasIndex(indexName), is(false));
+        assertThat(currentState.metadata().getProject().hasIndex(indexName), is(false));
 
         final IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(indexSettings(IndexVersion.current(), numberOfShards, 0).put(SETTING_CREATION_DATE, System.currentTimeMillis()));

@@ -423,7 +423,9 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
         assertThat(capturedTaskId.get(), equalTo(persistentId));
         assertThat(capturedLocalAbortReason.get(), equalTo("testing local abort"));
         // Notify successful unassignment
-        PersistentTasksCustomMetadata persistentTasksMetadata = newClusterState.getMetadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasksMetadata = newClusterState.getMetadata()
+            .getProject()
+            .custom(PersistentTasksCustomMetadata.TYPE);
         capturedListener.get().onResponse(persistentTasksMetadata.getTask(persistentId));
 
         // Check the task is now removed from the local task manager
@@ -535,7 +537,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     private <Params extends PersistentTaskParams> ClusterState addTask(ClusterState state, String action, Params params, String node) {
         PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+            state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE)
         );
         return ClusterState.builder(state)
             .metadata(
@@ -550,7 +552,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     private ClusterState reallocateTask(ClusterState state, String taskId, String node) {
         PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+            state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE)
         );
         assertTrue(builder.hasTask(taskId));
         return ClusterState.builder(state)
@@ -566,7 +568,7 @@ public class PersistentTasksNodeServiceTests extends ESTestCase {
 
     private ClusterState removeTask(ClusterState state, String taskId) {
         PersistentTasksCustomMetadata.Builder builder = PersistentTasksCustomMetadata.builder(
-            state.getMetadata().custom(PersistentTasksCustomMetadata.TYPE)
+            state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE)
         );
         assertTrue(builder.hasTask(taskId));
         return ClusterState.builder(state)

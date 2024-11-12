@@ -33,10 +33,12 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.GroupShardsIteratorTests;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
@@ -51,6 +53,7 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -61,7 +64,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.EmptySystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.action.search.SearchResponseMetrics;
@@ -1623,14 +1626,16 @@ public class TransportSearchActionTests extends ESTestCase {
             numberOfShards,
             numberOfReplicas
         );
-        final IndexMetadata indexMetadata = clusterState.metadata().index("test-1");
+        @FixForMultiProject // proper support in ClusterStateCreationUtils
+        ProjectId project = Metadata.DEFAULT_PROJECT_ID;
+        final IndexMetadata indexMetadata = clusterState.metadata().getProject(project).index("test-1");
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Set<ShardId> relocatedContexts = new HashSet<>();
         Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (int shardId = 0; shardId < numberOfShards; shardId++) {
             final String targetNode;
             if (randomBoolean()) {
-                final IndexRoutingTable routingTable = clusterState.routingTable().index(indexMetadata.getIndex());
+                final IndexRoutingTable routingTable = clusterState.routingTable(project).index(indexMetadata.getIndex());
                 targetNode = randomFrom(routingTable.shard(shardId).assignedShards()).currentNodeId();
             } else {
                 // relocated or no longer assigned
@@ -1650,7 +1655,7 @@ public class TransportSearchActionTests extends ESTestCase {
         TimeValue keepAlive = randomBoolean() ? null : TimeValue.timeValueSeconds(between(30, 3600));
 
         final List<SearchShardIterator> shardIterators = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
-            clusterState,
+            clusterState.projectState(project),
             null,
             null,
             new SearchContextId(contexts, aliasFilterMap),
@@ -1666,7 +1671,7 @@ public class TransportSearchActionTests extends ESTestCase {
             if (context.getSearchContextId().getSearcherId() == null) {
                 assertThat(shardIterator.getTargetNodeIds(), hasSize(1));
             } else {
-                final List<String> targetNodes = clusterState.routingTable()
+                final List<String> targetNodes = clusterState.routingTable(project)
                     .index(indexMetadata.getIndex())
                     .shard(id)
                     .assignedShards()
@@ -1695,7 +1700,7 @@ public class TransportSearchActionTests extends ESTestCase {
         );
         IndexNotFoundException error = expectThrows(IndexNotFoundException.class, () -> {
             TransportSearchAction.getLocalShardsIteratorFromPointInTime(
-                clusterState,
+                clusterState.projectState(project),
                 null,
                 null,
                 new SearchContextId(contexts, aliasFilterMap),
@@ -1706,7 +1711,7 @@ public class TransportSearchActionTests extends ESTestCase {
         assertThat(error.getIndex().getName(), equalTo("another-index"));
         // Ok when some indices don't exist and `allowPartialSearchResults` is true.
         Optional<SearchShardIterator> anotherShardIterator = TransportSearchAction.getLocalShardsIteratorFromPointInTime(
-            clusterState,
+            clusterState.projectState(project),
             null,
             null,
             new SearchContextId(contexts, aliasFilterMap),
@@ -1762,7 +1767,8 @@ public class TransportSearchActionTests extends ESTestCase {
                 null,
                 clusterService,
                 actionFilters,
-                new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE),
+                TestProjectResolvers.usingRequestHeader(threadPool.getThreadContext()),
+                TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 null,
                 new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),

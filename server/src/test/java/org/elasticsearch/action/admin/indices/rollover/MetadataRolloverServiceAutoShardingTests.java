@@ -587,19 +587,19 @@ public class MetadataRolloverServiceAutoShardingTests extends ESTestCase {
         assertEquals(sourceIndexName, rolloverResult.sourceIndexName());
         assertEquals(newIndexName, rolloverResult.rolloverIndexName());
         Metadata rolloverMetadata = rolloverResult.clusterState().metadata();
-        assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.indices().size());
-        IndexMetadata rolloverIndexMetadata = rolloverMetadata.index(newIndexName);
+        assertEquals(preRolloverDataStream.getIndices().size() + 1, rolloverMetadata.getProject().indices().size());
+        IndexMetadata rolloverIndexMetadata = rolloverMetadata.getProject().index(newIndexName);
         // number of shards remained the same
         assertThat(rolloverIndexMetadata.getNumberOfShards(), is(expectedNumberOfShards));
 
-        IndexAbstraction ds = rolloverMetadata.getIndicesLookup().get(preRolloverDataStream.getName());
+        IndexAbstraction ds = rolloverMetadata.getProject().getIndicesLookup().get(preRolloverDataStream.getName());
         assertThat(ds.getType(), equalTo(IndexAbstraction.Type.DATA_STREAM));
         assertThat(ds.getIndices(), hasSize(preRolloverDataStream.getIndices().size() + 1));
-        assertThat(ds.getIndices(), hasItem(rolloverMetadata.index(sourceIndexName).getIndex()));
+        assertThat(ds.getIndices(), hasItem(rolloverMetadata.getProject().index(sourceIndexName).getIndex()));
         assertThat(ds.getIndices(), hasItem(rolloverIndexMetadata.getIndex()));
         assertThat(ds.getWriteIndex(), equalTo(rolloverIndexMetadata.getIndex()));
 
-        RolloverInfo info = rolloverMetadata.index(sourceIndexName).getRolloverInfos().get(preRolloverDataStream.getName());
+        RolloverInfo info = rolloverMetadata.getProject().index(sourceIndexName).getRolloverInfos().get(preRolloverDataStream.getName());
         assertThat(info.getTime(), lessThanOrEqualTo(after));
         assertThat(info.getTime(), greaterThanOrEqualTo(before));
         assertThat(info.getMetConditions(), hasSize(metConditions.size()));

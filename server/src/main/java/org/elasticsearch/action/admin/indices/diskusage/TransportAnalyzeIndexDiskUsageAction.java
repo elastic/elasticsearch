@@ -17,10 +17,12 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -55,6 +57,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
     AnalyzeDiskUsageShardResponse> {
     public static final ActionType<AnalyzeIndexDiskUsageResponse> TYPE = new ActionType<>("indices:admin/analyze_disk_usage");
     private final IndicesService indicesService;
+    private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
 
     @Inject
@@ -63,6 +66,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         TransportService transportService,
         IndicesService indexServices,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -76,6 +80,7 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
             transportService.getThreadPool().executor(ThreadPool.Names.ANALYZE)
         );
         this.indicesService = indexServices;
+        this.projectResolver = projectResolver;
         this.threadPool = transportService.getThreadPool();
     }
 
@@ -219,8 +224,9 @@ public class TransportAnalyzeIndexDiskUsageAction extends TransportBroadcastActi
         AnalyzeIndexDiskUsageRequest request,
         String[] concreteIndices
     ) {
+        ProjectState project = projectResolver.getProjectState(clusterState);
         final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+            .searchShards(project, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

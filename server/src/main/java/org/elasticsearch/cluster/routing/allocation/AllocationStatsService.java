@@ -57,7 +57,7 @@ public class AllocationStatsService {
                     continue;
                 }
                 shards++;
-                IndexMetadata indexMetadata = state.metadata().getIndexSafe(shardRouting.index());
+                IndexMetadata indexMetadata = state.metadata().getProject().getIndexSafe(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }

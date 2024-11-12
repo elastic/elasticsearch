@@ -14,9 +14,11 @@ import org.elasticsearch.action.support.broadcast.TransportBroadcastAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.OriginSettingClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -50,7 +52,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
 
     private final Client client;
     private final IndicesService indicesService;
-
+    private final ProjectResolver projectResolver;
     private final DownsampleMetrics downsampleMetrics;
 
     @Inject
@@ -60,6 +62,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         TransportService transportService,
         IndicesService indicesService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         DownsampleMetrics downsampleMetrics
     ) {
@@ -75,6 +78,7 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
         );
         this.client = new OriginSettingClient(client, ClientHelper.ROLLUP_ORIGIN);
         this.indicesService = indicesService;
+        this.projectResolver = projectResolver;
         this.downsampleMetrics = downsampleMetrics;
     }
 
@@ -88,8 +92,9 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
             throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
         }
 
+        ProjectState project = projectResolver.getProjectState(clusterState);
         final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+            .searchShards(project, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

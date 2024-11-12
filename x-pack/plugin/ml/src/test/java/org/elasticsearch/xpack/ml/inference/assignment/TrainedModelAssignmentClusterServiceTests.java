@@ -24,6 +24,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -216,6 +217,8 @@ public class TrainedModelAssignmentClusterServiceTests extends ESTestCase {
         doReturn(mockState).when(mockNodesAddedEvent).state();
         Metadata mockMetadata = mock(Metadata.class);
         doReturn(mockMetadata).when(mockState).getMetadata();
+        ProjectMetadata project = mock(ProjectMetadata.class);
+        when(mockMetadata.getProject()).thenReturn(project);
         doReturn(null).when(mockState).custom(anyString());
 
         doReturn(true).when(mockNodesAddedEvent).localNodeMaster();

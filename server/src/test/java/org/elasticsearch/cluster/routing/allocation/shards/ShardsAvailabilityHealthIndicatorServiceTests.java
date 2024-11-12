@@ -31,6 +31,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
 import org.elasticsearch.cluster.routing.allocation.MoveDecision;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationResult;
+import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
 import org.elasticsearch.cluster.routing.allocation.decider.AwarenessAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
@@ -113,6 +114,7 @@ import static org.elasticsearch.health.Diagnosis.Resource.Type.INDEX;
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.RED;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.emptyCollectionOf;
@@ -1031,6 +1033,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
             List.of()
         );
 
+        assertThat(clusterState.metadata().projects(), aMapWithSize(1));
+
         // All deciders return yes except for one kind that the indicator does not have advice about
         Map<ShardRoutingKey, ShardAllocationDecision> decisionMap = Map.of(
             new ShardRoutingKey("red-index", 0, true),
@@ -1057,7 +1061,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         var service = createShardsAvailabilityIndicatorService(clusterState, decisionMap);
 
         // Get the list of user actions that are generated for this unassigned index shard
-        ShardRouting shardRouting = clusterState.routingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
+        ShardRouting shardRouting = clusterState.getRoutingTable().index(indexMetadata.getIndex()).shard(0).primaryShard();
         List<Diagnosis.Definition> actions = service.diagnoseUnassignedShardRouting(shardRouting, clusterState);
 
         assertThat(actions, hasSize(1));
@@ -1223,8 +1227,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -1283,8 +1286,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState,
-            null
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
@@ -1348,8 +1350,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState,
-            null
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
@@ -1408,8 +1409,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState,
-            null
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
@@ -1473,8 +1473,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState,
-            null
+            clusterState
         );
 
         assertThat(actions, hasSize(1));
@@ -1510,8 +1509,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -1547,8 +1545,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -1583,8 +1580,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
@@ -1623,8 +1619,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -1663,8 +1658,7 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE,
-            null
+            ClusterState.EMPTY_STATE
         );
 
         assertThat(actions, hasSize(1));
@@ -2561,11 +2555,13 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
         when(clusterService.getClusterSettings()).thenReturn(clusterSettings);
         when(clusterService.getSettings()).thenReturn(Settings.EMPTY);
         var allocationService = mock(AllocationService.class);
-        when(allocationService.explainShardAllocation(any(), any())).thenAnswer((Answer<ShardAllocationDecision>) invocation -> {
-            ShardRouting shardRouting = invocation.getArgument(0);
-            var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
-            return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
-        });
+        when(allocationService.explainShardAllocation(any(ShardRouting.class), any(RoutingAllocation.class))).thenAnswer(
+            (Answer<ShardAllocationDecision>) invocation -> {
+                ShardRouting shardRouting = invocation.getArgument(0);
+                var key = new ShardRoutingKey(shardRouting.getIndexName(), shardRouting.getId(), shardRouting.primary());
+                return decisions.getOrDefault(key, ShardAllocationDecision.NOT_TAKEN);
+            }
+        );
         return new ShardsAvailabilityHealthIndicatorService(clusterService, allocationService, systemIndices);
     }
 }

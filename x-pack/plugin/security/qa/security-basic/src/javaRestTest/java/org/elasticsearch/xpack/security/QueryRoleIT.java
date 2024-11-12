@@ -52,7 +52,7 @@ public final class QueryRoleIT extends SecurityInBasicRestTestCase {
     public void testSimpleQueryAllRoles() throws Exception {
         createRandomRole();
 
-        // 32 built-in reserved roles
+        // 32 built-in reserved roles + 1 random role
         assertQuery("", 1 + 32, roles -> {
             // default size is 10
             assertThat(roles, iterableWithSize(10));

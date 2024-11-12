@@ -83,8 +83,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private final Executor executor;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
-    private volatile boolean stopped = false;
-
     public QueryableRolesSynchronizationExecutor(
         ClusterService clusterService,
         FeatureService featureService,
@@ -104,21 +102,21 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             Priority.LOW,
             MARK_ROLES_AS_SYNCED_TASK_EXECUTOR
         );
-        this.clusterService.addListener(this);
+
         this.clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
             public void beforeStop() {
-                logger.info("Stopping built-in roles synchronization executor");
-                stopped = true;
+                clusterService.removeListener(QueryableRolesSynchronizationExecutor.this);
+            }
+
+            @Override
+            public void beforeStart() {
+                clusterService.addListener(QueryableRolesSynchronizationExecutor.this);
             }
         });
     }
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
-        if (stopped) {
-            logger.debug("Built-in roles synchronization executor is stopped, skipping built-in roles synchronization");
-            return false;
-        }
         if (nativeRolesStore.isEnabled() == false) {
             logger.trace("Native role management is not enabled, skipping built-in roles synchronization");
             return false;
@@ -192,10 +190,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
 
     private void syncBuiltinRoles(Map<String, String> currentRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
         // This will create .security index if it does not exist and execute all migrations.
-        if (stopped) {
-            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
-            return;
-        }
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
             if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
@@ -223,10 +217,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         Map<String, String> currentRolesVersions,
         ActionListener<Void> listener
     ) {
-        if (stopped) {
-            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
-            return;
-        }
         nativeRolesStore.deleteRoles(
             securityIndex,
             rolesToDelete,
@@ -243,10 +233,6 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private void indexRoles(Collection<RoleDescriptor> rolesToIndex, SecurityIndexManager securityIndex, ActionListener<Void> listener) {
-        if (stopped) {
-            listener.onFailure(new IllegalStateException("Built-in roles synchronization executor is stopped"));
-            return;
-        }
         nativeRolesStore.putRoles(
             securityIndex,
             WriteRequest.RefreshPolicy.IMMEDIATE,

@@ -93,7 +93,7 @@ Graph API
 - User.Read.All
 
 Sharepoint
-- * Sites.Selected
+- Sites.Selected
 ```
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.

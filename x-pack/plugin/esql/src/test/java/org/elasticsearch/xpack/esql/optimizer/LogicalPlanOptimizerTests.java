@@ -5825,4 +5825,33 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
     }
+
+    public void testConstantFoldingErrors() {
+
+        VerificationException ve = expectThrows(VerificationException.class,
+            () -> plan("row max = 9223372036854775807 | eval sum = max + 1 | keep sum"));
+        System.out.println(ve.getMessage());
+        assertEquals("java.lang.ArithmeticException: long overflow", ve.getMessage());
+
+        ve = expectThrows(VerificationException.class,
+            () -> plan("row x = 9223372036854775808, two = to_ul(2) | eval times2 = x * two | keep times2"));
+        assertThat(
+            ve.getMessage(),
+            containsString("java.lang.ArithmeticException: unsigned_long overflow")
+        );
+
+        ve = expectThrows(VerificationException.class,
+            () -> plan("row x = 9223372036854775808, y = 9223372036854775809 | eval x = x * y | keep x"));
+        assertThat(
+            ve.getMessage(),
+            containsString("java.lang.ArithmeticException: unsigned_long overflow")
+        );
+
+        ve = expectThrows(VerificationException.class,
+            () -> plan("row halfplus = 9223372036854775808, zero = to_ul(0) | eval div = halfplus / zero | keep div"));
+        assertThat(
+            ve.getMessage(),
+            containsString("java.lang.ArithmeticException: / by zero")
+        );
+    }
 }

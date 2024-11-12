@@ -81,6 +81,10 @@ public class EvalOperator extends AbstractPageMappingOperator {
          * @return the returned Block has its own reference and the caller is responsible for releasing it.
          */
         Block eval(Page page);
+
+        default Exception exception() {
+            return null;
+        }
     }
 
     public static final ExpressionEvaluator.Factory CONSTANT_NULL_FACTORY = new ExpressionEvaluator.Factory() {

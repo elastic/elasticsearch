@@ -11,6 +11,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
@@ -61,14 +62,25 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        return toJavaObject(toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+        ExpressionEvaluator eval = toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
-                return fromArrayRow(driverContext.blockFactory(), e.fold())[0];
+                Block[] result = fromArrayRow(driverContext.blockFactory(), e.fold());
+                return result[0];
             }
 
             @Override
             public void close() {}
-        }).get(DriverContext.getLocalDriver()).eval(new Page(1)), 0);
+        }).get(DriverContext.getLocalDriver());
+
+        Block result = eval.eval(new Page(1));
+
+        Exception e = eval.exception();
+
+        if (e != null) {
+            throw new VerificationException(e.getClass().getName() + ": " + e.getMessage());
+        }
+
+        return toJavaObject(result, 0);
     }
 }

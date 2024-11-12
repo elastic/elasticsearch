@@ -138,6 +138,8 @@ public class Types {
     static final ClassName RELEASABLE = ClassName.get("org.elasticsearch.core", "Releasable");
     static final ClassName RELEASABLES = ClassName.get("org.elasticsearch.core", "Releasables");
 
+    static final ClassName EXCEPTION = ClassName.get("java.lang", "Exception");
+
     static ClassName blockType(TypeName elementType) {
         if (elementType.equals(TypeName.BOOLEAN)) {
             return BOOLEAN_BLOCK;

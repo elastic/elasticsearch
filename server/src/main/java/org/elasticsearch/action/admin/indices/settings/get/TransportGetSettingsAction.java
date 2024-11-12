@@ -89,7 +89,7 @@ public class TransportGetSettingsAction extends TransportMasterNodeReadAction<Ge
             ? Maps.newHashMapWithExpectedSize(concreteIndices.length)
             : null;
         for (Index concreteIndex : concreteIndices) {
-            IndexMetadata indexMetadata = state.getMetadata().getProject().index(concreteIndex);
+            IndexMetadata indexMetadata = state.getMetadata().findIndex(concreteIndex).orElse(null);
             if (indexMetadata == null) {
                 continue;
             }

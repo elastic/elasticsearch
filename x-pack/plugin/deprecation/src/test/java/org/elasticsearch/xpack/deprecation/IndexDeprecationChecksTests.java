@@ -68,7 +68,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
         DataStream dataStream = new DataStream(
             randomAlphaOfLength(10),
             List.of(indexMetadata.getIndex()),
-            randomNegativeLong(),
+            randomNonNegativeLong(),
             Map.of(),
             randomBoolean(),
             false,

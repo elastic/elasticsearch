@@ -2,12 +2,48 @@ categorize
 required_capability: categorize
 
 FROM sample_data
-  | STATS count=COUNT(), values=MV_SORT(VALUES(message)) BY category=CATEGORIZE(message)
+  | STATS count=COUNT(),
+          sum=SUM(event_duration),
+          avg=AVG(event_duration),
+          count_distinct=COUNT_DISTINCT(event_duration)
+       BY category=CATEGORIZE(message)
   | SORT count DESC, category
 ;
 
-count:long | values:keyword                                                        | category:category
-3          | [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | .*?Connected.+?to.*?
-3          | [Connection error]                                                    | .*?Connection.+?error.*?
-1          | [Disconnected]                                                        | .*?Disconnected.*?
+count:long | sum:long |     avg:double     | count_distinct:long | category:category
+         3 |  7971589 | 2657196.3333333335 |                   3 | .*?Connected.+?to.*?
+         3 | 14027356 | 4675785.333333333  |                   3 | .*?Connection.+?error.*?
+         1 |  1232382 | 1232382.0          |                   1 | .*?Disconnected.*?
+;
+
+
+categorize values
+required_capability: categorize
+
+FROM sample_data
+  | STATS values=MV_SORT(VALUES(message)),
+          top=TOP(event_duration, 2, "DESC")
+       BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+values:keyword                                                        |      top:long      | category:category
+[Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | [3450233, 2764889] | .*?Connected.+?to.*?
+[Connection error]                                                    | [8268153, 5033755] | .*?Connection.+?error.*?
+[Disconnected]                                                        |           1232382  | .*?Disconnected.*?
+;
+
+categorize mv
+required_capability: categorize
+
+FROM sample_data_mv
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:category
+           7 | .*?Banana.*?
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
 ;

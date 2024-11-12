@@ -96,19 +96,21 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         public IntBlock eval(int positionCount, BytesRefBlock vBlock) {
             try (IntBlock.Builder result = blockFactory.newIntBlockBuilder(positionCount)) {
                 BytesRef vScratch = new BytesRef();
-                position: for (int p = 0; p < positionCount; p++) {
+                for (int p = 0; p < positionCount; p++) {
                     if (vBlock.isNull(p)) {
                         result.appendNull();
-                        continue position;
+                        continue;
                     }
-                    if (vBlock.getValueCount(p) != 1) {
-                        if (vBlock.getValueCount(p) > 1) {
-                            // TODO: handle multi-values
-                        }
-                        result.appendNull();
-                        continue position;
+                    int first = vBlock.getFirstValueIndex(p);
+                    int count = vBlock.getValueCount(p);
+                    if (count == 1) {
+                        result.appendInt(process(vBlock.getBytesRef(first, vScratch), this.analyzer, this.categorizer));
+                        continue;
                     }
-                    result.appendInt(process(vBlock.getBytesRef(vBlock.getFirstValueIndex(p), vScratch), this.analyzer, this.categorizer));
+                    int end = first + count;
+                    for (int i = first; i < end; i++) {
+                        result.appendInt(process(vBlock.getBytesRef(i, vScratch), this.analyzer, this.categorizer));
+                    }
                 }
                 return result.build();
             }
@@ -117,7 +119,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         public IntVector eval(int positionCount, BytesRefVector vVector) {
             try (IntVector.FixedBuilder result = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 BytesRef vScratch = new BytesRef();
-                position: for (int p = 0; p < positionCount; p++) {
+                for (int p = 0; p < positionCount; p++) {
                     result.appendInt(p, process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
                 }
                 return result.build();

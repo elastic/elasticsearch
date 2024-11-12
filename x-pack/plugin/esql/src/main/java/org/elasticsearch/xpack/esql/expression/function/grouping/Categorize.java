@@ -83,14 +83,9 @@ public class Categorize extends GroupingFunction implements Validatable {
         return field.foldable();
     }
 
-    @Evaluator
-    static BytesRef process(BytesRef v) {
-        return v;
-    }
-
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new CategorizeEvaluator.Factory(source(), toEvaluator.apply(field));
+        return toEvaluator.apply(field);
     }
 
     @Override

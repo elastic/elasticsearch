@@ -1,7 +1,6 @@
 [role="xpack"]
 [[security-api-bulk-put-role]]
 === Bulk create or update roles API
-preview::[]
 ++++
 <titleabbrev>Bulk create or update roles API</titleabbrev>
 ++++

@@ -22,8 +22,8 @@ import org.elasticsearch.common.time.DateMathParser;
 import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -729,7 +729,7 @@ public interface DocValueFormat extends NamedWriteable {
             try {
                 // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
                 // tsid hashing) we just decode the map and return it.
-                return TimeSeriesIdFieldMapper.decodeTsidAsMap(value);
+                return RoutingPathFields.decodeAsMap(value);
             } catch (Exception e) {
                 // NOTE: otherwise the _tsid field is just a hash and we can't decode it
                 return TimeSeriesIdFieldMapper.encodeTsid(value);
@@ -760,20 +760,20 @@ public interface DocValueFormat extends NamedWriteable {
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+            RoutingPathFields routingPathFields = new RoutingPathFields(null);
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();
 
                 if (v instanceof String s) {
-                    builder.addString(f, s);
+                    routingPathFields.addString(f, s);
                 } else if (v instanceof Long l) {
-                    builder.addLong(f, l);
+                    routingPathFields.addLong(f, l);
                 } else if (v instanceof Integer i) {
-                    builder.addLong(f, i.longValue());
+                    routingPathFields.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                    builder.addUnsignedLong(f, ll);
+                    routingPathFields.addUnsignedLong(f, ll);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }
@@ -781,7 +781,7 @@ public interface DocValueFormat extends NamedWriteable {
 
             try {
                 // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
-                return builder.buildLegacyTsid().toBytesRef();
+                return TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

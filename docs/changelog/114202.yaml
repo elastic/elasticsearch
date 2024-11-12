@@ -1,14 +1,14 @@
 pr: 114202
-summary: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart`
-  setting
+summary: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting
 area: Snapshot/Restore
 type: breaking
 issues: []
 breaking:
-  title: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart`
-    setting
-  area: Snapshot/Restore
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  title: Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting
+  area: 'Cluster and node setting'
+  details: >-
+    The `xpack.searchable.snapshot.allocate_on_rolling_restart` setting was created as an escape-hatch just in case
+    relying on the `cluster.routing.allocation.enable=primaries` setting for allocating searchable snapshots during
+    rolling restarts had some unintended side-effects. It has been deprecated since 8.2.0.
+  impact: No known end user impact
   notable: false

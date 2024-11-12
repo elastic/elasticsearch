@@ -356,38 +356,40 @@ FROM sample_data
 
 docsLength
 // tag::length[]
-FROM employees
-| KEEP first_name, last_name
-| EVAL fn_length = LENGTH(first_name)
+FROM airports
+| WHERE country == "India"
+| KEEP city
+| EVAL fn_length = LENGTH(city)
 // end::length[]
-| SORT first_name
+| SORT city
 | LIMIT 3
 ;
 
 // tag::length-result[]
-first_name:keyword   | last_name:keyword   | fn_length:integer
-Alejandro      |McAlpine       |9
-Amabile        |Gomatam        |7
-Anneke         |Preusig        |6
+city:keyword  | fn_length:integer
+Agwār         | 5
+Ahmedabad     | 9
+Bangalore     | 9
 // end::length-result[]
 ;
 
 docsByteLength
 required_capability: fn_byte_length
 // tag::byteLength[]
-FROM employees
-| KEEP first_name, last_name
-| EVAL fn_byte_length = BYTE_LENGTH(first_name)
+FROM airports
+| WHERE country == "India"
+| KEEP city
+| EVAL fn_byte_length = BYTE_LENGTH(city)
 // end::byteLength[]
-| SORT first_name
+| SORT city
 | LIMIT 3
 ;
 
 // tag::byteLength-result[]
-first_name:keyword   | last_name:keyword   | fn_byte_length:integer
-Alejandro      |McAlpine       |9
-Amabile        |Gomatam        |7
-Anneke         |Preusig        |6
+city:keyword  | fn_byte_length:integer
+Agwār         | 6
+Ahmedabad     | 9
+Bangalore     | 9
 // end::byteLength-result[]
 ;
 

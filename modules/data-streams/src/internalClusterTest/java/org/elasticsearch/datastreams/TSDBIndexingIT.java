@@ -352,7 +352,7 @@ public class TSDBIndexingIT extends ESSingleNodeTestCase {
             IllegalArgumentException.class,
             () -> client().execute(TransportPutComposableIndexTemplateAction.TYPE, request).actionGet()
         );
-        assertThat(e.getCause().getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
+        assertThat(e.getMessage(), equalTo("[index.routing_path] requires [index.mode=time_series]"));
     }
 
     public void testSkippingShards() throws Exception {

@@ -21,7 +21,9 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
@@ -128,6 +130,31 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                             builder.putList(INDEX_ROUTING_PATH.getKey(), routingPaths);
                         }
                     }
+                    return builder.build();
+                }
+            }
+            if (templateIndexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.LOGSDB
+                || IndexSettings.MODE.get(indexTemplateAndCreateRequestSettings) == IndexMode.LOGSDB) {
+                if (indexTemplateAndCreateRequestSettings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                    List<String> sortFields = new ArrayList<>(
+                        indexTemplateAndCreateRequestSettings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey())
+                    );
+                    sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+                    if (sortFields.size() < 2) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "data stream [%s] in logsdb mode and [%s] index setting has only %d sort fields (excluding timestamp), "
+                                    + "needs at least 2",
+                                dataStreamName,
+                                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                sortFields.size()
+                            )
+                        );
+                    }
+                    Settings.Builder builder = Settings.builder();
+                    builder.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
                     return builder.build();
                 }
             }

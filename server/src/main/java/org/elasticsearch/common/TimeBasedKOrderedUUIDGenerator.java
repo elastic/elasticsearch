@@ -9,8 +9,11 @@
 
 package org.elasticsearch.common;
 
+import org.elasticsearch.common.util.ByteUtils;
+
 import java.nio.ByteBuffer;
 import java.util.Base64;
+import java.util.OptionalInt;
 
 /**
  * Generates a base64-encoded, k-ordered UUID string optimized for compression and efficient indexing.
@@ -30,8 +33,14 @@ import java.util.Base64;
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
 
+    static final int SIZE_IN_BYTES = 15;
+
     @Override
     public String getBase64UUID() {
+        return getBase64UUID(OptionalInt.empty());
+    }
+
+    public String getBase64UUID(OptionalInt hash) {
         final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
@@ -43,7 +52,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES + (hash.isPresent() ? 4 : 0)];
         final ByteBuffer buffer = ByteBuffer.wrap(uuidBytes);
 
         buffer.put((byte) (timestamp >>> 40)); // changes every 35 years
@@ -58,6 +67,13 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         buffer.put(macAddress, 0, macAddress.length);
 
         buffer.put((byte) (sequenceId >>> 16));
+
+        // Copy the hash value if provided
+        if (hash.isPresent()) {
+            byte[] hashBytes = new byte[4];
+            ByteUtils.writeIntLE(hash.getAsInt(), hashBytes, 0);
+            buffer.put(hashBytes, 0, hashBytes.length);
+        }
 
         // From hereinafter everything is almost like random and does not compress well
         // due to unlikely prefix-sharing

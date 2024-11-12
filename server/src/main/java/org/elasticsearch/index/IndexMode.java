@@ -63,6 +63,7 @@ public enum IndexMode {
     STANDARD("standard") {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
+            IndexMode.validateRoutingPathSettings(settings);
             IndexMode.validateTimeSeriesSettings(settings);
         }
 
@@ -389,8 +390,11 @@ public enum IndexMode {
 
     private static final String HOST_NAME = "host.name";
 
-    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+    private static void validateRoutingPathSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
+    }
+
+    private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }

@@ -17,6 +17,8 @@ import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -27,6 +29,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createDummyLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -43,13 +46,17 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     @Before
-    public void setup() {
+    public void setup() throws Exception {
         MockLicenseState licenseState = mock(MockLicenseState.class);
         when(licenseState.isAllowed(any())).thenReturn(true);
         var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        License license = createDummyLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
         syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
         provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
             newMapperServiceCounter.incrementAndGet();

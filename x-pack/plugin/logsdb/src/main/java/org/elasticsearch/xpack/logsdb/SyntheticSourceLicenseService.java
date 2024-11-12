@@ -10,8 +10,12 @@ package org.elasticsearch.xpack.logsdb;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
+import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
+
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 
 /**
  * Determines based on license and fallback setting whether synthetic source usages should fallback to stored source.
@@ -36,11 +40,27 @@ final class SyntheticSourceLicenseService {
         License.OperationMode.ENTERPRISE
     );
 
+    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_GOLD = LicensedFeature.momentary(
+        MAPPINGS_FEATURE_FAMILY,
+        "synthetic-source-gold",
+        License.OperationMode.GOLD
+    );
+
+    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_PLATINUM = LicensedFeature.momentary(
+        MAPPINGS_FEATURE_FAMILY,
+        "synthetic-source-platinum",
+        License.OperationMode.PLATINUM
+    );
+
+    private final long cutoffDate;
+    private LicenseService licenseService;
     private XPackLicenseState licenseState;
     private volatile boolean syntheticSourceFallback;
 
     SyntheticSourceLicenseService(Settings settings) {
         syntheticSourceFallback = FALLBACK_SETTING.get(settings);
+        // turn into a constant and allow overwriting via system property
+        this.cutoffDate = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
     }
 
     /**
@@ -51,15 +71,28 @@ final class SyntheticSourceLicenseService {
             return true;
         }
 
-        if (isTemplateValidation) {
-            return SYNTHETIC_SOURCE_FEATURE.checkWithoutTracking(licenseState) == false;
+        LicensedFeature.Momentary licensedFeature;
+        boolean beforeCutoffDate = licenseService.getLicense().startDate() <= cutoffDate;
+        if (beforeCutoffDate && licenseState.getOperationMode() == License.OperationMode.GOLD) {
+            licensedFeature = SYNTHETIC_SOURCE_FEATURE_GOLD;
+        } else if (beforeCutoffDate && licenseState.getOperationMode() == License.OperationMode.PLATINUM) {
+            licensedFeature = SYNTHETIC_SOURCE_FEATURE_PLATINUM;
         } else {
-            return SYNTHETIC_SOURCE_FEATURE.check(licenseState) == false;
+            licensedFeature = SYNTHETIC_SOURCE_FEATURE;
+        }
+        if (isTemplateValidation) {
+            return licensedFeature.checkWithoutTracking(licenseState) == false;
+        } else {
+            return licensedFeature.check(licenseState) == false;
         }
     }
 
     void setSyntheticSourceFallback(boolean syntheticSourceFallback) {
         this.syntheticSourceFallback = syntheticSourceFallback;
+    }
+
+    void setLicenseService(LicenseService licenseService) {
+        this.licenseService = licenseService;
     }
 
     void setLicenseState(XPackLicenseState licenseState) {

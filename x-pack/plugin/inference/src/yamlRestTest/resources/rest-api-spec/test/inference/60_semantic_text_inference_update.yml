@@ -610,3 +610,59 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
   - match: { _source.dense_field.inference.chunks.0.text: "another updated inference test" }
   - match: { _source.non_inference_field: "updated non inference test" }
+
+---
+"Bypass inference on bulk update operation":
+  - requires:
+      cluster_features: semantic_text.single_field_update_fix
+      reason: Standalone semantic text fields are now optional in a bulk update operation
+
+  # Update as upsert
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"doc": { "sparse_field": "inference test", "dense_field": "another inference test", "non_inference_field": "non inference test" }, "doc_as_upsert": true}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "created" }
+
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"doc": { "non_inference_field": "another value" }, "doc_as_upsert": true}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "updated" }
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field.text: "inference test" }
+  - exists: _source.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.sparse_field.inference.chunks.0.text: "inference test" }
+  - match: { _source.dense_field.text: "another inference test" }
+  - exists: _source.dense_field.inference.chunks.0.embeddings
+  - match: { _source.dense_field.inference.chunks.0.text: "another inference test" }
+  - match: { _source.non_inference_field: "another value" }
+
+  - do:
+      bulk:
+        body:
+          - '{"update": {"_index": "test-index", "_id": "doc_1"}}'
+          - '{"doc": { "sparse_field": null, "dense_field": null, "non_inference_field": "updated value" }, "doc_as_upsert": true}'
+
+  - match: { errors: false }
+  - match: { items.0.update.result: "updated" }
+
+  - do:
+      get:
+        index: test-index
+        id: doc_1
+
+  - match: { _source.sparse_field: null }
+  - match: { _source.dense_field: null }
+  - match: { _source.non_inference_field: "updated value" }

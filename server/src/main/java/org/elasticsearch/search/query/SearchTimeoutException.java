@@ -31,6 +31,6 @@ public class SearchTimeoutException extends SearchException {
 
     @Override
     public RestStatus status() {
-        return RestStatus.TOO_MANY_REQUESTS;
+        return RestStatus.GATEWAY_TIMEOUT;
     }
 }

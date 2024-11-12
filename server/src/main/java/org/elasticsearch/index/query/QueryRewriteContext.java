@@ -70,6 +70,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
+    private boolean validate;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -86,7 +87,8 @@ public class QueryRewriteContext {
         final BooleanSupplier allowExpensiveQueries,
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final boolean validate
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -105,6 +107,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
+        this.validate = validate;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -123,7 +126,8 @@ public class QueryRewriteContext {
             null,
             null,
             null,
-            null
+            null,
+            false
         );
     }
 
@@ -132,7 +136,8 @@ public class QueryRewriteContext {
         final Client client,
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
-        final PointInTimeBuilder pit
+        final PointInTimeBuilder pit,
+        final boolean validate
     ) {
         this(
             parserConfiguration,
@@ -149,7 +154,8 @@ public class QueryRewriteContext {
             null,
             null,
             resolvedIndices,
-            pit
+            pit,
+            validate
         );
     }
 
@@ -427,5 +433,13 @@ public class QueryRewriteContext {
         // Tier preference can be a comma-delimited list of tiers, ordered by preference
         // It was decided we should only test the first of these potentially multiple preferences.
         return value.split(",")[0].trim();
+    }
+
+    public boolean isValidate() {
+        return validate;
+    }
+
+    public void setValidate(boolean validate) {
+        this.validate = validate;
     }
 }

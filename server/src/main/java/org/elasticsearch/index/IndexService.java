@@ -802,7 +802,8 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             allowExpensiveQueries,
             scriptService,
             null,
-            null
+            null,
+            false
         );
     }
 

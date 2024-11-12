@@ -1103,6 +1103,12 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         return context;
     }
 
+    public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout, boolean validate) throws IOException {
+        SearchContext searchContext = createSearchContext(request, timeout);
+        searchContext.getSearchExecutionContext().setValidate(validate);
+        return searchContext;
+    }
+
     public SearchContext createSearchContext(ShardSearchRequest request, TimeValue timeout) throws IOException {
         final IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
         final IndexShard indexShard = indexService.getShard(request.shardId().getId());
@@ -1780,8 +1786,9 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
     /**
      * Returns a new {@link QueryRewriteContext} with the given {@code now} provider
      */
-    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices, PointInTimeBuilder pit) {
-        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit);
+    public QueryRewriteContext getRewriteContext(LongSupplier nowInMillis, ResolvedIndices resolvedIndices,
+                                                 PointInTimeBuilder pit, boolean validate) {
+        return indicesService.getRewriteContext(nowInMillis, resolvedIndices, pit, validate);
     }
 
     public CoordinatorRewriteContextProvider getCoordinatorRewriteContextProvider(LongSupplier nowInMillis) {

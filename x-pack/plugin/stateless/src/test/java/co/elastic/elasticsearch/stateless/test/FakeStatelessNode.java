@@ -288,7 +288,9 @@ public class FakeStatelessNode implements Closeable {
             warmingService = new SharedBlobCacheWarmingService(sharedCacheService, threadPool, telemetryProvider, nodeSettings);
             commitService = createCommitService();
             commitService.start();
-            commitService.register(shardId, getPrimaryTerm(), () -> false);
+            commitService.register(shardId, getPrimaryTerm(), () -> false, (checkpoint, gcpListener, timeout) -> {
+                gcpListener.accept(Long.MAX_VALUE, null);
+            }, () -> {});
             localCloseables.add(commitService);
             indexingDirectory = localCloseables.add(
                 new IndexDirectory(

@@ -32,6 +32,7 @@ import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
@@ -43,6 +44,7 @@ import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Setting;
@@ -50,6 +52,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.AbstractAsyncTask;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.AbstractRefCounted;
@@ -60,6 +63,9 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexNotFoundException;
+import org.elasticsearch.index.seqno.SequenceNumbers;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
+import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotFoundException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
@@ -70,6 +76,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.ConnectTransportException;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -83,6 +90,7 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import java.util.concurrent.Executor;
+import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
@@ -96,6 +104,7 @@ import java.util.stream.Collectors;
 import static co.elastic.elasticsearch.serverless.constants.ServerlessTransportVersions.COMMIT_NOTIFICATION_TRANSPORT_ACTION_SPLIT;
 import static java.util.Objects.requireNonNull;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 
 /**
  * Handles uploading new storage commits to the blob store, and tracks the lifetime of old commits until they can be safely deleted.
@@ -165,6 +174,15 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * How long to wait for a global checkpoint listener to be notified before triggering a translog sync and retrying (without timeout).
+     */
+    public static final Setting<TimeValue> STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT = Setting.positiveTimeSetting(
+        "stateless.gcp.listener.translog.sync.timeout",
+        TimeValue.timeValueSeconds(1),
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -189,6 +207,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final SharedBlobCacheWarmingService cacheWarmingService;
     private Scheduler.Cancellable scheduledShardInactivityMonitorFuture;
     private final TimeValue virtualBccUploadMaxAge;
+    private final TimeValue gcpListenerTranslogSyncTimeout;
     private final ScheduledUploadMonitor scheduledUploadMonitor;
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
@@ -244,6 +263,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.cacheWarmingService = cacheWarmingService;
         this.shardInactivityMonitor = new ShardInactivityMonitor();
         this.virtualBccUploadMaxAge = STATELESS_UPLOAD_VBCC_MAX_AGE.get(settings);
+        this.gcpListenerTranslogSyncTimeout = STATELESS_GCP_LISTENER_TRANSLOG_SYNC_TIMEOUT.get(settings);
         this.scheduledUploadMonitor = new ScheduledUploadMonitor(
             threadPool,
             threadPool.generic(),
@@ -418,6 +438,80 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
+    /**
+     * Add a global checkpoint listener. If the global checkpoint is equal to or above the global checkpoint the listener is waiting for,
+     * then the listener will be notified immediately.
+     *
+     * @param addGlobalCheckpointListenerFunction the function to use to add the GCP listener on the index shard
+     * @param triggerTranslogReplicator           the function to use to asynchronously trigger the translog replicator sync
+     * @param waitingForGlobalCheckpoint          the global checkpoint the listener is waiting for
+     * @param listener                            the listener
+     */
+    private void addGlobalCheckpointListener(
+        TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+        Runnable triggerTranslogReplicator,
+        final long waitingForGlobalCheckpoint,
+        final ActionListener<Void> listener
+    ) {
+        innerAddGlobalCheckpointListener(
+            addGlobalCheckpointListenerFunction,
+            triggerTranslogReplicator,
+            waitingForGlobalCheckpoint,
+            listener,
+            true
+        );
+    }
+
+    private void innerAddGlobalCheckpointListener(
+        TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+        Runnable triggerTranslogReplicator,
+        final long waitingForGlobalCheckpoint,
+        final ActionListener<Void> listener,
+        final boolean retryOnTimeout
+    ) {
+        ActionListener.run(listener, l -> {
+            // If a refresh comes in at the beginning of a last long-running bulk request that fills less than 16MB translog, then
+            // the refresh will have to wait until the bulk completes (when the translog will be synced). To improve refresh
+            // performance, we set a timeout (equal to the translog replicator flush interval) so that we trigger the translog sync,
+            // and wait for the GCP indefinitely (since the translog uploads are retried indefinitely as well).
+            addGlobalCheckpointListenerFunction.apply(waitingForGlobalCheckpoint, new GlobalCheckpointListeners.GlobalCheckpointListener() {
+                @Override
+                public Executor executor() {
+                    return EsExecutors.DIRECT_EXECUTOR_SERVICE;
+                }
+
+                @Override
+                public void accept(long globalCheckpoint, Exception e) {
+                    if (globalCheckpoint != UNASSIGNED_SEQ_NO) {
+                        assert waitingForGlobalCheckpoint <= globalCheckpoint
+                            : "only advanced to [" + globalCheckpoint + "] while waiting for [" + waitingForGlobalCheckpoint + "]";
+                        l.onResponse(null);
+                    } else {
+                        if (e instanceof TimeoutException) {
+                            try {
+                                // TODO: ideally we'd pass the checkpoint to the translog replicator sync call so it ensures seqnos up to
+                                // the given one are persisted. This'd avoid the need for provoking the sync of higher seqnos unnecessarily.
+                                triggerTranslogReplicator.run();
+                            } catch (Exception ex) {
+                                logger.debug(() -> "failed to trigger translog replicator sync", ex);
+                            }
+                            innerAddGlobalCheckpointListener(
+                                addGlobalCheckpointListenerFunction,
+                                triggerTranslogReplicator,
+                                waitingForGlobalCheckpoint,
+                                l,
+                                false
+                            );
+                        } else {
+                            assert e != null;
+                            l.onFailure(e);
+                        }
+                    }
+                }
+            }, retryOnTimeout ? gcpListenerTranslogSyncTimeout : null);
+        });
+    }
+
     public void onCommitCreation(StatelessCommitRef reference) {
         boolean success = false;
         try {
@@ -481,12 +575,46 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 var batchedCompoundCommitGeneration = virtualBcc.getPrimaryTermAndGeneration().generation();
                 var maxUploadedBccTermAndGen = commitState.getMaxUploadedBccTermAndGen();
 
-                commitState.sendNewCommitNotification(
-                    shardRoutingTable.get(),
-                    lastCompoundCommit,
-                    batchedCompoundCommitGeneration,
-                    maxUploadedBccTermAndGen
-                );
+                // Non-uploaded new commit notifications should be sent after ensuring the operations are persisted. We achieve that
+                // by (conservatively) waiting for the max seqno to be persisted by the translog replicator. This ensures that any searched
+                // data is persisted in the object store, and that the search shards can safely update their global checkpoint to the value
+                // of the local checkpoint in the commit.
+                try {
+                    var maxSeqNo = Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO));
+                    addGlobalCheckpointListener(
+                        commitState.addGlobalCheckpointListenerFunction,
+                        commitState.triggerTranslogReplicator,
+                        maxSeqNo,
+                        ActionListener.wrap(
+                            ignored -> commitState.sendNewCommitNotification(
+                                shardRoutingTable.get(),
+                                lastCompoundCommit,
+                                batchedCompoundCommitGeneration,
+                                maxUploadedBccTermAndGen
+                            ),
+                            ex -> {
+                                if (ex instanceof IndexShardClosedException) {
+                                    // The shard was closed while waiting for the GCP. We can safely ignore this exception.
+                                    logger.trace(
+                                        () -> "shard closed while waiting for GCP to send new commit notification for "
+                                            + lastCompoundCommit,
+                                        ex
+                                    );
+                                } else {
+                                    assert false : ex;
+                                    logger.warn(
+                                        "unexpected exception while waiting for GCP to send new commit notification for "
+                                            + lastCompoundCommit,
+                                        ex
+                                    );
+                                }
+                            }
+                        )
+                    );
+                } catch (IOException e) {
+                    assert false : e; // should never happen, none of the Lucene implementations throw this.
+                    throw new UncheckedIOException(e);
+                }
             }
 
             if (commitState.shouldUploadVirtualBcc(virtualBcc)) {
@@ -612,16 +740,40 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         }
     }
 
-    public void register(ShardId shardId, long primaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
+    public void register(
+        ShardId shardId,
+        long primaryTerm,
+        BooleanSupplier inititalizingNoSearchSupplier,
+        TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+        Runnable triggerTranslogReplicator
+    ) {
         ShardCommitState existing = shardsCommitsStates.put(
             shardId,
-            createShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier)
+            createShardCommitState(
+                shardId,
+                primaryTerm,
+                inititalizingNoSearchSupplier,
+                addGlobalCheckpointListenerFunction,
+                triggerTranslogReplicator
+            )
         );
         assert existing == null : shardId + " already registered";
     }
 
-    protected ShardCommitState createShardCommitState(ShardId shardId, long primaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
-        return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier);
+    protected ShardCommitState createShardCommitState(
+        ShardId shardId,
+        long primaryTerm,
+        BooleanSupplier inititalizingNoSearchSupplier,
+        TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+        Runnable triggerTranslogReplicator
+    ) {
+        return new ShardCommitState(
+            shardId,
+            primaryTerm,
+            inititalizingNoSearchSupplier,
+            addGlobalCheckpointListenerFunction,
+            triggerTranslogReplicator
+        );
     }
 
     public void closeShard(ShardId shardId) {
@@ -741,6 +893,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final ShardId shardId;
         private final long allocationPrimaryTerm;
         private final BooleanSupplier inititalizingNoSearchSupplier;
+        private final TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction;
+        private final Runnable triggerTranslogReplicator;
 
         // The following three fields represent the state of a batched compound commit can have in its lifecycle.
         // 1. currentVirtualBcc - A BCC starts its lifecycle from here. It is used to append new CCs. The field itself begins from null,
@@ -787,10 +941,18 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         private final Map<PrimaryTermAndGeneration, CommitReferencesInfo> commitReferencesInfos = new ConcurrentHashMap<>();
 
         // Visible for testing
-        ShardCommitState(ShardId shardId, long allocationPrimaryTerm, BooleanSupplier inititalizingNoSearchSupplier) {
+        ShardCommitState(
+            ShardId shardId,
+            long allocationPrimaryTerm,
+            BooleanSupplier inititalizingNoSearchSupplier,
+            TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+            Runnable triggerTranslogReplicator
+        ) {
             this.shardId = shardId;
             this.allocationPrimaryTerm = allocationPrimaryTerm;
             this.inititalizingNoSearchSupplier = inititalizingNoSearchSupplier;
+            this.addGlobalCheckpointListenerFunction = addGlobalCheckpointListenerFunction;
+            this.triggerTranslogReplicator = triggerTranslogReplicator;
         }
 
         /**
@@ -1989,10 +2151,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         /**
          * Register commit used by unpromotable, returning the commit to use by the unpromotable.
          */
-        RegisterCommitResponse registerCommitForUnpromotableRecovery(
+        void registerCommitForUnpromotableRecovery(
             @Nullable PrimaryTermAndGeneration batchedCompoundGeneration,
             PrimaryTermAndGeneration compoundCommitGeneration,
-            String nodeId
+            String nodeId,
+            ActionListener<RegisterCommitResponse> listener
         ) {
             if (isClosed()) {
                 // If the shard is concurrently relocated, throwing exception to make search node retry after getting a new cluster state
@@ -2038,10 +2201,10 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             // search shard is on a node that does not register with a BCC generation (so it does not support recovering from a VBCC
             // and should use the last uploaded BCC)
             if (batchedCompoundGeneration == null) {
-                return registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId), availableBcc);
+                registerLastUploadedBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
+            } else {
+                registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc, listener);
             }
-
-            return registerVirtualBccForUnpromotableRecovery(Set.of(nodeId), availableBcc);
         }
 
         /**
@@ -2049,16 +2212,17 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          * <p>
          * If a VBCC exists at the time this method is called, then the latest appended commit of that VBCC is retrieved to compute a list
          * of referenced BCCs to retain during the recovery. The method then tries to register the {@code nodeId} for every referenced BCC
-         * (using {@link #registerUnpromoteableCommitRefs(Set, BlobReference)}). If that works a registration response is returned with the
-         * latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method simply retries.
+         * (using {@link #registerUnpromoteableCommitRefs(Set, BlobReference)}). If that works a registration response is returned to the
+         * listener, with the latest uploaded BCC term/generation and a compound commit to use from the VBCC. Otherwise the method retries.
          *
          * @param nodeIds      a set containing the search shard's node id
          * @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
-         * @return a registration response
+         * @param listener     the listener to receive the {@link RegisterCommitResponse}
          */
-        private RegisterCommitResponse registerVirtualBccForUnpromotableRecovery(
+        private void registerVirtualBccForUnpromotableRecovery(
             Set<String> nodeIds,
-            AbstractBatchedCompoundCommit availableBcc
+            AbstractBatchedCompoundCommit availableBcc,
+            ActionListener<RegisterCommitResponse> listener
         ) {
             while (true) {
                 var virtual = getCurrentOrPendingUploadVirtualBcc();
@@ -2066,7 +2230,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     break;
                 }
                 final var virtualPrimaryTermAndGeneration = virtual.getPrimaryTermAndGeneration();
-                final var virtualCompoundCommit = virtual.lastCompoundCommit();
+                final var virtualPendingCompoundCommit = virtual.getLastPendingCompoundCommit();
+                final var virtualCompoundCommit = virtualPendingCompoundCommit.getStatelessCompoundCommit();
 
                 var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(virtualCompoundCommit)
                     .stream()
@@ -2077,14 +2242,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     .filter(primaryTermAndGeneration -> primaryTermAndGeneration.before(virtualPrimaryTermAndGeneration))
                     .collect(Collectors.toSet());
                 if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
-                    return new RegisterCommitResponse(
+                    var maxSeqNo = virtualPendingCompoundCommit.getMaxSeqNo();
+                    var response = new RegisterCommitResponse(
                         PrimaryTermAndGeneration.max(latestUploadedBcc.primaryTermAndGeneration(), availableBcc.primaryTermAndGeneration()),
                         virtualCompoundCommit
                     );
+                    addGlobalCheckpointListener(
+                        addGlobalCheckpointListenerFunction,
+                        triggerTranslogReplicator,
+                        maxSeqNo,
+                        listener.map(ignored -> response)
+                    );
+                    return;
                 }
             }
             // fall back to the last uploaded BCC if VBCC do not exist yet
-            return registerLastUploadedBccForUnpromotableRecovery(nodeIds, availableBcc);
+            registerLastUploadedBccForUnpromotableRecovery(nodeIds, availableBcc, listener);
         }
 
         /**
@@ -2092,34 +2265,37 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
          *
          * @param nodeIds      a set containing the search shard's node id
          * @param availableBcc a commit that is uploaded/available, but not necessarily yet in latestUploadedBcc
-         * @return a registration response
+         * @param listener     the listener to receive the {@link RegisterCommitResponse}
          */
-        private RegisterCommitResponse registerLastUploadedBccForUnpromotableRecovery(
+        private void registerLastUploadedBccForUnpromotableRecovery(
             Set<String> nodeIds,
-            AbstractBatchedCompoundCommit availableBcc
+            AbstractBatchedCompoundCommit availableBcc,
+            ActionListener<RegisterCommitResponse> listener
         ) {
             assert availableBcc != null;
-            AbstractBatchedCompoundCommit latest = availableBcc;
-            long previousGenerationUploaded = -1L;
-            do {
-                if (isClosed()) {
-                    break;
-                }
-                assert latest.primaryTermAndGeneration().generation() > 0;
-                assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded;
-                assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm
-                    || latest.primaryTermAndGeneration().equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration));
+            ActionListener.completeWith(listener, () -> {
+                AbstractBatchedCompoundCommit latest = availableBcc;
+                long previousGenerationUploaded = -1L;
+                do {
+                    if (isClosed()) {
+                        break;
+                    }
+                    assert latest.primaryTermAndGeneration().generation() > 0;
+                    assert latest.primaryTermAndGeneration().generation() > previousGenerationUploaded;
+                    assert latest.primaryTermAndGeneration().primaryTerm() == allocationPrimaryTerm
+                        || latest.primaryTermAndGeneration()
+                            .equals(new PrimaryTermAndGeneration(recoveredPrimaryTerm, recoveredGeneration));
 
-                var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(
-                    latest.lastCompoundCommit()
-                );
-                if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
-                    return new RegisterCommitResponse(latest.primaryTermAndGeneration(), latest.lastCompoundCommit());
-                }
-                previousGenerationUploaded = latest.primaryTermAndGeneration().generation();
-            } while ((latest = this.latestUploadedBcc) != null);
-
-            throw new NoShardAvailableActionException(shardId, "Indexing shard is closed");
+                    var referencedPrimaryTermAndGenerations = BatchedCompoundCommit.computeReferencedBCCGenerations(
+                        latest.lastCompoundCommit()
+                    );
+                    if (registerForUnpromotableRecovery(referencedPrimaryTermAndGenerations, nodeIds)) {
+                        return new RegisterCommitResponse(latest.primaryTermAndGeneration(), latest.lastCompoundCommit());
+                    }
+                    previousGenerationUploaded = latest.primaryTermAndGeneration().generation();
+                } while ((latest = this.latestUploadedBcc) != null);
+                throw new NoShardAvailableActionException(shardId, "Indexing shard is closed");
+            });
         }
 
         private boolean registerForUnpromotableRecovery(Set<PrimaryTermAndGeneration> primaryTermAndGenerations, Set<String> nodeIds) {
@@ -2640,25 +2816,25 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ActionListener<RegisterCommitResponse> listener
     ) {
         // todo: assert clusterStateVersion <= clusterService.state().version();
-        waitForClusterStateProcessed(state.version(), () -> {
-            ActionListener.completeWith(listener, () -> {
-                var shardCommitsState = getSafe(shardsCommitsStates, shardId);
-                var registrationResponse = shardCommitsState.registerCommitForUnpromotableRecovery(
-                    batchedCompoundGeneration,
-                    compoundCommitGeneration,
-                    nodeId
-                );
-                if (Assertions.ENABLED) {
-                    assert registrationResponse.getCompoundCommit() != null;
-                    var cc = registrationResponse.getCompoundCommit().primaryTermAndGeneration();
-                    assert cc.onOrAfter(compoundCommitGeneration) : cc + " < " + compoundCommitGeneration;
-                    var bcc = registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen();
-                    assert batchedCompoundGeneration == null || bcc.onOrAfter(batchedCompoundGeneration)
-                        : bcc + " < " + batchedCompoundGeneration;
-                }
-                return registrationResponse;
-            });
-        });
+        waitForClusterStateProcessed(state.version(), ActionRunnable.wrap(listener, (l) -> {
+            var shardCommitsState = getSafe(shardsCommitsStates, shardId);
+            shardCommitsState.registerCommitForUnpromotableRecovery(
+                batchedCompoundGeneration,
+                compoundCommitGeneration,
+                nodeId,
+                l.map(registrationResponse -> {
+                    if (Assertions.ENABLED) {
+                        assert registrationResponse.getCompoundCommit() != null;
+                        var cc = registrationResponse.getCompoundCommit().primaryTermAndGeneration();
+                        assert cc.onOrAfter(compoundCommitGeneration) : cc + " < " + compoundCommitGeneration;
+                        var bcc = registrationResponse.getLatestUploadedBatchedCompoundCommitTermAndGen();
+                        assert batchedCompoundGeneration == null || bcc.onOrAfter(batchedCompoundGeneration)
+                            : bcc + " < " + batchedCompoundGeneration;
+                    }
+                    return registrationResponse;
+                })
+            );
+        }));
     }
 
     private record CommitAndBlobLocation(ShardCommitState.BlobReference blobReference, BlobLocation blobLocation) {

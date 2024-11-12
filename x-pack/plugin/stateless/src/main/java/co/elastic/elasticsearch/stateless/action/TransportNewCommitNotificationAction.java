@@ -170,10 +170,7 @@ public class TransportNewCommitNotificationAction extends TransportBroadcastUnpr
 
             // Step 4: update the things that need updating, and compute the final response containing the commits that are still in use
             .<NewCommitNotificationResponse>andThen((l, searchEngine) -> {
-                // TODO: ES-8275 reconsider when to update global check point
-                if (request.isUploaded()) {
-                    shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
-                }
+                shard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "new commit notification");
                 // Since new data has been written, update the shard size tracking.
                 shardSizeCollector.collectShardSize(shard.shardId());
                 l.onResponse(new NewCommitNotificationResponse(searchEngine.getAcquiredPrimaryTermAndGenerations()));

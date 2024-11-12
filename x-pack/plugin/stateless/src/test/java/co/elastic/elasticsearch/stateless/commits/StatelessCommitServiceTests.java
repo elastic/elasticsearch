@@ -666,7 +666,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
+                gcpListener.accept(Long.MAX_VALUE, null);
+            }, () -> {});
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -1286,7 +1288,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
+                gcpListener.accept(Long.MAX_VALUE, null);
+            }, () -> {});
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -1421,7 +1425,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
 
             var indexingShardState = readIndexingShardState(testHarness, primaryTerm);
 
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> false, (checkpoint, gcpListener, timeout) -> {
+                gcpListener.accept(Long.MAX_VALUE, null);
+            }, () -> {});
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
@@ -2726,7 +2732,9 @@ public class StatelessCommitServiceTests extends ESTestCase {
         if (randomBoolean()) {
             testHarness.commitService.closeShard(testHarness.shardId);
             testHarness.commitService.unregister(testHarness.shardId);
-            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true);
+            testHarness.commitService.register(testHarness.shardId, primaryTerm, () -> true, (checkpoint, gcpListener, timeout) -> {
+                gcpListener.accept(Long.MAX_VALUE, null);
+            }, () -> {});
         }
     }
 

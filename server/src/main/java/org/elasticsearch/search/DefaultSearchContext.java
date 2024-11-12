@@ -171,8 +171,19 @@ final class DefaultSearchContext extends SearchContext {
         int minimumDocsPerSlice,
         boolean isValidateAction
     ) throws IOException {
-        this(readerContext, request, shardTarget, relativeTimeSupplier, timeout, fetchPhase, lowLevelCancellation, executor, resultsType,
-            enableQueryPhaseParallelCollection, minimumDocsPerSlice);
+        this(
+            readerContext,
+            request,
+            shardTarget,
+            relativeTimeSupplier,
+            timeout,
+            fetchPhase,
+            lowLevelCancellation,
+            executor,
+            resultsType,
+            enableQueryPhaseParallelCollection,
+            minimumDocsPerSlice
+        );
         this.isValidateAction = isValidateAction;
     }
 

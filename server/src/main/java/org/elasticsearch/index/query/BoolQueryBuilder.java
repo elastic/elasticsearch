@@ -210,7 +210,7 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
      * Otherwise <code>false</code>.
      */
     public boolean hasClauses() {
-        return !(mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty() && filterClauses.isEmpty());
+        return (mustClauses.isEmpty() && shouldClauses.isEmpty() && mustNotClauses.isEmpty() && filterClauses.isEmpty()) == false;
     }
 
     /**
@@ -362,9 +362,10 @@ public class BoolQueryBuilder extends AbstractQueryBuilder<BoolQueryBuilder> {
         }
 
         // lets do some early termination and prevent any kind of rewriting if we have a mandatory query that is a MatchNoneQueryBuilder
-        if (queryRewriteContext.isValidate() == false && (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
-            || newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
-            || newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder))) {
+        if (queryRewriteContext.isValidate() == false
+            && (newBuilder.mustClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
+                || newBuilder.filterClauses.stream().anyMatch(b -> b instanceof MatchNoneQueryBuilder)
+                || newBuilder.mustNotClauses.stream().anyMatch(b -> b instanceof MatchAllQueryBuilder))) {
             return new MatchNoneQueryBuilder("The \"" + getName() + "\" query was rewritten to a \"match_none\" query.");
         }
 

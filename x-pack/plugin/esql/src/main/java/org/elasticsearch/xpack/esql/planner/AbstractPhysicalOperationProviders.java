@@ -26,6 +26,7 @@ import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -92,12 +93,18 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
             List<GroupingAggregator.Factory> aggregatorFactories = new ArrayList<>();
             List<GroupSpec> groupSpecs = new ArrayList<>(aggregateExec.groupings().size());
             for (Expression group : aggregateExec.groupings()) {
-                var groupAttribute = Expressions.attribute(group);
-                if (groupAttribute == null) {
+                Attribute groupAttribute = Expressions.attribute(group);
+                // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
+                Attribute sourceGroupAttribute = (aggregatorMode.isInputPartial() == false
+                    && group instanceof Alias as
+                    && as.child() instanceof Categorize categorize)
+                        ? Expressions.attribute(categorize.field())
+                        : Expressions.attribute(group);
+                if (sourceGroupAttribute == null) {
                     throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
                 }
-                Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), groupAttribute.dataType());
-                groupAttributeLayout.nameIds().add(groupAttribute.id());
+                Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), sourceGroupAttribute.dataType());
+                groupAttributeLayout.nameIds().add(sourceGroupAttribute.id());
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
@@ -126,7 +133,11 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     }
                 }
                 layout.append(groupAttributeLayout);
-                Layout.ChannelAndType groupInput = source.layout.get(groupAttribute.id());
+                Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
+                // TODO: currently, for CATEGORIZE this constructs a GroupSpec with type Category. That's how the hash aggregation later
+                // knows that it should use a categorizing block hash.
+                // E.g. for `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)`, the `groupAttribute` will have type `Category`.
+                // We should put that info into the GroupSpec by other means.
                 groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
             }
 

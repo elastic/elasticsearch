@@ -49,7 +49,8 @@ teardown:
   - is_true: snapshot.include_global_state
   - is_true: snapshot.version
   - gt: { snapshot.version_id: 0}
-  - length: { snapshot.indices: 0 }
+  - length: { snapshot.indices: 1 }
+  - match: { snapshot.indices.0: ".security-7" }
 
   - do:
       cluster.put_settings:

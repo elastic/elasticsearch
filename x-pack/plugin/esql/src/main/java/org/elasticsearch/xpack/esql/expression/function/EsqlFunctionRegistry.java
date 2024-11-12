@@ -480,9 +480,14 @@ public class EsqlFunctionRegistry {
             return UNSUPPORTED;
         }
 
-        return types.stream()
-            .min((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)))
-            .orElse(UNSUPPORTED);
+        try {
+            return types.stream()
+                .min((dt1, dt2) -> dataTypeCastingPriority.get(dt1).compareTo(dataTypeCastingPriority.get(dt2)))
+                .orElse(UNSUPPORTED);
+        } catch (NullPointerException e) {
+            // This occurs if one of the types is not in the dataTypeCastingPriority map
+            return UNSUPPORTED;
+        }
     }
 
     public static FunctionDescription description(FunctionDefinition def) {

@@ -731,7 +731,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @see #onShardFailure(int, SearchShardTarget, Exception)
      * @see #onShardResult(SearchPhaseResult, SearchShardIterator)
      */
-    final void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
+    private void onPhaseDone() {  // as a tribute to @kimchy aka. finishHim()
         executeNextPhase(this, this::getNextPhase);
     }
 
@@ -752,13 +752,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     public final void execute(Runnable command) {
         executor.execute(command);
-    }
-
-    /**
-      * Notifies the top-level listener of the provided exception
-    */
-    public void onFailure(Exception e) {
-        listener.onFailure(e);
     }
 
     /**

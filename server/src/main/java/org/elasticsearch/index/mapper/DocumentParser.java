@@ -183,7 +183,7 @@ public final class DocumentParser {
     }
 
     public interface Listeners {
-        void publish(DocumentParserListener.Event event) throws IOException;
+        AutoEndEventSender publish(DocumentParserListener.Event event) throws IOException;
 
         void publish(DocumentParserListener.Token token) throws IOException;
 
@@ -193,10 +193,14 @@ public final class DocumentParser {
 
         boolean anyActive();
 
+        interface AutoEndEventSender extends AutoCloseable {
+            void close() throws IOException;
+        }
+
         Listeners NOOP = new Listeners() {
             @Override
-            public void publish(DocumentParserListener.Event event) {
-
+            public AutoEndEventSender publish(DocumentParserListener.Event event) {
+                return null;
             }
 
             @Override
@@ -223,21 +227,29 @@ public final class DocumentParser {
         class ListenerCollection implements Listeners {
             private final Collection<DocumentParserListener> listeners;
 
+            private boolean anyActive = true;
+
             public ListenerCollection(Collection<DocumentParserListener> listeners) {
                 this.listeners = listeners;
             }
 
             @Override
-            public void publish(DocumentParserListener.Event event) throws IOException {
+            public AutoEndEventSender publish(DocumentParserListener.Event event) throws IOException {
+                anyActive = false;
                 for (DocumentParserListener l : listeners) {
                     l.consume(event);
+                    anyActive |= l.isActive();
                 }
+
+                return () -> sendCorrespondingEndEvent(event);
             }
 
             @Override
             public void publish(DocumentParserListener.Token token) throws IOException {
                 for (DocumentParserListener l : listeners) {
-                    l.consume(token);
+                    if (l.isActive()) {
+                        l.consume(token);
+                    }
                 }
             }
 
@@ -260,13 +272,23 @@ public final class DocumentParser {
 
             @Override
             public boolean anyActive() {
-                for (DocumentParserListener l : listeners) {
-                    if (l.isActive()) {
-                        return true;
+                return anyActive;
+            }
+
+            private void sendCorrespondingEndEvent(DocumentParserListener.Event event) throws IOException {
+                switch (event) {
+                    case DocumentParserListener.Event.ObjectArrayStart objectArrayStart -> publish(
+                        new DocumentParserListener.Event.ObjectArrayEnd()
+                    );
+                    case DocumentParserListener.Event.ObjectStart objectStart -> publish(
+                        new DocumentParserListener.Event.ObjectEnd(objectStart.objectMapper())
+                    );
+                    case DocumentParserListener.Event.LeafArrayStart leafArrayStart -> publish(
+                        new DocumentParserListener.Event.LeafArrayEnd()
+                    );
+                    default -> {
                     }
                 }
-
-                return false;
             }
         }
     }
@@ -417,64 +439,58 @@ public final class DocumentParser {
     }
 
     static void parseObjectOrNested(DocumentParserContext context) throws IOException {
-        context.publishEvent(new DocumentParserListener.Event.ObjectStart(context.parent()));
+        try (var endSender = context.publishEvent(new DocumentParserListener.Event.ObjectStart(context.parent()))) {
+            XContentParser parser = context.parser();
+            String currentFieldName = parser.currentName();
+            if (context.parent().isEnabled() == false) {
+                // entire type is disabled
+                parser.skipChildren();
+                return;
+            }
+            XContentParser.Token token = parser.currentToken();
+            if (token == XContentParser.Token.VALUE_NULL) {
+                // the object is null ("obj1" : null), simply bail
+                return;
+            }
 
-        XContentParser parser = context.parser();
-        String currentFieldName = parser.currentName();
-        if (context.parent().isEnabled() == false) {
-            // entire type is disabled
-            parser.skipChildren();
+            if (token.isValue()) {
+                throwOnConcreteValue(context.parent(), currentFieldName, context);
+            }
 
-            context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
-            return;
+            // var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
+            // if (context.canAddIgnoredField() && (sourceKeepMode == Mapper.SourceKeepMode.ALL)) {
+            // context = context.addIgnoredFieldFromContext(
+            // new IgnoredSourceFieldMapper.NameValue(
+            // context.parent().fullPath(),
+            // context.parent().fullPath().lastIndexOf(context.parent().leafName()),
+            // null,
+            // context.doc()
+            // )
+            // );
+            // token = context.parser().currentToken();
+            // parser = context.parser();
+            // }
+
+            if (context.parent().isNested()) {
+                // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
+                context = context.createNestedContext((NestedObjectMapper) context.parent());
+            }
+
+            // if we are at the end of the previous object, advance
+            if (token == XContentParser.Token.END_OBJECT) {
+                token = parser.nextToken();
+            }
+            if (token == XContentParser.Token.START_OBJECT) {
+                // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
+                parser.nextToken();
+            }
+
+            innerParseObject(context);
+            // restore the enable path flag
+            if (context.parent().isNested()) {
+                copyNestedFields(context, (NestedObjectMapper) context.parent());
+            }
         }
-        XContentParser.Token token = parser.currentToken();
-        if (token == XContentParser.Token.VALUE_NULL) {
-            // the object is null ("obj1" : null), simply bail
-
-            context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
-            return;
-        }
-
-        if (token.isValue()) {
-            throwOnConcreteValue(context.parent(), currentFieldName, context);
-        }
-
-//        var sourceKeepMode = getSourceKeepMode(context, context.parent().sourceKeepMode());
-//        if (context.canAddIgnoredField() && (sourceKeepMode == Mapper.SourceKeepMode.ALL)) {
-//            context = context.addIgnoredFieldFromContext(
-//                new IgnoredSourceFieldMapper.NameValue(
-//                    context.parent().fullPath(),
-//                    context.parent().fullPath().lastIndexOf(context.parent().leafName()),
-//                    null,
-//                    context.doc()
-//                )
-//            );
-//            token = context.parser().currentToken();
-//            parser = context.parser();
-//        }
-
-        if (context.parent().isNested()) {
-            // Handle a nested object that doesn't contain an array. Arrays are handled in #parseNonDynamicArray.
-            context = context.createNestedContext((NestedObjectMapper) context.parent());
-        }
-
-        // if we are at the end of the previous object, advance
-        if (token == XContentParser.Token.END_OBJECT) {
-            token = parser.nextToken();
-        }
-        if (token == XContentParser.Token.START_OBJECT) {
-            // if we are just starting an OBJECT, advance, this is the object we are parsing, we need the name first
-            parser.nextToken();
-        }
-
-        innerParseObject(context);
-        // restore the enable path flag
-        if (context.parent().isNested()) {
-            copyNestedFields(context, (NestedObjectMapper) context.parent());
-        }
-
-        context.publishEvent(new DocumentParserListener.Event.ObjectEnd(context.parent()));
     }
 
     private static void throwOnConcreteValue(ObjectMapper mapper, String currentFieldName, DocumentParserContext context) {
@@ -588,15 +604,14 @@ public final class DocumentParser {
                 parseObjectOrNested(context.createFlattenContext(currentFieldName));
                 context.path().add(currentFieldName);
             } else {
-                var sourceKeepMode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
+                context.publishEvent(new DocumentParserListener.Event.LeafValue(fieldMapper, context.parser()));
+
                 if (context.canAddIgnoredField()
-                    && (fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK
-                        || sourceKeepMode == Mapper.SourceKeepMode.ALL
-                        || (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && context.inArrayScope())
-                        || (context.isWithinCopyTo() == false && context.isCopyToDestinationField(mapper.fullPath())))) {
-//                    context = context.addIgnoredFieldFromContext(
-//                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
-//                    );
+                    && context.isWithinCopyTo() == false
+                    && context.isCopyToDestinationField(mapper.fullPath())) {
+                    context = context.addIgnoredFieldFromContext(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fieldMapper.fullPath(), null)
+                    );
                     fieldMapper.parse(context);
                 } else {
                     fieldMapper.parse(context);
@@ -822,71 +837,51 @@ public final class DocumentParser {
     ) throws IOException {
         String fullPath = context.path().pathAsText(arrayFieldName);
 
-        // Check if we need to record the array source. This only applies to synthetic source.
-        boolean canRemoveSingleLeafElement = false;
-        if (context.canAddIgnoredField()) {
-            Mapper.SourceKeepMode mode = Mapper.SourceKeepMode.NONE;
-            if (mapper instanceof ObjectMapper objectMapper) {
-                context.publishEvent(new DocumentParserListener.Event.ObjectArrayStart(objectMapper));
-            }
-
-            boolean fieldWithFallbackSyntheticSource = false;
-            boolean fieldWithStoredArraySource = false;
-            if (mapper instanceof FieldMapper fieldMapper) {
-                mode = getSourceKeepMode(context, fieldMapper.sourceKeepMode());
-                fieldWithFallbackSyntheticSource = fieldMapper.syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK;
-                fieldWithStoredArraySource = mode != Mapper.SourceKeepMode.NONE;
-            }
-            boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
-
-            canRemoveSingleLeafElement = mapper instanceof FieldMapper
-                && mode == Mapper.SourceKeepMode.ARRAYS
-                && fieldWithFallbackSyntheticSource == false
-                && copyToFieldHasValuesInDocument == false;
-
-            if (fieldWithFallbackSyntheticSource || fieldWithStoredArraySource || copyToFieldHasValuesInDocument) {
-                context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
-            } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
-                // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
-                // get tracked through ignored source.
-                context.addIgnoredField(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken()));
-                return;
-            }
+        Listeners.AutoEndEventSender autoEndEventSender = null;
+        if (mapper instanceof ObjectMapper objectMapper) {
+            autoEndEventSender = context.publishEvent(new DocumentParserListener.Event.ObjectArrayStart(objectMapper));
+        } else if (mapper instanceof FieldMapper fieldMapper) {
+            autoEndEventSender = context.publishEvent(new DocumentParserListener.Event.LeafArrayStart(fieldMapper));
         }
 
-        // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
-        // elements from regular source loading that are then skipped from the synthesized array source.
-        // To prevent this, we track that parsing sub-context is within array scope.
-        context = context.maybeCloneForArray(mapper);
-
-        XContentParser parser = context.parser();
-        XContentParser.Token token;
-        int elements = 0;
-        while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
-            if (token == XContentParser.Token.START_OBJECT) {
-                elements = Integer.MAX_VALUE;
-                parseObject(context, lastFieldName);
-            } else if (token == XContentParser.Token.START_ARRAY) {
-                elements = Integer.MAX_VALUE;
-                parseArray(context, lastFieldName);
-            } else if (token == XContentParser.Token.VALUE_NULL) {
-                elements++;
-                parseNullValue(context, lastFieldName);
-            } else if (token == null) {
-                throwEOFOnParseArray(arrayFieldName, context);
-            } else {
-                assert token.isValue();
-                elements++;
-                parseValue(context, lastFieldName);
+        try (var endSender = autoEndEventSender) {
+            // Check if we need to record the array source. This only applies to synthetic source.
+            if (context.canAddIgnoredField()) {
+                boolean copyToFieldHasValuesInDocument = context.isWithinCopyTo() == false && context.isCopyToDestinationField(fullPath);
+                if (copyToFieldHasValuesInDocument) {
+                    context = context.addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, null));
+                } else if (mapper instanceof ObjectMapper objectMapper && (objectMapper.isEnabled() == false)) {
+                    // No need to call #addIgnoredFieldFromContext as both singleton and array instances of this object
+                    // get tracked through ignored source.
+                    context.addIgnoredField(
+                        IgnoredSourceFieldMapper.NameValue.fromContext(context, fullPath, context.encodeFlattenedToken())
+                    );
+                    return;
+                }
             }
-        }
-        if (elements <= 1 && canRemoveSingleLeafElement) {
-            context.removeLastIgnoredField(fullPath);
-        }
-        postProcessDynamicArrayMapping(context, lastFieldName);
 
-        if (mapper instanceof ObjectMapper) {
-            context.publishEvent(new DocumentParserListener.Event.ObjectArrayEnd());
+            // In synthetic source, if any array element requires storing its source as-is, it takes precedence over
+            // elements from regular source loading that are then skipped from the synthesized array source.
+            // To prevent this, we track that parsing sub-context is within array scope.
+            context = context.maybeCloneForArray(mapper);
+
+            XContentParser parser = context.parser();
+            XContentParser.Token token;
+            while ((token = parser.nextToken()) != XContentParser.Token.END_ARRAY) {
+                if (token == XContentParser.Token.START_OBJECT) {
+                    parseObject(context, lastFieldName);
+                } else if (token == XContentParser.Token.START_ARRAY) {
+                    parseArray(context, lastFieldName);
+                } else if (token == XContentParser.Token.VALUE_NULL) {
+                    parseNullValue(context, lastFieldName);
+                } else if (token == null) {
+                    throwEOFOnParseArray(arrayFieldName, context);
+                } else {
+                    assert token.isValue();
+                    parseValue(context, lastFieldName);
+                }
+            }
+            postProcessDynamicArrayMapping(context, lastFieldName);
         }
     }
 

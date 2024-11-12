@@ -1200,15 +1200,11 @@ index param - nested object with stored array:
         sort: name
   - match:  { hits.total.value: 2 }
   - match:  { hits.hits.0._source.name: A }
-  - match: { hits.hits.0._source.nested.0.b.0.c: 10 }
-  - match: { hits.hits.0._source.nested.0.b.1.c: 100 }
-  - match: { hits.hits.0._source.nested.1.b.0.c: 20 }
-  - match: { hits.hits.0._source.nested.1.b.1.c: 200 }
+  - match: { hits.hits.0._source.nested.0.b.c: [10, 100] }
+  - match: { hits.hits.0._source.nested.1.b.c: [20, 200] }
   - match: { hits.hits.1._source.name: B }
-  - match: { hits.hits.1._source.nested.0.b.0.c: 30 }
-  - match: { hits.hits.1._source.nested.0.b.1.c: 300 }
-  - match: { hits.hits.1._source.nested.1.b.0.c: 40 }
-  - match: { hits.hits.1._source.nested.1.b.1.c: 400 }
+  - match: { hits.hits.1._source.nested.0.b.c: [30, 300] }
+  - match: { hits.hits.1._source.nested.1.b.c: [40, 400] }
 
 
 ---

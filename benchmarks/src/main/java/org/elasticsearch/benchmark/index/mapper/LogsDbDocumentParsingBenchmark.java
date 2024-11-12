@@ -42,6 +42,7 @@ import java.util.concurrent.TimeUnit;
 public class LogsDbDocumentParsingBenchmark {
     private Random random;
     private MapperService mapperServiceEnabled;
+    private MapperService mapperServiceEnabledWithStoreArrays;
     private MapperService mapperServiceDisabled;
     private SourceToParse[] documents;
 
@@ -165,6 +166,123 @@ public class LogsDbDocumentParsingBenchmark {
         }
         """;
 
+    private static String SAMPLE_LOGS_MAPPING_ENABLED_WITH_STORE_ARRAYS = """
+        {
+          "_source": {
+            "mode": "synthetic"
+          },
+          "properties": {
+            "kafka": {
+              "properties": {
+                "log": {
+                  "properties": {
+                    "component": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "trace": {
+                      "synthetic_source_keep": "arrays",
+                      "properties": {
+                        "message": {
+                          "type": "text"
+                        },
+                        "class": {
+                          "ignore_above": 1024,
+                          "type": "keyword"
+                        }
+                      }
+                    },
+                    "thread": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "class": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                }
+              }
+            },
+            "host": {
+              "properties": {
+                "hostname": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "os": {
+                  "properties": {
+                    "build": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "kernel": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "codename": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "name": {
+                      "ignore_above": 1024,
+                      "type": "keyword",
+                      "fields": {
+                        "text": {
+                          "type": "text"
+                        }
+                      }
+                    },
+                    "family": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "version": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    },
+                    "platform": {
+                      "ignore_above": 1024,
+                      "type": "keyword"
+                    }
+                  }
+                },
+                "domain": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "ip": {
+                  "type": "ip"
+                },
+                "containerized": {
+                  "type": "boolean"
+                },
+                "name": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "id": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "type": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "mac": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                },
+                "architecture": {
+                  "ignore_above": 1024,
+                  "type": "keyword"
+                }
+              }
+            }
+          }
+        }
+        """;
+
     private static String SAMPLE_LOGS_MAPPING_DISABLED = """
         {
           "_source": {
@@ -178,6 +296,7 @@ public class LogsDbDocumentParsingBenchmark {
     public void setUp() throws IOException {
         this.random = new Random();
         this.mapperServiceEnabled = MapperServiceFactory.create(SAMPLE_LOGS_MAPPING_ENABLED);
+        this.mapperServiceEnabledWithStoreArrays = MapperServiceFactory.create(SAMPLE_LOGS_MAPPING_ENABLED_WITH_STORE_ARRAYS);
         this.mapperServiceDisabled = MapperServiceFactory.create(SAMPLE_LOGS_MAPPING_DISABLED);
         this.documents = generateRandomDocuments(10_000);
     }
@@ -185,6 +304,11 @@ public class LogsDbDocumentParsingBenchmark {
     @Benchmark
     public List<LuceneDocument> benchmarkEnabledObject() {
         return mapperServiceEnabled.documentMapper().parse(randomFrom(documents)).docs();
+    }
+
+    @Benchmark
+    public List<LuceneDocument> benchmarkEnabledObjectWithStoreArrays() {
+        return mapperServiceEnabledWithStoreArrays.documentMapper().parse(randomFrom(documents)).docs();
     }
 
     @Benchmark

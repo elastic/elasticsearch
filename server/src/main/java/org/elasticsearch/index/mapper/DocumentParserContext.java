@@ -307,12 +307,6 @@ public abstract class DocumentParserContext {
         }
     }
 
-    final void removeLastIgnoredField(String name) {
-        if (ignoredFieldValues.isEmpty() == false && ignoredFieldValues.getLast().name().equals(name)) {
-            ignoredFieldValues.removeLast();
-        }
-    }
-
     /**
      * Return the collection of values for fields that have been ignored so far.
      */
@@ -480,8 +474,8 @@ public abstract class DocumentParserContext {
         listeners.publish(new DocumentParserListener.Event.DocumentSwitch(doc()));
     }
 
-    public void publishEvent(DocumentParserListener.Event event) throws IOException {
-        listeners.publish(event);
+    public DocumentParser.Listeners.AutoEndEventSender publishEvent(DocumentParserListener.Event event) throws IOException {
+        return listeners.publish(event);
     }
 
     public void finishListeners() {

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.index.mapper;
 
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -56,10 +57,10 @@ public interface DocumentParserListener {
             T value() throws IOException;
         }
 
-        public static Token START_OBJECT = new StartObject();
-        public static Token END_OBJECT = new EndObject();
-        public static Token START_ARRAY = new StartArray();
-        public static Token END_ARRAY = new EndArray();
+        Token START_OBJECT = new StartObject();
+        Token END_OBJECT = new EndObject();
+        Token START_ARRAY = new StartArray();
+        Token END_ARRAY = new EndArray();
 
         static Token current(XContentParser parser) throws IOException {
             return switch (parser.currentToken()) {
@@ -95,7 +96,8 @@ public interface DocumentParserListener {
         }
     }
 
-    sealed interface Event permits Event.DocumentSwitch, Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart, Event.ObjectArrayEnd {
+    sealed interface Event permits Event.DocumentSwitch, Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart,
+        Event.ObjectArrayEnd, Event.LeafArrayStart, Event.LeafArrayEnd, Event.LeafValue {
         record DocumentSwitch(LuceneDocument document) implements Event {}
 
         record DocumentStart(RootObjectMapper rootObjectMapper) implements Event {}
@@ -107,6 +109,38 @@ public interface DocumentParserListener {
         record ObjectArrayStart(ObjectMapper objectMapper) implements Event {}
 
         record ObjectArrayEnd() implements Event {}
+
+        final class LeafValue implements Event {
+            private final FieldMapper fieldMapper;
+            private final XContentParser parser;
+
+            public LeafValue(FieldMapper fieldMapper, XContentParser parser) {
+                this.fieldMapper = fieldMapper;
+                this.parser = parser;
+            }
+
+            public FieldMapper fieldMapper() {
+                return fieldMapper;
+            }
+
+            boolean isComplexValue() {
+                return parser.currentToken().isValue() == false && parser.currentToken() != XContentParser.Token.VALUE_NULL;
+            }
+
+            boolean isArray() {
+                return parser.currentToken() == XContentParser.Token.START_ARRAY;
+            }
+
+            BytesRef encodeValue() throws IOException {
+                assert isComplexValue() == false : "Objects should not be handled with direct encoding";
+
+                return XContentDataHelper.encodeToken(parser);
+            }
+        }
+
+        record LeafArrayStart(FieldMapper fieldMapper) implements Event {}
+
+        record LeafArrayEnd() implements Event {}
     }
 
     record Output(List<IgnoredSourceFieldMapper.NameValue> ignoredSourceValues) {

@@ -42,6 +42,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Consumer;
 
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
@@ -277,9 +278,16 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param exchangeId       the exchange ID
      * @param transportService the transport service
      * @param conn             the connection to the remote node where the remote exchange sink is located
+     * @param failureCollector if not null, the failures will be sent to this consumer and the sink will be marked as finished
      */
-    public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
-        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
+    public RemoteSink newRemoteSink(
+        Task parentTask,
+        String exchangeId,
+        TransportService transportService,
+        Transport.Connection conn,
+        Consumer<Exception> failureCollector
+    ) {
+        return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor, failureCollector);
     }
 
     static final class TransportRemoteSink implements RemoteSink {
@@ -289,6 +297,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
+        final Consumer<Exception> failureCollector;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
 
@@ -298,7 +307,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Transport.Connection connection,
             Task parentTask,
             String exchangeId,
-            Executor responseExecutor
+            Executor responseExecutor,
+            Consumer<Exception> failureCollector
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;
@@ -306,6 +316,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             this.parentTask = parentTask;
             this.exchangeId = exchangeId;
             this.responseExecutor = responseExecutor;
+            this.failureCollector = failureCollector;
         }
 
         @Override
@@ -315,6 +326,12 @@ public final class ExchangeService extends AbstractLifecycleComponent {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
                 blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");
                 listener = ActionListener.runAfter(listener, () -> blockFactory.breaker().addWithoutBreaking(-reservedBytes));
+            }
+            if (failureCollector != null) {
+                listener = listener.delegateResponse((l, ex) -> {
+                    failureCollector.accept(ex);
+                    l.onResponse(new ExchangeResponse(blockFactory, null, true));
+                });
             }
             transportService.sendChildRequest(
                 connection,

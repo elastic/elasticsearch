@@ -202,6 +202,9 @@ final class ComputeListener implements Releasable {
         esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
             assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
                 : "We shouldn't be running compute on a cluster that's already marked as skipped";
+            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL) {
+                return v;
+            }
             return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL)
                 .setFailures(List.of(new ShardSearchFailure(e)))
                 .build();

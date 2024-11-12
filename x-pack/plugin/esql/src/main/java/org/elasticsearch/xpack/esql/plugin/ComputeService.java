@@ -335,7 +335,7 @@ public class ComputeService {
                         queryPragmas.exchangeBufferSize(),
                         esqlExecutor,
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
+                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection, null);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
@@ -377,7 +377,7 @@ public class ComputeService {
         try (RefCountingListener refs = new RefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
                 final String clusterAlias = cluster.clusterAlias();
-                final boolean shouldSkipOnFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
+                final boolean suppressRemoteFailure = computeListener.shouldIgnoreRemoteErrors(clusterAlias);
                 final var exchangeListener = refs.acquire();
                 ExchangeService.openExchange(
                     transportService,
@@ -386,7 +386,13 @@ public class ComputeService {
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
                     ActionListener.wrap(unused -> {
-                        var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
+                        var remoteSink = exchangeService.newRemoteSink(
+                            rootTask,
+                            sessionId,
+                            transportService,
+                            cluster.connection,
+                            suppressRemoteFailure ? ex -> computeListener.markAsPartial(clusterAlias, ex) : null
+                        );
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(clusterAlias, sessionId, configuration, remotePlan);
@@ -403,7 +409,7 @@ public class ComputeService {
                             new ActionListenerResponseHandler<>(clusterListener, ComputeResponse::new, esqlExecutor)
                         );
                     }, e -> {
-                        if (shouldSkipOnFailure) {
+                        if (suppressRemoteFailure) {
                             // TODO: drop this in final patch
                             LOGGER.error("Marking failed cluster {} as partial: {}", clusterAlias, e);
                             computeListener.markAsPartial(clusterAlias, e);

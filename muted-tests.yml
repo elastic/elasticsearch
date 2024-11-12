@@ -266,6 +266,30 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=ml/inference_crud/Test force delete given model referenced by pipeline}
   issue: https://github.com/elastic/elasticsearch/issues/116555
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/data_frame_analytics_crud/Test delete given stopped config}
+  issue: https://github.com/elastic/elasticsearch/issues/116608
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {categorize.Categorize}
+  issue: https://github.com/elastic/elasticsearch/issues/116434
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testBWCSearchStates
+  issue: https://github.com/elastic/elasticsearch/issues/116617
+- class: org.elasticsearch.upgrades.SearchStatesIT
+  method: testCanMatch
+  issue: https://github.com/elastic/elasticsearch/issues/116618
+- class: org.elasticsearch.packaging.test.ArchiveGenerateInitialCredentialsTests
+  method: test20NoAutoGenerationWhenAutoConfigurationDisabled
+  issue: https://github.com/elastic/elasticsearch/issues/116619
+- class: org.elasticsearch.packaging.test.BootstrapCheckTests
+  method: test20RunWithBootstrapChecks
+  issue: https://github.com/elastic/elasticsearch/issues/116620
+- class: org.elasticsearch.smoketest.MlWithSecurityIT
+  method: test {yaml=ml/inference_crud/Test force delete given model referenced by pipeline}
+  issue: https://github.com/elastic/elasticsearch/issues/116624
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test011SecurityEnabledStatus
+  issue: https://github.com/elastic/elasticsearch/issues/116628
 
 # Examples:
 #

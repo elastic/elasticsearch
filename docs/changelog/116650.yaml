@@ -1,0 +1,5 @@
+pr: 116650
+summary: Fix NPE in `MlMemoryAutoscalingDecider`
+area: Machine Learning
+type: bug
+issues: []

@@ -232,7 +232,7 @@ public class IngestGeoIpPlugin extends Plugin
     @Override
     public List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
-            new NamedWriteableRegistry.Entry(Metadata.Custom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
+            new NamedWriteableRegistry.Entry(Metadata.ProjectCustom.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata::new),
             new NamedWriteableRegistry.Entry(NamedDiff.class, IngestGeoIpMetadata.TYPE, IngestGeoIpMetadata.GeoIpMetadataDiff::new),
             new NamedWriteableRegistry.Entry(PersistentTaskState.class, GEOIP_DOWNLOADER, GeoIpTaskState::new),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, GEOIP_DOWNLOADER, GeoIpTaskParams::new),

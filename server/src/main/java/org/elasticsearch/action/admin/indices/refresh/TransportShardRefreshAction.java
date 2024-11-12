@@ -121,7 +121,7 @@ public class TransportShardRefreshAction extends TransportReplicationAction<
         ) {
             assert replicaRequest.primaryRefreshResult.refreshed() : "primary has not refreshed";
             boolean fastRefresh = IndexSettings.INDEX_FAST_REFRESH_SETTING.get(
-                clusterService.state().metadata().index(indexShardRoutingTable.shardId().getIndex()).getSettings()
+                clusterService.state().metadata().indexMetadata(indexShardRoutingTable.shardId().getIndex()).getSettings()
             );
 
             // Indices marked with fast refresh do not rely on refreshing the unpromotables

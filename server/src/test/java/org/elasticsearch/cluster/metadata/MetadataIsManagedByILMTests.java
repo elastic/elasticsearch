@@ -26,7 +26,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             IndexMetadata indexMetadata = createIndexMetadataBuilderForIndex("test-no-ilm-policy").build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
 
         {
@@ -37,7 +37,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             ).build();
             Metadata metadata = Metadata.builder().build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
 
         {
@@ -47,7 +47,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
                 Settings.builder().put("index.lifecycle.name", "metrics").build()
             ).build();
             Metadata metadata = Metadata.builder().put(indexMetadata, true).build();
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
         }
 
         {
@@ -70,7 +70,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(true));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(true));
         }
 
         {
@@ -93,7 +93,7 @@ public class MetadataIsManagedByILMTests extends ESTestCase {
             );
             Metadata metadata = Metadata.builder().put(indexMetadata, true).put(dataStream).build();
 
-            assertThat(metadata.isIndexManagedByILM(indexMetadata), is(false));
+            assertThat(metadata.getProject().isIndexManagedByILM(indexMetadata), is(false));
         }
     }
 

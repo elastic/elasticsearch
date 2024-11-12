@@ -9,6 +9,7 @@
 
 package org.elasticsearch;
 
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
 
@@ -207,12 +208,16 @@ public class TransportVersionTests extends ESTestCase {
      * Note that it does not ensure patches are not missed, but it should catch the majority of misordered
      * or missing transport versions.
      */
+    @FixForMultiProject
     public void testDenseTransportVersions() {
         Set<Integer> missingVersions = new TreeSet<>();
         TransportVersion previous = null;
         for (var tv : TransportVersions.getAllVersions()) {
             if (tv.before(TransportVersions.V_8_15_2)) {
                 continue;
+            }
+            if (tv.equals(TransportVersions.MULTI_PROJECT)) {
+                continue; // Temporary work around. Remove this when Multi-Project merges to main (ES-7708)
             }
             if (previous == null) {
                 previous = tv;

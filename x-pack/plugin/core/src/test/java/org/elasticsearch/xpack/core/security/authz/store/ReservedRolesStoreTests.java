@@ -2610,7 +2610,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 .authorize(
                     indexMonitoringActionName,
                     Sets.newHashSet(internalSecurityIndex, TestRestrictedIndices.SECURITY_MAIN_ALIAS, asyncSearchIndex),
-                    metadata.getIndicesLookup(),
+                    metadata.getProject().getIndicesLookup(),
                     fieldPermissionsCache
                 );
             assertThat(iac.hasIndexPermissions(internalSecurityIndex), is(true));
@@ -2761,7 +2761,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             .build();
 
         FieldPermissionsCache fieldPermissionsCache = new FieldPermissionsCache(Settings.EMPTY);
-        SortedMap<String, IndexAbstraction> lookup = metadata.getIndicesLookup();
+        SortedMap<String, IndexAbstraction> lookup = metadata.getProject().getIndicesLookup();
         IndicesAccessControl iac = superuserRole.indices()
             .authorize(TransportSearchAction.TYPE.name(), Sets.newHashSet("a1", "ba"), lookup, fieldPermissionsCache);
         assertThat(iac.hasIndexPermissions("a1"), is(true));

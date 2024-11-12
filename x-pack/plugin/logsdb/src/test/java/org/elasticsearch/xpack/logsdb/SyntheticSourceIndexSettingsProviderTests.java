@@ -282,7 +282,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -295,7 +295,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -308,7 +308,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.TIME_SERIES,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -321,7 +321,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             IndexMode.LOGSDB,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -355,7 +355,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -379,7 +379,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             settings,
             List.of()
@@ -392,7 +392,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             DataStream.getDefaultBackingIndexName(dataStreamName, 2),
             dataStreamName,
             null,
-            metadata,
+            metadata.getProject(),
             Instant.ofEpochMilli(1L),
             builder().put(IndexSettings.MODE.getKey(), IndexMode.STANDARD.toString()).build(),
             List.of()

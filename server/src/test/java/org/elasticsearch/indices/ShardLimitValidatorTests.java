@@ -13,6 +13,7 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -47,7 +48,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             int numberOfNewShards,
             int replicas,
             DiscoveryNodes discoveryNodes,
-            Metadata metadata
+            ProjectMetadata projectMetadata
         );
     }
 
@@ -71,7 +72,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             counts.getFailingIndexShards(),
             counts.getFailingIndexReplicas(),
             state.nodes(),
-            state.metadata()
+            state.metadata().getProject()
         );
 
         int totalShards = counts.getFailingIndexShards() * (1 + counts.getFailingIndexReplicas());
@@ -126,7 +127,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
             shardsToAdd,
             replicas,
             state.nodes(),
-            state.metadata()
+            state.metadata().getProject()
         );
         assertTrue(shardLimitsResult.canAddShards());
         assertEquals(shardLimitsResult.maxShardsInCluster(), counts.getShardsPerNode() * nodesInCluster);
@@ -156,7 +157,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
         ShardLimitValidator shardLimitValidator = createTestShardLimitService(counts.getShardsPerNode(), group);
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimit(state.nodes(), state.metadata(), indices)
+            () -> shardLimitValidator.validateShardLimit(state.nodes(), state.metadata().getProject(), indices)
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["
@@ -182,11 +183,16 @@ public class ShardLimitValidatorTests extends ESTestCase {
 
         final Index[] indices = getIndices(state);
         final ShardLimitValidator shardLimitValidator = createTestShardLimitService(shardsPerNode, group);
-        shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster - 1);
+        shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata().getProject(), indices, nodesInCluster - 1);
 
         ValidationException exception = expectThrows(
             ValidationException.class,
-            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(state.nodes(), state.metadata(), indices, nodesInCluster)
+            () -> shardLimitValidator.validateShardLimitOnReplicaUpdate(
+                state.nodes(),
+                state.metadata().getProject(),
+                indices,
+                nodesInCluster
+            )
         );
         assertEquals(
             "Validation Failed: 1: this action would add ["
@@ -205,7 +211,7 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     public Index[] getIndices(ClusterState state) {
-        return state.metadata().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
+        return state.metadata().getProject().indices().values().stream().map(IndexMetadata::getIndex).toList().toArray(Index.EMPTY_ARRAY);
     }
 
     private ClusterState createClusterStateForReplicaUpdate(int nodesInCluster, int shardsPerNode, String group) {
@@ -302,7 +308,8 @@ public class ShardLimitValidatorTests extends ESTestCase {
     }
 
     private static Metadata.Builder freezeMetadata(Metadata.Builder builder, Metadata metadata) {
-        metadata.indices()
+        metadata.getProject()
+            .indices()
             .values()
             .stream()
             .map(

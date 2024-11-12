@@ -292,7 +292,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
 
             Map<String, List<DeprecationIssue>> indexSettingsIssues = new HashMap<>();
             for (String concreteIndex : concreteIndexNames) {
-                IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().index(concreteIndex);
+                IndexMetadata indexMetadata = stateWithSkippedSettingsRemoved.getMetadata().getProject().index(concreteIndex);
                 List<DeprecationIssue> singleIndexIssues = filterChecks(
                     indexSettingsChecks,
                     c -> c.apply(indexMetadata, stateWithSkippedSettingsRemoved)
@@ -308,7 +308,7 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
             );
             Map<String, List<DeprecationIssue>> dataStreamIssues = new HashMap<>();
             for (String dataStreamName : dataStreamNames) {
-                DataStream dataStream = stateWithSkippedSettingsRemoved.metadata().dataStreams().get(dataStreamName);
+                DataStream dataStream = stateWithSkippedSettingsRemoved.metadata().getProject().dataStreams().get(dataStreamName);
                 List<DeprecationIssue> issuesForSingleDataStream = filterChecks(dataStreamChecks, c -> c.apply(dataStream, state));
                 if (issuesForSingleDataStream.isEmpty() == false) {
                     dataStreamIssues.put(dataStreamName, issuesForSingleDataStream);
@@ -350,9 +350,9 @@ public class DeprecationInfoAction extends ActionType<DeprecationInfoAction.Resp
         metadataBuilder.persistentSettings(
             metadataBuilder.persistentSettings().filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false)
         );
-        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().indices());
+        Map<String, IndexMetadata> indicesBuilder = new HashMap<>(state.getMetadata().getProject().indices());
         for (String indexName : indexNames) {
-            IndexMetadata indexMetadata = state.getMetadata().index(indexName);
+            IndexMetadata indexMetadata = state.getMetadata().getProject().index(indexName);
             IndexMetadata.Builder filteredIndexMetadataBuilder = new IndexMetadata.Builder(indexMetadata);
             Settings filteredSettings = indexMetadata.getSettings()
                 .filter(setting -> Regex.simpleMatch(skipTheseDeprecatedSettings, setting) == false);

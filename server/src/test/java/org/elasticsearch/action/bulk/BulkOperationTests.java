@@ -37,7 +37,10 @@ import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
@@ -46,7 +49,7 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
-import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
@@ -137,9 +140,10 @@ public class BulkOperationTests extends ESTestCase {
         )
         .build();
 
-    private final ClusterState DEFAULT_STATE = ClusterState.builder(ClusterName.DEFAULT)
-        .metadata(
-            Metadata.builder()
+    private final ProjectId projectId = randomProjectId();
+    private final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+        .putProjectMetadata(
+            ProjectMetadata.builder(projectId)
                 .indexTemplates(
                     Map.of(
                         "ds-template",
@@ -185,6 +189,7 @@ public class BulkOperationTests extends ESTestCase {
     @Before
     public void setupThreadpool() {
         threadPool = new TestThreadPool(getClass().getName());
+        threadPool.getThreadContext().putHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId.id());
     }
 
     @After
@@ -199,7 +204,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Not retryable
-        ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(Metadata.CLUSTER_READ_ONLY_BLOCK).build())
             .build();
 
@@ -222,7 +227,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Retryable
-        final ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        final ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -256,7 +261,7 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client = getNodeClient(assertNoClientInteraction());
 
         // Retryable
-        final ClusterState state = ClusterState.builder(DEFAULT_STATE)
+        final ClusterState state = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -520,7 +525,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -530,16 +535,16 @@ public class BulkOperationTests extends ESTestCase {
         // Then, when waiting for next state change, we will emulate the observer receiving an unblocked state to continue the processing
         // Finally, third time we will return the normal cluster state again since the cluster will be "unblocked" after waiting
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState).thenReturn(DEFAULT_STATE);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState).thenReturn(clusterState);
         when(observer.isTimedOut()).thenReturn(false);
         doAnswer(invocation -> {
             ClusterStateObserver.Listener l = invocation.getArgument(0);
-            l.onNewClusterState(DEFAULT_STATE);
+            l.onNewClusterState(clusterState);
             return null;
         }).when(observer).waitForNextChange(any());
 
         final SubscribableListener<BulkResponse> responseListener = SubscribableListener.newForked(
-            l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()
+            l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run()
         );
 
         // The operation will attempt to write the documents in the request, receive a failure, wait for a stable cluster state, and then
@@ -596,7 +601,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a non-retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(IndexMetadata.INDEX_READ_ONLY_BLOCK).build())
             .build();
 
@@ -604,11 +609,11 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the observer timing out causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false);
         doThrow(new AssertionError("Should not wait on non retryable block")).when(observer).waitForNextChange(any());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -649,7 +654,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -657,7 +662,7 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the observer timing out causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false, true);
         doAnswer((i) -> {
             // Returning same state or timing out will result in one more attempt.
@@ -669,7 +674,7 @@ public class BulkOperationTests extends ESTestCase {
             return null;
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         assertThat(bulkItemResponses.hasFailures(), is(true));
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
@@ -710,7 +715,7 @@ public class BulkOperationTests extends ESTestCase {
         );
 
         // Create a new cluster state that has a retryable cluster block on it
-        ClusterState blockedState = ClusterState.builder(DEFAULT_STATE)
+        ClusterState blockedState = ClusterState.builder(clusterState)
             .blocks(ClusterBlocks.builder().addGlobalBlock(NoMasterBlockService.NO_MASTER_BLOCK_WRITES).build())
             .build();
 
@@ -718,7 +723,7 @@ public class BulkOperationTests extends ESTestCase {
         // Second time we will return a blocked cluster state (before the redirects) causing us to start observing the cluster
         // Finally, we will simulate the node closing causing the redirects to fail.
         ClusterStateObserver observer = mock(ClusterStateObserver.class);
-        when(observer.setAndGetObservedState()).thenReturn(DEFAULT_STATE).thenReturn(blockedState);
+        when(observer.setAndGetObservedState()).thenReturn(clusterState).thenReturn(blockedState);
         when(observer.isTimedOut()).thenReturn(false, true);
         doAnswer((i) -> {
             i.getArgument(0, ClusterStateObserver.Listener.class).onClusterServiceClose();
@@ -726,7 +731,7 @@ public class BulkOperationTests extends ESTestCase {
         }).doThrow(new AssertionError("Should not wait any longer")).when(observer).waitForNextChange(any());
 
         assertThat(
-            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run()),
+            safeAwaitFailure(BulkResponse.class, l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run()),
             instanceOf(NodeClosedException.class)
         );
 
@@ -773,14 +778,14 @@ public class BulkOperationTests extends ESTestCase {
                 dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
             )
             .build();
-        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+        ProjectMetadata metadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
             .put(rolledOverDataStream)
             .build();
-        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
-        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+        ClusterState rolledOverState = ClusterState.builder(clusterState).putProjectMetadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(clusterState, clusterState, rolledOverState);
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(item -> item.getIndex().equals(ds3FailureStore2.getIndex().getName()))
             .findFirst()
@@ -818,14 +823,14 @@ public class BulkOperationTests extends ESTestCase {
                 dataStream3.getFailureIndices().copy().setIndices(List.of(ds3FailureStore1.getIndex(), ds3FailureStore2.getIndex())).build()
             )
             .build();
-        Metadata metadata = Metadata.builder(DEFAULT_STATE.metadata())
+        ProjectMetadata metadata = ProjectMetadata.builder(clusterState.metadata().getProject(projectId))
             .indices(Map.of(ds3FailureStore2.getIndex().getName(), ds3FailureStore2))
             .put(rolledOverDataStream)
             .build();
-        ClusterState rolledOverState = ClusterState.builder(DEFAULT_STATE).metadata(metadata).build();
-        ClusterStateObserver observer = mockObserver(DEFAULT_STATE, DEFAULT_STATE, rolledOverState);
+        ClusterState rolledOverState = ClusterState.builder(clusterState).putProjectMetadata(metadata).build();
+        ClusterStateObserver observer = mockObserver(clusterState, clusterState, rolledOverState);
 
-        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, DEFAULT_STATE, observer, l).run());
+        BulkResponse bulkItemResponses = safeAwait(l -> newBulkOperation(client, bulkRequest, clusterState, observer, l).run());
         BulkItemResponse failedItem = Arrays.stream(bulkItemResponses.getItems())
             .filter(BulkItemResponse::isFailed)
             .findFirst()
@@ -1018,11 +1023,11 @@ public class BulkOperationTests extends ESTestCase {
 
     private BulkOperation newBulkOperation(NodeClient client, BulkRequest request, ActionListener<BulkResponse> listener) {
         return newBulkOperation(
-            DEFAULT_STATE,
+            clusterState,
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            mockObserver(DEFAULT_STATE),
+            mockObserver(clusterState),
             listener,
             new FailureStoreDocumentConverter()
         );
@@ -1035,11 +1040,11 @@ public class BulkOperationTests extends ESTestCase {
         ActionListener<BulkResponse> listener
     ) {
         return newBulkOperation(
-            DEFAULT_STATE,
+            clusterState,
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            mockObserver(DEFAULT_STATE),
+            mockObserver(clusterState),
             listener,
             failureStoreDocumentConverter
         );
@@ -1079,7 +1084,7 @@ public class BulkOperationTests extends ESTestCase {
 
         // Expressions
         ThreadContext ctx = threadPool.getThreadContext();
-        IndexNameExpressionResolver indexNameExpressionResolver = new IndexNameExpressionResolver(ctx, new SystemIndices(List.of()));
+        IndexNameExpressionResolver indexNameExpressionResolver = TestIndexNameExpressionResolver.newInstance(ctx);
 
         // Mocks
         final DiscoveryNode mockNode = mock(DiscoveryNode.class);
@@ -1097,6 +1102,7 @@ public class BulkOperationTests extends ESTestCase {
             client,
             existingResponses,
             indexNameExpressionResolver,
+            TestProjectResolvers.usingRequestHeader(ctx),
             () -> endTime,
             timeZero,
             listener,

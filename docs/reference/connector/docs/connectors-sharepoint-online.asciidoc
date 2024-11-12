@@ -95,6 +95,8 @@ Graph API
 Sharepoint
 - Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 
@@ -554,6 +556,8 @@ Graph API
 Sharepoint
 - Sites.Selected
 ```
+NOTE: If the `Comma-separated list of sites` configuration is set to `*` or if a user enables the toggle button `Enumerate all sites`, the connector requires `Sites.Read.All` permission.
+
 * **Grant admin consent**, using the `Grant Admin Consent` link from the permissions screen.
 * Save the tenant name (i.e. Domain name) of Azure platform.
 

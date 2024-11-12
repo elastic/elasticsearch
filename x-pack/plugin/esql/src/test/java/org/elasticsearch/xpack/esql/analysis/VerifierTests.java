@@ -1639,6 +1639,26 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeSingleGrouping() {
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no")
+        );
+        assertEquals(
+            "1:39: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:35: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings\n"
+                + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+        );
+    }
+
     private void query(String query) {
         defaultAnalyzer.analyze(parser.createStatement(query));
     }

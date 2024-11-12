@@ -33,6 +33,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -271,11 +272,25 @@ public class Verifier {
                     r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
                 );
             }
+            checkCategorizeGrouping(agg, failures);
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
+        }
+    }
+
+    private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
+        if (agg.groupings().size() > 1) {
+            agg.groupings().forEach(g -> {
+                g.forEachDown(
+                    Categorize.class,
+                    categorize -> failures.add(
+                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                    )
+                );
+            });
         }
     }
 

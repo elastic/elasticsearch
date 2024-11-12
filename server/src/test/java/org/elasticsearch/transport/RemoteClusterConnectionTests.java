@@ -40,7 +40,6 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.ReleasableRef;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.mocksocket.MockServerSocket;
@@ -213,10 +212,9 @@ public class RemoteClusterConnectionTests extends ESTestCase {
         }
     }
 
-    @SuppressForbidden(reason = "calls getLocalHost here but it's fine in this case")
     public void testSlowNodeCanBeCancelled() throws IOException, InterruptedException {
         try (ServerSocket socket = new MockServerSocket()) {
-            socket.bind(new InetSocketAddress(InetAddress.getLocalHost(), 0), 1);
+            socket.bind(new InetSocketAddress(InetAddress.getLoopbackAddress(), 0), 1);
             socket.setReuseAddress(true);
             DiscoveryNode seedNode = DiscoveryNodeUtils.create(
                 "TEST",

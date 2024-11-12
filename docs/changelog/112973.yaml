@@ -1,5 +1,0 @@
-pr: 112973
-summary: Fix verbose get data stream API not requiring extra privileges
-area: Data streams
-type: bug
-issues: []

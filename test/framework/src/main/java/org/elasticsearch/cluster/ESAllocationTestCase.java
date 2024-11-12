@@ -39,6 +39,7 @@ import org.elasticsearch.cluster.routing.allocation.decider.SameShardAllocationD
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -436,13 +437,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     }
 
-    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
-        null,
-        EmptyClusterInfoService.INSTANCE,
-        WriteLoadForecaster.DEFAULT
-    ) {
+    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(WriteLoadForecaster.DEFAULT) {
         @Override
-        public Map<String, NodeAllocationStats> stats(DesiredBalance desiredBalance) {
+        public Map<String, NodeAllocationStats> stats(ClusterState clusterState, ClusterInfo clusterInfo, @Nullable DesiredBalance desiredBalance) {
             return Map.of();
         }
     };

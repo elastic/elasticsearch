@@ -9,38 +9,31 @@
 
 package org.elasticsearch.cluster.routing.allocation;
 
-import org.elasticsearch.cluster.ClusterInfoService;
+import org.elasticsearch.cluster.ClusterInfo;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 
 import java.util.Map;
 
 public class NodeAllocationStatsProvider {
-    private final ClusterService clusterService;
-    private final ClusterInfoService clusterInfoService;
     private final WriteLoadForecaster writeLoadForecaster;
 
-    public NodeAllocationStatsProvider(
-        ClusterService clusterService,
-        ClusterInfoService clusterInfoService,
-        WriteLoadForecaster writeLoadForecaster
-    ) {
-        this.clusterService = clusterService;
-        this.clusterInfoService = clusterInfoService;
+    public NodeAllocationStatsProvider(WriteLoadForecaster writeLoadForecaster) {
         this.writeLoadForecaster = writeLoadForecaster;
     }
 
-    public Map<String, NodeAllocationStats> stats(@Nullable DesiredBalance desiredBalance) {
-        var state = clusterService.state();
-        var info = clusterInfoService.getClusterInfo();
-
-        var stats = Maps.<String, NodeAllocationStats>newMapWithExpectedSize(state.getRoutingNodes().size());
-        for (RoutingNode node : state.getRoutingNodes()) {
+    public Map<String, NodeAllocationStats> stats(
+        ClusterState clusterState,
+        ClusterInfo clusterInfo,
+        @Nullable DesiredBalance desiredBalance
+    ) {
+        var stats = Maps.<String, NodeAllocationStats>newMapWithExpectedSize(clusterState.getRoutingNodes().size());
+        for (RoutingNode node : clusterState.getRoutingNodes()) {
             int shards = 0;
             int undesiredShards = 0;
             double forecastedWriteLoad = 0.0;
@@ -51,11 +44,11 @@ public class NodeAllocationStatsProvider {
                     continue;
                 }
                 shards++;
-                IndexMetadata indexMetadata = state.metadata().getIndexSafe(shardRouting.index());
+                IndexMetadata indexMetadata = clusterState.metadata().getIndexSafe(shardRouting.index());
                 if (isDesiredAllocation(desiredBalance, shardRouting) == false) {
                     undesiredShards++;
                 }
-                long shardSize = info.getShardSize(shardRouting.shardId(), shardRouting.primary(), 0);
+                long shardSize = clusterInfo.getShardSize(shardRouting.shardId(), shardRouting.primary(), 0);
                 forecastedWriteLoad += writeLoadForecaster.getForecastedWriteLoad(indexMetadata).orElse(0.0);
                 forecastedDiskUsage += Math.max(indexMetadata.getForecastedShardSizeInBytes().orElse(0), shardSize);
                 currentDiskUsage += shardSize;

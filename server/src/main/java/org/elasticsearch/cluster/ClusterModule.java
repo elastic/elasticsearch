@@ -139,7 +139,7 @@ public class ClusterModule extends AbstractModule {
         this.clusterPlugins = clusterPlugins;
         this.deciderList = createAllocationDeciders(settings, clusterService.getClusterSettings(), clusterPlugins);
         this.allocationDeciders = new AllocationDeciders(deciderList);
-        var nodeAllocationStatsProvider = new NodeAllocationStatsProvider(clusterService, clusterInfoService, writeLoadForecaster);
+        var nodeAllocationStatsProvider = new NodeAllocationStatsProvider(writeLoadForecaster);
         this.shardsAllocator = createShardsAllocator(
             settings,
             clusterService.getClusterSettings(),
@@ -163,7 +163,12 @@ public class ClusterModule extends AbstractModule {
         );
         this.allocationService.addAllocFailuresResetListenerTo(clusterService);
         this.metadataDeleteIndexService = new MetadataDeleteIndexService(settings, clusterService, allocationService);
-        this.allocationStatsService = new AllocationStatsService(nodeAllocationStatsProvider, shardsAllocator);
+        this.allocationStatsService = new AllocationStatsService(
+            clusterService,
+            clusterInfoService,
+            shardsAllocator,
+            nodeAllocationStatsProvider
+        );
         this.telemetryProvider = telemetryProvider;
     }
 

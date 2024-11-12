@@ -19,29 +19,26 @@ import java.util.Map;
 import java.util.function.Supplier;
 
 public class AllocationStatsService {
+    private final ClusterService clusterService;
+    private final ClusterInfoService clusterInfoService;
     private final Supplier<DesiredBalance> desiredBalanceSupplier;
     private final NodeAllocationStatsProvider nodeAllocationStatsProvider;
 
-    public AllocationStatsService(NodeAllocationStatsProvider nodeAllocationStatsProvider, ShardsAllocator shardsAllocator) {
+    public AllocationStatsService(
+        ClusterService clusterService,
+        ClusterInfoService clusterInfoService,
+        ShardsAllocator shardsAllocator,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
+    ) {
+        this.clusterService = clusterService;
+        this.clusterInfoService = clusterInfoService;
         this.nodeAllocationStatsProvider = nodeAllocationStatsProvider;
         this.desiredBalanceSupplier = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator
             ? allocator::getDesiredBalance
             : () -> null;
     }
 
-    public AllocationStatsService(
-        ClusterService clusterService,
-        ClusterInfoService clusterInfoService,
-        ShardsAllocator shardsAllocator,
-        WriteLoadForecaster writeLoadForecaster
-    ) {
-        this.nodeAllocationStatsProvider = new NodeAllocationStatsProvider(clusterService, clusterInfoService, writeLoadForecaster);
-        this.desiredBalanceSupplier = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator
-            ? allocator::getDesiredBalance
-            : () -> null;
-    }
-
     public Map<String, NodeAllocationStats> stats() {
-        return nodeAllocationStatsProvider.stats(desiredBalanceSupplier.get());
+        return nodeAllocationStatsProvider.stats(clusterService.state(), clusterInfoService.getClusterInfo(), desiredBalanceSupplier.get());
     }
 }

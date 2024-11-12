@@ -159,7 +159,7 @@ public class DesiredBalanceReconciler {
         }
 
         private void updateDesireBalanceMetrics(AllocationStats allocationStats) {
-            var stats = nodeAllocationStatsProvider.stats(desiredBalance);
+            var stats = nodeAllocationStatsProvider.stats(allocation.getClusterState(), allocation.clusterInfo(), desiredBalance);
             Map<DiscoveryNode, NodeAllocationStats> nodeAllocationStats = new HashMap<>(stats.size());
             for (var entry : stats.entrySet()) {
                 var node = allocation.nodes().get(entry.getKey());

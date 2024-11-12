@@ -3,6 +3,7 @@
   "type" : "eval",
   "name" : "byte_length",
   "description" : "Returns the byte length of a string.",
+  "note" : "All strings are in UTF-8, so a single character can use multiple bytes.",
   "signatures" : [
     {
       "params" : [

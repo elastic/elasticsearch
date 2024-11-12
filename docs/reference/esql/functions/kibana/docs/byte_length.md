@@ -10,3 +10,4 @@ FROM employees
 | KEEP first_name, last_name
 | EVAL fn_byte_length = BYTE_LENGTH(first_name)
 ```
+Note: All strings are in UTF-8, so a single character can use multiple bytes.

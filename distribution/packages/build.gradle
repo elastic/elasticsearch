@@ -335,7 +335,6 @@ Closure commonDebConfig(String architecture) {
 
     // versions found on oldest supported distro, centos-6
     requires('bash', '4.1', GREATER | EQUAL)
-    requires('lsb-base', '4', GREATER | EQUAL)
     requires 'libc6'
     requires 'adduser'
 

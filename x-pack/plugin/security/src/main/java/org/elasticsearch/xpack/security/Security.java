@@ -590,7 +590,7 @@ public class Security extends Plugin
 
     static {
         final var propertyValue = System.getProperty("es.queryable_built_in_roles_enabled");
-        if (propertyValue == null) {
+        if (propertyValue == null || propertyValue.isEmpty()) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = true;
         } else if ("false".equals(propertyValue)) {
             QUERYABLE_BUILT_IN_ROLES_ENABLED = false;

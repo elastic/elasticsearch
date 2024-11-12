@@ -47,7 +47,14 @@ public class XPackRestIT extends AbstractXPackRestTest {
         .configFile("testnode.pem", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.pem"))
         .configFile("testnode.crt", Resource.fromClasspath("org/elasticsearch/xpack/security/transport/ssl/certs/simple/testnode.crt"))
         .configFile("service_tokens", Resource.fromClasspath("service_tokens"))
-        .systemProperty("es.queryable_built_in_roles_enabled", () -> System.getProperty("es.queryable_built_in_roles_enabled"))
+        .systemProperty("es.queryable_built_in_roles_enabled", () -> {
+            String enabled = System.getProperty("es.queryable_built_in_roles_enabled");
+            if (enabled == null) {
+                return "";
+            } else {
+                return enabled;
+            }
+        })
         .build();
 
     public XPackRestIT(ClientYamlTestCandidate testCandidate) {

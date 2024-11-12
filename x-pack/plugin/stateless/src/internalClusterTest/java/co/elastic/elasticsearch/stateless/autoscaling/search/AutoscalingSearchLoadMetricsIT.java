@@ -410,7 +410,6 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1657")
     public void testMasterFailoverWithOnGoingMetricPublication() throws Exception {
         for (int i = 0; i < 2; i++) {
             startMasterNode();
@@ -445,6 +444,7 @@ public class AutoscalingSearchLoadMetricsIT extends AbstractStatelessIntegTestCa
             if (request instanceof PublishNodeSearchLoadRequest publishRequest && publishRequest.getSearchLoad() > 0) {
                 firstNonZeroPublishSearchLoadLatch.countDown();
             }
+            handler.messageReceived(request, channel, task);
         });
 
         for (var i = 0; i < 10; i++) {

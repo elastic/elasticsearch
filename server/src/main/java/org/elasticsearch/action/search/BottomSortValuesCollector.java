@@ -17,6 +17,9 @@ import org.apache.lucene.search.TopFieldDocs;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchSortValuesAndFormats;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
+
 import static org.elasticsearch.core.Types.forciblyCast;
 
 /**
@@ -28,8 +31,27 @@ class BottomSortValuesCollector {
     private final FieldComparator<?>[] comparators;
     private final int[] reverseMuls;
 
+    @SuppressWarnings("unused") // updated via TOTAL_HITS_HANDLE
     private volatile long totalHits;
+    @SuppressWarnings("unused") // updated via BOTTOM_SORT_VALUES_HANDLE
     private volatile SearchSortValuesAndFormats bottomSortValues;
+
+    private static final VarHandle TOTAL_HITS_HANDLE;
+    private static final VarHandle BOTTOM_SORT_VALUES_HANDLE;
+
+    static {
+        var lookup = MethodHandles.lookup();
+        try {
+            TOTAL_HITS_HANDLE = lookup.findVarHandle(BottomSortValuesCollector.class, "totalHits", long.class);
+            BOTTOM_SORT_VALUES_HANDLE = lookup.findVarHandle(
+                BottomSortValuesCollector.class,
+                "bottomSortValues",
+                SearchSortValuesAndFormats.class
+            );
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
 
     BottomSortValuesCollector(int topNSize, SortField[] sortFields) {
         this.topNSize = topNSize;
@@ -53,18 +75,24 @@ class BottomSortValuesCollector {
         return bottomSortValues;
     }
 
-    synchronized void consumeTopDocs(TopFieldDocs topDocs, DocValueFormat[] sortValuesFormat) {
-        totalHits += topDocs.totalHits.value();
+    void consumeTopDocs(TopFieldDocs topDocs, DocValueFormat[] sortValuesFormat) {
+        TOTAL_HITS_HANDLE.getAndAdd(this, topDocs.totalHits.value());
         if (validateShardSortFields(topDocs.fields) == false) {
             return;
         }
-
         FieldDoc shardBottomDoc = extractBottom(topDocs);
         if (shardBottomDoc == null) {
             return;
         }
-        if (bottomSortValues == null || compareValues(shardBottomDoc.fields, bottomSortValues.getRawSortValues()) < 0) {
-            bottomSortValues = new SearchSortValuesAndFormats(shardBottomDoc.fields, sortValuesFormat);
+        SearchSortValuesAndFormats existing;
+        while ((existing = bottomSortValues) == null || isBetter(shardBottomDoc.fields, existing.getRawSortValues())) {
+            if (BOTTOM_SORT_VALUES_HANDLE.compareAndSet(
+                this,
+                existing,
+                new SearchSortValuesAndFormats(shardBottomDoc.fields, sortValuesFormat)
+            )) {
+                break;
+            }
         }
     }
 
@@ -90,13 +118,13 @@ class BottomSortValuesCollector {
         return topNSize > 0 && topDocs.scoreDocs.length == topNSize ? (FieldDoc) topDocs.scoreDocs[topNSize - 1] : null;
     }
 
-    private int compareValues(Object[] v1, Object[] v2) {
+    private boolean isBetter(Object[] v1, Object[] v2) {
         for (int i = 0; i < v1.length; i++) {
-            int cmp = reverseMuls[i] * comparators[i].compareValues(forciblyCast(v1[i]), forciblyCast(v2[i]));
+            int cmp = comparators[i].compareValues(forciblyCast(v1[i]), forciblyCast(v2[i]));
             if (cmp != 0) {
-                return cmp;
+                return reverseMuls[i] * cmp < 0;
             }
         }
-        return 0;
+        return false;
     }
 }

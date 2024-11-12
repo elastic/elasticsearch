@@ -132,6 +132,20 @@ COUNT():long | category:category
            1 | .*?Disconnected.+?banana.*?
 ;
 
+on CONCAT with unicode
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " 👍🏽😊"))
+  | SORT category
+;
+
+COUNT():long | category:category
+           3 | .*?Connected.+?to.+?👍🏽😊.*?
+           3 | .*?Connection.+?error.+?👍🏽😊.*?
+           1 | .*?Disconnected.+?👍🏽😊.*?
+;
+
 on REVERSE(CONCAT())
 required_capability: categorize
 # NOCOMIT needs fn_reverse_grapheme
@@ -147,9 +161,8 @@ COUNT():long | category:category
            3 | .*?😊👍🏽.+?rorre.+?noitcennoC.*?
 ;
 
-and then TO_LOWER
+and then TO_LOWER-Ignore
 required_capability: categorize
-required_capability: categorize_makes_keyword
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(message)

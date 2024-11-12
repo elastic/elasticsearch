@@ -62,7 +62,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
+import org.elasticsearch.cluster.service.CompatibilityVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -785,7 +785,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
             clusterService.addListener(
-                new TransportVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
+                new CompatibilityVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
             );
             clusterService.addListener(new NodeFeaturesFixupListener(clusterService, client.admin().cluster(), threadPool));
         }

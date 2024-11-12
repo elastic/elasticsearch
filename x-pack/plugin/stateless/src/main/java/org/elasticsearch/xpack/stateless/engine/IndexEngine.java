@@ -57,6 +57,7 @@ import org.elasticsearch.index.engine.LiveVersionMapArchive;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.merge.OnGoingMerge;
 import org.elasticsearch.index.seqno.LocalCheckpointTracker;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
@@ -208,6 +209,11 @@ public class IndexEngine extends InternalEngine {
     }
 
     @Override
+    public long getLastSyncedGlobalCheckpoint() {
+        return getPersistedLocalCheckpoint();
+    }
+
+    @Override
     protected ElasticsearchReaderManager createInternalReaderManager(ElasticsearchDirectoryReader directoryReader) {
         return new ElasticsearchReaderManager(directoryReader) {
             @Override
@@ -284,9 +290,13 @@ public class IndexEngine extends InternalEngine {
         if (fastRefresh) {
             return super.refreshNeeded();
         } else {
+            // This is to ensure that the search shards' LCP (and thus their GCP) are ultimately up-to-date.
+            boolean committedLocalCheckpointNeedsUpdate = getProcessedLocalCheckpoint() > Long.parseLong(
+                getLastCommittedSegmentInfos().userData.get(SequenceNumbers.LOCAL_CHECKPOINT_KEY)
+            );
             // It is possible that the index writer has uncommitted changes. We could check here, but we will check before actually
             // triggering the flush anyway.
-            return hasUncommittedChanges() || super.refreshNeeded();
+            return hasUncommittedChanges() || committedLocalCheckpointNeedsUpdate || super.refreshNeeded();
         }
     }
 
@@ -494,6 +504,10 @@ public class IndexEngine extends InternalEngine {
         } catch (Exception e) {
             throw new IOException("Exception while syncing translog remotely", e);
         }
+    }
+
+    public void syncTranslogReplicator(ActionListener<Void> listener) {
+        translogReplicator.syncAll(shardId, listener);
     }
 
     @Override

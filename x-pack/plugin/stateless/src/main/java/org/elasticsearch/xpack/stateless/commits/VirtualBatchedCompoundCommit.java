@@ -39,6 +39,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Streams;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.blobstore.SlicedInputStream;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -322,7 +323,8 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
                 internalFiles.stream().map(InternalFile::name).collect(Collectors.toUnmodifiableSet()),
                 header.length,
                 replicatedContent.header()
-            )
+            ),
+            Long.parseLong(reference.getIndexCommit().getUserData().get(SequenceNumbers.MAX_SEQ_NO))
         );
         pendingCompoundCommits.add(pendingCompoundCommit);
         assert currentOffset.get() == headerOffset + pendingCompoundCommit.getSizeInBytes()
@@ -633,6 +635,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         private final int headerSize;
         private final StatelessCommitRef reference;
         private final StatelessCompoundCommit statelessCompoundCommit;
+        private final long maxSeqNo;
         // No need to be volatile because writing is synchronized at higher level in StatelessCommitService
         // and reading is dispatched to another thread after a second synchronization
         private int padding = 0;
@@ -644,10 +647,16 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
          * @param reference the lucene commit reference
          * @param statelessCompoundCommit the associated compound commit that will be uploaded
          */
-        PendingCompoundCommit(int headerSize, StatelessCommitRef reference, StatelessCompoundCommit statelessCompoundCommit) {
+        PendingCompoundCommit(
+            int headerSize,
+            StatelessCommitRef reference,
+            StatelessCompoundCommit statelessCompoundCommit,
+            long maxSeqNo
+        ) {
             this.headerSize = headerSize;
             this.reference = reference;
             this.statelessCompoundCommit = statelessCompoundCommit;
+            this.maxSeqNo = maxSeqNo;
         }
 
         void setPadding(int padding) {
@@ -657,6 +666,10 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
 
         long getGeneration() {
             return reference.getGeneration();
+        }
+
+        long getMaxSeqNo() {
+            return maxSeqNo;
         }
 
         StatelessCommitRef getCommitReference() {

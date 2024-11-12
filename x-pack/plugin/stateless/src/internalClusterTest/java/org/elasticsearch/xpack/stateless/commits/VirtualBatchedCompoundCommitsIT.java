@@ -42,6 +42,7 @@ import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -56,6 +57,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndexClosedException;
@@ -240,9 +242,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         protected ShardCommitState createShardCommitState(
             ShardId shardId,
             long primaryTerm,
-            BooleanSupplier inititalizingNoSearchSupplier
+            BooleanSupplier inititalizingNoSearchSupplier,
+            TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+            Runnable triggerTranslogReplicator
         ) {
-            return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier) {
+            return new ShardCommitState(
+                shardId,
+                primaryTerm,
+                inititalizingNoSearchSupplier,
+                addGlobalCheckpointListenerFunction,
+                triggerTranslogReplicator
+            ) {
                 @Override
                 protected boolean shouldUploadVirtualBcc(VirtualBatchedCompoundCommit virtualBcc) {
                     // uploads must be triggered explicitly in tests

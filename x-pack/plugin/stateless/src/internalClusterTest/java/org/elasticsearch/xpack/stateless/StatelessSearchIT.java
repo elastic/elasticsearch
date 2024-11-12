@@ -31,10 +31,12 @@ import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.lucene.SearchDirectory;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
+import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.store.Directory;
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.admin.indices.diskusage.AnalyzeIndexDiskUsageRequest;
@@ -76,6 +78,7 @@ import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.engine.DocumentMissingException;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
@@ -89,6 +92,7 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.snapshots.mockstore.MockRepository;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -140,6 +144,7 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.instanceOf;
@@ -257,9 +262,17 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         }
     }
 
+    protected Settings.Builder nodeSettings() {
+        return super.nodeSettings().put(ObjectStoreService.TYPE_SETTING.getKey(), ObjectStoreService.ObjectStoreType.MOCK);
+    }
+
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return super.nodePlugins().stream().map(c -> c.equals(Stateless.class) ? TestStateless.class : c).toList();
+        var plugins = new ArrayList<>(super.nodePlugins());
+        plugins.remove(Stateless.class);
+        plugins.add(TestStateless.class);
+        plugins.add(MockRepository.Plugin.class);
+        return plugins;
     }
 
     private static int getNumberOfCreatedCommits() {
@@ -1193,10 +1206,33 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         assertThat(exception.getMessage(), containsString("disabling [track_total_hits] is not allowed in a scroll context"));
     }
 
+    public void testSearchWithWaitForUnissuedCheckpoint() {
+        var nodeSettings = disableIndexingDiskAndMemoryControllersNodeSettings();
+        startMasterOnlyNode(nodeSettings);
+        startIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        indexDocs(indexName, randomIntBetween(1, 100));
+        if (randomBoolean()) {
+            refresh(indexName);
+        }
+
+        var exception = expectThrows(
+            Exception.class,
+            () -> client().prepareSearch(indexName)
+                .setWaitForCheckpoints(Map.of(indexName, new long[] { Long.MAX_VALUE }))
+                .setWaitForCheckpointsTimeout(TimeValue.timeValueMinutes(2))
+                .get()
+        );
+        assertThat(exception.getCause().getMessage(), containsString("Cannot wait for unissued seqNo checkpoint"));
+    }
+
     public void testSearchWithWaitForCheckpoint() {
-        startMasterOnlyNode();
-        var indexNode = startIndexNodes(1).get(0);
-        startSearchNodes(1);
+        startMasterOnlyNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startSearchNode(disableIndexingDiskAndMemoryControllersNodeSettings());
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);
@@ -1215,17 +1251,120 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         boolean refreshBefore = randomBoolean();
         if (refreshBefore) {
             refresh(indexName);
-            // TODO Revisit the following flush call once ES-8275 is resolved
-            flushNoForceNoWait(indexName);
         }
         var searchFuture = client().prepareSearch(indexName)
             .setWaitForCheckpoints(Map.of(indexName, new long[] { seqNoStats.getGlobalCheckpoint() }))
             .execute();
         if (refreshBefore == false) {
             refresh(indexName);
-            // TODO Revisit the following flush call once ES-8275 is resolved
-            flushNoForceNoWait(indexName);
         }
+        assertHitCount(searchFuture, docCount);
+    }
+
+    public void testSearchWithWaitForCheckpointWithTranslogDelay() throws Exception {
+        startMasterOnlyNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        final var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        final var searchNode = startSearchNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 1).build());
+        ensureGreen(indexName);
+        IndexShard indexShard = findIndexShard(indexName);
+
+        // Repeatedly fail translog uploads
+        ObjectStoreService objectStoreService = getObjectStoreService(indexNode);
+        MockRepository repository = ObjectStoreTestUtils.getObjectStoreMockRepository(objectStoreService);
+        repository.setRandomControlIOExceptionRate(1.0);
+        repository.setRandomDataFileIOExceptionRate(1.0);
+        repository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+        repository.setRandomIOExceptionPattern(".*translog.*");
+
+        var bulkRequest = client().prepareBulk();
+        final long docCount = randomLongBetween(1, 100);
+        for (var i = 0; i < docCount; i++) {
+            bulkRequest.add(new IndexRequest(indexName).source("field", randomUnicodeOfCodepointLengthBetween(1, 25)));
+        }
+        bulkRequest.setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        ActionFuture<BulkResponse> bulkFuture = bulkRequest.execute();
+
+        // Wait until the documents are processed
+        IndexEngine engine = (IndexEngine) indexShard.getEngineOrNull();
+        assertBusy(() -> assertThat(engine.getProcessedLocalCheckpoint(), greaterThanOrEqualTo(0L)));
+        assertThat(engine.getPersistedLocalCheckpoint(), equalTo(SequenceNumbers.NO_OPS_PERFORMED));
+
+        // Assert that any new commit notification should be sent after the translog is persisted.
+        // Also, make a latch to control whether to delay when the new commit notification is sent.
+        boolean sendNewCommitNotificationAfterSearch = randomBoolean();
+        CountDownLatch newCommitNotificationLatch = new CountDownLatch(sendNewCommitNotificationAfterSearch ? 1 : 0);
+        var mockTransportService = (MockTransportService) internalCluster().getInstance(TransportService.class, indexNode);
+        mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
+            if (action.equals(TransportNewCommitNotificationAction.NAME + "[u]")) {
+                assertThat(engine.getPersistedLocalCheckpoint(), greaterThanOrEqualTo(0L));
+                safeAwait(newCommitNotificationLatch);
+            }
+            connection.sendRequest(requestId, action, request, options);
+        });
+
+        // Fire a refresh, which triggers a new commit notification
+        var refreshRequest = indicesAdmin().prepareRefresh(indexName).execute();
+
+        // Let translog pass through and wait for global checkpoint to increase
+        repository.setRandomControlIOExceptionRate(0.0);
+        repository.setRandomDataFileIOExceptionRate(0.0);
+        AtomicLong globalCheckpoint = new AtomicLong(-1);
+        assertBusy(() -> {
+            globalCheckpoint.set(engine.getLastSyncedGlobalCheckpoint());
+            assertThat(globalCheckpoint.get(), greaterThanOrEqualTo(docCount - 1));
+        });
+
+        // Issue a search waiting for the global checkpoint
+        var searchFuture = client().prepareSearch(indexName)
+            .setWaitForCheckpoints(Map.of(indexName, new long[] { globalCheckpoint.get() }))
+            .execute();
+        newCommitNotificationLatch.countDown();
+        assertHitCount(searchFuture, docCount);
+
+        assertNoFailures(bulkFuture.get());
+        assertNoFailures(refreshRequest.get());
+    }
+
+    public void testSearchWithWaitForCheckpointOnNewSearchShard() throws Exception {
+        startMasterOnlyNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        final var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        startSearchNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
+        createIndex(indexName, indexSettings(1, 0).build());
+        ensureGreen(indexName);
+
+        final int docCount = randomIntBetween(100, 100);
+        if (docCount > 0) {
+            indexDocs(indexName, docCount);
+            if (randomBoolean()) {
+                flush(indexName);
+            } else if (randomBoolean()) {
+                refresh(indexName);
+            } else {
+                // In this case, we expect the scheduled refresh to trigger the wait-for-checkpoint search
+            }
+        }
+
+        setReplicaCount(1, indexName);
+        ensureGreen(indexName);
+
+        final Index index = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().index(indexName).getIndex();
+        var seqNoStats = clusterAdmin().prepareNodesStats(indexNode)
+            .setIndices(true)
+            .get()
+            .getNodes()
+            .get(0)
+            .getIndices()
+            .getShardStats(index)
+            .get(0)
+            .getShards()[0].getSeqNoStats();
+
+        // Issue a search waiting for the global checkpoint
+        var searchFuture = client().prepareSearch(indexName)
+            .setWaitForCheckpoints(Map.of(indexName, new long[] { seqNoStats.getGlobalCheckpoint() }))
+            .execute();
         assertHitCount(searchFuture, docCount);
     }
 

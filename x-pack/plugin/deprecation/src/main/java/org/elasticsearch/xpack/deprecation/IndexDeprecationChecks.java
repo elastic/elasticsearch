@@ -49,7 +49,7 @@ public class IndexDeprecationChecks {
     }
 
     private static boolean isNotDataStreamIndex(IndexMetadata indexMetadata, ClusterState clusterState) {
-        return clusterState.metadata().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
+        return clusterState.metadata().getProject().findDataStreams(indexMetadata.getIndex().getName()).isEmpty();
     }
 
     static DeprecationIssue translogRetentionSettingCheck(IndexMetadata indexMetadata, ClusterState clusterState) {

@@ -22,18 +22,18 @@ public class DataStreamDeprecationChecks {
     static DeprecationIssue oldIndicesCheck(DataStream dataStream, ClusterState clusterState) {
         List<Index> backingIndices = dataStream.getIndices();
         boolean hasOldIndices = backingIndices.stream()
-            .anyMatch(index -> clusterState.metadata().index(index).getCompatibilityVersion().before(IndexVersions.V_8_0_0));
+            .anyMatch(index -> clusterState.metadata().getProject().index(index).getCompatibilityVersion().before(IndexVersions.V_8_0_0));
         if (hasOldIndices) {
             long totalIndices = backingIndices.size();
             List<Index> oldIndices = backingIndices.stream()
-                .filter(index -> clusterState.metadata().index(index).getCompatibilityVersion().before(IndexVersions.V_8_0_0))
+                .filter(index -> clusterState.metadata().getProject().index(index).getCompatibilityVersion().before(IndexVersions.V_8_0_0))
                 .toList();
             long totalOldIndices = oldIndices.size();
             long totalOldSearchableSnapshots = oldIndices.stream()
-                .filter(index -> clusterState.metadata().index(index).isSearchableSnapshot())
+                .filter(index -> clusterState.metadata().getProject().index(index).isSearchableSnapshot())
                 .count();
             long totalOldPartiallyMountedSearchableSnapshots = oldIndices.stream()
-                .filter(index -> clusterState.metadata().index(index).isPartialSearchableSnapshot())
+                .filter(index -> clusterState.metadata().getProject().index(index).isPartialSearchableSnapshot())
                 .count();
             long totalOldFullyMountedSearchableSnapshots = totalOldSearchableSnapshots - totalOldPartiallyMountedSearchableSnapshots;
             return new DeprecationIssue(

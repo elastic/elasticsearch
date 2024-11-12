@@ -509,8 +509,10 @@ public class IndexNameExpressionResolver {
                             resolveIndicesForDataStream(context, dataStream, concreteIndicesResult);
                         }
                     } else {
-                        for (Index index : indexAbstraction.getIndices()) {
-                            if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                        List<Index> indices = indexAbstraction.getIndices();
+                        for (int i = 0, n = indices.size(); i < n; i++) {
+                            Index index = indices.get(i);
+                            if (shouldTrackConcreteIndex(context, index)) {
                                 concreteIndicesResult.add(index);
                             }
                         }
@@ -528,7 +530,7 @@ public class IndexNameExpressionResolver {
     private static void resolveIndicesForDataStream(Context context, DataStream dataStream, Set<Index> concreteIndicesResult) {
         if (shouldIncludeRegularIndices(context.getOptions())) {
             for (Index index : dataStream.getIndices()) {
-                if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                if (shouldTrackConcreteIndex(context, index)) {
                     concreteIndicesResult.add(index);
                 }
             }
@@ -537,7 +539,7 @@ public class IndexNameExpressionResolver {
             // We short-circuit here, if failure indices are not allowed and they can be skipped
             if (context.getOptions().allowFailureIndices() || context.getOptions().ignoreUnavailable() == false) {
                 for (Index index : dataStream.getFailureIndices().getIndices()) {
-                    if (shouldTrackConcreteIndex(context, context.getOptions(), index)) {
+                    if (shouldTrackConcreteIndex(context, index)) {
                         concreteIndicesResult.add(index);
                     }
                 }
@@ -672,7 +674,7 @@ public class IndexNameExpressionResolver {
         return infe;
     }
 
-    private static boolean shouldTrackConcreteIndex(Context context, IndicesOptions options, Index index) {
+    private static boolean shouldTrackConcreteIndex(Context context, Index index) {
         if (context.systemIndexAccessLevel == SystemIndexAccessLevel.BACKWARDS_COMPATIBLE_ONLY
             && context.netNewSystemIndexPredicate.test(index.getName())) {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
@@ -682,7 +684,7 @@ public class IndexNameExpressionResolver {
             DataStream parentDataStream = context.getProject().getIndicesLookup().get(index.getName()).getParentDataStream();
             if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 if (parentDataStream.isFailureStoreIndex(index.getName())) {
-                    if (options.ignoreUnavailable()) {
+                    if (context.options.ignoreUnavailable()) {
                         return false;
                     } else {
                         throw new FailureIndexNotSupportedException(index);
@@ -692,6 +694,7 @@ public class IndexNameExpressionResolver {
         }
         final IndexMetadata imd = context.project.index(index);
         if (imd.getState() == IndexMetadata.State.CLOSE) {
+            IndicesOptions options = context.options;
             if (options.forbidClosedIndices() && options.ignoreUnavailable() == false) {
                 throw new IndexClosedException(index);
             } else {

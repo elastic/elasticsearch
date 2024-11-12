@@ -2348,6 +2348,42 @@ v:integer | job_positions:keyword
     10094 | Accountant
 ;
 
+docsStatsWithSimpleFiltering
+required_capability: per_agg_filtering
+// tag::aggFiltering[]
+FROM employees
+| STATS avg50s = AVG(salary)::LONG WHERE birth_date < "1960-01-01",
+        avg60s = AVG(salary)::LONG WHERE birth_date >= "1960-01-01"
+        BY gender
+| SORT gender
+// end::aggFiltering[]
+| WHERE gender IS NOT NULL
+;
+
+// tag::aggFiltering-result[]
+avg50s:long    |avg60s:long    |gender:keyword
+55462          |46637          |F
+48279          |44879          |M
+// end::aggFiltering-result[]
+;
+
+docsStatsWithFilteringNoGroups
+required_capability: per_agg_filtering
+// tag::aggFilteringNoGroup[]
+FROM employees
+| EVAL Ks = salary / 1000 // thousands
+| STATS under_40K = COUNT(*) WHERE Ks < 40,
+        inbetween = COUNT(*) WHERE 40 <= Ks AND Ks < 60,
+        over_60K  = COUNT(*) WHERE 60 <= Ks,
+        total     = COUNT(*)
+// end::aggFilteringNoGroup[]
+;
+
+// tag::aggFilteringNoGroup-result[]
+under_40K:long |inbetween:long |over_60K:long  |total:long
+36             |39             |25             |100
+// end::aggFilteringNoGroup-result[]
+;
 
 statsWithFiltering
 required_capability: per_agg_filtering

@@ -3,7 +3,7 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-simpleOnTheDataNode
+basicOnTheDataNode
 required_capability: join_lookup
 
 FROM employees
@@ -16,7 +16,7 @@ FROM employees
 emp_no:integer | language_name:keyword
 ;
 
-simple-Ignore
+basicRow-Ignore
 required_capability: join_lookup
 
 ROW language_code = 1
@@ -27,7 +27,7 @@ language_code:keyword  | language_name:keyword
 1                      | English
 ;
 
-simpleOnTheCoordinator
+basicOnTheCoordinator
 required_capability: join_lookup
 
 FROM employees

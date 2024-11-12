@@ -517,7 +517,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                  */
                 plugin = new StablePluginPlaceHolder(bundle.plugin.getName());
             } else {
-                pluginLayerAndLoader.layer.modules()
                 Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {
                     throw new IllegalStateException(

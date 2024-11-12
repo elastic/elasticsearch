@@ -38,9 +38,6 @@ public class PolicyManager {
 
     @Override
     public String toString() {
-        return "PolicyManager{" +
-            "defaultPolicy=" + defaultPolicy +
-            ", pluginPolicies=" + pluginPolicies +
-            '}';
+        return "PolicyManager{" + "defaultPolicy=" + defaultPolicy + ", pluginPolicies=" + pluginPolicies + '}';
     }
 }

@@ -62,7 +62,6 @@ import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.bootstrap.BootstrapSettings.SECURITY_FILTER_BAD_DEFAULTS_SETTING;
 import static org.elasticsearch.nativeaccess.WindowsFunctions.ConsoleCtrlHandler.CTRL_CLOSE_EVENT;
-import static org.elasticsearch.plugins.PluginsUtils.getModuleBundles;
 
 /**
  * This class starts elasticsearch.

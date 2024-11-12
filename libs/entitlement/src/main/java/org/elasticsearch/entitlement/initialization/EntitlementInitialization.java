@@ -23,19 +23,15 @@ import org.elasticsearch.entitlement.runtime.policy.Scope;
 
 import java.lang.instrument.Instrumentation;
 import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReader;
 import java.lang.module.ModuleReference;
 import java.lang.reflect.Method;
 import java.nio.file.Files;
-import java.nio.file.OpenOption;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Set;
 
 /**

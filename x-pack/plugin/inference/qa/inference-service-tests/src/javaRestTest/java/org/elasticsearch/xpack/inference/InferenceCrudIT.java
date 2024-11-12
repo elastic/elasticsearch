@@ -135,9 +135,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(19));
-        } else {
             assertThat(services.size(), equalTo(18));
+        } else {
+            assertThat(services.size(), equalTo(17));
         }
 
         String[] providers = new String[services.size()];
@@ -160,7 +160,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "googleaistudio",
                 "googlevertexai",
                 "hugging_face",
-                "hugging_face_elser",
                 "mistral",
                 "openai",
                 "streaming_completion_test_service",
@@ -259,9 +258,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
 
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(6));
-        } else {
             assertThat(services.size(), equalTo(5));
+        } else {
+            assertThat(services.size(), equalTo(4));
         }
 
         String[] providers = new String[services.size()];
@@ -272,9 +271,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         Arrays.sort(providers);
 
-        var providerList = new ArrayList<>(
-            Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "hugging_face_elser", "test_service")
-        );
+        var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
             providerList.add(1, "elastic");
         }

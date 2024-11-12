@@ -92,10 +92,8 @@ tasks.named("yamlRestTest").configure {
     'indices.get_alias/20_empty/Check empty aliases when getting all aliases via /_alias',
     'indices.get_field_mapping/*/*',
     'indices.get_index_template/*/*',
-    'indices.get_mapping/*/*',
-    'indices.get_mapping/*/*/*',
-    'indices.get_mapping/*/*/*/*',
-    'indices.get_mapping/*/*/*/*/*',
+    'indices.get_mapping/40_aliases/Getting mapping for aliases should return the real index as key', // aliases do not work
+    'indices.get_mapping/50_wildcard_expansion/*', // index close does not work
     'indices.get_settings/*/*',
     'indices.get_settings/*/*/*',
     'indices.get_settings/*/*/*/*',

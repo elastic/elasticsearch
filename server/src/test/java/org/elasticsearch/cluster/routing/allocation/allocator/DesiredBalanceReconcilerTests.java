@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ESAllocationTestCase;
+import org.elasticsearch.cluster.EmptyClusterInfoService;
 import org.elasticsearch.cluster.TestShardRoutingRoleStrategies;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -37,8 +38,11 @@ import org.elasticsearch.cluster.routing.allocation.AllocateUnassignedDecision;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
+import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.ConcurrentRebalanceAllocationDecider;
@@ -1214,7 +1218,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         var reconciler = new DesiredBalanceReconciler(
             clusterSettings,
             new DeterministicTaskQueue().getThreadPool(),
-            DesiredBalanceMetrics.NOOP
+            DesiredBalanceMetrics.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
 
         var totalOutgoingMoves = new HashMap<String, AtomicInteger>();
@@ -1296,7 +1301,12 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
         final var timeInMillisSupplier = new AtomicLong();
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(timeInMillisSupplier::incrementAndGet);
 
-        var reconciler = new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP);
+        var reconciler = new DesiredBalanceReconciler(
+            createBuiltInClusterSettings(),
+            threadPool,
+            DesiredBalanceMetrics.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
         final long initialDelayInMillis = TimeValue.timeValueMinutes(5).getMillis();
         timeInMillisSupplier.addAndGet(randomLongBetween(initialDelayInMillis, 2 * initialDelayInMillis));
 
@@ -1348,10 +1358,8 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
     private static void reconcile(RoutingAllocation routingAllocation, DesiredBalance desiredBalance) {
         final var threadPool = mock(ThreadPool.class);
         when(threadPool.relativeTimeInMillisSupplier()).thenReturn(new AtomicLong()::incrementAndGet);
-        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP).reconcile(
-            desiredBalance,
-            routingAllocation
-        );
+        new DesiredBalanceReconciler(createBuiltInClusterSettings(), threadPool, DesiredBalanceMetrics.NOOP, EMPTY_NODE_ALLOCATION_STATS)
+            .reconcile(desiredBalance, routingAllocation);
     }
 
     private static boolean isReconciled(RoutingNode node, DesiredBalance balance) {
@@ -1498,4 +1506,15 @@ public class DesiredBalanceReconcilerTests extends ESAllocationTestCase {
             .put(CLUSTER_ROUTING_ALLOCATION_NODE_CONCURRENT_OUTGOING_RECOVERIES_SETTING.getKey(), 1000)
             .build();
     }
+
+    private static NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
+        null,
+        EmptyClusterInfoService.INSTANCE,
+        WriteLoadForecaster.DEFAULT
+    ) {
+        @Override
+        public Map<String, NodeAllocationStats> stats(DesiredBalance desiredBalance) {
+            return Map.of();
+        }
+    };
 }

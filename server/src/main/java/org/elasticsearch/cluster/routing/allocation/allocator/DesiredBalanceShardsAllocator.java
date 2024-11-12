@@ -19,7 +19,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
-import org.elasticsearch.cluster.routing.allocation.AllocationStatsService;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -123,7 +123,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService.getClusterSettings(),
             threadPool,
             desiredBalanceMetrics,
-            new AllocationStatsService.NodeStatsProvider(clusterService, clusterInfoService, writeLoadForecaster)
+            new NodeAllocationStatsProvider(clusterService, clusterInfoService, writeLoadForecaster)
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 

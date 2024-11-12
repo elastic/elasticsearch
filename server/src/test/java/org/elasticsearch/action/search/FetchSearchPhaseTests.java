@@ -786,21 +786,17 @@ public class FetchSearchPhaseTests extends ESTestCase {
         w.addDocument(new Document());
         IndexReader r = w.getReader();
         w.close();
+        SearchContext searchContext = null;
         try {
-            ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(r, null, null, new QueryCachingPolicy() {
-                @Override
-                public void onUse(Query query) {}
-
-                @Override
-                public boolean shouldCache(Query query) {
-                    return false;
-                }
-            }, randomBoolean());
-            SearchContext searchContext = createSearchContext(contextIndexSearcher, true);
+            ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+            searchContext = createSearchContext(contextIndexSearcher, true);
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
             fetchPhase.execute(searchContext, new int[] { 0 }, null);
             assertTrue(searchContext.queryResult().searchTimedOut());
         } finally {
+            if (searchContext != null) {
+                searchContext.fetchResult().decRef();
+            }
             r.close();
             dir.close();
         }
@@ -813,15 +809,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
         IndexReader r = w.getReader();
         w.close();
         try {
-            ContextIndexSearcher contextIndexSearcher = new ContextIndexSearcher(r, null, null, new QueryCachingPolicy() {
-                @Override
-                public void onUse(Query query) {}
-
-                @Override
-                public boolean shouldCache(Query query) {
-                    return false;
-                }
-            }, randomBoolean());
+            ContextIndexSearcher contextIndexSearcher = createSearcher(r);
             SearchContext searchContext = createSearchContext(contextIndexSearcher, false);
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
             expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0 }, null));
@@ -829,6 +817,18 @@ public class FetchSearchPhaseTests extends ESTestCase {
             r.close();
             dir.close();
         }
+    }
+
+    private static ContextIndexSearcher createSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcher(reader, null, null, new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return false;
+            }
+        }, randomBoolean());
     }
 
     private static FetchPhase createFetchPhase(ContextIndexSearcher contextIndexSearcher) {

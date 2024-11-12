@@ -83,17 +83,17 @@ abstract class FetchPhaseDocsIterator {
             if (allowPartialResults) {
                 timedOut = true;
             } else {
-                purgeSearcHits(searchHits);
+                purgeSearchHits(searchHits);
                 throw new SearchTimeoutException(shardTarget, "Time exceeded");
             }
         } catch (Exception e) {
-            purgeSearcHits(searchHits);
+            purgeSearchHits(searchHits);
             throw new FetchPhaseExecutionException(shardTarget, "Error running fetch phase for doc [" + currentDoc + "]", e);
         }
         return searchHits;
     }
 
-    private static void purgeSearcHits(SearchHit[] searchHits) {
+    private static void purgeSearchHits(SearchHit[] searchHits) {
         for (SearchHit searchHit : searchHits) {
             if (searchHit != null) {
                 searchHit.decRef();

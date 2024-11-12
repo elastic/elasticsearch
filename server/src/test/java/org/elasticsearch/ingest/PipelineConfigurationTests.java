@@ -39,12 +39,12 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertThat(configuration.getConfigAsMap(), anEmptyMap());
+        assertThat(configuration.getConfig(), anEmptyMap());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertThat(serialized.getConfigAsMap(), anEmptyMap());
+        assertThat(serialized.getConfig(), anEmptyMap());
     }
 
     public void testMetaSerialization() throws IOException {
@@ -61,7 +61,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
         assertEquals(
             XContentHelper.convertToMap(new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), true, XContentType.JSON).v2(),
-            serialized.getConfigAsMap()
+            serialized.getConfig()
         );
     }
 
@@ -81,7 +81,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
         assertThat(parsed.getId(), equalTo("1"));
-        assertThat(parsed.getConfigAsMap(), anEmptyMap());
+        assertThat(parsed.getConfig(), anEmptyMap());
     }
 
     public void testGetVersion() {

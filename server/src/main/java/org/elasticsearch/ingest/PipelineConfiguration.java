@@ -86,11 +86,11 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         return id;
     }
 
-    public Map<String, Object> getConfigAsMap() {
-        return getConfigAsMap(true);
+    public Map<String, Object> getConfig() {
+        return getConfig(true);
     }
 
-    public Map<String, Object> getConfigAsMap(boolean unmodifiable) {
+    public Map<String, Object> getConfig(boolean unmodifiable) {
         if (unmodifiable) {
             return config; // already unmodifiable
         } else {
@@ -203,7 +203,8 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
      * <p>The given upgrader is applied to the config map for any processor of the given type.
      */
     PipelineConfiguration maybeUpgradeProcessors(String type, IngestMetadata.ProcessorConfigUpgrader upgrader) {
-        Map<String, Object> mutableConfigMap = parseConfigAsMap();
+        Map<String, Object> mutableConfigMap = getConfig(false);
+        ;
         boolean changed = false;
         // This should be a List of Maps, where the keys are processor types and the values are config maps.
         // But we'll skip upgrading rather than fail if not.

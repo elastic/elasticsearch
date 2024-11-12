@@ -1,6 +1,6 @@
 pr: 116348
-summary: "DRAFT: ESQL honors `skip_unavailable` setting for nonmatching indices errors\
+summary: "ESQL honors `skip_unavailable` setting for nonmatching indices errors\
   \ at planning time"
 area: ES|QL
 type: enhancement
-issues: []
+issues: [ 114531 ]

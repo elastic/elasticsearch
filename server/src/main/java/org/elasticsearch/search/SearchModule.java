@@ -1013,8 +1013,8 @@ public class SearchModule {
 
     private void registerValueFormats() {
         registerValueFormat(DocValueFormat.BOOLEAN.getWriteableName(), in -> DocValueFormat.BOOLEAN);
-        registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::new);
-        registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::new);
+        registerValueFormat(DocValueFormat.DateTime.NAME, DocValueFormat.DateTime::readFrom);
+        registerValueFormat(DocValueFormat.Decimal.NAME, DocValueFormat.Decimal::readFrom);
         registerValueFormat(DocValueFormat.GEOHASH.getWriteableName(), in -> DocValueFormat.GEOHASH);
         registerValueFormat(DocValueFormat.GEOTILE.getWriteableName(), in -> DocValueFormat.GEOTILE);
         registerValueFormat(DocValueFormat.IP.getWriteableName(), in -> DocValueFormat.IP);

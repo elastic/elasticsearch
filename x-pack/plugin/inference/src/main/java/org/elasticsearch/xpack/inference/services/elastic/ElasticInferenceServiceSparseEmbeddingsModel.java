@@ -105,9 +105,9 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
 
         switch (modelId) {
             case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException("Unsupported model for EIS [" + modelId + "]");
+            default -> throw new IllegalArgumentException("Unsupported model for Elastic Inference Service [" + modelId + "]");
         }
 
-        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
+        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/sparse-text-embedding/" + modelIdUriPath);
     }
 }

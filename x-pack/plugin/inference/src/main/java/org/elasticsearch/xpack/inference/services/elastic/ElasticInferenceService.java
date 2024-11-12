@@ -70,10 +70,10 @@ public class ElasticInferenceService extends SenderService {
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents eisComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = eisComponents;
+        this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
     }
 
     @Override

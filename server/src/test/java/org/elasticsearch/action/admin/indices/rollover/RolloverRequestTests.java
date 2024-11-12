@@ -176,10 +176,7 @@ public class RolloverRequestTests extends ESTestCase {
         originalRequest.lazy(randomBoolean());
         originalRequest.setIndicesOptions(
             IndicesOptions.builder(originalRequest.indicesOptions())
-                .selectorOptions(
-                    IndicesOptions.SelectorOptions.builder()
-                        .defaultSelectors(randomFrom(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES))
-                )
+                .selectorOptions(randomFrom(IndicesOptions.SelectorOptions.DATA, IndicesOptions.SelectorOptions.FAILURES))
                 .build()
         );
 

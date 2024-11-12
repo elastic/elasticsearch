@@ -27,7 +27,6 @@ import java.util.List;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createBackingIndex;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.createFailureStore;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.newInstance;
-import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolverTests.setAllowSelectors;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
@@ -38,7 +37,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class IndexComponentSelectorResolverTests extends ESTestCase {
 
     private IndexNameExpressionResolver indexNameExpressionResolver;
-    private ThreadContext threadContext;
     private long epochMillis;
 
     private ThreadContext createThreadContext() {
@@ -52,7 +50,7 @@ public class IndexComponentSelectorResolverTests extends ESTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        threadContext = createThreadContext();
+        ThreadContext threadContext = createThreadContext();
         indexNameExpressionResolver = createIndexNameExpressionResolver(threadContext);
         epochMillis = randomLongBetween(1580536800000L, 1583042400000L);
     }
@@ -86,7 +84,13 @@ public class IndexComponentSelectorResolverTests extends ESTestCase {
 
         // We will specify selectors on every test case, so the value of the default selector shouldn't matter
         IndicesOptions indicesOptions = IndicesOptions.builder()
-            .selectorOptions(IndicesOptions.SelectorOptions.builder().defaultSelectors(randomFrom(IndexComponentSelector.values())))
+            .selectorOptions(
+                randomFrom(
+                    IndicesOptions.SelectorOptions.ALL_APPLICABLE,
+                    IndicesOptions.SelectorOptions.DATA,
+                    IndicesOptions.SelectorOptions.FAILURES
+                )
+            )
             .build();
 
         // Test only data with an exact data stream name
@@ -189,7 +193,9 @@ public class IndexComponentSelectorResolverTests extends ESTestCase {
 
         // Test provide selector when selectors not allowed
         {
-            IndicesOptions noSelectors = setAllowSelectors(indicesOptions, false);
+            IndicesOptions noSelectors = IndicesOptions.builder(indicesOptions)
+                .gatekeeperOptions(indicesOptions.gatekeeperOptions().applyUpdate(b -> b.allowSelectors(false)))
+                .build();
             IllegalArgumentException exception = expectThrows(
                 IllegalArgumentException.class,
                 () -> indexNameExpressionResolver.concreteIndices(

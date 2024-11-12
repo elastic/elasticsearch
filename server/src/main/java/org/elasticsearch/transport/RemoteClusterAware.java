@@ -9,6 +9,7 @@
 
 package org.elasticsearch.transport;
 
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.cluster.metadata.ClusterNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -150,9 +151,10 @@ public abstract class RemoteClusterAware {
                     isNegative ? remoteClusterName.substring(1) : remoteClusterName
                 );
                 if (isNegative) {
-                    Tuple<String, String> indexAndSelector = IndexNameExpressionResolver.splitSelectorExpression(indexName);
+                    Tuple<String, IndexComponentSelector> indexAndSelector = IndexNameExpressionResolver.SelectorResolver
+                        .parseSelectorExpression(indexName);
                     indexName = indexAndSelector.v1();
-                    String selectorString = indexAndSelector.v2();
+                    IndexComponentSelector selector = indexAndSelector.v2();
                     if (indexName.equals("*") == false) {
                         throw new IllegalArgumentException(
                             Strings.format(
@@ -161,11 +163,11 @@ public abstract class RemoteClusterAware {
                             )
                         );
                     }
-                    if (selectorString != null && selectorString.equals("*") == false) {
+                    if (selector != null && selector != IndexComponentSelector.ALL_APPLICABLE) {
                         throw new IllegalArgumentException(
                             Strings.format(
                                 "To exclude a cluster you must specify the '::*' selector or leave it off, but found: [%s]",
-                                selectorString
+                                selector
                             )
                         );
                     }

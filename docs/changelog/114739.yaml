@@ -1,0 +1,17 @@
+pr: 114739
+summary: Add a basic deprecation warning that the JSON format for non-detailed error responses is changing in v9
+area: Infra/REST API
+type: deprecation
+issues: [89387]
+deprecation:
+  title: The format of non-detailed error responses is changing in v9
+  area: Infra/REST API
+  details: |-
+    When an error occurs when processing a request, Elasticsearch returns information on that error in the REST response.
+    If `http:detailed_errors.enabled: false` is specified in node settings for v8 and below, the format of this response
+    changes significantly.
+    In Elasticsearch v9, the JSON format of responses with errors when the `http.detailed_errors.enabled: false` option is set
+    will be the same as when detailed errors are enabled (which is the default).
+  impact: "If you have set `http.detailed_errors.enabled: false` (the default is `true`)\
+    \ the structure of JSON when any exceptions occur will change on Elasticsearch 9.0
+  notable: false

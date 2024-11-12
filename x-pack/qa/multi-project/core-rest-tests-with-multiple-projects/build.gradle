@@ -68,7 +68,6 @@ tasks.named("yamlRestTest").configure {
     'indices.delete_alias/*/*',
     'indices.exists_alias/*/*',
     'indices.exists_template/*/*',
-    'indices.flush/*/*',
     'indices.forcemerge/*/*',
     'indices.get/*/*',
     'indices.get_alias/*/*',

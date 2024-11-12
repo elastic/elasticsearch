@@ -1601,6 +1601,14 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
             .getIndexSafe(index);
     }
 
+    /**
+     * This method is similar to {@link #indexMetadata}. But it returns an {@link Optional} instead of
+     * throwing when either the project or the index is not found.
+     */
+    public Optional<IndexMetadata> findIndex(Index index) {
+        return lookupProject(index).map(projectMetadata -> projectMetadata.index(index));
+    }
+
     ProjectLookup getProjectLookup() {
         /*
          * projectLookup is volatile, but this assignment is not synchronized

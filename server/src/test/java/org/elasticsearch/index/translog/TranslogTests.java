@@ -253,7 +253,7 @@ public class TranslogTests extends ESTestCase {
     @After
     public void tearDown() throws Exception {
         try {
-            translog.getDeletionPolicy().assertNoOpenTranslogRefs();
+            translog.getDeletionPolicy().ensureNoOpenTranslogRefs();
             translog.close();
         } finally {
             super.tearDown();

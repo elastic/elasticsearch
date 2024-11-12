@@ -169,8 +169,8 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
      * Add a {@link Runnable} that will be run on a regular basis while accessing documents in the
      * DirectoryReader but also while collecting them and check for query cancellation or timeout.
      */
-    public Runnable addQueryCancellation(Runnable action) {
-        return this.cancellable.add(action);
+    public void addQueryCancellation(Runnable action) {
+        this.cancellable.add(action);
     }
 
     /**
@@ -425,8 +425,13 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
         }
     }
 
-    public static class TimeExceededException extends RuntimeException {
+    /**
+     * Exception thrown whenever a search timeout occurs. May be thrown by {@link ContextIndexSearcher} or {@link ExitableDirectoryReader}.
+     */
+    static final class TimeExceededException extends InternalTimeoutException {
         // This exception should never be re-thrown, but we fill in the stacktrace to be able to trace where it does not get properly caught
+
+        private TimeExceededException() {}
     }
 
     @Override
@@ -570,14 +575,12 @@ public class ContextIndexSearcher extends IndexSearcher implements Releasable {
     }
 
     private static class MutableQueryTimeout implements ExitableDirectoryReader.QueryCancellation {
-
         private final List<Runnable> runnables = new ArrayList<>();
 
-        private Runnable add(Runnable action) {
+        private void add(Runnable action) {
             Objects.requireNonNull(action, "cancellation runnable should not be null");
             assert runnables.contains(action) == false : "Cancellation runnable already added";
             runnables.add(action);
-            return action;
         }
 
         private void remove(Runnable action) {

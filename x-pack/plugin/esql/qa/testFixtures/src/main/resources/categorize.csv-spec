@@ -211,3 +211,18 @@ FROM sample_data
 
 COUNT():long | category:category
 ;
+
+drop output columns
+required_capability: categorize
+
+FROM sample_data
+  | STATS count=COUNT() BY category=CATEGORIZE(message)
+  | EVAL x=1
+  | DROP count, category
+;
+
+x:integer
+1
+1
+1
+;

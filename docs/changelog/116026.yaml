@@ -1,12 +1,11 @@
 pr: 116026
-summary: Change Elasticsearch timeouts to 429 response instead of 500
+summary: Change Elasticsearch timeouts to 429 response instead of 5xx
 area: Infra/Core
 type: breaking
 issues: []
 breaking:
-  title: Change Elasticsearch timeouts to 429 response instead of 500
+  title: Change Elasticsearch timeouts to 429 response instead of 5xx
   area: REST API
-  details: When a user supplied timeout is sent with a REST request, and the request
-    times out, it now returns a 429 response code.
-  impact: Adjust any code relying on retrying on 500 responses for timeouts to look for 429 response code.
+  details: When a REST request times out, whether via a per-request timeout, or a system default, the request now returns a 429 response code.
+  impact: Adjust any code relying on retrying on 5xx responses for timeouts to look for 429 response code.
   notable: false

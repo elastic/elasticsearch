@@ -372,7 +372,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
             equalTo((long) batchCountTwo)
         );
     }
-
+    
     public void testPrimaryDocumentRejectionMetricsFluctuatingOverTime() throws Exception {
 
         // setting low Indexing Pressure limits to trigger primary rejections

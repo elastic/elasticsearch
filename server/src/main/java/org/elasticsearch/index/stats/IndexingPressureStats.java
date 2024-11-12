@@ -92,13 +92,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             totalCoordinatingRequests = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             lowWaterMarkSplits = in.readVLong();
         } else {
             lowWaterMarkSplits = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             highWaterMarkSplits = in.readVLong();
         } else {
             highWaterMarkSplits = -1L;
@@ -184,11 +184,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(totalCoordinatingRequests);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             out.writeVLong(lowWaterMarkSplits);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             out.writeVLong(highWaterMarkSplits);
         }
     }

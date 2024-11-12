@@ -127,9 +127,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = DataType.fromTypeName(
-                (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown"
-            );
+            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
+                ? DataType.fromTypeName(in.readString())
+                : null;
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;

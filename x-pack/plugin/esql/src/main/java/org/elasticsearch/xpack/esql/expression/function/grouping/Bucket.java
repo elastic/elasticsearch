@@ -171,7 +171,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                     take into account how the language handles expressions within the `STATS` command: if these contain functions or
                     arithmetic operators, a virtual `EVAL` is inserted before and/or after the `STATS` command. Consequently, a double
                     compensation is needed to adjust the bucketed date value before the aggregation and then again after. For instance,
-                    inserting a negative offset of `1 day` you would like this:""",
+                    inserting a negative offset of `1 hour` to buckets of `1 year` looks like this:""",
                 file = "bucket",
                 tag = "bucketWithOffset"
             ) }

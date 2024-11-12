@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.physical.local;
 
+import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
@@ -49,11 +51,17 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
              * make sure the fields are loaded for the standard hash aggregator.
              */
             if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
-                var leaves = new LinkedList<>();
-                // TODO: this seems out of place
-                agg.aggregates().stream().filter(a -> agg.groupings().contains(a) == false).forEach(a -> leaves.addAll(a.collectLeaves()));
-                var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
-                missing.removeAll(Expressions.references(remove));
+                // CATEGORIZE requires the standard hash aggregator as well.
+                if ((agg.groupings().get(0) instanceof Alias as && as.child() instanceof Categorize) == false) {
+                    var leaves = new LinkedList<>();
+                    // TODO: this seems out of place
+                    agg.aggregates()
+                        .stream()
+                        .filter(a -> agg.groupings().contains(a) == false)
+                        .forEach(a -> leaves.addAll(a.collectLeaves()));
+                    var remove = agg.groupings().stream().filter(g -> leaves.contains(g) == false).toList();
+                    missing.removeAll(Expressions.references(remove));
+                }
             }
 
             // add extractor

@@ -68,6 +68,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
                         groupingAttrs.add(attribute);
                     } else {
                         // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
+                        // TODO: we need to take into account CATEGORIZE here :/
                         throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                     }
                 }

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -53,8 +54,10 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
         // start with the groupings since the aggs might duplicate it
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
             Expression g = newGroupings.get(i);
-            // move the alias into an eval and replace it with its attribute
-            if (g instanceof Alias as) {
+            // Move the alias into an eval and replace it with its attribute.
+            // Exception: Categorize is internal to the aggregation and remains in the groupings. We move its child expression into an eval.
+            // TODO: actually extract the CATEGORIZE's child expression
+            if (g instanceof Alias as && as.child() instanceof Categorize == false) {
                 groupingChanged = true;
                 var attr = as.toAttribute();
                 evals.add(as);

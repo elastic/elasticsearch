@@ -149,6 +149,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
 
+            // TODO: here
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
@@ -181,6 +182,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
      */
     public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
+        // TODO: needs to take CATEGORIZE into account: the intermediate agg's output is BytesRef, unlike the final keyword output.
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();

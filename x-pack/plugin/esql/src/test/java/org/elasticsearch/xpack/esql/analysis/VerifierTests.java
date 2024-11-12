@@ -1676,6 +1676,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithinAggregations() {
+        query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+
         assertEquals(
             "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
             error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")

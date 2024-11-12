@@ -311,7 +311,7 @@ public class Verifier {
                             categorize -> failures.add(
                                 fail(
                                     categorize,
-                                    "cannot use CATEGORIZE grouping function [{}] within other functions",
+                                    "cannot use CATEGORIZE grouping function [{}] within another function",
                                     categorize.sourceText()
                                 )
                             )

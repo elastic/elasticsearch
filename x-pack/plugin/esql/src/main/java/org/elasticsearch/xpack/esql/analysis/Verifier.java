@@ -281,7 +281,14 @@ public class Verifier {
         }
     }
 
+    /**
+     * Check CATEGORIZE grouping function usages.
+     * <p>
+     *     Some of those checks are temporary, until the required syntax or engine changes are implemented.
+     * </p>
+     */
     private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
+        // Forbid CATEGORIZE grouping function with other groupings
         if (agg.groupings().size() > 1) {
             agg.groupings().forEach(g -> {
                 g.forEachDown(
@@ -292,6 +299,26 @@ public class Verifier {
                 );
             });
         }
+
+        // Forbid CATEGORIZE grouping function within other functions
+        agg.groupings().forEach(g -> {
+            g.forEachDown(
+                Function.class,
+                function -> function.children()
+                    .forEach(
+                        child -> child.forEachDown(
+                            Categorize.class,
+                            categorize -> failures.add(
+                                fail(
+                                    categorize,
+                                    "cannot use CATEGORIZE grouping function [{}] within other functions",
+                                    categorize.sourceText()
+                                )
+                            )
+                        )
+                    )
+            );
+        });
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {

@@ -1659,6 +1659,17 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeNestedGrouping() {
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within another function",
+            error("FROM test | STATS COUNT(*) BY LENGTH(CATEGORIZE(first_name))")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within another function",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::long")
+        );
+    }
+
     private void query(String query) {
         defaultAnalyzer.analyze(parser.createStatement(query));
     }

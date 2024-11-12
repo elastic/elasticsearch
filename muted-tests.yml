@@ -192,9 +192,6 @@ tests:
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/116249
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116332
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testAllocationPreventedForRemoval
   issue: https://github.com/elastic/elasticsearch/issues/116363
@@ -215,9 +212,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
   method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
   issue: https://github.com/elastic/elasticsearch/issues/116523
-- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
-  method: testCollapseAndRemoveUnsupportedPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/116520
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
   method: testMatchAllQuery
   issue: https://github.com/elastic/elasticsearch/issues/116536

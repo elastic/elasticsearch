@@ -1,5 +1,0 @@
-pr: 111690
-summary: "ESQL: Support INLINESTATS grouped on expressions"
-area: ES|QL
-type: enhancement
-issues: []

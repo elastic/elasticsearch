@@ -71,6 +71,10 @@ import java.util.function.LongSupplier;
 public class MockNode extends Node {
 
     private static class MockServiceProvider extends NodeServiceProvider {
+        MockServiceProvider() {
+            super((pluginName, modules) -> {});
+        }
+
         @Override
         BigArrays newBigArrays(
             PluginsService pluginsService,

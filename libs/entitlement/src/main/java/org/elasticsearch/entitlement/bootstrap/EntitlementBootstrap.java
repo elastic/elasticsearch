@@ -29,8 +29,9 @@ public class EntitlementBootstrap {
      * Activates entitlement checking. Once this method returns, calls to forbidden methods
      * will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
      */
-    public static void bootstrap() {
+    public static void bootstrap(PluginsResolver pluginsResolver) {
         logger.debug("Loading entitlement agent");
+        EntitlementInitialization.pluginsResolver = pluginsResolver;
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

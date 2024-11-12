@@ -15,6 +15,7 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
+import org.elasticsearch.bootstrap.PluginRegistrationObserver;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
@@ -180,8 +181,17 @@ public class Node implements Closeable {
      *
      * @param environment         the initial environment for this node, which will be added to by plugins
      */
+    public Node(Environment environment, PluginRegistrationObserver pluginRegistrationObserver) {
+        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(pluginRegistrationObserver), true));
+    }
+
+    /**
+     * Constructs a node
+     *
+     * @param environment         the initial environment for this node, which will be added to by plugins
+     */
     public Node(Environment environment) {
-        this(NodeConstruction.prepareConstruction(environment, new NodeServiceProvider(), true));
+        this(environment, (pluginName, modules) -> {});
     }
 
     /**

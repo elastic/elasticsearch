@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
+import org.elasticsearch.entitlement.bootstrap.PluginsResolver;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
@@ -31,6 +32,8 @@ import java.util.Set;
 public class EntitlementInitialization {
     private static ElasticsearchEntitlementChecker manager;
 
+    public static volatile PluginsResolver pluginsResolver;
+
     // Note: referenced by bridge reflectively
     public static EntitlementChecker checker() {
         return manager;
@@ -38,6 +41,9 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
+
+        // TODO: build PolicyManager with pluginsResolver
+        assert pluginsResolver != null : "PluginsResolver must be set before Entitlement initialization";
         manager = new ElasticsearchEntitlementChecker();
 
         // TODO: Configure actual entitlement grants instead of this hardcoded one

@@ -20,6 +20,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ReleaseVersions;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.common.ReferenceDocs;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.network.IfConfig;
@@ -31,6 +32,8 @@ import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
+import org.elasticsearch.entitlement.bootstrap.PluginsResolver;
+import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -50,8 +53,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -145,6 +150,26 @@ class Elasticsearch {
         return new Bootstrap(out, err, args);
     }
 
+    private static class PluginsEnvironment implements PluginRegistrationObserver, PluginsResolver {
+        private final ConcurrentHashMap<Module, String> map = new ConcurrentHashMap<>();
+
+        @Override
+        public String toPluginName(Module module) {
+            var pluginName = map.get(module);
+            if (pluginName == null) {
+                throw new NotEntitledException(Strings.format("Module [%s] does not belong to any registered plugin", module.getName()));
+            }
+            return pluginName;
+        }
+
+        @Override
+        public void registerModules(String pluginName, Collection<Module> modules) {
+            for (var module : modules) {
+                map.put(module, pluginName);
+            }
+        }
+    }
+
     /**
      * Second phase of process initialization.
      *
@@ -198,9 +223,11 @@ class Elasticsearch {
             // We eagerly initialize to work around log4j permissions & JDK-8309727
             VectorUtil.class
         );
+        var pluginsEnvironment = new PluginsEnvironment();
+        bootstrap.pluginsEnvironment.set(pluginsEnvironment);
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
-            EntitlementBootstrap.bootstrap();
+            EntitlementBootstrap.bootstrap(pluginsEnvironment);
         } else {
             // install SM after natives, shutdown hooks, etc.
             org.elasticsearch.bootstrap.Security.configure(
@@ -242,7 +269,7 @@ class Elasticsearch {
     private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(bootstrap.environment()) {
+        Node node = new Node(bootstrap.environment(), bootstrap.pluginsEnvironment.get()) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,

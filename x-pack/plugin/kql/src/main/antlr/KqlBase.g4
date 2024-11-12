@@ -26,13 +26,13 @@ topLevelQuery
     ;
 
 query
-    : <assoc=right> query operator=(AND | OR) query     #booleanQuery
-    | NOT subQuery=simpleQuery                          #notQuery
-    | simpleQuery                                       #defaultQuery
+    : <assoc=right> query operator=(AND|OR) query  #booleanQuery
+    | simpleQuery                                  #defaultQuery
     ;
 
 simpleQuery
-    : nestedQuery
+    : notQuery
+    | nestedQuery
     | parenthesizedQuery
     | matchAllQuery
     | existsQuery
@@ -40,6 +40,10 @@ simpleQuery
     | fieldQuery
     | fieldLessQuery
     ;
+
+notQuery:
+   NOT subQuery=simpleQuery
+   ;
 
 nestedQuery
     : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
@@ -77,14 +81,14 @@ fieldLessQuery
     ;
 
 fieldQueryValue
-    : (AND|OR)? (UNQUOTED_LITERAL | WILDCARD )+
-    | (UNQUOTED_LITERAL | WILDCARD )+ (AND|OR)?
-    | (NOT|AND|OR)
+    : (AND|OR|NOT)? (UNQUOTED_LITERAL|WILDCARD)+ (NOT|AND|OR)?
+    | (AND|OR) (AND|OR|NOT)?
+    | NOT (AND|OR)?
     | QUOTED_STRING
     ;
 
 fieldName
-    : value=UNQUOTED_LITERAL+
+    : value=UNQUOTED_LITERAL
     | value=QUOTED_STRING
     | value=WILDCARD
     ;

@@ -13,14 +13,13 @@ import com.avast.gradle.dockercompose.tasks.ComposePull
 import com.fasterxml.jackson.databind.JsonNode
 import com.fasterxml.jackson.databind.ObjectMapper
 
+import org.elasticsearch.gradle.DistributionDownloadPlugin
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.internal.BaseInternalPluginBuildPlugin
 import org.elasticsearch.gradle.internal.ResolveAllDependencies
 import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 import org.gradle.plugins.ide.eclipse.model.AccessRule
-import org.gradle.plugins.ide.eclipse.model.ProjectDependency
-import org.elasticsearch.gradle.DistributionDownloadPlugin
 
 import java.nio.file.Files
 
@@ -89,7 +88,7 @@ class ListExpansion {
 
 // Filters out intermediate patch releases to reduce the load of CI testing
 def filterIntermediatePatches = { List<Version> versions ->
-  versions.groupBy {"${it.major}.${it.minor}"}.values().collect {it.max()}
+  versions.groupBy { "${it.major}.${it.minor}" }.values().collect { it.max() }
 }
 
 tasks.register("updateCIBwcVersions") {
@@ -101,7 +100,10 @@ tasks.register("updateCIBwcVersions") {
     }
   }
 
-  def writeBuildkitePipeline = { String outputFilePath, String pipelineTemplatePath, List<ListExpansion> listExpansions, List<StepExpansion> stepExpansions = [] ->
+  def writeBuildkitePipeline = { String outputFilePath,
+                                 String pipelineTemplatePath,
+                                 List<ListExpansion> listExpansions,
+                                 List<StepExpansion> stepExpansions = [] ->
     def outputFile = file(outputFilePath)
     def pipelineTemplate = file(pipelineTemplatePath)
 
@@ -132,7 +134,12 @@ tasks.register("updateCIBwcVersions") {
   // Writes a Buildkite pipeline from a template, and replaces $BWC_STEPS with a list of steps, one for each version
   // Useful when you need to configure more versions than are allowed in a matrix configuration
   def expandBwcSteps = { String outputFilePath, String pipelineTemplatePath, String stepTemplatePath, List<Version> versions ->
-    writeBuildkitePipeline(outputFilePath, pipelineTemplatePath, [], [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")])
+    writeBuildkitePipeline(
+      outputFilePath,
+      pipelineTemplatePath,
+      [],
+      [new StepExpansion(templatePath: stepTemplatePath, versions: versions, variable: "BWC_STEPS")]
+    )
   }
 
   doLast {
@@ -150,7 +157,11 @@ tasks.register("updateCIBwcVersions") {
         new ListExpansion(versions: filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-        new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible), variable: "BWC_STEPS"),
+        new StepExpansion(
+          templatePath: ".buildkite/pipelines/periodic.bwc.template.yml",
+          versions: filterIntermediatePatches(BuildParams.bwcVersions.indexCompatible),
+          variable: "BWC_STEPS"
+        ),
       ]
     )
 
@@ -302,7 +313,7 @@ allprojects {
     if (project.path.startsWith(":x-pack:")) {
       if (project.path.contains("security") || project.path.contains(":ml")) {
         tasks.register('checkPart4') { dependsOn 'check' }
-      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") ||  project.path.contains("smoke-test")) {
+      } else if (project.path == ":x-pack:plugin" || project.path.contains("ql") || project.path.contains("smoke-test")) {
         tasks.register('checkPart3') { dependsOn 'check' }
       } else if (project.path.contains("multi-node")) {
         tasks.register('checkPart5') { dependsOn 'check' }
@@ -407,6 +418,10 @@ gradle.projectsEvaluated {
       )
     }
   }
+}
+
+tasks.named("validateChangelogs") {
+  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
 }
 
 tasks.named("precommit") {

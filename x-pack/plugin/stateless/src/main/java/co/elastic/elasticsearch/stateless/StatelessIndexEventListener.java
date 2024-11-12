@@ -25,6 +25,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
+import co.elastic.elasticsearch.stateless.engine.SearchEngine;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
 import co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectory;
 import co.elastic.elasticsearch.stateless.lucene.IndexBlobStoreCacheDirectory;
@@ -34,9 +35,11 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHandler;
 
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.Engine;
@@ -44,6 +47,7 @@ import org.elasticsearch.index.engine.NoOpEngine;
 import org.elasticsearch.index.seqno.SequenceNumbers;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexShard;
+import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.Translog;
@@ -332,13 +336,27 @@ class StatelessIndexEventListener implements IndexEventListener {
                         engine.flush(true, true, l.map(f -> null));
                     }
                 } else if (engineOrNull == null) {
-                    throw new IllegalStateException("Engine is null");
+                    throw new AlreadyClosedException("engine is closed");
                 } else {
                     assert engineOrNull instanceof NoOpEngine;
                     l.onResponse(null);
                 }
             } else {
-                l.onResponse(null);
+                final Engine engineOrNull = indexShard.getEngineOrNull();
+                if (engineOrNull instanceof SearchEngine searchEngine) {
+                    assert indexShard.state() == IndexShardState.POST_RECOVERY
+                        : "expected post recovery index shard state but is: " + indexShard.state();
+                    assert indexShard.routingEntry().state() == ShardRoutingState.INITIALIZING
+                        : "expected initializing shard routing state but is: " + indexShard.state();
+                    indexShard.updateGlobalCheckpointOnReplica(searchEngine.getLastSyncedGlobalCheckpoint(), "search shard recovery");
+                    searchEngine.afterRecovery();
+                    l.onResponse(null);
+                } else if (engineOrNull == null) {
+                    throw new AlreadyClosedException("engine is closed");
+                } else {
+                    assert engineOrNull instanceof NoOpEngine;
+                    l.onResponse(null);
+                }
             }
         });
     }

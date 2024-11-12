@@ -552,6 +552,8 @@ public class SearchEngine extends Engine {
 
     @Override
     public long getLastSyncedGlobalCheckpoint() {
+        // The indexing shard sends data to the search shard only after they are fully persisted on the object store. So using the processed
+        // local checkpoint is fine. If it is a bit behind, a new refresh will ultimately make the search shard catch up.
         return processedLocalCheckpoint;
     }
 
@@ -850,6 +852,13 @@ public class SearchEngine extends Engine {
     @Override
     public void addPrimaryTermAndGenerationListener(long minPrimaryTerm, long minGeneration, ActionListener<Long> listener) {
         addOrExecuteSegmentGenerationListener(new PrimaryTermAndGeneration(minPrimaryTerm, minGeneration), listener);
+    }
+
+    public void afterRecovery() throws IOException {
+        // Wait-for-checkpoint search requests rely on adding a refresh listener. RefreshListeners.addOrNotify() depends on
+        // checking the lastRefreshedCheckpoint, which unfortunately is not set on a new search shard. For this reason, we
+        // refresh the reader manager for a new search shard to ensure the lastRefreshedCheckpoint is updated.
+        readerManager.maybeRefreshBlocking();
     }
 
     /**

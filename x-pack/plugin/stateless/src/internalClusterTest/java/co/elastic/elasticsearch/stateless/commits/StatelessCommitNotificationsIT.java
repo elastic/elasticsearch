@@ -30,10 +30,13 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
+import org.elasticsearch.index.shard.GlobalCheckpointListeners;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.node.PluginComponentBinding;
@@ -160,9 +163,17 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
         protected ShardCommitState createShardCommitState(
             ShardId shardId,
             long primaryTerm,
-            BooleanSupplier inititalizingNoSearchSupplier
+            BooleanSupplier inititalizingNoSearchSupplier,
+            TriConsumer<Long, GlobalCheckpointListeners.GlobalCheckpointListener, TimeValue> addGlobalCheckpointListenerFunction,
+            Runnable triggerTranslogReplicator
         ) {
-            return new ShardCommitState(shardId, primaryTerm, inititalizingNoSearchSupplier) {
+            return new ShardCommitState(
+                shardId,
+                primaryTerm,
+                inititalizingNoSearchSupplier,
+                addGlobalCheckpointListenerFunction,
+                triggerTranslogReplicator
+            ) {
                 @Override
                 public PrimaryTermAndGeneration getMaxUploadedBccTermAndGen() {
                     final CyclicBarrier barrier = getMaxUploadedBccTermAndGenBarrierRef.get();

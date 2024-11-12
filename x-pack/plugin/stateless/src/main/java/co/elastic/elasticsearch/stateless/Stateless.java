@@ -116,8 +116,10 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.FilterCodec;
 import org.apache.lucene.index.IndexCommit;
 import org.apache.lucene.search.ReferenceManager;
+import org.apache.lucene.store.AlreadyClosedException;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
@@ -961,12 +963,32 @@ public class Stateless extends Plugin
                     statelessCommitService.register(
                         indexShard.shardId(),
                         indexShard.getOperationPrimaryTerm(),
-                        () -> isInitializingNoSearchShards(indexShard)
+                        () -> isInitializingNoSearchShards(indexShard),
+                        indexShard::addGlobalCheckpointListener,
+                        () -> {
+                            Engine engineOrNull = indexShard.getEngineOrNull();
+                            if (engineOrNull instanceof IndexEngine engine) {
+                                engine.syncTranslogReplicator(ActionListener.noop());
+                            } else if (engineOrNull == null) {
+                                throw new AlreadyClosedException("engine is closed");
+                            } else {
+                                assert false : "Engine is " + engineOrNull;
+                                throw new IllegalStateException("Engine is " + engineOrNull);
+                            }
+                        }
                     );
                     localTranslogReplicator.register(indexShard.shardId(), indexShard.getOperationPrimaryTerm(), seqNo -> {
                         var indexEngine = (IndexEngine) indexShard.getEngineOrNull();
                         if (indexEngine != null) {
                             indexEngine.objectStorePersistedSeqNoConsumer().accept(seqNo);
+                            // The local checkpoint is updated as part of the post-replication actions of ReplicationOperation. However, if
+                            // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
+                            // may need to wait for the checkpoint to progress in order to send out a new VBCC commit notification. To
+                            // break this stalemate, we update the checkpoint as early as here, when the translog has persisted a seqno.
+                            indexShard.updateLocalCheckpointForShard(
+                                indexShard.routingEntry().allocationId().getId(),
+                                indexEngine.getLastSyncedGlobalCheckpoint()
+                            );
                         }
                     });
                     // We are pruning the archive for a given generation, only once we know all search shards are

@@ -1262,9 +1262,16 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
     }
 
     public void testSearchWithWaitForCheckpointWithTranslogDelay() throws Exception {
-        startMasterOnlyNode(disableIndexingDiskAndMemoryControllersNodeSettings());
-        final var indexNode = startIndexNode(disableIndexingDiskAndMemoryControllersNodeSettings());
-        final var searchNode = startSearchNode(disableIndexingDiskAndMemoryControllersNodeSettings());
+        // To test that non-uploaded commit notifications wait for the GCP, we ensure VBCC is not immediately frozen.
+        var nodeSettings = Settings.builder()
+            .put(disableIndexingDiskAndMemoryControllersNodeSettings())
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
+            .put(StatelessCommitService.STATELESS_UPLOAD_VBCC_MAX_AGE.getKey(), TimeValue.timeValueHours(1))
+            .build();
+        startMasterOnlyNode(nodeSettings);
+        final var indexNode = startIndexNode(nodeSettings);
+        startSearchNode(nodeSettings);
         String indexName = randomAlphaOfLength(10).toLowerCase(Locale.ROOT);
         createIndex(indexName, indexSettings(1, 1).build());
         ensureGreen(indexName);

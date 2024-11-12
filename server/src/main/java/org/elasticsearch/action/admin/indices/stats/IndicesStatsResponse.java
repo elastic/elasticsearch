@@ -182,6 +182,13 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
             out.writeMap(indexMetadataMap, StreamOutput::writeWriteable);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            // Between 8_1_0 and INDEX_STATS_ADDITIONAL_FIELDS, need to write the index state only
+            Map<String, IndexMetadata.State> indexStateMap = indexMetadataMap.entrySet()
+                .stream()
+                .collect(Collectors.toMap(Map.Entry::getKey, entry -> entry.getValue().getState()));
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
     }
 

@@ -12,7 +12,6 @@ package org.elasticsearch.common;
 import org.elasticsearch.common.util.ByteUtils;
 
 import java.nio.ByteBuffer;
-import java.util.Base64;
 import java.util.OptionalInt;
 
 /**
@@ -31,8 +30,6 @@ import java.util.OptionalInt;
  * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
-
     static final int SIZE_IN_BYTES = 15;
 
     @Override
@@ -84,6 +81,6 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
         assert buffer.position() == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

@@ -258,6 +258,7 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
+        private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
         private final boolean addIdWithRoutingHash;
         private int hash = Integer.MAX_VALUE;
@@ -267,10 +268,10 @@ public abstract class IndexRouting {
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            var mode = metadata.getIndexMode();
-            trackTimeSeriesRoutingHash = mode == IndexMode.TIME_SERIES
+            indexMode = metadata.getIndexMode();
+            trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
                 && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
-            addIdWithRoutingHash = mode == IndexMode.LOGSDB;
+            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -454,10 +455,10 @@ public abstract class IndexRouting {
             try {
                 idBytes = Base64.getUrlDecoder().decode(id);
             } catch (IllegalArgumentException e) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
             if (idBytes.length < 4) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
             // For TSDB, the hash is stored as the id prefix.
             // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 8, id.length - 4] of the id,
@@ -476,7 +477,7 @@ public abstract class IndexRouting {
         }
 
         private String error(String operation) {
-            return operation + " is not supported because the destination index [" + indexName + "] is in time series mode";
+            return operation + " is not supported because the destination index [" + indexName + "] is in " + indexMode.getName() + " mode";
         }
     }
 

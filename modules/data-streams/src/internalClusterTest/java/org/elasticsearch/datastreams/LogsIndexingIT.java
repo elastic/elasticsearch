@@ -163,13 +163,15 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
         assertResponse(client().search(searchRequest), searchResponse -> {
             assertThat(searchResponse.getHits().getTotalHits().value(), equalTo((long) numBulkRequests * numDocsPerBulk));
 
-            String id = searchResponse.getHits().getHits()[0].getId();
-            assertThat(id, notNullValue());
+            for (int i = 0; i < searchResponse.getHits().getHits().length; i++) {
+                String id = searchResponse.getHits().getHits()[i].getId();
+                assertThat(id, notNullValue());
 
-            // Check that the _id is gettable:
-            var getResponse = client().get(new GetRequest(idxName).id(id)).actionGet();
-            assertThat(getResponse.isExists(), is(true));
-            assertThat(getResponse.getId(), equalTo(id));
+                // Check that the _id is gettable:
+                var getResponse = client().get(new GetRequest(idxName).id(id)).actionGet();
+                assertThat(getResponse.isExists(), is(true));
+                assertThat(getResponse.getId(), equalTo(id));
+            }
         });
     }
 

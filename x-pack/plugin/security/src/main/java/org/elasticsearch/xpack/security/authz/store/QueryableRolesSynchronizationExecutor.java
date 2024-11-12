@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.UnavailableShardsException;
@@ -83,6 +84,8 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     private final Executor executor;
     private final AtomicBoolean synchronizationInProgress = new AtomicBoolean(false);
 
+    private volatile boolean securityIndexDeleted = false;
+
     public QueryableRolesSynchronizationExecutor(
         ClusterService clusterService,
         FeatureService featureService,
@@ -128,10 +131,30 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     @Override
     public void clusterChanged(ClusterChangedEvent event) {
         final ClusterState state = event.state();
+        if (isSecurityIndexDeleted(event)) {
+            this.securityIndexDeleted = true;
+            logger.info("security index has been deleted, skipping built-in roles synchronization");
+            return;
+        } else if (isSecurityIndexCreated(event)) {
+            this.securityIndexDeleted = false;
+            logger.info("security index has been created, attempting to sync built-in roles");
+        }
         if (shouldSyncBuiltInRoles(state)) {
             final QueryableRoles roles = builtinRolesProvider.roles();
             syncBuiltInRoles(roles, state);
         }
+    }
+
+    private boolean isSecurityIndexDeleted(ClusterChangedEvent event) {
+        final IndexMetadata previousSecurityIndexMetadata = resolveSecurityIndexMetadata(event.previousState().metadata());
+        final IndexMetadata currentSecurityIndexMetadata = resolveSecurityIndexMetadata(event.state().metadata());
+        return previousSecurityIndexMetadata != null && currentSecurityIndexMetadata == null;
+    }
+
+    private boolean isSecurityIndexCreated(ClusterChangedEvent event) {
+        final IndexMetadata previousSecurityIndexMetadata = resolveSecurityIndexMetadata(event.previousState().metadata());
+        final IndexMetadata currentSecurityIndexMetadata = resolveSecurityIndexMetadata(event.state().metadata());
+        return previousSecurityIndexMetadata == null && currentSecurityIndexMetadata != null;
     }
 
     private void syncBuiltInRoles(QueryableRoles roles, ClusterState state) {
@@ -158,6 +181,10 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
     }
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
+        if (securityIndexDeleted) {
+            logger.debug("Security index has been deleted, skipping built-in roles synchronization");
+            return false;
+        }
         if (nativeRolesStore.isEnabled() == false) {
             logger.trace("Native role management is not enabled, skipping built-in roles synchronization");
             return false;
@@ -205,6 +232,8 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();
             if (frozenSecurityIndex.isAvailable(PRIMARY_SHARDS) == false) {
                 listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+            } else if (frozenSecurityIndex.indexIsClosed()) {
+                listener.onFailure(new ElasticsearchException(frozenSecurityIndex.getConcreteIndexName() + " is closed"));
             } else {
                 indexRoles(roles.roleDescriptors().values(), frozenSecurityIndex, ActionListener.wrap(onResponse -> {
                     Set<String> rolesToDelete = currentRolesVersions == null

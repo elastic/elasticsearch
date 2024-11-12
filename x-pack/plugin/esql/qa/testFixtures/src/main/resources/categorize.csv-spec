@@ -1,4 +1,4 @@
-categorize
+standard aggs
 required_capability: categorize
 
 FROM sample_data
@@ -17,7 +17,7 @@ count:long | sum:long |     avg:double     | count_distinct:long | category:cate
 ;
 
 
-categorize values
+values aggs
 required_capability: categorize
 
 FROM sample_data
@@ -33,7 +33,7 @@ values:keyword                                                        |      top
 [Disconnected]                                                        |           1232382  | .*?Disconnected.*?
 ;
 
-categorize mv
+mv
 required_capability: categorize
 
 FROM sample_data_mv
@@ -46,4 +46,17 @@ COUNT():long | category:category
            3 | .*?Connected.+?to.*?
            3 | .*?Connection.+?error.*?
            1 | .*?Disconnected.*?
+;
+
+row mv
+required_capability: categorize
+
+ROW message = ["connected to a", "connected to b", "disconnected"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:category
+           2 | .*?connected.+?to.*?
+           1 | .*?disconnected.*?
 ;

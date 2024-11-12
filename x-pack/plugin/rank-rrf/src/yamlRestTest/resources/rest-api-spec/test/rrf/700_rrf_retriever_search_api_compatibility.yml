@@ -983,6 +983,13 @@ setup:
 
 ---
 "rrf retriever with inner_hits for sub-retriever":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ nested_retriever_inner_hits_support ]
+      test_runner_features: capabilities
+      reason: "Support for propagating nested retrievers' inner hits to the top-level compound retriever is required"
 
   - do:
       search:

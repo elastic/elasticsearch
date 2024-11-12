@@ -226,9 +226,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
-  issue: https://github.com/elastic/elasticsearch/issues/115319
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
@@ -322,6 +319,20 @@ tests:
 - class: org.elasticsearch.threadpool.SimpleThreadPoolIT
   method: testThreadPoolMetrics
   issue: https://github.com/elastic/elasticsearch/issues/108320
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields alias}
+  issue: https://github.com/elastic/elasticsearch/issues/116592
+- class: org.elasticsearch.xpack.esql.qa.mixed.EsqlClientYamlIT
+  method: test {p0=esql/60_enrich/Enrich on keyword with fields}
+  issue: https://github.com/elastic/elasticsearch/issues/116593
+- class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
+  issue: https://github.com/elastic/elasticsearch/issues/116487
+- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
+  method: testCollapseAndRemoveUnsupportedPrivileges
+  issue: https://github.com/elastic/elasticsearch/issues/116520
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoTile
+  issue: https://github.com/elastic/elasticsearch/issues/115717
 
 # Examples:
 #

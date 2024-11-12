@@ -259,7 +259,7 @@ class MlMemoryAutoscalingDecider {
             .map(result -> {
                 MlMemoryAutoscalingCapacity capacity = ensureScaleDown(
                     result,
-                    context.currentCapacity() == null ? null : MlMemoryAutoscalingCapacity.from(context.currentCapacity()).build()
+                    MlMemoryAutoscalingCapacity.from(context.currentCapacity()).build()
                 );
                 if (capacity == null) {
                     return null;
@@ -809,7 +809,7 @@ class MlMemoryAutoscalingDecider {
         MlMemoryAutoscalingCapacity scaleDownResult,
         MlMemoryAutoscalingCapacity currentCapacity
     ) {
-        if (scaleDownResult == null || currentCapacity == null) {
+        if (scaleDownResult == null || currentCapacity == null || currentCapacity.isUndetermined()) {
             return null;
         }
         MlMemoryAutoscalingCapacity newCapacity = MlMemoryAutoscalingCapacity.builder(

@@ -256,7 +256,10 @@ class EsqlSessionCCSUtils {
 
     private static boolean concreteIndexRequested(String indexExpression) {
         for (String expr : indexExpression.split(",")) {
-            // TODO need to also detect date math before this check?
+            if (expr.charAt(0) == '<' || expr.startsWith("-<")) {
+                // skip date math expressions
+                continue;
+            }
             if (expr.indexOf('*') < 0) {
                 return true;
             }

@@ -607,6 +607,7 @@ public class SharedBlobCacheWarmingService {
             ActionListener<Void> listener
         ) {
             if (canSkipLocation(fileName, position, length)) {
+                skippedTasksCount.incrementAndGet();
                 listener.onResponse(null);
                 return;
             }
@@ -683,6 +684,7 @@ public class SharedBlobCacheWarmingService {
         protected final RefCountingListener listeners;
 
         protected final AtomicLong tasksCount = new AtomicLong(0L);
+        protected final AtomicLong skippedTasksCount = new AtomicLong(0L);
         protected final AtomicLong totalBytesCopied = new AtomicLong(0L);
 
         AbstractWarmer(
@@ -709,13 +711,14 @@ public class SharedBlobCacheWarmingService {
                 final long duration = threadPool.rawRelativeTimeInMillis() - started;
                 logger.log(
                     duration >= 5000 ? Level.INFO : Level.DEBUG,
-                    "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} bytes)",
+                    "{} {} warming completed in {} ms ({} segments, {} files, {} tasks, {} skipped tasks, {} bytes)",
                     shardId,
                     warmingRun.type(),
                     duration,
                     segmentCount,
                     fileCount,
                     tasksCount.get(),
+                    skippedTasksCount.get(),
                     totalBytesCopied.get()
                 );
             }).delegateResponse((l, e) -> {

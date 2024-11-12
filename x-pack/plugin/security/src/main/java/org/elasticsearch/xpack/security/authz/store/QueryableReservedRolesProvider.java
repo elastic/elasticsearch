@@ -46,6 +46,11 @@ public class QueryableReservedRolesProvider implements QueryableRolesProvider {
         return roles.get();
     }
 
+    @Override
+    public void addListener(QueryableRolesChangedListener listener) {
+        // Reserved roles are static and do not change, so we do not need to notify listeners.
+    }
+
     private Supplier<String> calculateHash(final Collection<RoleDescriptor> roleDescriptors) {
         return CachedSupplier.wrap(() -> {
             final MessageDigest hash = MessageDigests.sha256();

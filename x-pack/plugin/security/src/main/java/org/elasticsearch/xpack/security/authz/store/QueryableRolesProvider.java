@@ -15,5 +15,11 @@ public interface QueryableRolesProvider {
 
     QueryableRoles roles();
 
+    void addListener(QueryableRolesChangedListener listener);
+
     record QueryableRoles(Map<String, String> roleVersions, Map<String, RoleDescriptor> roleDescriptors) {}
+
+    interface QueryableRolesChangedListener {
+        void onRolesChanged(QueryableRoles roles);
+    }
 }

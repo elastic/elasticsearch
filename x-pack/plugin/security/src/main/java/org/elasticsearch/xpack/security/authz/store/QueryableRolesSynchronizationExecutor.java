@@ -102,6 +102,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
             Priority.LOW,
             MARK_ROLES_AS_SYNCED_TASK_EXECUTOR
         );
+        this.builtinRolesProvider.addListener(this::builtInRolesChanged);
 
         this.clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -114,6 +115,46 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
                 clusterService.addListener(QueryableRolesSynchronizationExecutor.this);
             }
         });
+    }
+
+    private void builtInRolesChanged(QueryableRoles roles) {
+        logger.debug("quilt-in roles changed, syncing to security index");
+        final ClusterState state = clusterService.state();
+        if (shouldSyncBuiltInRoles(state)) {
+            syncBuiltInRoles(roles, state);
+        }
+    }
+
+    @Override
+    public void clusterChanged(ClusterChangedEvent event) {
+        final ClusterState state = event.state();
+        if (shouldSyncBuiltInRoles(state)) {
+            final QueryableRoles roles = builtinRolesProvider.roles();
+            syncBuiltInRoles(roles, state);
+        }
+    }
+
+    private void syncBuiltInRoles(QueryableRoles roles, ClusterState state) {
+        final Map<String, String> currentRolesVersions = readBuiltInRolesVersion(state);
+        if (roles.roleVersions().equals(currentRolesVersions)) {
+            logger.debug("security index already contains the latest built-in roles indexed, skipping synchronization");
+            return;
+        }
+        if (synchronizationInProgress.compareAndSet(false, true)) {
+            executor.execute(() -> doSyncBuiltinRoles(currentRolesVersions, roles, ActionListener.wrap(v -> {
+                logger.info("Successfully synced built-in roles to security index");
+                synchronizationInProgress.set(false);
+            }, e -> {
+                if (false == e instanceof UnavailableShardsException
+                    && false == e instanceof IndexNotFoundException
+                    && false == e instanceof NotMasterException) {
+                    logger.warn("Failed to sync built-in roles to security index", e);
+                } else {
+                    logger.trace("Failed to sync built-in roles to security index", e);
+                }
+                synchronizationInProgress.set(false);
+            })));
+        }
     }
 
     private boolean shouldSyncBuiltInRoles(ClusterState state) {
@@ -158,37 +199,7 @@ public class QueryableRolesSynchronizationExecutor implements ClusterStateListen
         return false;
     }
 
-    @Override
-    public void clusterChanged(ClusterChangedEvent event) {
-        final ClusterState state = event.state();
-        if (false == shouldSyncBuiltInRoles(state)) {
-            return;
-        }
-        final QueryableRoles roles = builtinRolesProvider.roles();
-        final Map<String, String> currentRolesVersions = readBuiltInRolesVersion(state);
-        if (roles.roleVersions().equals(currentRolesVersions)) {
-            logger.debug("Security index already contains the latest built-in roles indexed, skipping synchronization");
-            return;
-        }
-
-        if (synchronizationInProgress.compareAndSet(false, true)) {
-            executor.execute(() -> syncBuiltinRoles(currentRolesVersions, roles, ActionListener.wrap(v -> {
-                logger.info("Successfully synced built-in roles to security index");
-                synchronizationInProgress.set(false);
-            }, e -> {
-                if (false == e instanceof UnavailableShardsException
-                    && false == e instanceof IndexNotFoundException
-                    && false == e instanceof NotMasterException) {
-                    logger.warn("Failed to sync built-in roles to security index", e);
-                } else {
-                    logger.trace("Failed to sync built-in roles to security index", e);
-                }
-                synchronizationInProgress.set(false);
-            })));
-        }
-    }
-
-    private void syncBuiltinRoles(Map<String, String> currentRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
+    private void doSyncBuiltinRoles(Map<String, String> currentRolesVersions, QueryableRoles roles, ActionListener<Void> listener) {
         // This will create .security index if it does not exist and execute all migrations.
         securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
             final SecurityIndexManager frozenSecurityIndex = securityIndex.defensiveCopy();

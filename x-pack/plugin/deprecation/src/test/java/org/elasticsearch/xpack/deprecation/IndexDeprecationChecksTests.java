@@ -234,6 +234,9 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             .numberOfReplicas(1)
             .putMapping(simpleMapping)
             .build();
+        ClusterState clusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .metadata(Metadata.builder().put(simpleIndex, true))
+            .build();
 
         DeprecationIssue expected = new DeprecationIssue(
             DeprecationIssue.Level.CRITICAL,
@@ -244,10 +247,7 @@ public class IndexDeprecationChecksTests extends ESTestCase {
             false,
             null
         );
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            INDEX_SETTINGS_CHECKS,
-            c -> c.apply(simpleIndex, ClusterState.EMPTY_STATE)
-        );
+        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(INDEX_SETTINGS_CHECKS, c -> c.apply(simpleIndex, clusterState));
         assertThat(issues, hasItem(expected));
     }
 }

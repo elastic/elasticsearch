@@ -1399,7 +1399,7 @@ public class MetadataCreateIndexService {
         }
         allMappings.addAll(mappings);
         mapperService.merge(MapperService.SINGLE_MAPPING_NAME, allMappings, MergeReason.INDEX_TEMPLATE);
-
+        validateSourceMode(mapperService);
         indexMode.validateTimestampFieldMapping(request.dataStreamName() != null, mapperService.mappingLookup());
 
         if (sourceMetadata == null) {
@@ -1408,6 +1408,17 @@ public class MetadataCreateIndexService {
             // at this point. The validation will take place later in the process
             // (when all shards are copied in a single place).
             indexService.getIndexSortSupplier().get();
+        }
+    }
+
+    private static void validateSourceMode(MapperService mapperService) {
+        final IndexSettings indexSettings = mapperService.getIndexSettings();
+        if (indexSettings != null
+            && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            && SourceFieldMapper.isSynthetic(indexSettings) == false
+            && mapperService.documentMapper() != null
+            && mapperService.documentMapper().sourceMapper().isSynthetic()) {
+            deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
         }
     }
 

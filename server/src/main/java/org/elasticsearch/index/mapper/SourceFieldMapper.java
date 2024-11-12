@@ -68,6 +68,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
+    public static final String DEPRECATION_WARNING = "Configuring a synthetic source in _source mapping field is deprecated "
+        + "and will be removed in future versions. Use [index.mapping.source.mode] instead.";
+
     /** The source mode */
     public enum Mode {
         DISABLED,

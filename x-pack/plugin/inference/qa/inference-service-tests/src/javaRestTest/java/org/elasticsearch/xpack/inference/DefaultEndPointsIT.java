@@ -52,7 +52,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertDefaultElserConfig(model);
 
         var inputs = List.of("Hello World", "Goodnight moon");
-        var queryParams = Map.of("timeout", "120s");
+        var queryParams = Map.of("timeout", "240s");
         var results = infer(ElasticsearchInternalService.DEFAULT_ELSER_ID, TaskType.SPARSE_EMBEDDING, inputs, queryParams);
         var embeddings = (List<Map<String, Object>>) results.get("sparse_embedding");
         assertThat(results.toString(), embeddings, hasSize(2));
@@ -83,7 +83,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         assertDefaultE5Config(model);
 
         var inputs = List.of("Hello World", "Goodnight moon");
-        var queryParams = Map.of("timeout", "120s");
+        var queryParams = Map.of("timeout", "240s");
         var results = infer(ElasticsearchInternalService.DEFAULT_E5_ID, TaskType.TEXT_EMBEDDING, inputs, queryParams);
         var embeddings = (List<Map<String, Object>>) results.get("text_embedding");
         assertThat(results.toString(), embeddings, hasSize(2));

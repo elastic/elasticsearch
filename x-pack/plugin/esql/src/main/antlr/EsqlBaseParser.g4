@@ -336,7 +336,6 @@ joinTarget
 
 joinCondition
     : ON joinPredicate (COMMA joinPredicate)*
-    | USING qualifiedName (COMMA qualifiedName)*
     ;
 
 joinPredicate

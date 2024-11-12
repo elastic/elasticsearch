@@ -5576,13 +5576,6 @@ public class EsqlBaseParser extends ParserConfig {
     public TerminalNode COMMA(int i) {
       return getToken(EsqlBaseParser.COMMA, i);
     }
-    public TerminalNode USING() { return getToken(EsqlBaseParser.USING, 0); }
-    public List<QualifiedNameContext> qualifiedName() {
-      return getRuleContexts(QualifiedNameContext.class);
-    }
-    public QualifiedNameContext qualifiedName(int i) {
-      return getRuleContext(QualifiedNameContext.class,i);
-    }
     @SuppressWarnings("this-escape")
     public JoinConditionContext(ParserRuleContext parent, int invokingState) {
       super(parent, invokingState);
@@ -5608,65 +5601,30 @@ public class EsqlBaseParser extends ParserConfig {
     enterRule(_localctx, 128, RULE_joinCondition);
     try {
       int _alt;
-      setState(644);
+      enterOuterAlt(_localctx, 1);
+      {
+      setState(626);
+      match(ON);
+      setState(627);
+      joinPredicate();
+      setState(632);
       _errHandler.sync(this);
-      switch (_input.LA(1)) {
-      case ON:
-        enterOuterAlt(_localctx, 1);
-        {
-        setState(626);
-        match(ON);
-        setState(627);
-        joinPredicate();
-        setState(632);
+      _alt = getInterpreter().adaptivePredict(_input,61,_ctx);
+      while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
+        if ( _alt==1 ) {
+          {
+          {
+          setState(628);
+          match(COMMA);
+          setState(629);
+          joinPredicate();
+          }
+          } 
+        }
+        setState(634);
         _errHandler.sync(this);
         _alt = getInterpreter().adaptivePredict(_input,61,_ctx);
-        while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
-          if ( _alt==1 ) {
-            {
-            {
-            setState(628);
-            match(COMMA);
-            setState(629);
-            joinPredicate();
-            }
-            } 
-          }
-          setState(634);
-          _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,61,_ctx);
-        }
-        }
-        break;
-      case USING:
-        enterOuterAlt(_localctx, 2);
-        {
-        setState(635);
-        match(USING);
-        setState(636);
-        qualifiedName();
-        setState(641);
-        _errHandler.sync(this);
-        _alt = getInterpreter().adaptivePredict(_input,62,_ctx);
-        while ( _alt!=2 && _alt!=org.antlr.v4.runtime.atn.ATN.INVALID_ALT_NUMBER ) {
-          if ( _alt==1 ) {
-            {
-            {
-            setState(637);
-            match(COMMA);
-            setState(638);
-            qualifiedName();
-            }
-            } 
-          }
-          setState(643);
-          _errHandler.sync(this);
-          _alt = getInterpreter().adaptivePredict(_input,62,_ctx);
-        }
-        }
-        break;
-      default:
-        throw new NoViableAltException(this);
+      }
       }
     }
     catch (RecognitionException re) {
@@ -5711,7 +5669,7 @@ public class EsqlBaseParser extends ParserConfig {
     try {
       enterOuterAlt(_localctx, 1);
       {
-      setState(646);
+      setState(635);
       valueExpression();
       }
     }
@@ -5815,7 +5773,7 @@ public class EsqlBaseParser extends ParserConfig {
   }
 
   public static final String _serializedATN =
-    "\u0004\u0001\u0080\u0289\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
+    "\u0004\u0001\u0080\u027e\u0002\u0000\u0007\u0000\u0002\u0001\u0007\u0001"+
     "\u0002\u0002\u0007\u0002\u0002\u0003\u0007\u0003\u0002\u0004\u0007\u0004"+
     "\u0002\u0005\u0007\u0005\u0002\u0006\u0007\u0006\u0002\u0007\u0007\u0007"+
     "\u0002\b\u0007\b\u0002\t\u0007\t\u0002\n\u0007\n\u0002\u000b\u0007\u000b"+
@@ -5899,13 +5857,12 @@ public class EsqlBaseParser extends ParserConfig {
     ";\u0001<\u0001<\u0001<\u0001<\u0001<\u0001=\u0001=\u0001=\u0001=\u0003"+
     "=\u0265\b=\u0001>\u0003>\u0268\b>\u0001>\u0001>\u0001>\u0001>\u0001?\u0001"+
     "?\u0001?\u0003?\u0271\b?\u0001@\u0001@\u0001@\u0001@\u0005@\u0277\b@\n"+
-    "@\f@\u027a\t@\u0001@\u0001@\u0001@\u0001@\u0005@\u0280\b@\n@\f@\u0283"+
-    "\t@\u0003@\u0285\b@\u0001A\u0001A\u0001A\u0000\u0004\u0002\n\u0012\u0014"+
-    "B\u0000\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a"+
-    "\u001c\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082"+
-    "\u0000\t\u0001\u0000>?\u0001\u0000@B\u0002\u0000\u001d\u001dPP\u0001\u0000"+
-    "GH\u0002\u0000\"\"&&\u0002\u0000)),,\u0002\u0000((66\u0002\u0000779=\u0001"+
-    "\u0000\u0015\u0017\u02a5\u0000\u0084\u0001\u0000\u0000\u0000\u0002\u0087"+
+    "@\f@\u027a\t@\u0001A\u0001A\u0001A\u0000\u0004\u0002\n\u0012\u0014B\u0000"+
+    "\u0002\u0004\u0006\b\n\f\u000e\u0010\u0012\u0014\u0016\u0018\u001a\u001c"+
+    "\u001e \"$&(*,.02468:<>@BDFHJLNPRTVXZ\\^`bdfhjlnprtvxz|~\u0080\u0082\u0000"+
+    "\t\u0001\u0000>?\u0001\u0000@B\u0002\u0000\u001d\u001dPP\u0001\u0000G"+
+    "H\u0002\u0000\"\"&&\u0002\u0000)),,\u0002\u0000((66\u0002\u0000779=\u0001"+
+    "\u0000\u0015\u0017\u0298\u0000\u0084\u0001\u0000\u0000\u0000\u0002\u0087"+
     "\u0001\u0000\u0000\u0000\u0004\u0098\u0001\u0000\u0000\u0000\u0006\u00ac"+
     "\u0001\u0000\u0000\u0000\b\u00ae\u0001\u0000\u0000\u0000\n\u00cf\u0001"+
     "\u0000\u0000\u0000\f\u00ea\u0001\u0000\u0000\u0000\u000e\u00ec\u0001\u0000"+
@@ -5933,8 +5890,8 @@ public class EsqlBaseParser extends ParserConfig {
     "n\u0239\u0001\u0000\u0000\u0000p\u023c\u0001\u0000\u0000\u0000r\u0240"+
     "\u0001\u0000\u0000\u0000t\u0243\u0001\u0000\u0000\u0000v\u0257\u0001\u0000"+
     "\u0000\u0000x\u025b\u0001\u0000\u0000\u0000z\u0260\u0001\u0000\u0000\u0000"+
-    "|\u0267\u0001\u0000\u0000\u0000~\u026d\u0001\u0000\u0000\u0000\u0080\u0284"+
-    "\u0001\u0000\u0000\u0000\u0082\u0286\u0001\u0000\u0000\u0000\u0084\u0085"+
+    "|\u0267\u0001\u0000\u0000\u0000~\u026d\u0001\u0000\u0000\u0000\u0080\u0272"+
+    "\u0001\u0000\u0000\u0000\u0082\u027b\u0001\u0000\u0000\u0000\u0084\u0085"+
     "\u0003\u0002\u0001\u0000\u0085\u0086\u0005\u0000\u0000\u0001\u0086\u0001"+
     "\u0001\u0000\u0000\u0000\u0087\u0088\u0006\u0001\uffff\uffff\u0000\u0088"+
     "\u0089\u0003\u0004\u0002\u0000\u0089\u008f\u0001\u0000\u0000\u0000\u008a"+
@@ -6210,20 +6167,14 @@ public class EsqlBaseParser extends ParserConfig {
     "A\u0000\u0274\u0275\u0005%\u0000\u0000\u0275\u0277\u0003\u0082A\u0000"+
     "\u0276\u0274\u0001\u0000\u0000\u0000\u0277\u027a\u0001\u0000\u0000\u0000"+
     "\u0278\u0276\u0001\u0000\u0000\u0000\u0278\u0279\u0001\u0000\u0000\u0000"+
-    "\u0279\u0285\u0001\u0000\u0000\u0000\u027a\u0278\u0001\u0000\u0000\u0000"+
-    "\u027b\u027c\u0005w\u0000\u0000\u027c\u0281\u0003:\u001d\u0000\u027d\u027e"+
-    "\u0005%\u0000\u0000\u027e\u0280\u0003:\u001d\u0000\u027f\u027d\u0001\u0000"+
-    "\u0000\u0000\u0280\u0283\u0001\u0000\u0000\u0000\u0281\u027f\u0001\u0000"+
-    "\u0000\u0000\u0281\u0282\u0001\u0000\u0000\u0000\u0282\u0285\u0001\u0000"+
-    "\u0000\u0000\u0283\u0281\u0001\u0000\u0000\u0000\u0284\u0272\u0001\u0000"+
-    "\u0000\u0000\u0284\u027b\u0001\u0000\u0000\u0000\u0285\u0081\u0001\u0000"+
-    "\u0000\u0000\u0286\u0287\u0003\u0010\b\u0000\u0287\u0083\u0001\u0000\u0000"+
-    "\u0000@\u008f\u0098\u00ac\u00b8\u00c1\u00c9\u00cf\u00d7\u00d9\u00de\u00e5"+
-    "\u00ea\u00f5\u00fb\u0103\u0105\u0110\u0117\u0122\u0125\u012b\u0137\u013d"+
-    "\u0147\u014b\u0150\u015a\u0162\u016f\u0173\u0177\u017e\u0182\u0189\u018f"+
-    "\u0196\u019e\u01a6\u01ae\u01bf\u01ca\u01d5\u01da\u01de\u01e3\u01ee\u01f3"+
-    "\u01f7\u0205\u0210\u021e\u0229\u022c\u0231\u0247\u024f\u0252\u0257\u0264"+
-    "\u0267\u0270\u0278\u0281\u0284";
+    "\u0279\u0081\u0001\u0000\u0000\u0000\u027a\u0278\u0001\u0000\u0000\u0000"+
+    "\u027b\u027c\u0003\u0010\b\u0000\u027c\u0083\u0001\u0000\u0000\u0000>"+
+    "\u008f\u0098\u00ac\u00b8\u00c1\u00c9\u00cf\u00d7\u00d9\u00de\u00e5\u00ea"+
+    "\u00f5\u00fb\u0103\u0105\u0110\u0117\u0122\u0125\u012b\u0137\u013d\u0147"+
+    "\u014b\u0150\u015a\u0162\u016f\u0173\u0177\u017e\u0182\u0189\u018f\u0196"+
+    "\u019e\u01a6\u01ae\u01bf\u01ca\u01d5\u01da\u01de\u01e3\u01ee\u01f3\u01f7"+
+    "\u0205\u0210\u021e\u0229\u022c\u0231\u0247\u024f\u0252\u0257\u0264\u0267"+
+    "\u0270\u0278";
   public static final ATN _ATN =
     new ATNDeserializer().deserialize(_serializedATN.toCharArray());
   static {

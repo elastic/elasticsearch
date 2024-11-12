@@ -134,11 +134,11 @@ public class JoinTypes {
     public static JoinType readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
         return switch (id) {
-            case 0 -> INNER;
-            case 1 -> LEFT;
-            case 2 -> RIGHT;
-            case 3 -> FULL;
-            case 4 -> CROSS;
+            case 1 -> INNER;
+            case 2 -> LEFT;
+            case 3 -> RIGHT;
+            case 4 -> FULL;
+            case 5 -> CROSS;
             default -> throw new IllegalArgumentException("unsupported join [" + id + "]");
         };
     }

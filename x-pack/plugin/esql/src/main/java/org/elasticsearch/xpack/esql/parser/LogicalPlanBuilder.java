@@ -550,16 +550,18 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
 
         var condition = ctx.joinCondition();
 
-        if (condition.ON() != null) {
-            throw new ParsingException(source(condition), "JOIN ON clause unsupported at the moment");
+        // ON only with qualified names
+        var predicates = expressions(condition.joinPredicate());
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
+            }
         }
-        // USING
-        var fields = condition.qualifiedName();
-        List<Attribute> joinFields = new ArrayList<>(fields.size());
-        for (var f : fields) {
-            joinFields.add(visitQualifiedName(f));
-        }
+
         return p -> new LookupJoin(source, p, right, joinFields);
     }
-
 }

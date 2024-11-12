@@ -30,7 +30,7 @@ import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
-import org.elasticsearch.index.mapper.RoutingDimensions;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramAggregationBuilder;
@@ -93,10 +93,10 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, timestamp));
-        final RoutingDimensions routingDimensions = new RoutingDimensions(null);
+        RoutingPathFields routingPathFields = new RoutingPathFields(null);
         for (int i = 0; i < dimensions.length; i += 2) {
             if (dimensions[i + 1] instanceof Number n) {
-                routingDimensions.addLong(dimensions[i].toString(), n.longValue());
+                routingPathFields.addLong(dimensions[i].toString(), n.longValue());
                 if (dimensions[i + 1] instanceof Integer || dimensions[i + 1] instanceof Long) {
                     fields.add(new NumericDocValuesField(dimensions[i].toString(), ((Number) dimensions[i + 1]).longValue()));
                 } else if (dimensions[i + 1] instanceof Float) {
@@ -105,7 +105,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
                     fields.add(new DoubleDocValuesField(dimensions[i].toString(), (double) dimensions[i + 1]));
                 }
             } else {
-                routingDimensions.addString(dimensions[i].toString(), dimensions[i + 1].toString());
+                routingPathFields.addString(dimensions[i].toString(), dimensions[i + 1].toString());
                 fields.add(new SortedSetDocValuesField(dimensions[i].toString(), new BytesRef(dimensions[i + 1].toString())));
             }
         }
@@ -119,7 +119,7 @@ public class TimeSeriesAggregatorTests extends AggregationTestCase {
             }
         }
         fields.add(
-            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingDimensions).toBytesRef())
+            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef())
         );
         iw.addDocument(fields);
     }

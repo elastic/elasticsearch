@@ -12,8 +12,10 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.document.SortedDocValuesField;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -31,7 +33,7 @@ import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Collections;
 import java.util.List;
-import java.util.Map;
+import java.util.SortedMap;
 
 /**
  * Mapper for {@code _tsid} field included generated when the index is
@@ -119,23 +121,24 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
 
-        final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
+        final RoutingPathFields routingPathFields = (RoutingPathFields) context.getRoutingFields();
         final BytesRef timeSeriesId;
         if (getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ID_HASHING)) {
             long limit = context.indexSettings().getValue(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING);
-            int size = routingDimensions.dimensions().size();
+            int size = routingPathFields.routingValues().size();
             if (size > limit) {
                 throw new MapperException("Too many dimension fields [" + size + "], max [" + limit + "] dimension fields allowed");
             }
-            timeSeriesId = buildLegacyTsid(routingDimensions).toBytesRef();
+            timeSeriesId = buildLegacyTsid(routingPathFields).toBytesRef();
         } else {
-            timeSeriesId = DimensionHasher.build(routingDimensions).toBytesRef();
+            timeSeriesId = routingPathFields.buildHash().toBytesRef();
         }
         context.doc().add(new SortedDocValuesField(fieldType().name(), timeSeriesId));
+
         TsidExtractingIdFieldMapper.createField(
             context,
             getIndexVersionCreated(context).before(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
-                ? routingDimensions.routingBuilder()
+                ? routingPathFields.routingBuilder()
                 : null,
             timeSeriesId
         );
@@ -150,15 +153,36 @@ public class TimeSeriesIdFieldMapper extends MetadataFieldMapper {
         return CONTENT_TYPE;
     }
 
-    public static BytesReference buildLegacyTsid(RoutingDimensions routingDimensions) throws IOException {
-        var dimensions = routingDimensions.dimensions();
-        if (dimensions.isEmpty()) {
+    /**
+     * Decode the {@code _tsid} into a human readable map.
+     */
+    public static Object encodeTsid(StreamInput in) {
+        try {
+            return base64Encode(in.readSlicedBytesReference().toBytesRef());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to read tsid");
+        }
+    }
+
+    public static Object encodeTsid(final BytesRef bytesRef) {
+        return base64Encode(bytesRef);
+    }
+
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
+    }
+
+    public static BytesReference buildLegacyTsid(RoutingPathFields routingPathFields) throws IOException {
+        SortedMap<BytesRef, List<BytesReference>> routingValues = routingPathFields.routingValues();
+        if (routingValues.isEmpty()) {
             throw new IllegalArgumentException("Dimension fields are missing.");
         }
 
         try (BytesStreamOutput out = new BytesStreamOutput()) {
-            out.writeVInt(dimensions.size());
-            for (Map.Entry<BytesRef, List<BytesReference>> entry : dimensions.entrySet()) {
+            out.writeVInt(routingValues.size());
+            for (var entry : routingValues.entrySet()) {
                 out.writeBytesRef(entry.getKey());
                 List<BytesReference> value = entry.getValue();
                 if (value.size() > 1) {

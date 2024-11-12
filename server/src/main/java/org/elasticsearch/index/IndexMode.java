@@ -24,7 +24,6 @@ import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
-import org.elasticsearch.index.mapper.DocumentDimensions;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -35,8 +34,9 @@ import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
-import org.elasticsearch.index.mapper.RoutingDimensions;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.RoutingFields;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -115,8 +115,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
         }
 
         @Override
@@ -213,6 +213,12 @@ public enum IndexMode {
         }
 
         @Override
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
+            return new RoutingPathFields(routing.builder());
+        }
+
+        @Override
         public boolean shouldValidateTimestamp() {
             return true;
         }
@@ -274,11 +280,9 @@ public enum IndexMode {
 
         @Override
         public MetadataFieldMapper indexModeIdFieldMapper() {
-            // non time-series indices must not have a TimeSeriesIdFieldMapper
             return LogsIdFieldMapper.INSTANCE;
         }
 
-        @Override
         public MetadataFieldMapper routingHashFieldMapper() {
             return DimensionRoutingHashFieldMapper.INSTANCE;
         }
@@ -358,8 +362,8 @@ public enum IndexMode {
         }
 
         @Override
-        public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
-            return DocumentDimensions.Noop.INSTANCE;
+        public RoutingFields buildRoutingFields(IndexSettings settings) {
+            return RoutingFields.Noop.INSTANCE;
         }
 
         @Override
@@ -383,6 +387,7 @@ public enum IndexMode {
     }
 
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
+        settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
@@ -515,14 +520,14 @@ public enum IndexMode {
     public abstract MetadataFieldMapper routingHashFieldMapper();
 
     /**
-     * How {@code time_series_dimension} fields are handled by indices in this mode.
+     * How routing fields are handled by indices in this mode.
      */
-    public DocumentDimensions buildDocumentDimensions(IndexSettings settings) {
+    public RoutingFields buildRoutingFields(IndexSettings settings) {
         if (settings.usesRoutingPath()) {
             IndexRouting.ExtractFromSource routing = (IndexRouting.ExtractFromSource) settings.getIndexRouting();
-            return new RoutingDimensions(routing.builder());
+            return new RoutingPathFields(routing.builder());
         }
-        return DocumentDimensions.Noop.INSTANCE;
+        return RoutingFields.Noop.INSTANCE;
     }
 
     /**

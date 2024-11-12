@@ -27,12 +27,7 @@ import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.core.CheckedConsumer;
-import org.elasticsearch.index.IndexMode;
-import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -51,7 +46,7 @@ public class IdLoaderTests extends ESTestCase {
     private final int routingHash = randomInt();
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -73,9 +68,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -145,9 +138,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdRandom() throws Exception {
-        var routingPaths = List.of("dim1");
-        var routing = createRouting(routingPaths);
-        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
+        var idLoader = IdLoader.createTsIdLoader(null, null);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
@@ -226,21 +217,21 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private static void indexDoc(IndexWriter iw, Doc doc, int routingHash) throws IOException {
-        final RoutingDimensions routingDimensions = new RoutingDimensions(null);
+        var routingFields = new RoutingPathFields(null);
 
         final List<IndexableField> fields = new ArrayList<>();
         fields.add(new SortedNumericDocValuesField(DataStreamTimestampFieldMapper.DEFAULT_PATH, doc.timestamp));
         fields.add(new LongPoint(DataStreamTimestampFieldMapper.DEFAULT_PATH, doc.timestamp));
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
-                routingDimensions.addLong(dimension.field, n.longValue());
+                routingFields.addLong(dimension.field, n.longValue());
                 fields.add(new SortedNumericDocValuesField(dimension.field, ((Number) dimension.value).longValue()));
             } else {
-                routingDimensions.addString(dimension.field, dimension.value.toString());
+                routingFields.addString(dimension.field, dimension.value.toString());
                 fields.add(new SortedSetDocValuesField(dimension.field, new BytesRef(dimension.value.toString())));
             }
         }
-        BytesRef tsid = DimensionHasher.build(routingDimensions).toBytesRef();
+        BytesRef tsid = routingFields.buildHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
         fields.add(
             new SortedDocValuesField(
@@ -252,25 +243,15 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     private static String expectedId(Doc doc, int routingHash) throws IOException {
-        var routingDimensions = new RoutingDimensions(null);
+        var routingFields = new RoutingPathFields(null);
         for (Dimension dimension : doc.dimensions) {
             if (dimension.value instanceof Number n) {
-                routingDimensions.addLong(dimension.field, n.longValue());
+                routingFields.addLong(dimension.field, n.longValue());
             } else {
-                routingDimensions.addString(dimension.field, dimension.value.toString());
+                routingFields.addString(dimension.field, dimension.value.toString());
             }
         }
-        return TsidExtractingIdFieldMapper.createId(routingHash, DimensionHasher.build(routingDimensions).toBytesRef(), doc.timestamp);
-    }
-
-    private static IndexRouting.ExtractFromSource createRouting(List<String> routingPaths) {
-        var settings = indexSettings(IndexVersion.current(), 2, 1).put(IndexSettings.MODE.getKey(), "time_series")
-            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
-            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
-            .putList(IndexMetadata.INDEX_ROUTING_PATH.getKey(), routingPaths)
-            .build();
-        var indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        return (IndexRouting.ExtractFromSource) IndexRouting.fromIndexMetadata(indexMetadata);
+        return TsidExtractingIdFieldMapper.createId(routingHash, routingFields.buildHash().toBytesRef(), doc.timestamp);
     }
 
     record Doc(long timestamp, List<Dimension> dimensions) {}

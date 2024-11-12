@@ -247,17 +247,13 @@ class EsqlSessionCCSUtils {
 
     // visible for testing
     static boolean missingIndicesIsFatal(String clusterAlias, EsqlExecutionInfo executionInfo) {
-        if (executionInfo.getCluster(clusterAlias).isSkipUnavailable()) {
-            return false;
-        }
         // missing indices on local cluster is fatal only if a concrete index requested
         if (clusterAlias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
             return concreteIndexRequested(executionInfo.getCluster(clusterAlias).getIndexExpression());
         }
-        return true;
+        return executionInfo.getCluster(clusterAlias).isSkipUnavailable() == false;
     }
 
-    // MP TODO: is there a better method for doing this, say in RemoteClusterService or RemoteClusterAware?
     private static boolean concreteIndexRequested(String indexExpression) {
         for (String expr : indexExpression.split(",")) {
             // TODO need to also detect date math before this check?

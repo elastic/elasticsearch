@@ -61,6 +61,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             in.readMap(IndexMetadata.State::readFrom);  // Read and discard the index state
+            indexMetadataMap = Map.of();
         } else {
             indexHealthMap = Map.of();
             indexMetadataMap = Map.of();

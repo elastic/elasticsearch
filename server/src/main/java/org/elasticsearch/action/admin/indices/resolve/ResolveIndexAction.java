@@ -18,8 +18,8 @@ import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.action.support.ParameterizedTransportAction;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
@@ -38,7 +38,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.search.SearchService;
-import org.elasticsearch.tasks.Task;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
@@ -439,9 +438,8 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
         }
     }
 
-    public static class TransportAction extends HandledTransportAction<Request, Response> {
+    public static class TransportAction extends ParameterizedTransportAction<Request, Response> {
 
-        private final ClusterService clusterService;
         private final RemoteClusterService remoteClusterService;
         private final IndexNameExpressionResolver indexNameExpressionResolver;
         private final boolean ccsCheckCompatibility;
@@ -453,19 +451,27 @@ public class ResolveIndexAction extends ActionType<ResolveIndexAction.Response> 
             ActionFilters actionFilters,
             IndexNameExpressionResolver indexNameExpressionResolver
         ) {
-            super(NAME, transportService, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
-            this.clusterService = clusterService;
+            super(NAME, true, new Services() {
+                @Override
+                public TransportService transportService() {
+                    return transportService;
+                }
+
+                @Override
+                public ClusterService clusterService() {
+                    return clusterService;
+                }
+            }, actionFilters, Request::new, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             this.remoteClusterService = transportService.getRemoteClusterService();
             this.indexNameExpressionResolver = indexNameExpressionResolver;
             this.ccsCheckCompatibility = SearchService.CCS_VERSION_CHECK_SETTING.get(clusterService.getSettings());
         }
 
-        @Override
-        protected void doExecute(Task task, Request request, final ActionListener<Response> listener) {
+        @ActionHandler
+        public void resolveIndices(final Request request, final ClusterState clusterState, final ActionListener<Response> listener) {
             if (ccsCheckCompatibility) {
                 checkCCSVersionCompatibility(request);
             }
-            final ClusterState clusterState = clusterService.state();
             final Map<String, OriginalIndices> remoteClusterIndices = remoteClusterService.groupIndices(
                 request.indicesOptions(),
                 request.indices()

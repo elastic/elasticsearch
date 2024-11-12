@@ -634,8 +634,7 @@ public final class KeywordFieldMapper extends FieldMapper {
                 return new BlockStoredFieldsReader.BytesFromBytesRefsBlockLoader(name());
             }
             SourceValueFetcher fetcher = sourceValueFetcher(blContext.sourcePaths(name()));
-            var sourceMode = blContext.indexSettings().getIndexMappingSourceMode();
-            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext), sourceMode);
+            return new BlockSourceReader.BytesRefsBlockLoader(fetcher, sourceBlockLoaderLookup(blContext));
         }
 
         private BlockSourceReader.LeafIteratorLookup sourceBlockLoaderLookup(BlockLoaderContext blContext) {
@@ -945,7 +944,7 @@ public final class KeywordFieldMapper extends FieldMapper {
         final BytesRef binaryValue = new BytesRef(value);
 
         if (fieldType().isDimension()) {
-            context.getDimensions().addString(fieldType().name(), binaryValue).validate(context.indexSettings());
+            context.getRoutingFields().addString(fieldType().name(), binaryValue);
         }
 
         // If the UTF8 encoding of the field value is bigger than the max length 32766, Lucene fill fail the indexing request and, to

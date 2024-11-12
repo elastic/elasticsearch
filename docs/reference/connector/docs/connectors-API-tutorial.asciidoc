@@ -367,7 +367,7 @@ Refer to the individual connectors-references,connector references for these con
 ====
 We're using a self-managed connector in this tutorial.
 To use these APIs with an Elastic managed connector, there's some extra setup for API keys.
-Refer to native-connectors-manage-API-keys for details.
+Refer to <<es-native-connectors-manage-API-keys>> for details.
 ====
 
 We're now ready to sync our PostgreSQL data to {es}.

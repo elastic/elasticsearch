@@ -74,7 +74,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TIME_DURATION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
@@ -117,7 +116,6 @@ public class EsqlDataTypeConverter {
         entry(LONG, ToLong::new),
         // ToRadians, typeless
         entry(KEYWORD, ToString::new),
-        entry(TEXT, ToString::new),
         entry(UNSIGNED_LONG, ToUnsignedLong::new),
         entry(VERSION, ToVersion::new),
         entry(DATE_PERIOD, ToDatePeriod::new),
@@ -366,10 +364,8 @@ public class EsqlDataTypeConverter {
             }
         }
         if (isString(left) && isString(right)) {
-            if (left == TEXT || right == TEXT) {
-                return TEXT;
-            }
-            return right;
+            // Both TEXT and SEMANTIC_TEXT are processed as KEYWORD
+            return KEYWORD;
         }
         if (left.isNumeric() && right.isNumeric()) {
             int lsize = left.estimatedSize().orElseThrow();

@@ -82,21 +82,14 @@ public abstract class SecureSetting<T> extends Setting<T> {
     public T get(Settings settings) {
         checkDeprecation(settings);
         final SecureSettings secureSettings = settings.getSecureSettings();
-        if (secureSettings == null || secureSettings.getSettingNames().contains(getKey()) == false) {
-            if (super.exists(settings)) {
-                throw new IllegalArgumentException(
-                    "Setting ["
-                        + getKey()
-                        + "] is a secure setting"
-                        + " and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
-                );
-            }
+        String key = getKey();
+        if (secureSettings == null || secureSettings.getSettingNames().contains(key) == false) {
             return getFallback(settings);
         }
         try {
             return getSecret(secureSettings);
         } catch (GeneralSecurityException e) {
-            throw new RuntimeException("failed to read secure setting " + getKey(), e);
+            throw new RuntimeException("failed to read secure setting " + key, e);
         }
     }
 

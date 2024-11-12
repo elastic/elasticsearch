@@ -425,23 +425,24 @@ public record IndicesOptions(
     public record SelectorOptions(IndexComponentSelector defaultSelector) implements Writeable {
 
         public static final SelectorOptions ALL_APPLICABLE = new SelectorOptions(IndexComponentSelector.ALL_APPLICABLE);
-        public static final SelectorOptions ONLY_DATA = new SelectorOptions(IndexComponentSelector.DATA);
-        public static final SelectorOptions ONLY_FAILURES = new SelectorOptions(IndexComponentSelector.FAILURES);
+        public static final SelectorOptions DATA = new SelectorOptions(IndexComponentSelector.DATA);
+        public static final SelectorOptions FAILURES = new SelectorOptions(IndexComponentSelector.FAILURES);
         /**
          * Default instance. Uses <pre>::data</pre> as the default selector if none are present in an index expression.
          */
-        public static final SelectorOptions DEFAULT = ONLY_DATA;
+        public static final SelectorOptions DEFAULT = DATA;
 
         public static SelectorOptions read(StreamInput in) throws IOException {
-            if (in.getTransportVersion()
-                .between(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY, TransportVersions.USE_SELECTORS)) {
+            if (in.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
                 EnumSet<IndexComponentSelector> set = in.readEnumSet(IndexComponentSelector.class);
                 if (set.isEmpty() || set.size() == 2) {
+                    assert set.contains(IndexComponentSelector.DATA) && set.contains(IndexComponentSelector.FAILURES)
+                        : "The enum set only supported ::data and ::failures";
                     return SelectorOptions.ALL_APPLICABLE;
                 } else if (set.contains(IndexComponentSelector.DATA)) {
-                    return SelectorOptions.ONLY_DATA;
+                    return SelectorOptions.DATA;
                 } else {
-                    return SelectorOptions.ONLY_FAILURES;
+                    return SelectorOptions.FAILURES;
                 }
             } else {
                 return new SelectorOptions(IndexComponentSelector.read(in));
@@ -450,8 +451,7 @@ public record IndicesOptions(
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            if (out.getTransportVersion()
-                .between(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY, TransportVersions.USE_SELECTORS)) {
+            if (out.getTransportVersion().before(TransportVersions.INTRODUCE_ALL_APPLICABLE_SELECTOR)) {
                 switch (defaultSelector) {
                     case ALL_APPLICABLE -> out.writeEnumSet(EnumSet.of(IndexComponentSelector.DATA, IndexComponentSelector.FAILURES));
                     case DATA -> out.writeEnumSet(EnumSet.of(IndexComponentSelector.DATA));
@@ -460,36 +460,6 @@ public record IndicesOptions(
             } else {
                 defaultSelector.writeTo(out);
             }
-        }
-
-        public static class Builder {
-            private IndexComponentSelector defaultSelector;
-
-            public Builder() {
-                this(DEFAULT);
-            }
-
-            Builder(SelectorOptions options) {
-                defaultSelector = options.defaultSelector;
-            }
-
-            public Builder defaultSelectors(IndexComponentSelector selector) {
-                defaultSelector = selector;
-                return this;
-            }
-
-            public SelectorOptions build() {
-                assert defaultSelector != null : "Default selectors cannot be null";
-                return new SelectorOptions(defaultSelector);
-            }
-        }
-
-        public static Builder builder() {
-            return new Builder();
-        }
-
-        public static Builder builder(SelectorOptions selectorOptions) {
-            return new Builder(selectorOptions);
         }
     }
 
@@ -563,7 +533,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FAILURE_STORE = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -601,7 +571,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -638,7 +608,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -657,7 +627,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -671,7 +641,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions LENIENT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTOR = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ALLOW_UNAVAILABLE_TARGETS)
@@ -703,7 +673,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -717,7 +687,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_CLOSED_HIDDEN_NO_SELECTORS = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -801,7 +771,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_HIDDEN_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -820,7 +790,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_EXPAND_OPEN_FORBID_CLOSED_IGNORE_THROTTLED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -839,7 +809,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .allowAliasToMultipleIndices(true)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_SINGLE_INDEX_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -858,7 +828,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
     public static final IndicesOptions STRICT_NO_EXPAND_FORBID_CLOSED = IndicesOptions.builder()
         .concreteTargetOptions(ConcreteTargetOptions.ERROR_WHEN_UNAVAILABLE_TARGETS)
@@ -877,7 +847,7 @@ public record IndicesOptions(
                 .allowFailureIndices(true)
                 .ignoreThrottled(false)
         )
-        .selectorOptions(SelectorOptions.ONLY_DATA)
+        .selectorOptions(SelectorOptions.DATA)
         .build();
 
     /**
@@ -973,16 +943,14 @@ public record IndicesOptions(
      * @return whether regular indices (stand-alone or backing indices) will be included in the response
      */
     public boolean includeRegularIndices() {
-        return selectorOptions().defaultSelector().equals(IndexComponentSelector.DATA)
-            || selectorOptions().defaultSelector().equals(IndexComponentSelector.ALL_APPLICABLE);
+        return selectorOptions().defaultSelector().shouldIncludeData();
     }
 
     /**
      * @return whether failure indices (only supported by certain data streams) will be included in the response
      */
     public boolean includeFailureIndices() {
-        return selectorOptions().defaultSelector().equals(IndexComponentSelector.FAILURES)
-            || selectorOptions().defaultSelector().equals(IndexComponentSelector.ALL_APPLICABLE);
+        return selectorOptions().defaultSelector().shouldIncludeFailures();
     }
 
     public void writeIndicesOptions(StreamOutput out) throws IOException {
@@ -1069,9 +1037,9 @@ public record IndicesOptions(
             if (includeData && includeFailures) {
                 selectorOptions = SelectorOptions.ALL_APPLICABLE;
             } else if (includeData) {
-                selectorOptions = SelectorOptions.ONLY_DATA;
+                selectorOptions = SelectorOptions.DATA;
             } else {
-                selectorOptions = SelectorOptions.ONLY_FAILURES;
+                selectorOptions = SelectorOptions.FAILURES;
             }
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY)) {
@@ -1131,11 +1099,6 @@ public record IndicesOptions(
 
         public Builder selectorOptions(SelectorOptions selectorOptions) {
             this.selectorOptions = selectorOptions;
-            return this;
-        }
-
-        public Builder selectorOptions(SelectorOptions.Builder selectorOptions) {
-            this.selectorOptions = selectorOptions.build();
             return this;
         }
 

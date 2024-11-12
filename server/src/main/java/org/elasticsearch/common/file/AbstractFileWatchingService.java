@@ -302,23 +302,32 @@ public abstract class AbstractFileWatchingService extends AbstractLifecycleCompo
     void processSettingsOnServiceStartAndNotifyListeners() throws InterruptedException {
         try {
             processFileOnServiceStart();
-            for (var listener : eventListeners) {
-                listener.watchedFileChanged();
-            }
         } catch (IOException | ExecutionException e) {
-            logger.error(() -> "Error processing watched file: " + watchedFile(), e);
+            onProcessFileChangesException(e);
+            return;
+        }
+        for (var listener : eventListeners) {
+            listener.watchedFileChanged();
         }
     }
 
     void processSettingsAndNotifyListeners() throws InterruptedException {
         try {
             processFileChanges();
-            for (var listener : eventListeners) {
-                listener.watchedFileChanged();
-            }
         } catch (IOException | ExecutionException e) {
-            logger.error(() -> "Error processing watched file: " + watchedFile(), e);
+            onProcessFileChangesException(e);
+            return;
         }
+        for (var listener : eventListeners) {
+            listener.watchedFileChanged();
+        }
+    }
+
+    /**
+     * Called for checked exceptions only.
+     */
+    protected void onProcessFileChangesException(Exception e) {
+        logger.error(() -> "Error processing watched file: " + watchedFile(), e);
     }
 
     // package private for testing

@@ -125,8 +125,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selectors = indicesOptions.selectorOptions().defaultSelector();
-        if (selectors.equals(IndexComponentSelector.ALL_APPLICABLE)) {
+        var selector = indicesOptions.selectorOptions().defaultSelector();
+        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
             validationException = addValidationError(
                 "rollover cannot be applied to both regular and failure indices at the same time",
                 validationException

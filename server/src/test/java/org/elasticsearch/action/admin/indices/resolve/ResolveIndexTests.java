@@ -14,7 +14,6 @@ import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.Resolve
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedDataStream;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.ResolvedIndex;
 import org.elasticsearch.action.admin.indices.resolve.ResolveIndexAction.TransportAction;
-import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.ResolvedExpression;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
@@ -231,22 +229,9 @@ public class ResolveIndexTests extends ESTestCase {
             .metadata(buildMetadata(new Object[][] {}, indices))
             .build();
         String[] requestedIndex = new String[] { "<logs-pgsql-prod-{now/d}>" };
-        Set<ResolvedExpression> resolvedIndices = resolver.resolveExpressions(
-            clusterState,
-            IndicesOptions.LENIENT_EXPAND_OPEN,
-            true,
-            requestedIndex
-        );
+        Set<String> resolvedIndices = resolver.resolveExpressions(clusterState, IndicesOptions.LENIENT_EXPAND_OPEN, true, requestedIndex);
         assertThat(resolvedIndices.size(), is(1));
-        assertThat(
-            resolvedIndices,
-            contains(
-                oneOf(
-                    new ResolvedExpression("logs-pgsql-prod-" + todaySuffix, IndexComponentSelector.DATA),
-                    new ResolvedExpression("logs-pgsql-prod-" + tomorrowSuffix, IndexComponentSelector.DATA)
-                )
-            )
-        );
+        assertThat(resolvedIndices, contains(oneOf("logs-pgsql-prod-" + todaySuffix, "logs-pgsql-prod-" + tomorrowSuffix)));
     }
 
     public void testSystemIndexAccess() {
@@ -540,7 +525,6 @@ public class ResolveIndexTests extends ESTestCase {
                                 }
                                 """, SystemIndexDescriptor.VERSION_META_KEY))
                             .setPrimaryIndex(".test-net-new-system-1")
-                            .setVersionMetaKey("version")
                             .setOrigin("system")
                             .build()
                     )

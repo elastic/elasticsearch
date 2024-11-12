@@ -56,19 +56,46 @@ template:
               os.version:
                 type: keyword
                 ignore_above: 1024
+              k8s.container.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.cronjob.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.daemonset.name:
+                type: keyword
+                ignore_above: 1024
               k8s.deployment.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.job.name:
                 type: keyword
                 ignore_above: 1024
               k8s.namespace.name:
                 type: keyword
                 ignore_above: 1024
+              k8s.node.hostname:
+                type: keyword
+                ignore_above: 1024
               k8s.node.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.node.uid:
                 type: keyword
                 ignore_above: 1024
               k8s.pod.name:
                 type: keyword
                 ignore_above: 1024
               k8s.pod.uid:
+                type: keyword
+                ignore_above: 1024
+              k8s.replicaset.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.statefulset.name:
+                type: keyword
+                ignore_above: 1024
+              k8s.cluster.name:
                 type: keyword
                 ignore_above: 1024
       service.node.name:
@@ -107,6 +134,10 @@ template:
       host.os.version:
         type: alias
         path: resource.attributes.os.version
+      orchestrator.cluster.name:
+        type: alias
+        path: resource.attributes.k8s.cluster.name
+# Below are non-ECS fields that may be used by Kibana.
       kubernetes.deployment.name:
         type: alias
         path: resource.attributes.k8s.deployment.name
@@ -122,7 +153,30 @@ template:
       kubernetes.pod.uid:
         type: alias
         path: resource.attributes.k8s.pod.uid
-# Below are non-ECS fields that may be used by Kibana.
+      kubernetes.container.name:
+        type: alias
+        path: resource.attributes.k8s.container.name
+      kubernetes.cronjob.name:
+        type: alias
+        path: resource.attributes.k8s.cronjob.name
+      kubernetes.job.name:
+        type: alias
+        path: resource.attributes.k8s.job.name
+      kubernetes.statefulset.name:
+        type: alias
+        path: resource.attributes.k8s.statefulset.name
+      kubernetes.daemonset.name:
+        type: alias
+        path: resource.attributes.k8s.daemonset.name
+      kubernetes.replicaset.name:
+        type: alias
+        path: resource.attributes.k8s.replicaset.name
+      kubernetes.node.uid:
+        type: alias
+        path: resource.attributes.k8s.node.uid
+      kubernetes.node.hostname:
+        type: alias
+        path: resource.attributes.k8s.node.hostname
       service.language.name:
         type: alias
         path: resource.attributes.telemetry.sdk.language

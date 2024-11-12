@@ -36,6 +36,7 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.http.HttpHeadersValidationException;
 import org.elasticsearch.http.HttpRouteStats;
+import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.rest.RestHandler.Route;
@@ -879,7 +880,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
     private static final class ResourceHandlingHttpChannel extends DelegatingRestChannel {
         private final CircuitBreakerService circuitBreakerService;
         private final int contentLength;
-        private final MethodHandlers methodHandlers;
+        private final HttpRouteStatsTracker statsTracker;
         private final long startTime;
         private final AtomicBoolean closed = new AtomicBoolean();
 
@@ -892,7 +893,7 @@ public class RestController implements HttpServerTransport.Dispatcher {
             super(delegate);
             this.circuitBreakerService = circuitBreakerService;
             this.contentLength = contentLength;
-            this.methodHandlers = methodHandlers;
+            this.statsTracker = methodHandlers.statsTracker();
             this.startTime = rawRelativeTimeInMillis();
         }
 
@@ -901,12 +902,12 @@ public class RestController implements HttpServerTransport.Dispatcher {
             boolean success = false;
             try {
                 close();
-                methodHandlers.addRequestStats(contentLength);
-                methodHandlers.addResponseTime(rawRelativeTimeInMillis() - startTime);
+                statsTracker.addRequestStats(contentLength);
+                statsTracker.addResponseTime(rawRelativeTimeInMillis() - startTime);
                 if (response.isChunked() == false) {
-                    methodHandlers.addResponseStats(response.content().length());
+                    statsTracker.addResponseStats(response.content().length());
                 } else {
-                    final var responseLengthRecorder = new ResponseLengthRecorder(methodHandlers);
+                    final var responseLengthRecorder = new ResponseLengthRecorder(statsTracker);
                     final var headers = response.getHeaders();
                     response = RestResponse.chunked(
                         response.status(),
@@ -941,11 +942,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
         }
     }
 
-    private static class ResponseLengthRecorder extends AtomicReference<MethodHandlers> implements Releasable {
+    private static class ResponseLengthRecorder extends AtomicReference<HttpRouteStatsTracker> implements Releasable {
         private long responseLength;
 
-        private ResponseLengthRecorder(MethodHandlers methodHandlers) {
-            super(methodHandlers);
+        private ResponseLengthRecorder(HttpRouteStatsTracker routeStatsTracker) {
+            super(routeStatsTracker);
         }
 
         @Override
@@ -953,11 +954,11 @@ public class RestController implements HttpServerTransport.Dispatcher {
             // closed just before sending the last chunk, and also when the whole RestResponse is closed since the client might abort the
             // connection before we send the last chunk, in which case we won't have recorded the response in the
             // stats yet; thus we need run-once semantics here:
-            final var methodHandlers = getAndSet(null);
-            if (methodHandlers != null) {
+            final var routeStatsTracker = getAndSet(null);
+            if (routeStatsTracker != null) {
                 // if we started sending chunks then we're closed on the transport worker, no need for sync
                 assert responseLength == 0L || Transports.assertTransportThread();
-                methodHandlers.addResponseStats(responseLength);
+                routeStatsTracker.addResponseStats(responseLength);
             }
         }
 

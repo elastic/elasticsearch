@@ -15,11 +15,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
@@ -144,7 +147,25 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
+    protected void onProcessFileChangesException(Exception e) {
+        if (e instanceof ExecutionException) {
+            var cause = e.getCause();
+            if (cause instanceof FailedToCommitClusterStateException) {
+                logger.error("Unable to commit cluster state", e);
+                return;
+            } else if (cause instanceof XContentParseException) {
+                logger.error("Unable to parse settings", e);
+                return;
+            } else if (cause instanceof NotMasterException) {
+                logger.error("Node is no longer master", e);
+                return;
+            }
+        }
+        super.onProcessFileChangesException(e);
+    }
+
+    @Override
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
         logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);

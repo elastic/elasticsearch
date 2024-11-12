@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Min;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -56,6 +57,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
@@ -1116,21 +1118,24 @@ public class AnalyzerTests extends ESTestCase {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, int)
-            """, "second argument of [date_trunc(1 month, int)] must be [datetime], found value [int] type [integer]");
+            """, "second argument of [date_trunc(1 month, int)] must be [date_nanos or datetime], found value [int] type [integer]");
     }
 
     public void testDateTruncOnFloat() {
         verifyUnsupported("""
             from test
             | eval date_trunc(1 month, float)
-            """, "second argument of [date_trunc(1 month, float)] must be [datetime], found value [float] type [double]");
+            """, "second argument of [date_trunc(1 month, float)] must be [date_nanos or datetime], found value [float] type [double]");
     }
 
     public void testDateTruncOnText() {
-        verifyUnsupported("""
-            from test
-            | eval date_trunc(1 month, keyword)
-            """, "second argument of [date_trunc(1 month, keyword)] must be [datetime], found value [keyword] type [keyword]");
+        verifyUnsupported(
+            """
+                from test
+                | eval date_trunc(1 month, keyword)
+                """,
+            "second argument of [date_trunc(1 month, keyword)] must be [date_nanos or datetime], found value [keyword] type [keyword]"
+        );
     }
 
     public void testDateTruncWithNumericInterval() {
@@ -1879,6 +1884,11 @@ public class AnalyzerTests extends ESTestCase {
         Supplier<Integer> supplier = () -> randomInt(fields.length - 1);
         int first = supplier.get();
         int second = randomValueOtherThan(first, supplier);
+        Function<String, String> noText = (type) -> type.equals("text") ? "keyword" : type;
+        assumeTrue(
+            "Ignore tests with TEXT and KEYWORD combinations because they are now valid",
+            noText.apply(fields[first][0]).equals(noText.apply(fields[second][0])) == false
+        );
 
         String signature = "mv_append(" + fields[first][0] + ", " + fields[second][0] + ")";
         verifyUnsupported(
@@ -1886,7 +1896,7 @@ public class AnalyzerTests extends ESTestCase {
             "second argument of ["
                 + signature
                 + "] must be ["
-                + fields[first][1]
+                + noText.apply(fields[first][1])
                 + "], found value ["
                 + fields[second][0]
                 + "] type ["
@@ -1948,7 +1958,7 @@ public class AnalyzerTests extends ESTestCase {
                  * on it and discover that it doesn't exist in the index. It doesn't!
                  * We don't expect it to. It exists only in the lookup table.
                  */
-                .item(containsString("name{r}"))
+                .item(containsString("name{f}"))
         );
     }
 
@@ -2087,7 +2097,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testNamedParamsForIdentifiers() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         assertProjectionWithMapping(
             """
@@ -2181,7 +2191,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testInvalidNamedParamsForIdentifiers() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // missing field
         assertError(
@@ -2254,7 +2264,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testNamedParamsForIdentifierPatterns() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         assertProjectionWithMapping(
             """
@@ -2288,7 +2298,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testInvalidNamedParamsForIdentifierPatterns() {
         assumeTrue(
             "named parameters for identifiers and patterns require snapshot build",
-            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES.isEnabled()
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
         );
         // missing pattern
         assertError(
@@ -2308,6 +2318,27 @@ public class AnalyzerTests extends ESTestCase {
             new QueryParams(List.of(paramAsIdentifier("f1", "x*"))),
             "Unknown column [x*], did you mean [x]?"
         );
+    }
+
+    public void testFromEnrichAndMatchColonUsage() {
+        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
+
+        LogicalPlan plan = analyze("""
+            from *:test
+            | EVAL x = to_string(languages)
+            | ENRICH _any:languages ON x
+            | WHERE first_name: "Anna"
+            """, "mapping-default.json");
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var match = as(filter.condition(), Match.class);
+        var enrich = as(filter.child(), Enrich.class);
+        assertEquals(enrich.mode(), Enrich.Mode.ANY);
+        assertEquals(enrich.policy().getMatchField(), "language_code");
+        var eval = as(enrich.child(), Eval.class);
+        var esRelation = as(eval.child(), EsRelation.class);
+        assertEquals(esRelation.index().name(), "test");
+
     }
 
     private void verifyUnsupported(String query, String errorMessage) {

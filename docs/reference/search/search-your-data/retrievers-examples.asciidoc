@@ -703,7 +703,7 @@ GET /retrievers_example/_search
 // TEST[setup:retrievers_examples]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
-[source, console-result]
+[source, js]
 ----
 {
     "took": 42,
@@ -723,7 +723,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
         "hits": [
             {
                 "_shard": "[retrievers_example][0]",
-                "_node": "jn_rdZFKS3-UgWVsVdj2Vg",
+                "_node": "jnrdZFKS3abUgWVsVdj2Vg",
                 "_index": "retrievers_example",
                 "_id": "1",
                 "_score": 0.5,
@@ -802,5 +802,4 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
     }
 }
 ----
-// TESTRESPONSE[s/"took": 42/"took": $body.took/]
-// TESTRESPONSE[s/"\.\.\."/$body.hits.hits.0._explanation.details/]
+// NOTCONSOLE

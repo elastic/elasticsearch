@@ -22,6 +22,13 @@ public class AllocationStatsService {
     private final Supplier<DesiredBalance> desiredBalanceSupplier;
     private final NodeAllocationStatsProvider nodeAllocationStatsProvider;
 
+    public AllocationStatsService(NodeAllocationStatsProvider nodeAllocationStatsProvider, ShardsAllocator shardsAllocator) {
+        this.nodeAllocationStatsProvider = nodeAllocationStatsProvider;
+        this.desiredBalanceSupplier = shardsAllocator instanceof DesiredBalanceShardsAllocator allocator
+            ? allocator::getDesiredBalance
+            : () -> null;
+    }
+
     public AllocationStatsService(
         ClusterService clusterService,
         ClusterInfoService clusterInfoService,

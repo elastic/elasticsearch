@@ -25,7 +25,6 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalance;
 import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceComputer;
@@ -121,11 +120,10 @@ public class TransportDeleteDesiredBalanceActionTests extends ESAllocationTestCa
             delegate,
             threadPool,
             clusterService,
-            EmptyClusterInfoService.INSTANCE,
-            WriteLoadForecaster.DEFAULT,
             computer,
             (state, action) -> state,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = new MockAllocationService(
             randomAllocationDeciders(settings, clusterSettings),

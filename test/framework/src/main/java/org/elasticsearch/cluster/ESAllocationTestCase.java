@@ -24,6 +24,8 @@ import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.FailedShard;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
@@ -164,10 +166,9 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             new BalancedShardsAllocator(settings),
             queue.getThreadPool(),
             clusterService,
-            () -> ClusterInfo.EMPTY,
-            WriteLoadForecaster.DEFAULT,
             null,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             private RoutingAllocation lastAllocation;
 
@@ -434,4 +435,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
             }
         }
     }
+
+    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
+        null,
+        EmptyClusterInfoService.INSTANCE,
+        WriteLoadForecaster.DEFAULT
+    ) {
+        @Override
+        public Map<String, NodeAllocationStats> stats(DesiredBalance desiredBalance) {
+            return Map.of();
+        }
+    };
 }

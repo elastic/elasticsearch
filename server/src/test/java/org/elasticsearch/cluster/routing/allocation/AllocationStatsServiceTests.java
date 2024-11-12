@@ -162,10 +162,9 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     createShardAllocator(),
                     threadPool,
                     clusterService,
-                    EmptyClusterInfoService.INSTANCE,
-                    WriteLoadForecaster.DEFAULT,
                     (innerState, strategy) -> innerState,
-                    TelemetryProvider.NOOP
+                    TelemetryProvider.NOOP,
+                    EMPTY_NODE_ALLOCATION_STATS
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {

@@ -12,7 +12,6 @@ package org.elasticsearch.cluster.routing.allocation.allocator;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
@@ -23,7 +22,6 @@ import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
-import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
@@ -87,20 +85,18 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ClusterInfoService clusterInfoService,
-        WriteLoadForecaster writeLoadForecaster,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this(
             delegateAllocator,
             threadPool,
             clusterService,
-            clusterInfoService,
-            writeLoadForecaster,
             new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, delegateAllocator),
             reconciler,
-            telemetryProvider
+            telemetryProvider,
+            nodeAllocationStatsProvider
         );
     }
 
@@ -108,11 +104,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ShardsAllocator delegateAllocator,
         ThreadPool threadPool,
         ClusterService clusterService,
-        ClusterInfoService clusterInfoService,
-        WriteLoadForecaster writeLoadForecaster,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
@@ -123,7 +118,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService.getClusterSettings(),
             threadPool,
             desiredBalanceMetrics,
-            new NodeAllocationStatsProvider(clusterService, clusterInfoService, writeLoadForecaster)
+            nodeAllocationStatsProvider
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 

@@ -22,7 +22,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
@@ -32,6 +31,7 @@ import org.elasticsearch.index.mapper.MapperParsingException;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperTestCase;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.KeyedFlattenedFieldType;
 import org.elasticsearch.index.mapper.flattened.FlattenedFieldMapper.RootFlattenedFieldType;
@@ -210,7 +210,7 @@ public class FlattenedFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field.key1", "value1", "value2");
             b.field("@timestamp", Instant.now());
-        }, DimensionRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 

@@ -25,7 +25,7 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexVersions;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.transport.Transports;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParser.Token;
@@ -290,7 +290,7 @@ public abstract class IndexRouting {
             checkNoRouting(routing);
             int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             if (trackTimeSeriesRoutingHash) {
-                routingHashSetter.accept(DimensionRoutingHashFieldMapper.encode(hash));
+                routingHashSetter.accept(RoutingPathHashFieldMapper.encode(hash));
             }
             return hashToShardId(hash);
         }

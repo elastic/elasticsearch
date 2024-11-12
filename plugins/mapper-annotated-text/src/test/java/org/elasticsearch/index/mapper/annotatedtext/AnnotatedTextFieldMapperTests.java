@@ -37,7 +37,7 @@ import org.elasticsearch.index.analysis.LowercaseNormalizer;
 import org.elasticsearch.index.analysis.NamedAnalyzer;
 import org.elasticsearch.index.analysis.StandardTokenizerFactory;
 import org.elasticsearch.index.analysis.TokenFilterFactory;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -333,7 +333,7 @@ public class AnnotatedTextFieldMapperTests extends MapperTestCase {
         });
         DocumentMapper mapper = createMapperService(getVersion(), indexSettings, () -> true, mapping).documentMapper();
 
-        var source = source(DimensionRoutingHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
+        var source = source(RoutingPathHashFieldMapper.DUMMY_ENCODED_VALUE, b -> {
             b.field("field", "1234");
             if (timeSeriesIndexMode) {
                 b.field("@timestamp", "2000-10-10T23:40:53.384Z");

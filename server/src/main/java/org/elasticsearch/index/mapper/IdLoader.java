@@ -100,9 +100,7 @@ public sealed interface IdLoader permits IdLoader.SyntheticIdLoader, IdLoader.St
                 (indexMode == IndexMode.TIME_SERIES) ? TimeSeriesIdFieldMapper.NAME : LogsIdFieldMapper.NAME
             );
             SortedNumericDocValues timestampDocValues = DocValues.getSortedNumeric(reader, DataStream.TIMESTAMP_FIELD_NAME);
-            SortedDocValues routingHashDocValues = builders == null
-                ? DocValues.getSorted(reader, DimensionRoutingHashFieldMapper.NAME)
-                : null;
+            SortedDocValues routingHashDocValues = builders == null ? DocValues.getSorted(reader, RoutingPathHashFieldMapper.NAME) : null;
             for (int i = 0; i < docIdsInLeaf.length; i++) {
                 int docId = docIdsInLeaf[i];
 
@@ -120,7 +118,7 @@ public sealed interface IdLoader permits IdLoader.SyntheticIdLoader, IdLoader.St
                     found = routingHashDocValues.advanceExact(docId);
                     assert found;
                     BytesRef routingHashBytes = routingHashDocValues.lookupOrd(routingHashDocValues.ordValue());
-                    int routingHash = DimensionRoutingHashFieldMapper.decode(
+                    int routingHash = RoutingPathHashFieldMapper.decode(
                         Uid.decodeId(routingHashBytes.bytes, routingHashBytes.offset, routingHashBytes.length)
                     );
                     ids[i] = (indexMode == IndexMode.TIME_SERIES)

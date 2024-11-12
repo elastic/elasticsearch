@@ -117,8 +117,8 @@ public class LogsIdFieldMapper extends MetadataFieldMapper {
     public void postParse(DocumentParserContext context) throws IOException {
         assert fieldType().isIndexed() == false;
         if (context.indexSettings().usesRoutingPath()) {
-            final RoutingDimensions routingDimensions = (RoutingDimensions) context.getDimensions();
-            final BytesRef id = DimensionHasher.build(routingDimensions).toBytesRef();
+            final RoutingPathFields routingPathFields = (RoutingPathFields) context.getRoutingFields();
+            final BytesRef id = routingPathFields.buildHash().toBytesRef();
             context.doc().add(new SortedDocValuesField(fieldType().name(), id));
             LogsIdExtractingIdFieldMapper.createField(context, id);
         }

@@ -829,7 +829,7 @@ public abstract class DocumentParserContext {
     /**
      * Identify the fields that match the routing path, for indexes in logs mode. These fields are equivalent to TSDB dimensions.
      */
-    public final void getDimensionsForLogsMode() {
+    public final void getRoutingFieldsForLogsMode() {
         if (indexSettings().getMode() == IndexMode.LOGSDB
             && indexSettings().getIndexRouting() instanceof IndexRouting.ExtractFromSource dimensionRouting) {
             for (var mapper : mappingLookup().fieldMappers()) {
@@ -839,15 +839,15 @@ public abstract class DocumentParserContext {
                     if (field != null) {
                         var binaryValue = field.binaryValue();
                         if (binaryValue != null) {
-                            getDimensions().addString(name, binaryValue);
+                            getRoutingFields().addString(name, binaryValue);
                         } else {
                             var stringValue = field.stringValue();
                             if (stringValue != null) {
-                                getDimensions().addString(name, stringValue);
+                                getRoutingFields().addString(name, stringValue);
                             } else {
                                 var numericValueValue = field.numericValue();
                                 if (numericValueValue != null) {
-                                    getDimensions().addLong(name, numericValueValue.longValue());
+                                    getRoutingFields().addLong(name, numericValueValue.longValue());
                                 }
                             }
                         }

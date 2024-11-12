@@ -54,9 +54,9 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.engine.SegmentsStats;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.index.seqno.RetentionLease;
@@ -522,7 +522,7 @@ public class RecoverySourceHandlerTests extends MapperServiceTestCase {
                 {
                     "@timestamp": %s,
                     "dim": "dim"
-                }""", docIdent)), XContentType.JSON, DimensionRoutingHashFieldMapper.DUMMY_ENCODED_VALUE);
+                }""", docIdent)), XContentType.JSON, RoutingPathHashFieldMapper.DUMMY_ENCODED_VALUE);
             return IndexShard.prepareIndex(
                 mapper,
                 source,

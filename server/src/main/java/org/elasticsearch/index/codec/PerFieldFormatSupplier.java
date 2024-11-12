@@ -20,11 +20,11 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.codec.bloomfilter.ES87BloomFilterPostingsFormat;
 import org.elasticsearch.index.codec.postings.ES812PostingsFormat;
 import org.elasticsearch.index.codec.tsdb.ES87TSDBDocValuesFormat;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.LogsIdFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 
@@ -116,7 +116,7 @@ public class PerFieldFormatSupplier {
         return fieldName.startsWith("_")
             && fieldName.equals(TimeSeriesIdFieldMapper.NAME) == false
             && fieldName.equals(LogsIdFieldMapper.NAME) == false
-            && fieldName.equals(DimensionRoutingHashFieldMapper.NAME) == false;
+            && fieldName.equals(RoutingPathHashFieldMapper.NAME) == false;
     }
 
     private boolean isTimeSeriesModeIndex() {

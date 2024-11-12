@@ -57,7 +57,7 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.OnScriptError;
 import org.elasticsearch.index.mapper.ParsedDocument;
@@ -813,7 +813,7 @@ public class PainlessExecuteAction {
                             document,
                             xContentType,
                             indexService.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID)
-                                ? DimensionRoutingHashFieldMapper.DUMMY_ENCODED_VALUE
+                                ? RoutingPathHashFieldMapper.DUMMY_ENCODED_VALUE
                                 : null
                         )
                         : new SourceToParse("_id", document, xContentType);

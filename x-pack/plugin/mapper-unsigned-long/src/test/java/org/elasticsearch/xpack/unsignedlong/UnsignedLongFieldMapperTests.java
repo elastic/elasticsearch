@@ -13,7 +13,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -272,7 +272,7 @@ public class UnsignedLongFieldMapperTests extends WholeNumberFieldMapperTests {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong());
             b.field("@timestamp", Instant.now());
-        }, DimensionRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 

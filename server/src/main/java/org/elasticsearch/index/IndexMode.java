@@ -23,7 +23,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.codec.CodecService;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
-import org.elasticsearch.index.mapper.DimensionRoutingHashFieldMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.IdFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
@@ -37,6 +36,7 @@ import org.elasticsearch.index.mapper.ProvidedIdFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
 import org.elasticsearch.index.mapper.RoutingFields;
 import org.elasticsearch.index.mapper.RoutingPathFields;
+import org.elasticsearch.index.mapper.RoutingPathHashFieldMapper;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.TsidExtractingIdFieldMapper;
@@ -199,7 +199,7 @@ public enum IndexMode {
 
         @Override
         public MetadataFieldMapper routingHashFieldMapper() {
-            return DimensionRoutingHashFieldMapper.INSTANCE;
+            return RoutingPathHashFieldMapper.INSTANCE;
         }
 
         public IdFieldMapper idFieldMapperWithoutFieldData() {
@@ -284,7 +284,7 @@ public enum IndexMode {
         }
 
         public MetadataFieldMapper routingHashFieldMapper() {
-            return DimensionRoutingHashFieldMapper.INSTANCE;
+            return RoutingPathHashFieldMapper.INSTANCE;
         }
 
         @Override
@@ -387,7 +387,6 @@ public enum IndexMode {
     }
 
     private static void validateTimeSeriesSettings(Map<Setting<?>, Object> settings) {
-        settingRequiresTimeSeries(settings, IndexMetadata.INDEX_ROUTING_PATH);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_START_TIME);
         settingRequiresTimeSeries(settings, IndexSettings.TIME_SERIES_END_TIME);
     }
@@ -513,7 +512,7 @@ public enum IndexMode {
     public abstract MetadataFieldMapper indexModeIdFieldMapper();
 
     /**
-     * Return an instance of the {@link DimensionRoutingHashFieldMapper} that generates
+     * Return an instance of the {@link RoutingPathHashFieldMapper} that generates
      * the _ts_routing_hash field. The field mapper will be added to the list of the metadata
      * field mappers for the index.
      */

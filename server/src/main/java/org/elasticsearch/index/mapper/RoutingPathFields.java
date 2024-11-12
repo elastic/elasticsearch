@@ -12,6 +12,7 @@ package org.elasticsearch.index.mapper;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.StringHelper;
 import org.elasticsearch.cluster.routing.IndexRouting;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.Murmur3Hasher;
@@ -223,6 +224,24 @@ public final class RoutingPathFields implements RoutingFields {
             }
             values.add(encoded);
         }
+    }
+
+    static Object encode(StreamInput in) {
+        try {
+            return base64Encode(in.readSlicedBytesReference().toBytesRef());
+        } catch (IOException e) {
+            throw new IllegalArgumentException("Unable to read tsid");
+        }
+    }
+
+    public static Object encode(final BytesRef bytesRef) {
+        return base64Encode(bytesRef);
+    }
+
+    private static String base64Encode(final BytesRef bytesRef) {
+        byte[] bytes = new byte[bytesRef.length];
+        System.arraycopy(bytesRef.bytes, bytesRef.offset, bytes, 0, bytesRef.length);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(bytes);
     }
 
     public static Map<String, Object> decodeAsMap(BytesRef bytesRef) {

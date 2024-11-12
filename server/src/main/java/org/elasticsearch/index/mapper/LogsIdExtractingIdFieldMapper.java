@@ -55,7 +55,7 @@ public class LogsIdExtractingIdFieldMapper extends IdFieldMapper {
         long timestamp = timestampField.numericValue().longValue();
         String id;
         if (context.sourceToParse().routing() != null) {
-            int routingHash = DimensionRoutingHashFieldMapper.decode(context.sourceToParse().routing());
+            int routingHash = RoutingPathHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, logsId, timestamp);
         } else {
             if (context.sourceToParse().id() == null) {
@@ -127,7 +127,7 @@ public class LogsIdExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private static String logsIdDescription(IndexableField field) {
-        String encoded = DimensionHasher.encode(field.binaryValue()).toString();
+        String encoded = RoutingPathFields.encode(field.binaryValue()).toString();
         if (encoded.length() <= DESCRIPTION_LIMIT) {
             return encoded;
         }

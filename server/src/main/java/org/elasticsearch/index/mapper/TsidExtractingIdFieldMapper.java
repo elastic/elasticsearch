@@ -66,7 +66,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
                 || context.getDynamicRuntimeFields().isEmpty() == false
                 || id.equals(indexRouting.createId(context.sourceToParse().getXContentType(), context.sourceToParse().source(), suffix));
         } else if (context.sourceToParse().routing() != null) {
-            int routingHash = DimensionRoutingHashFieldMapper.decode(context.sourceToParse().routing());
+            int routingHash = RoutingPathHashFieldMapper.decode(context.sourceToParse().routing());
             id = createId(routingHash, tsid, timestamp);
         } else {
             if (context.sourceToParse().id() == null) {
@@ -162,7 +162,7 @@ public class TsidExtractingIdFieldMapper extends IdFieldMapper {
     }
 
     private static String tsidDescription(IndexableField tsidField) {
-        String tsid = DimensionHasher.encode(tsidField.binaryValue()).toString();
+        String tsid = RoutingPathFields.encode(tsidField.binaryValue()).toString();
         if (tsid.length() <= DESCRIPTION_TSID_LIMIT) {
             return tsid;
         }

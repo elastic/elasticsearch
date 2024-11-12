@@ -271,7 +271,7 @@ public class BooleanFieldMapperTests extends MapperTestCase {
         ParsedDocument doc = mapper.parse(source(null, b -> {
             b.array("field", true, false);
             b.field("@timestamp", Instant.now());
-        }, DimensionRoutingHashFieldMapper.encode(randomInt())));
+        }, RoutingPathHashFieldMapper.encode(randomInt())));
         assertThat(doc.docs().get(0).getFields("field"), hasSize(greaterThan(1)));
     }
 

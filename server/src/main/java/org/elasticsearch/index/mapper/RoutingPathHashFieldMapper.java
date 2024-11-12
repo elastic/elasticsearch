@@ -39,11 +39,11 @@ import java.util.Collections;
  * It's stored to be retrieved and added as a prefix when reconstructing the _id field in search queries.
  * The prefix can then be used for routing Get and Delete requests (by doc id) to the right shard.
  */
-public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
+public class RoutingPathHashFieldMapper extends MetadataFieldMapper {
 
     public static final String NAME = "_ts_routing_hash";
 
-    public static final DimensionRoutingHashFieldMapper INSTANCE = new DimensionRoutingHashFieldMapper();
+    public static final RoutingPathHashFieldMapper INSTANCE = new RoutingPathHashFieldMapper();
 
     public static final TypeParser PARSER = new FixedTypeParser(c -> {
         if (c.getIndexSettings().usesRoutingPath()) {
@@ -118,7 +118,7 @@ public class DimensionRoutingHashFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    private DimensionRoutingHashFieldMapper() {
+    private RoutingPathHashFieldMapper() {
         super(DimensionRoutingHashFieldType.INSTANCE);
     }
 

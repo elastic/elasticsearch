@@ -145,7 +145,7 @@ public final class DocumentParser {
 
             executeIndexTimeScripts(context);
 
-            context.getDimensionsForLogsMode();
+            context.getRoutingFieldsForLogsMode();
 
             for (MetadataFieldMapper metadataMapper : metadataFieldsMappers) {
                 metadataMapper.postParse(context);

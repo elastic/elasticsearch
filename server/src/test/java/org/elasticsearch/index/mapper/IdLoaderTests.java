@@ -28,6 +28,7 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.core.CheckedConsumer;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
@@ -46,7 +47,7 @@ public class IdLoaderTests extends ESTestCase {
     private final int routingHash = randomInt();
 
     public void testSynthesizeIdSimple() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs = List.of(
@@ -68,7 +69,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdMultipleSegments() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         List<Doc> docs1 = List.of(
@@ -138,7 +139,7 @@ public class IdLoaderTests extends ESTestCase {
     }
 
     public void testSynthesizeIdRandom() throws Exception {
-        var idLoader = IdLoader.createTsIdLoader(null, null);
+        var idLoader = IdLoader.createSyntheticIdLoader(null, null, IndexMode.TIME_SERIES);
 
         long startTime = DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.parseMillis("2023-01-01T00:00:00Z");
         Set<String> expectedIDs = new HashSet<>();
@@ -202,7 +203,7 @@ public class IdLoaderTests extends ESTestCase {
             }
             Sort sort = new Sort(
                 new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
-                new SortField(DimensionRoutingHashFieldMapper.NAME, SortField.Type.STRING, false),
+                new SortField(RoutingPathHashFieldMapper.NAME, SortField.Type.STRING, false),
                 new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
             );
             config.setIndexSort(sort);
@@ -233,12 +234,7 @@ public class IdLoaderTests extends ESTestCase {
         }
         BytesRef tsid = routingFields.buildHash().toBytesRef();
         fields.add(new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, tsid));
-        fields.add(
-            new SortedDocValuesField(
-                DimensionRoutingHashFieldMapper.NAME,
-                Uid.encodeId(DimensionRoutingHashFieldMapper.encode(routingHash))
-            )
-        );
+        fields.add(new SortedDocValuesField(RoutingPathHashFieldMapper.NAME, Uid.encodeId(RoutingPathHashFieldMapper.encode(routingHash))));
         iw.addDocument(fields);
     }
 

@@ -437,9 +437,15 @@ public abstract class ESAllocationTestCase extends ESTestCase {
         }
     }
 
-    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(WriteLoadForecaster.DEFAULT) {
+    protected static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
+        WriteLoadForecaster.DEFAULT
+    ) {
         @Override
-        public Map<String, NodeAllocationStats> stats(ClusterState clusterState, ClusterInfo clusterInfo, @Nullable DesiredBalance desiredBalance) {
+        public Map<String, NodeAllocationStats> stats(
+            ClusterState clusterState,
+            ClusterInfo clusterInfo,
+            @Nullable DesiredBalance desiredBalance
+        ) {
             return Map.of();
         }
     };

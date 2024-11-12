@@ -78,7 +78,7 @@ regexBooleanExpression
     ;
 
 matchBooleanExpression
-    : valueExpression MATCH queryString=string
+    : fieldExp=qualifiedName COLON queryString=constant
     ;
 
 valueExpression
@@ -106,9 +106,7 @@ functionExpression
     ;
 
 functionName
-    // Additional function identifiers that are already a reserved word in the language
-    : MATCH
-    | identifierOrParameter
+    : identifierOrParameter
     ;
 
 dataType

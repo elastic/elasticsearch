@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -115,9 +113,13 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests {
+    private static final String ESQL_CORE_CLASS_PREFIX = "org.elasticsearch.xpack.esql.core";
+    private static final String ESQL_CORE_JAR_LOCATION_SUBSTRING = "x-pack-esql-core";
+    private static final String ESQL_CLASS_PREFIX = "org.elasticsearch.xpack.esql";
+
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
-        boolean esqlCore = className.startsWith("org.elasticsearch.xpack.esql.core") != false;
-        boolean esqlProper = className.startsWith("org.elasticsearch.xpack.esql") != false;
+        boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
+        boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
         return (esqlCore || esqlProper);
     };
 
@@ -164,15 +166,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
-
-        // special exceptions with private constructors
-        if (MetadataAttribute.class.equals(subclass) || ReferenceAttribute.class.equals(subclass)) {
-            expectedCount++;
-        }
-
-        if (FieldAttribute.class.equals(subclass)) {
-            expectedCount += 2;
-        }
 
         assertEquals(expectedCount, info(node).properties().size());
     }
@@ -737,7 +730,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // NIO FileSystem API is not used since it trips the SecurityManager
             // https://bugs.openjdk.java.net/browse/JDK-8160798
             // so iterate the jar "by hand"
-            if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
+            if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;
                     while ((je = jar.getNextJarEntry()) != null) {

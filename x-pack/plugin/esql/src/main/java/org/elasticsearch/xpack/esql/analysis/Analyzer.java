@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
+import org.elasticsearch.xpack.esql.expression.function.scalar.convert.FoldablesConvertFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToDouble;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToInteger;
 import org.elasticsearch.xpack.esql.expression.function.scalar.convert.ToLong;
@@ -1328,6 +1329,16 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             if (convert.field() instanceof FieldAttribute fa && fa.field() instanceof InvalidMappedField imf) {
                 HashMap<TypeResolutionKey, Expression> typeResolutions = new HashMap<>();
                 Set<DataType> supportedTypes = convert.supportedTypes();
+                if (convert instanceof FoldablesConvertFunction fcf) {
+                    // FoldablesConvertFunction does not accept fields as inputs, they only accept constants
+                    String unresolvedMessage = "argument of ["
+                        + fcf.sourceText()
+                        + "] must be a constant, received ["
+                        + Expressions.name(fa)
+                        + "]";
+                    Expression ua = new UnresolvedAttribute(fa.source(), fa.name(), unresolvedMessage);
+                    return fcf.replaceChildren(Collections.singletonList(ua));
+                }
                 imf.types().forEach(type -> {
                     if (supportedTypes.contains(type.widenSmallNumeric())) {
                         TypeResolutionKey key = new TypeResolutionKey(fa.name(), type);

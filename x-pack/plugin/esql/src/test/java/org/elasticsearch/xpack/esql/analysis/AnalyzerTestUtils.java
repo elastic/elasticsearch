@@ -22,7 +22,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.MATCH_TYPE;
@@ -92,7 +91,7 @@ public final class AnalyzerTestUtils {
 
     public static IndexResolution loadMapping(String resource, String indexName) {
         EsIndex test = new EsIndex(indexName, EsqlTestUtils.loadMapping(resource));
-        return IndexResolution.valid(test, Set.of(indexName));
+        return IndexResolution.valid(test);
     }
 
     public static IndexResolution analyzerDefaultMapping() {

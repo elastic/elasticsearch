@@ -183,12 +183,12 @@ class EsqlSessionCCSUtils {
     static void updateExecutionInfoWithClustersWithNoMatchingIndices(EsqlExecutionInfo executionInfo, IndexResolution indexResolution) {
         Set<String> clustersWithResolvedIndices = new HashSet<>();
         // determine missing clusters
-        for (String indexName : indexResolution.getResolvedIndices()) {
+        for (String indexName : indexResolution.resolvedIndices()) {
             clustersWithResolvedIndices.add(RemoteClusterAware.parseClusterAlias(indexName));
         }
         Set<String> clustersRequested = executionInfo.clusterAliases();
         Set<String> clustersWithNoMatchingIndices = Sets.difference(clustersRequested, clustersWithResolvedIndices);
-        clustersWithNoMatchingIndices.removeAll(indexResolution.getUnavailableClusters().keySet());
+        clustersWithNoMatchingIndices.removeAll(indexResolution.unavailableClusters().keySet());
 
         /**
          * Rules enforced at planning time around non-matching indices

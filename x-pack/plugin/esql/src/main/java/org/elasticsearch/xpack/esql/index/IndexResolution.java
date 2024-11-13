@@ -16,6 +16,12 @@ import java.util.Set;
 
 public final class IndexResolution {
 
+    /**
+     * @param index EsIndex encapsulating requested index expression, resolved mappings and index modes from field-caps.
+     * @param resolvedIndices Set of concrete indices resolved by field-caps. (This information is not always present in the EsIndex).
+     * @param unavailableClusters Remote clusters that could not be contacted during planning
+     * @return valid IndexResolution
+     */
     public static IndexResolution valid(
         EsIndex index,
         Set<String> resolvedIndices,
@@ -27,8 +33,11 @@ public final class IndexResolution {
         return new IndexResolution(index, null, resolvedIndices, unavailableClusters);
     }
 
-    public static IndexResolution valid(EsIndex index, Set<String> resolvedIndices) {
-        return valid(index, resolvedIndices, Collections.emptyMap());
+    /**
+     * Use this method only if the set of concrete resolved indices is the same as EsIndex#concreteIndices().
+     */
+    public static IndexResolution valid(EsIndex index) {
+        return valid(index, index.concreteIndices(), Collections.emptyMap());
     }
 
     public static IndexResolution invalid(String invalid) {
@@ -89,14 +98,14 @@ public final class IndexResolution {
      * @return Map of unavailable clusters (could not be connected to during field-caps query). Key of map is cluster alias,
      * value is the {@link FieldCapabilitiesFailure} describing the issue.
      */
-    public Map<String, FieldCapabilitiesFailure> getUnavailableClusters() {
+    public Map<String, FieldCapabilitiesFailure> unavailableClusters() {
         return unavailableClusters;
     }
 
     /**
      * @return all indices found by field-caps (regardless of whether they had any mappings)
      */
-    public Set<String> getResolvedIndices() {
+    public Set<String> resolvedIndices() {
         return resolvedIndices;
     }
 
@@ -119,6 +128,16 @@ public final class IndexResolution {
 
     @Override
     public String toString() {
-        return invalid != null ? invalid : index.name();
+        return "IndexResolution{"
+            + "index="
+            + index
+            + ", invalid='"
+            + invalid
+            + '\''
+            + ", resolvedIndices="
+            + resolvedIndices
+            + ", unavailableClusters="
+            + unavailableClusters
+            + '}';
     }
 }

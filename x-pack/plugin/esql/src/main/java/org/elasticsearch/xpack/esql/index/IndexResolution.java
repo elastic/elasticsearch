@@ -128,16 +128,18 @@ public final class IndexResolution {
 
     @Override
     public String toString() {
-        return "IndexResolution{"
-            + "index="
-            + index
-            + ", invalid='"
-            + invalid
-            + '\''
-            + ", resolvedIndices="
-            + resolvedIndices
-            + ", unavailableClusters="
-            + unavailableClusters
-            + '}';
+        return invalid != null
+            ? invalid
+            : "IndexResolution{"
+                + "index="
+                + index
+                + ", invalid='"
+                + invalid
+                + '\''
+                + ", resolvedIndices="
+                + resolvedIndices
+                + ", unavailableClusters="
+                + unavailableClusters
+                + '}';
     }
 }

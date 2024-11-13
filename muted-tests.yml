@@ -239,6 +239,8 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testRestartNodeDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/116730
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116740
 
 # Examples:
 #

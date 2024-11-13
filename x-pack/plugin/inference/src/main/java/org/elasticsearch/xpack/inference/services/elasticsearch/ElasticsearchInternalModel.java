@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -67,11 +68,12 @@ public abstract class ElasticsearchInternalModel extends Model {
         this.internalServiceSettings = internalServiceSettings;
     }
 
-    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
+    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest(TimeValue timeout) {
         var startRequest = new StartTrainedModelDeploymentAction.Request(internalServiceSettings.modelId(), this.getInferenceEntityId());
         startRequest.setNumberOfAllocations(internalServiceSettings.getNumAllocations());
         startRequest.setThreadsPerAllocation(internalServiceSettings.getNumThreads());
         startRequest.setAdaptiveAllocationsSettings(internalServiceSettings.getAdaptiveAllocationsSettings());
+        startRequest.setTimeout(timeout);
         startRequest.setWaitForState(STARTED);
 
         return startRequest;

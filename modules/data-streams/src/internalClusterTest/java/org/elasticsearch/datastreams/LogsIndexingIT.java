@@ -11,6 +11,8 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.get.GetRequest;
@@ -19,6 +21,7 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.plugins.Plugin;
@@ -32,9 +35,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.notNullValue;
+import static org.hamcrest.Matchers.*;
 
 public class LogsIndexingIT extends ESSingleNodeTestCase {
 
@@ -93,13 +94,17 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of(dataStreamName + "*"))
                 .template(
-                    new Template(indexSettings(4, 0).put("index.mode", "logsdb").build(), new CompressedXContent(MAPPING_TEMPLATE), null)
+                    new Template(
+                        indexSettings(4, 0).put("index.mode", "logsdb").put("index.sort.field", "message,k8s.pod.uid,@timestamp").build(),
+                        new CompressedXContent(MAPPING_TEMPLATE),
+                        null
+                    )
                 )
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false))
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
-        checkIndexSearchAndRetrieval(dataStreamName);
+        checkIndexSearchAndRetrieval(dataStreamName, false);
     }
 
     public void testRouteOnSortFields() throws Exception {
@@ -111,7 +116,7 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 .template(
                     new Template(
                         indexSettings(4, 0).put("index.mode", "logsdb")
-                            .put("index.sort.field", "message,k8s.pod.uid")
+                            .put("index.sort.field", "message,k8s.pod.uid,@timestamp")
                             .put("index.logsdb.route_on_sort_fields", true)
                             .build(),
                         new CompressedXContent(MAPPING_TEMPLATE),
@@ -122,10 +127,10 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 .build()
         );
         client().execute(TransportPutComposableIndexTemplateAction.TYPE, putTemplateRequest).actionGet();
-        checkIndexSearchAndRetrieval(dataStreamName);
+        checkIndexSearchAndRetrieval(dataStreamName, true);
     }
 
-    private void checkIndexSearchAndRetrieval(String dataStreamName) throws Exception {
+    private void checkIndexSearchAndRetrieval(String dataStreamName, boolean routeOnSortFields) throws Exception {
         String[] uuis = {
             UUID.randomUUID().toString(),
             UUID.randomUUID().toString(),
@@ -154,6 +159,20 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
                 indexName = bulkResponse.getItems()[0].getIndex();
             }
             client().admin().indices().refresh(new RefreshRequest(dataStreamName)).actionGet();
+        }
+
+        // Verify settings.
+        final GetSettingsResponse getSettingsResponse = indicesAdmin().getSettings(
+            new GetSettingsRequest().indices(indexName).includeDefaults(false)
+        ).actionGet();
+        final Settings settings = getSettingsResponse.getIndexToSettings().get(indexName);
+        assertEquals("message,k8s.pod.uid,@timestamp", settings.get("index.sort.field"));
+        if (routeOnSortFields) {
+            assertEquals("[message, k8s.pod.uid]", settings.get("index.routing_path"));
+            assertEquals("true", settings.get("index.logsdb.route_on_sort_fields"));
+        } else {
+            assertNull(settings.get("index.routing_path"));
+            assertNull(settings.get("index.logsdb.route_on_sort_fields"));
         }
 
         // Check the search api can synthesize _id

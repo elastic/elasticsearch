@@ -237,6 +237,9 @@ public enum IndexMode {
         @Override
         void validateWithOtherSettings(Map<Setting<?>, Object> settings) {
             IndexMode.validateTimeSeriesSettings(settings);
+            if (settings.getOrDefault(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), "false").equals("false")) {
+                IndexMode.validateRoutingPathSettings(settings);
+            }
         }
 
         @Override

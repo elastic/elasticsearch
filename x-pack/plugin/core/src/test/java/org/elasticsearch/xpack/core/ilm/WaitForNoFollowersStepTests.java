@@ -289,7 +289,7 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
         for (int i = 0; i < numOfShards; i++) {
             shardStats[i] = randomShardStats(isLeaderIndex);
         }
-        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), null, null, shardStats);
+        return new IndexStats(randomAlphaOfLength(5), randomAlphaOfLength(10), null, null, null, null, shardStats);
     }
 
     private ShardStats randomShardStats(boolean isLeaderIndex) {

@@ -1281,11 +1281,15 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         // the format can change depending on the ES node version running & this test code running
         // and if there's an in-progress release that hasn't been published yet,
         // which could affect the top range of the index release version
-        String[] releaseVersion = tookOnIndexVersion.toReleaseVersion().split("-");
-        var hasReleaseVersion = releaseVersion.length == 1 ? equalTo(releaseVersion[0]) : startsWith(releaseVersion[0] + "-");
+        String firstReleaseVersion = tookOnIndexVersion.toReleaseVersion().split("-")[0];
         assertThat(
             (Iterable<String>) XContentMapValues.extractValue("snapshots.version", snapResponse),
-            anyOf(contains(tookOnVersion), contains(tookOnIndexVersion.toString()), contains(hasReleaseVersion))
+            anyOf(
+                contains(tookOnVersion),
+                contains(tookOnIndexVersion.toString()),
+                contains(firstReleaseVersion),
+                contains(startsWith(firstReleaseVersion + "-"))
+            )
         );
 
         // Remove the routing setting and template so we can test restoring them.

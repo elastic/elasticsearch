@@ -47,6 +47,7 @@ import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateDataStreamService;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataDataStreamsService;
@@ -232,6 +233,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
+import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
@@ -970,7 +972,9 @@ class NodeConstruction {
         );
 
         var indexTemplateMetadataUpgraders = pluginsService.map(Plugin::getIndexTemplateMetadataUpgrader).toList();
-        modules.bindToInstance(MetadataUpgrader.class, new MetadataUpgrader(indexTemplateMetadataUpgraders));
+        List<Map<String, UnaryOperator<Metadata.Custom>>> customMetadataUpgraders = pluginsService.map(Plugin::getCustomMetadataUpgraders)
+            .toList();
+        modules.bindToInstance(MetadataUpgrader.class, new MetadataUpgrader(indexTemplateMetadataUpgraders, customMetadataUpgraders));
 
         final IndexMetadataVerifier indexMetadataVerifier = new IndexMetadataVerifier(
             settings,
@@ -1463,6 +1467,7 @@ class NodeConstruction {
 
     /**
      * Wrap a group of reloadable plugins into a single reloadable plugin interface
+     *
      * @param reloadablePlugins A list of reloadable plugins
      * @return A single ReloadablePlugin that, upon reload, reloads the plugins it wraps
      */

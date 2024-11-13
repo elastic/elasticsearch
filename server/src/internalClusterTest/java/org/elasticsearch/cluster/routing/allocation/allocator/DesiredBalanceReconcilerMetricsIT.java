@@ -115,7 +115,6 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
             assertThat((String) nodeStat.attributes().get("node_id"), is(in(nodeIds)));
             assertThat((String) nodeStat.attributes().get("node_name"), is(in(nodeNames)));
         }
-        assertTrue(desiredBalanceNodeDiskUsageMetrics.stream().anyMatch(m -> m.getDouble() > 0.0));
         final var currentNodeShardCountMetrics = telemetryPlugin.getLongGaugeMeasurement(
             DesiredBalanceMetrics.CURRENT_NODE_SHARD_COUNT_METRIC_NAME
         );

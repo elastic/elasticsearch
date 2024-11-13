@@ -24,6 +24,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends ElasticInferenceServiceRequestManager {
@@ -40,7 +41,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
-            "Elastic Inference Service sparse embeddings",
+            String.format("%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
             ElasticInferenceServiceSparseEmbeddingsResponseEntity::fromResponse
         );
     }

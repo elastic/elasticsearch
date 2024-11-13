@@ -24,6 +24,8 @@ import java.net.URI;
 import java.net.URISyntaxException;
 import java.util.Map;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 
     private final URI uri;
@@ -105,7 +107,9 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
 
         switch (modelId) {
             case ElserModels.ELSER_V2_MODEL -> modelIdUriPath = "ELSERv2";
-            default -> throw new IllegalArgumentException("Unsupported model for Elastic Inference Service [" + modelId + "]");
+            default -> throw new IllegalArgumentException(
+                String.format("Unsupported model for %s [%s]", ELASTIC_INFERENCE_SERVICE_IDENTIFIER, modelId)
+            );
         }
 
         return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/sparse-text-embedding/" + modelIdUriPath);

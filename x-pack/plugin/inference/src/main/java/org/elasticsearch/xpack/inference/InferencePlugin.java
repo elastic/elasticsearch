@@ -114,8 +114,8 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature.INFERENCE_SERVICE_FEATURE_FLAG;
 
 public class InferencePlugin extends Plugin implements ActionPlugin, ExtensiblePlugin, SystemIndexPlugin, MapperPlugin, SearchPlugin {
 
@@ -136,6 +136,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     );
 
     public static final String NAME = "inference";
+    public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
     public static final String UTILITY_THREAD_POOL_NAME = "inference_utility";
 
     private static final Logger log = LogManager.getLogger(InferencePlugin.class);
@@ -218,13 +219,14 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
         String elasticInferenceUrl = null;
 
-        if (INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
             elasticInferenceUrl = inferenceServiceSettings.getElasticInferenceServiceUrl();
-        } else if (ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
+        } else if (DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
             log.warn(
-                "Deprecated flag {} detected for enabling Elastic Inference Service. Please use {}.",
-                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
-                INFERENCE_SERVICE_FEATURE_FLAG
+                "Deprecated flag {} detected for enabling {}. Please use {}.",
+                ELASTIC_INFERENCE_SERVICE_IDENTIFIER,
+                DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG,
+                ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG
             );
             elasticInferenceUrl = inferenceServiceSettings.getEisGatewayUrl();
         }

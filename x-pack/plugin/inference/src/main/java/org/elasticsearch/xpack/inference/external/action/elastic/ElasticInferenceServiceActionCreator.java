@@ -17,6 +17,7 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.Objects;
 
+import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
@@ -36,7 +37,10 @@ public class ElasticInferenceServiceActionCreator implements ElasticInferenceSer
     @Override
     public ExecutableAction create(ElasticInferenceServiceSparseEmbeddingsModel model) {
         var requestManager = new ElasticInferenceServiceSparseEmbeddingsRequestManager(model, serviceComponents, traceContext);
-        var errorMessage = constructFailedToSendRequestMessage(model.uri(), "Elastic Inference Service sparse embeddings");
+        var errorMessage = constructFailedToSendRequestMessage(
+            model.uri(),
+            String.format("%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER)
+        );
         return new SenderExecutableAction(sender, requestManager, errorMessage);
     }
 }

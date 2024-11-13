@@ -37,9 +37,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstr
 public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
     public static final String NAME = "kql";
     public static final ParseField QUERY_FIELD = new ParseField("query");
-    private static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
-    private static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
-    private static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
+    public static final ParseField CASE_INSENSITIVE_FIELD = new ParseField("case_insensitive");
+    public static final ParseField TIME_ZONE_FIELD = new ParseField("time_zone");
+    public static final ParseField DEFAULT_FIELD_FIELD = new ParseField("default_field");
 
     private static final Logger log = LogManager.getLogger(KqlQueryBuilder.class);
     private static final ConstructingObjectParser<KqlQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(NAME, a -> {

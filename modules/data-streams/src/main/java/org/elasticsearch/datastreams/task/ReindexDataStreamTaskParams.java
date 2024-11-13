@@ -1,0 +1,69 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+package org.elasticsearch.datastreams.task;
+
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.persistent.PersistentTaskParams;
+import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xcontent.XContentParser;
+
+import java.io.IOException;
+
+import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+
+public record ReindexDataStreamTaskParams(String sourceDataStream) implements PersistentTaskParams {
+    public static final String NAME = ReindexDataStreamTask.TASK_NAME;
+    private static final String SOURCE_DATA_STREAM_FIELD = "source_data_stream";
+    private static final ConstructingObjectParser<ReindexDataStreamTaskParams, Void> PARSER = new ConstructingObjectParser<>(
+        NAME,
+        true,
+        args -> new ReindexDataStreamTaskParams((String) args[0])
+    );
+    static {
+        PARSER.declareString(constructorArg(), new ParseField(SOURCE_DATA_STREAM_FIELD));
+    }
+
+    public ReindexDataStreamTaskParams(StreamInput in) throws IOException {
+        this(in.readString());
+    }
+
+    @Override
+    public String getWriteableName() {
+        return NAME;
+    }
+
+    @Override
+    public TransportVersion getMinimalSupportedVersion() {
+        return TransportVersions.REINDEX_DATA_STREAMS;
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        out.writeString(sourceDataStream);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        return builder.startObject().field(SOURCE_DATA_STREAM_FIELD, sourceDataStream).endObject();
+    }
+
+    public String getSourceDataStream() {
+        return sourceDataStream;
+    }
+
+    public static ReindexDataStreamTaskParams fromXContent(XContentParser parser) {
+        return PARSER.apply(parser, null);
+    }
+}

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -27,6 +28,7 @@ public class GetTaskRequest extends ActionRequest {
     private TaskId taskId = TaskId.EMPTY_TASK_ID;
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
+    private String persistentTaskId;
 
     /**
      * Get the TaskId to look up.
@@ -38,6 +40,9 @@ public class GetTaskRequest extends ActionRequest {
         taskId = TaskId.readFromStream(in);
         timeout = in.readOptionalTimeValue();
         waitForCompletion = in.readBoolean();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.REINDEX_DATA_STREAMS)) {
+            persistentTaskId = in.readOptionalString();
+        }
     }
 
     public TaskId getTaskId() {
@@ -50,6 +55,15 @@ public class GetTaskRequest extends ActionRequest {
     public GetTaskRequest setTaskId(TaskId taskId) {
         this.taskId = taskId;
         return this;
+    }
+
+    public GetTaskRequest setPersistentTaskId(String persistentTaskId) {
+        this.persistentTaskId = persistentTaskId;
+        return this;
+    }
+
+    public String getPersistentTaskId() {
+        return persistentTaskId;
     }
 
     /**
@@ -86,6 +100,7 @@ public class GetTaskRequest extends ActionRequest {
         GetTaskRequest copy = new GetTaskRequest();
         copy.setParentTask(thisNodeId, thisTaskId);
         copy.setTaskId(taskId);
+        copy.setPersistentTaskId(persistentTaskId);
         copy.setTimeout(timeout);
         copy.setWaitForCompletion(waitForCompletion);
         return copy;
@@ -94,7 +109,7 @@ public class GetTaskRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (false == getTaskId().isSet()) {
+        if (false == getTaskId().isSet() && getPersistentTaskId() == null) {
             validationException = addValidationError("task id is required", validationException);
         }
         return validationException;
@@ -106,5 +121,8 @@ public class GetTaskRequest extends ActionRequest {
         taskId.writeTo(out);
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(waitForCompletion);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.REINDEX_DATA_STREAMS)) {
+            out.writeOptionalString(persistentTaskId);
+        }
     }
 }

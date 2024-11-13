@@ -31,6 +31,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -44,6 +48,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -89,10 +95,35 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
-            getRunningTaskFromNode(thisTask, request, listener);
+        if (request.getPersistentTaskId() != null) {
+            PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+                .getMetadata()
+                .custom(PersistentTasksCustomMetadata.TYPE);
+            PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(request.getPersistentTaskId());
+            if (persistentTask == null) {
+                listener.onFailure(
+                    new ElasticsearchException("Persistent task with id [{}] does not exist", request.getPersistentTaskId())
+                );
+            } else {
+                if (persistentTask.isAssigned()) {
+                    String node = persistentTask.getExecutorNode();
+                    if (clusterService.localNode().getId().equals(node)) {
+                        getRunningPersistentTaskFromNode(thisTask, request, listener);
+                    } else {
+                        runOnNodeWithPersistentTaskIfPossible(thisTask, request, node, listener);
+                    }
+                } else {
+                    listener.onFailure(
+                        new ElasticsearchException("Persistent task with id [{}] is not assigned to a node", request.getPersistentTaskId())
+                    );
+                }
+            }
         } else {
-            runOnNodeWithTaskIfPossible(thisTask, request, listener);
+            if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
+                getRunningTaskFromNode(thisTask, request, listener);
+            } else {
+                runOnNodeWithTaskIfPossible(thisTask, request, listener);
+            }
         }
     }
 
@@ -183,6 +214,59 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }
+        }
+    }
+
+    void getRunningPersistentTaskFromNode(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
+        Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getType().equals("persistent"))
+            .filter(
+                entry -> entry.getValue() instanceof AllocatedPersistentTask
+                    && request.getPersistentTaskId().equals((((AllocatedPersistentTask) entry.getValue()).getPersistentTaskId()))
+            )
+            .findAny();
+
+        if (optionalTask.isPresent()) {
+            Task runningTask = optionalTask.get().getValue();
+            TaskInfo info = runningTask.taskInfo(clusterService.localNode().getId(), true);
+            listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
+        } else {
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Persistent task with id [{}] is not found on the expected node [{}]",
+                    request.getPersistentTaskId(),
+                    clusterService.localNode().getId()
+                )
+            );
+        }
+    }
+
+    private void runOnNodeWithPersistentTaskIfPossible(
+        Task thisTask,
+        GetTaskRequest request,
+        String nodeId,
+        ActionListener<GetTaskResponse> listener
+    ) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
+        if (node == null) {
+            listener.onFailure(
+                new ElasticsearchException(
+                    "Persistent task with id [{}] is supposed to be running on node [{}], but that node cannot be found",
+                    request.getPersistentTaskId(),
+                    clusterService.localNode().getId()
+                )
+            );
+        } else {
+            GetTaskRequest nodeRequest = request.nodeRequest(clusterService.localNode().getId(), thisTask.getId());
+            transportService.sendRequest(
+                node,
+                TYPE.name(),
+                nodeRequest,
+                TransportRequestOptions.timeout(request.getTimeout()),
+                new ActionListenerResponseHandler<>(listener, GetTaskResponse::new, EsExecutors.DIRECT_EXECUTOR_SERVICE)
+            );
         }
     }
 

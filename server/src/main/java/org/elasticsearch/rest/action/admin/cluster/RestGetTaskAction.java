@@ -40,12 +40,17 @@ public class RestGetTaskAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TaskId taskId = new TaskId(request.param("task_id"));
+        String taskIdString = request.param("task_id");
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = getTimeout(request);
-
+        boolean idIsPersistentTaskId = request.paramAsBoolean("persistent_task_id", false);
         GetTaskRequest getTaskRequest = new GetTaskRequest();
-        getTaskRequest.setTaskId(taskId);
+        if (idIsPersistentTaskId) {
+            getTaskRequest.setPersistentTaskId(taskIdString);
+        } else {
+            TaskId taskId = new TaskId(taskIdString);
+            getTaskRequest.setTaskId(taskId);
+        }
         getTaskRequest.setWaitForCompletion(waitForCompletion);
         getTaskRequest.setTimeout(timeout);
         return channel -> client.admin().cluster().getTask(getTaskRequest, new RestToXContentListener<>(channel));

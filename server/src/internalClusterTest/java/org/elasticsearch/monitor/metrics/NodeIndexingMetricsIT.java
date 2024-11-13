@@ -467,12 +467,14 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
     }
 
     public void testIncrementalBulkLowWatermarkSplitMetrics() throws Exception {
-        final String nodeName = internalCluster().startNode(Settings.builder()
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
-            .build());
+        final String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
+                .build()
+        );
 
         String index = "test";
         createIndex(index);
@@ -502,14 +504,17 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         }
 
         assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), greaterThan(0L));
-        // assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(0L));
-        // assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-        // });
+        assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(0L));
+
+        testTelemetryPlugin.collect();
+        assertThat(
+            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits").getLong(),
+            equalTo(0L)
+        );
+        assertThat(
+            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits").getLong(),
+            equalTo(0L)
+        );
 
         refCounted.incRef();
         handler.addItems(List.of(indexRequest(index)), refCounted::decRef, () -> nextPage.set(true));
@@ -517,13 +522,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertBusy(() -> assertThat(indexingPressure.stats().getCurrentCombinedCoordinatingAndPrimaryBytes(), equalTo(0L)));
         assertBusy(() -> assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(1L)));
         assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(0L));
-        //assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(1L));
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-        //});
+
+        testTelemetryPlugin.collect();
+        assertThat(
+            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits").getLong(),
+            equalTo(1L)
+        );
+        assertThat(
+            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits").getLong(),
+            equalTo(0L)
+        );
 
         PlainActionFuture<BulkResponse> future = new PlainActionFuture<>();
         handler.lastItems(List.of(indexRequest), refCounted::decRef, future);
@@ -533,13 +541,15 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertFalse(refCounted.hasReferences());
     }
 
-    public void testIncrementalBulkHighWatermarkBackOff() throws Exception {
-        final String nodeName = internalCluster().startNode(Settings.builder()
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
-            .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
-            .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
-            .build());
+    public void testIncrementalBulkHighWatermarkSplitMetrics() throws Exception {
+        final String nodeName = internalCluster().startNode(
+            Settings.builder()
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK.getKey(), "512B")
+                .put(IndexingPressure.SPLIT_BULK_LOW_WATERMARK_SIZE.getKey(), "2048B")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK.getKey(), "4KB")
+                .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
+                .build()
+        );
 
         String index = "test";
         createIndex(index);
@@ -578,13 +588,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertTrue(nextPage.get());
         nextPage.set(false);
         assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(0L));
-        //assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(0L));
-        //});
+
+        testTelemetryPlugin.collect();
+        assertThat(
+            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits").getLong(),
+            equalTo(0L)
+        );
+        assertThat(
+            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits").getLong(),
+            equalTo(0L)
+        );
 
         ArrayList<DocWriteRequest<?>> requestsThrottle = new ArrayList<>();
         // Test that a request larger than SPLIT_BULK_HIGH_WATERMARK_SIZE (1KB) is throttled
@@ -605,13 +618,16 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertBusy(() -> assertTrue(nextPage.get()));
         assertBusy(() -> assertThat(indexingPressure.stats().getHighWaterMarkSplits(), equalTo(1L)));
         assertThat(indexingPressure.stats().getLowWaterMarkSplits(), equalTo(0L));
-        // assertBusy(() -> {
-            testTelemetryPlugin.collect();
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.low_watermark_splits").getLong(), equalTo(0L));
-            assertThat(getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement,
-                "es.indexing.high_watermark_splits").getLong(), equalTo(1L));
-        // });
+
+        testTelemetryPlugin.collect();
+        assertThat(
+            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits").getLong(),
+            equalTo(0L)
+        );
+        assertThat(
+            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits").getLong(),
+            equalTo(1L)
+        );
 
         for (IncrementalBulkService.Handler h : handlers) {
             refCounted.incRef();

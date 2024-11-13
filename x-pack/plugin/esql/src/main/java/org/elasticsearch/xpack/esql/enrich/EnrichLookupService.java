@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.lookup.QueryList;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
@@ -78,8 +79,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
         MappedFieldType fieldType = context.getFieldType(request.matchField);
         return switch (request.matchType) {
-            case "match", "range" -> QueryList.termQueryList(fieldType, context, inputBlock, inputDataType);
-            case "geo_match" -> QueryList.geoShapeQuery(fieldType, context, inputBlock, inputDataType);
+            case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
+            case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
             default -> throw new EsqlIllegalArgumentException("illegal match type " + request.matchType);
         };
     }
@@ -126,9 +127,9 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
             TaskId parentTaskId = TaskId.readFromStream(in);
             String sessionId = in.readString();
             ShardId shardId = new ShardId(in);
-            DataType inputDataType = DataType.fromTypeName(
-                (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) ? in.readString() : "unknown"
-            );
+            DataType inputDataType = (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0))
+                ? DataType.fromTypeName(in.readString())
+                : null;
             String matchType = in.readString();
             String matchField = in.readString();
             Page inputPage;

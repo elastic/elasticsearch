@@ -38,7 +38,7 @@ import java.util.List;
 public class RankFeaturePhase extends SearchPhase {
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
@@ -48,7 +48,7 @@ public class RankFeaturePhase extends SearchPhase {
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super("rank-feature");
@@ -179,22 +179,25 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(context, new ActionListener<>() {
-            @Override
-            public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
-                RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
-                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
-                    reducedQueryPhase,
-                    topResults
-                );
-                moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
-            }
+        ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
+            context::execute,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
+                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
+                    SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
+                        reducedQueryPhase,
+                        topResults
+                    );
+                    moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+                @Override
+                public void onFailure(Exception e) {
+                    context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+                }
             }
-        });
+        );
         rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
             rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
             rankResultListener
@@ -236,6 +239,6 @@ public class RankFeaturePhase extends SearchPhase {
     }
 
     void moveToNextPhase(SearchPhaseResults<SearchPhaseResult> phaseResults, SearchPhaseController.ReducedQueryPhase reducedQueryPhase) {
-        context.executeNextPhase(this, new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
+        context.executeNextPhase(this, () -> new FetchSearchPhase(phaseResults, aggregatedDfs, context, reducedQueryPhase));
     }
 }

@@ -131,7 +131,9 @@ public class RemoteClusterPermissionsTests extends AbstractXContentSerializingTe
         // create random groups with random privileges for random clusters
         List<RemoteClusterPermissionGroup> randomGroups = generateRandomGroups(true);
         // replace a random value with one that is allowed
-        String singleValidPrivilege = randomFrom(RemoteClusterPermissions.allowedRemoteClusterPermissions.get(TransportVersion.current()));
+        String singleValidPrivilege = randomFrom(
+            RemoteClusterPermissions.allowedRemoteClusterPermissions.get(lastTransportVersionPermission)
+        );
         groupPrivileges.get(0)[0] = singleValidPrivilege;
 
         for (int i = 0; i < randomGroups.size(); i++) {

@@ -61,7 +61,6 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("cat.shards/10_basic/Help", "sync_id is removed in 9.0")
   task.skipTest("tsdb/25_id_generation/delete over _bulk", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/80_index_resize/split", "skip until pr/116687 gets backported")
-  task.skipTest("tsdb/90_unsupported_operations/update", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/90_unsupported_operations/noop update", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/90_unsupported_operations/search with routing", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/90_unsupported_operations/index with routing over _bulk", "skip until pr/116687 gets backported")

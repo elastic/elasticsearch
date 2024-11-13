@@ -300,7 +300,7 @@ docker run \
 --rm \
 --tty -i \
 --network host \
-docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
+docker.elastic.co/integrations/elastic-connectors:{version}.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ----

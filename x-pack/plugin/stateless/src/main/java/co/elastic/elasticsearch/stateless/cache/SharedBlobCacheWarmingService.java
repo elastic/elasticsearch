@@ -57,6 +57,7 @@ import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.shard.IndexShard;
@@ -110,7 +111,7 @@ public class SharedBlobCacheWarmingService {
     private record BlobRegion(BlobFile blob, int region) {}
 
     /** Range of a blob to warm in cache, with a listener to complete once it is warmed **/
-    private record BlobRange(String fileName, BlobLocation blobLocation, long position, long length, ActionListener<Void> listener)
+    private record BlobRange(BlobLocation blobLocation, long position, long length, ActionListener<Void> listener)
         implements
             Comparable<BlobRange> {
 
@@ -142,16 +143,15 @@ public class SharedBlobCacheWarmingService {
          * Adds a range to warm in cache for the current blob region, returning {@code true} if a warming task must be created to warm the
          * range.
          *
-         * @param fileName      the name of the file for which the range must be warmed up in cache.
          * @param blobLocation  the blob location of the file
          * @param position      the position in the blob where warming must start
          * @param length        the length of bytes to warm
          * @param listener      the listener to complete once the range is warmed
          * @return {@code true} if a warming task must be created to warm the range, {@code false} otherwise
          */
-        private boolean add(String fileName, BlobLocation blobLocation, long position, long length, ActionListener<Void> listener) {
+        private boolean add(BlobLocation blobLocation, long position, long length, ActionListener<Void> listener) {
             maxBlobLength.accumulateAndGet(blobLocation.offset() + blobLocation.fileLength(), Math::max);
-            queue.add(new BlobRange(fileName, blobLocation, position, length, listener));
+            queue.add(new BlobRange(blobLocation, position, length, listener));
             return counter.incrementAndGet() == 1;
         }
     }
@@ -469,7 +469,7 @@ public class SharedBlobCacheWarmingService {
             filesToWarm.entrySet()
                 .stream()
                 .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
-                .forEach(entry -> addFile(entry.getKey(), entry.getValue()));
+                .forEach(entry -> addFile(entry.getKey(), LuceneFilesExtensions.fromFile(entry.getKey()), entry.getValue()));
         }
 
         @Override
@@ -492,20 +492,21 @@ public class SharedBlobCacheWarmingService {
          * If the file is a Lucene metadata file or is less than 1024 bytes then it is fully requested to compute the region(s).
          * Additionally this detects and warms the CFE entries
          * </p>
-         * @param fileName the name of the Lucene file
-         * @param blobLocation the blob location of the Lucene file
+         * @param fileName      the name of the Lucene physical file (ie, for files embedded in .cfs segment this is the .cfs file name)
+         * @param fileExtension the extension of the Lucene file (ie, for files embedded in .cfs segment this is the entry's file extension)
+         * @param blobLocation  the blob location of the Lucene file
          */
-        private void addFile(String fileName, BlobLocation blobLocation) {
+        private void addFile(String fileName, @Nullable LuceneFilesExtensions fileExtension, BlobLocation blobLocation) {
             if (isCancelled()) {
                 // skipping scheduling when store is closing
-            } else if (LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.CFE) {
+            } else if (fileExtension == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
                     .<Void>newForked(listener -> addLocation(blobLocation, fileName, listener))
                     // parse it and schedule warming of corresponding parts of CFS file
                     .andThenAccept(ignored -> addCfe(fileName))
                     .addListener(listeners.acquire());
-            } else if (shouldFullyWarmUp(fileName) || blobLocation.fileLength() <= BUFFER_SIZE) {
+            } else if (shouldFullyWarmUp(fileName, fileExtension) || blobLocation.fileLength() <= BUFFER_SIZE) {
                 // warm entire file when it is small
                 addLocation(blobLocation, fileName, listeners.acquire());
             } else {
@@ -549,6 +550,7 @@ public class SharedBlobCacheWarmingService {
         }
 
         private void addCfe(String fileName) {
+            assert LuceneFilesExtensions.fromFile(fileName) == LuceneFilesExtensions.CFE : fileName;
             assert store.hasReferences(); // store.incRef() is held by toplevel warmCache until warming is complete
             // We spawn to the generic pool here (via a throttled task runner), so that we have the following invocation path across
             // the thread pools: GENERIC (recovery) -> FILL_VBCC_THREAD_POOL (if fetching from indexing node) -> GENERIC.
@@ -563,13 +565,15 @@ public class SharedBlobCacheWarmingService {
 
                     var cfs = fileName.replace(".cfe", ".cfs");
                     var cfsLocation = filesToWarm.get(cfs);
+                    assert cfsLocation != null : cfs;
 
                     entries.entrySet()
                         .stream()
                         .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
                         .forEach(
                             entry -> addFile(
-                                entry.getKey(),
+                                cfs,
+                                LuceneFilesExtensions.fromFile(entry.getKey()),
                                 new BlobLocation(
                                     cfsLocation.blobFile(),
                                     cfsLocation.offset() + entry.getValue().offset(),
@@ -613,15 +617,14 @@ public class SharedBlobCacheWarmingService {
             }
 
             var blobRanges = queues.computeIfAbsent(blobRegion, BlobRangesQueue::new);
-            if (blobRanges.add(fileName, blobLocation, position, length, listener)) {
+            if (blobRanges.add(blobLocation, position, length, listener)) {
                 scheduleWarmingTask(new WarmingTask(blobRanges));
             }
         }
 
-        private static boolean shouldFullyWarmUp(String fileName) {
-            var extension = LuceneFilesExtensions.fromFile(fileName);
-            return extension == null // segments_N are fully warmed up in cache
-                || extension.isMetadata() // metadata files
+        private static boolean shouldFullyWarmUp(String fileName, @Nullable LuceneFilesExtensions fileExtension) {
+            return fileExtension == null // segments_N are fully warmed up in cache
+                || fileExtension.isMetadata() // metadata files
                 || StatelessCommitService.isGenerationalFile(fileName); // generational files
         }
     }

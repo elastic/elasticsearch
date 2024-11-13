@@ -604,7 +604,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertThat(alias.name(), is("sum(salary) + 1 where false"));
         var add = as(alias.child(), Add.class);
         var literal = as(add.right(), Literal.class);
@@ -639,12 +639,12 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(2));
 
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
 
-        alias = as(eval.fields().getLast(), Alias.class);
+        alias = as(eval.fields().get(1), Alias.class);
         assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
 
         var limit = as(eval.child(), Limit.class);
@@ -676,7 +676,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(3));
 
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
@@ -684,7 +684,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         alias = as(eval.fields().get(1), Alias.class);
         assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
 
-        alias = as(eval.fields().getLast(), Alias.class);
+        alias = as(eval.fields().get(2), Alias.class);
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(), nullValue());
         assertThat(alias.child().dataType(), is(LONG));
@@ -731,7 +731,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
         var add = as(alias.child(), Add.class);
         var literal = as(add.right(), Literal.class);
@@ -768,13 +768,13 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(2));
 
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertThat(Expressions.name(alias), containsString("max_a"));
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(), nullValue());
         assertThat(alias.child().dataType(), is(INTEGER));
 
-        alias = as(eval.fields().getLast(), Alias.class);
+        alias = as(eval.fields().get(1), Alias.class);
         assertThat(Expressions.name(alias), containsString("min_a"));
         assertTrue(alias.child().foldable());
         assertThat(alias.child().fold(), nullValue());
@@ -829,7 +829,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
         var eval = as(project.child(), Eval.class);
         assertThat(eval.fields().size(), is(1));
-        var alias = as(eval.fields().getFirst(), Alias.class);
+        var alias = as(eval.fields().get(0), Alias.class);
         assertThat(Expressions.name(alias), containsString("c"));
 
         var limit = as(eval.child(), Limit.class);

@@ -45,9 +45,8 @@ public class CheckLicenseTests extends ESTestCase {
             final LicensedFeature functionLicenseFeature = random().nextBoolean()
                 ? LicensedFeature.momentary("test", "dummy", functionLicense)
                 : LicensedFeature.persistent("test", "dummy", functionLicense);
-            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> new DummyAggregateFunction(
+            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> new DummyFunction(
                 source,
-                expression,
                 functionLicenseFeature
             );
             for (License.OperationMode operationMode : License.OperationMode.values()) {
@@ -64,7 +63,7 @@ public class CheckLicenseTests extends ESTestCase {
     }
 
     private LogicalPlan analyze(EsqlFunctionRegistry.FunctionBuilder builder, License.OperationMode operationMode) {
-        final FunctionDefinition def = EsqlFunctionRegistry.def(DummyAggregateFunction.class, builder, "dummy");
+        final FunctionDefinition def = EsqlFunctionRegistry.def(DummyFunction.class, builder, "dummy");
         final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def) {
             @Override
             public EsqlFunctionRegistry snapshotRegistry() {
@@ -87,12 +86,12 @@ public class CheckLicenseTests extends ESTestCase {
         return licenseState;
     }
 
-    private static class DummyAggregateFunction extends Function {
+    private static class DummyFunction extends Function {
 
         private final LicensedFeature licensedFeature;
 
-        protected DummyAggregateFunction(Source source, List<Expression> children, LicensedFeature licensedFeature) {
-            super(source, children);
+        private DummyFunction(Source source, LicensedFeature licensedFeature) {
+            super(source, List.of());
             this.licensedFeature = licensedFeature;
         }
 

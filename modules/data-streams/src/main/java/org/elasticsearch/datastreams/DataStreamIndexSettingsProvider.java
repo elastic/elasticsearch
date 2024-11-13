@@ -134,7 +134,6 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                 }
             }
             if (templateIndexMode == IndexMode.LOGSDB
-                || indexMode == IndexMode.LOGSDB
                 || IndexSettings.MODE.get(indexTemplateAndCreateRequestSettings) == IndexMode.LOGSDB) {
                 if (indexTemplateAndCreateRequestSettings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
                     List<String> sortFields = new ArrayList<>(
@@ -145,17 +144,36 @@ public class DataStreamIndexSettingsProvider implements IndexSettingProvider {
                         throw new IllegalStateException(
                             String.format(
                                 Locale.ROOT,
-                                "data stream [%s] in logsdb mode and [%s] index setting has only %d sort fields (excluding timestamp), "
-                                    + "needs at least 2",
+                                "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
+                                    + "(excluding timestamp), needs at least 2",
                                 dataStreamName,
                                 IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
                                 sortFields.size()
                             )
                         );
                     }
-                    Settings.Builder builder = Settings.builder();
-                    builder.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
-                    return builder.build();
+                    if (indexTemplateAndCreateRequestSettings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
+                        List<String> routingPaths = indexTemplateAndCreateRequestSettings.getAsList(
+                            IndexMetadata.INDEX_ROUTING_PATH.getKey()
+                        );
+                        if (routingPaths.equals(sortFields) == false) {
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
+                                        + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                    dataStreamName,
+                                    IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                    routingPaths,
+                                    sortFields
+                                )
+                            );
+                        }
+                    } else {
+                        Settings.Builder builder = Settings.builder();
+                        builder.putList(INDEX_ROUTING_PATH.getKey(), sortFields);
+                        return builder.build();
+                    }
                 }
             }
         }

@@ -659,6 +659,34 @@ public class IndexRoutingTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("invalid id [] for index [test] in time_series mode"));
     }
 
+    public void testRoutingPathLogsdb() throws IOException {
+        int shards = between(2, 1000);
+        IndexRouting routing = IndexRouting.fromIndexMetadata(
+            IndexMetadata.builder("test")
+                .settings(
+                    settings(IndexVersion.current()).put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "foo")
+                        .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+                        .build()
+                )
+                .numberOfShards(shards)
+                .numberOfReplicas(1)
+                .build()
+        );
+
+        IndexRequest req = new IndexRequest();
+        routing.preProcess(req);
+        assertNull(req.id());
+
+        // Verify that routing uses the field name and value in the routing path.
+        int expectedShard = Math.floorMod(hash(List.of("foo", "A")), shards);
+        BytesReference sourceBytes = source(Map.of("foo", "A", "bar", "B"));
+        assertEquals(expectedShard, routing.indexShard(null, null, XContentType.JSON, sourceBytes));
+
+        // Verify that the request id gets updated to contain the routing hash.
+        routing.postProcess(req);
+        assertEquals(expectedShard, routing.getShard(req.id(), null));
+    }
+
     /**
      * Extract a shardId from an {@link IndexRouting} that extracts routingusing a randomly
      * chosen method. All of the random methods <strong>should</strong> return the

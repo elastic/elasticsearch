@@ -660,6 +660,13 @@ public final class IndexSettings {
         return es87TSDBCodecEnabled;
     }
 
+    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
+        "index.logsdb.route_on_sort_fields",
+        false,
+        Property.IndexScope,
+        Property.Final
+    );
+
     /**
      * The {@link IndexMode "mode"} of the index.
      */
@@ -684,13 +691,6 @@ public final class IndexSettings {
         Property.IndexScope,
         Property.Final,
         Property.ServerlessPublic
-    );
-
-    public static final Setting<Boolean> LOGSDB_ROUTE_ON_SORT_FIELDS = Setting.boolSetting(
-        "index.logsdb.route_on_sort_fields",
-        false,
-        Property.IndexScope,
-        Property.Final
     );
 
     /**

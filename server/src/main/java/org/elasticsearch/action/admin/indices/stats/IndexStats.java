@@ -150,12 +150,12 @@ public class IndexStats implements Iterable<IndexShardStats> {
         private final List<ShardStats> shards = new ArrayList<>();
 
         public IndexStatsBuilder(
-                String indexName,
-                String uuid,
-                @Nullable ClusterHealthStatus health,
-                @Nullable IndexMetadata.State state,
-                @Nullable List<String> tierPreference,
-                @Nullable Long creationDate
+            String indexName,
+            String uuid,
+            @Nullable ClusterHealthStatus health,
+            @Nullable IndexMetadata.State state,
+            @Nullable List<String> tierPreference,
+            @Nullable Long creationDate
         ) {
             this.indexName = indexName;
             this.uuid = uuid;

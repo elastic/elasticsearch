@@ -13,7 +13,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -33,7 +32,6 @@ import static java.util.stream.Collectors.toSet;
 public abstract class AbstractRestChannel implements RestChannel {
 
     private static final Logger logger = LogManager.getLogger(AbstractRestChannel.class);
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private static final Predicate<String> INCLUDE_FILTER = f -> f.charAt(0) != '-';
     private static final Predicate<String> EXCLUDE_FILTER = INCLUDE_FILTER.negate();

@@ -132,19 +132,6 @@ public class RestResponseTests extends ESTestCase {
             {"type":"file_not_found_exception","reason":"/foo/bar"}"""));
     }
 
-    public void testNonElasticsearchExceptionIsNotShownAsSimpleMessage() throws Exception {
-        RestRequest request = new FakeRestRequest();
-        RestChannel channel = new SimpleExceptionRestChannel(request);
-
-        Exception t = new UnknownException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
-        RestResponse response = new RestResponse(channel, t);
-        String text = response.content().utf8ToString();
-        assertThat(text, not(containsString("UnknownException[an error occurred reading data]")));
-        assertThat(text, not(containsString("FileNotFoundException[/foo/bar]")));
-        assertThat(text, not(containsString("error_trace")));
-        assertThat(text, containsString("\"error\":\"No ElasticsearchException found\""));
-    }
-
     public void testErrorTrace() throws Exception {
         RestRequest request = new FakeRestRequest();
         request.params().put("error_trace", "true");
@@ -480,6 +467,9 @@ public class RestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         RestResponse response = new RestResponse(channel, t);
         assertThat(response.contentType(), equalTo(mediaType));
+        assertWarnings(
+            "The JSON format of non-detailed errors has changed in Elasticsearch 9.0 to match the JSON structure used for detailed errors."
+        );
     }
 
     public void testSupressedLogging() throws IOException {

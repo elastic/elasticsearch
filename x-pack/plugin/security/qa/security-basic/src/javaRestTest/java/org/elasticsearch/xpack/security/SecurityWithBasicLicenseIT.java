@@ -29,7 +29,6 @@ import static org.hamcrest.Matchers.notNullValue;
 
 public class SecurityWithBasicLicenseIT extends SecurityInBasicRestTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/99169")
     public void testWithBasicLicense() throws Exception {
         checkLicenseType("basic");
         checkSecurityEnabled(false);

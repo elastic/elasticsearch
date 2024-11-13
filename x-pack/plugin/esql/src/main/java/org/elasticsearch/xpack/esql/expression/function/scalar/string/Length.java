@@ -34,6 +34,7 @@ public class Length extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "integer",
         description = "Returns the character length of a string.",
+        note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "length")
     )
     public Length(

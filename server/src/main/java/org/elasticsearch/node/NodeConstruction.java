@@ -1077,7 +1077,8 @@ class NodeConstruction {
             searchTransportService,
             indexingLimits,
             searchModule.getValuesSourceRegistry().getUsageService(),
-            repositoriesService
+            repositoriesService,
+            compatibilityVersions
         );
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));

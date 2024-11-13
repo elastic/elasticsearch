@@ -190,16 +190,8 @@ public class WaitForNoFollowersStepTests extends AbstractStepTestCase<WaitForNoF
 
         mockXPackInfo(true, true);
         mockIndexStatsCall(
-                indexName,
-                new IndexStats(
-                    indexName,
-                    "uuid",
-                    ClusterHealthStatus.GREEN,
-                    IndexMetadata.State.OPEN,
-                    null,
-                    null,
-                    shardStats
-                )
+            indexName,
+            new IndexStats(indexName, "uuid", ClusterHealthStatus.GREEN, IndexMetadata.State.OPEN, null, null, shardStats)
         );
 
         final SetOnce<Boolean> conditionMetHolder = new SetOnce<>();

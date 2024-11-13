@@ -309,7 +309,7 @@ public class GatewayMetaState implements Closeable {
             changed = true;
         }
         // upgrade custom metadata
-        for (Map.Entry<String, Function<Metadata.Custom, Metadata.Custom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+        for (Map.Entry<String, UnaryOperator<Metadata.Custom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
             String type = entry.getKey();
             Function<Metadata.Custom, Metadata.Custom> upgrader = entry.getValue();
             Metadata.Custom original = metadata.custom(type);

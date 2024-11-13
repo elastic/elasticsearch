@@ -14,17 +14,21 @@ import org.elasticsearch.cluster.metadata.Metadata;
 
 import java.util.Collection;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import java.util.function.UnaryOperator;
-import java.util.stream.Collectors;
+
+import static java.util.stream.Collectors.collectingAndThen;
+import static java.util.stream.Collectors.groupingBy;
+import static java.util.stream.Collectors.mapping;
+import static java.util.stream.Collectors.toList;
 
 /**
  * Upgrades {@link Metadata} on startup on behalf of installed {@link Plugin}s
  */
 public class MetadataUpgrader {
     public final UnaryOperator<Map<String, IndexTemplateMetadata>> indexTemplateMetadataUpgraders;
-    public final Map<String, Function<Metadata.Custom, Metadata.Custom>> customMetadataUpgraders;
+    public final Map<String, UnaryOperator<Metadata.Custom>> customMetadataUpgraders;
 
     public MetadataUpgrader(
         Collection<UnaryOperator<Map<String, IndexTemplateMetadata>>> indexTemplateMetadataUpgraders,
@@ -38,7 +42,24 @@ public class MetadataUpgrader {
             return upgradedTemplates;
         };
         this.customMetadataUpgraders = customMetadataUpgraders.stream()
+            // Flatten the stream of maps into a stream of entries
             .flatMap(map -> map.entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue, Function::andThen));
+            .collect(
+                groupingBy(
+                    // Group by the type of custom metadata to be upgraded (the entry key)
+                    Map.Entry::getKey,
+                    // For each type, extract the operators (the entry values), collect to a list, and make an operator which combines them
+                    collectingAndThen(mapping(Map.Entry::getValue, toList()), this::combineCustomOperators)
+                )
+            );
+    }
+
+    private UnaryOperator<Metadata.Custom> combineCustomOperators(List<UnaryOperator<Metadata.Custom>> operators) {
+        return custom -> {
+            for (UnaryOperator<Metadata.Custom> operator : operators) {
+                custom = operator.apply(custom);
+            }
+            return custom;
+        };
     }
 }

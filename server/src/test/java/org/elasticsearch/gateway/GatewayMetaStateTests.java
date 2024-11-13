@@ -101,22 +101,22 @@ public class GatewayMetaStateTests extends ESTestCase {
     }
 
     public void testCustomMetadata_appliesUpgraders() {
-        CustomMetadata1 originalCustom1 = new CustomMetadata1("old data");
-        CustomMetadata1 upgradedCustom1 = new CustomMetadata1("new data");
         CustomMetadata2 custom2 = new CustomMetadata2("some data");
         // Test with a CustomMetadata1 and a CustomMetadata2...
         Metadata originalMetadata = Metadata.builder()
-            .putCustom(CustomMetadata1.TYPE, originalCustom1)
+            .putCustom(CustomMetadata1.TYPE, new CustomMetadata1("data"))
             .putCustom(CustomMetadata2.TYPE, custom2)
             .build();
-        // ...and two sets of upgraders which affect CustomMetadata1 and some other types.
-        Map<String, UnaryOperator<Metadata.Custom>> customUpgraders = Map.of(CustomMetadata1.TYPE, toUpgrade -> {
-            assertSame(originalCustom1, toUpgrade);
-            return upgradedCustom1;
-        }, "not_" + CustomMetadata1.TYPE, toUpgrade -> {
-            fail("This upgrader should not be invoked");
-            return toUpgrade;
-        });
+        // ...and two sets of upgraders which affect CustomMetadata1 and some other types...
+        Map<String, UnaryOperator<Metadata.Custom>> customUpgraders = Map.of(
+            CustomMetadata1.TYPE,
+            toUpgrade -> new CustomMetadata1("new " + ((CustomMetadata1) toUpgrade).getData()),
+            "not_" + CustomMetadata1.TYPE,
+            toUpgrade -> {
+                fail("This upgrader should not be invoked");
+                return toUpgrade;
+            }
+        );
         Map<String, UnaryOperator<Metadata.Custom>> moreCustomUpgraders = Map.of("also_not_" + CustomMetadata1.TYPE, toUpgrade -> {
             fail("This upgrader should not be invoked");
             return toUpgrade;
@@ -127,36 +127,40 @@ public class GatewayMetaStateTests extends ESTestCase {
             new MockIndexMetadataVerifier(false),
             metadataUpgrader
         );
-        assertEquals(upgradedCustom1, upgradedMetadata.custom(CustomMetadata1.TYPE));
+        // ...and assert that the CustomMetadata1 has been upgraded...
+        assertEquals(new CustomMetadata1("new data"), upgradedMetadata.custom(CustomMetadata1.TYPE));
+        // ...but the CustomMetadata2 is untouched.
         assertSame(custom2, upgradedMetadata.custom(CustomMetadata2.TYPE));
     }
 
     public void testCustomMetadata_appliesMultipleUpgraders() {
-        CustomMetadata1 originalCustom1 = new CustomMetadata1("old data");
-        CustomMetadata1 upgradedCustom1 = new CustomMetadata1("new data");
-        CustomMetadata2 originalCustom2 = new CustomMetadata2("other old data");
-        CustomMetadata2 upgradedCustom2 = new CustomMetadata2("other new data");
         // Test with a CustomMetadata1 and a CustomMetadata2...
         Metadata originalMetadata = Metadata.builder()
-            .putCustom(CustomMetadata1.TYPE, originalCustom1)
-            .putCustom(CustomMetadata2.TYPE, originalCustom2)
+            .putCustom(CustomMetadata1.TYPE, new CustomMetadata1("data"))
+            .putCustom(CustomMetadata2.TYPE, new CustomMetadata2("other data"))
             .build();
-        // ...and a set of upgraders which affects both of those.
-        Map<String, UnaryOperator<Metadata.Custom>> customUpgraders = Map.of(CustomMetadata1.TYPE, toUpgrade -> {
-            assertSame(originalCustom1, toUpgrade);
-            return upgradedCustom1;
-        }, CustomMetadata2.TYPE, toUpgrade -> {
-            assertSame(originalCustom2, toUpgrade);
-            return upgradedCustom2;
-        });
-        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(List.of(HashMap::new), List.of(customUpgraders));
+        // ...and a set of upgraders which affects both of those...
+        Map<String, UnaryOperator<Metadata.Custom>> customUpgraders = Map.of(
+            CustomMetadata1.TYPE,
+            toUpgrade -> new CustomMetadata1("new " + ((CustomMetadata1) toUpgrade).getData()),
+            CustomMetadata2.TYPE,
+            toUpgrade -> new CustomMetadata2("new " + ((CustomMetadata2) toUpgrade).getData())
+        );
+        // ...and another set of upgraders which applies a second upgrade to CustomMetadata2...
+        Map<String, UnaryOperator<Metadata.Custom>> moreCustomUpgraders = Map.of(
+            CustomMetadata2.TYPE,
+            toUpgrade -> new CustomMetadata2("more " + ((CustomMetadata2) toUpgrade).getData())
+        );
+        MetadataUpgrader metadataUpgrader = new MetadataUpgrader(List.of(HashMap::new), List.of(customUpgraders, moreCustomUpgraders));
         Metadata upgradedMetadata = GatewayMetaState.upgradeMetadata(
             originalMetadata,
             new MockIndexMetadataVerifier(false),
             metadataUpgrader
         );
-        assertEquals(upgradedCustom1, upgradedMetadata.custom(CustomMetadata1.TYPE));
-        assertEquals(upgradedCustom2, upgradedMetadata.custom(CustomMetadata2.TYPE));
+        // ...and assert that the first upgrader has been applied to the CustomMetadata1...
+        assertEquals(new CustomMetadata1("new data"), upgradedMetadata.custom(CustomMetadata1.TYPE));
+        // ...and both upgraders have been applied to the CustomMetadata2.
+        assertEquals(new CustomMetadata2("more new other data"), upgradedMetadata.custom(CustomMetadata2.TYPE));
     }
 
     public void testIndexTemplateValidation() {

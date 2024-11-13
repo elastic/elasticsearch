@@ -9,6 +9,7 @@
 
 package org.elasticsearch.action.admin.cluster.node.tasks.get;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -24,7 +25,7 @@ import static org.elasticsearch.action.ValidateActions.addValidationError;
  * A request to get node tasks
  */
 public class GetTaskRequest extends ActionRequest {
-    private TaskId taskId = TaskId.EMPTY_TASK_ID;
+    private String taskId;
     private boolean waitForCompletion = false;
     private TimeValue timeout = null;
 
@@ -35,19 +36,23 @@ public class GetTaskRequest extends ActionRequest {
 
     public GetTaskRequest(StreamInput in) throws IOException {
         super(in);
-        taskId = TaskId.readFromStream(in);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.TASK_API_SUPPORTS_PERSISTENT_TASK_ID)) {
+            taskId = in.readString();
+        } else {
+            taskId = TaskId.readFromStream(in).toString();
+        }
         timeout = in.readOptionalTimeValue();
         waitForCompletion = in.readBoolean();
     }
 
-    public TaskId getTaskId() {
+    public String getTaskId() {
         return taskId;
     }
 
     /**
      * Set the TaskId to look up. Required.
      */
-    public GetTaskRequest setTaskId(TaskId taskId) {
+    public GetTaskRequest setTaskId(String taskId) {
         this.taskId = taskId;
         return this;
     }
@@ -94,7 +99,7 @@ public class GetTaskRequest extends ActionRequest {
     @Override
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = null;
-        if (false == getTaskId().isSet()) {
+        if (getTaskId() == null) {
             validationException = addValidationError("task id is required", validationException);
         }
         return validationException;
@@ -103,7 +108,11 @@ public class GetTaskRequest extends ActionRequest {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
-        taskId.writeTo(out);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.TASK_API_SUPPORTS_PERSISTENT_TASK_ID)) {
+            out.writeOptionalString(taskId);
+        } else {
+            new TaskId(taskId).writeTo(out);
+        }
         out.writeOptionalTimeValue(timeout);
         out.writeBoolean(waitForCompletion);
     }

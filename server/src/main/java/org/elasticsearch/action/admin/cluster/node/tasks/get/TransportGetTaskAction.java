@@ -31,6 +31,10 @@ import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.persistent.AllocatedPersistentTask;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
+import org.elasticsearch.persistent.PersistentTasksCustomMetadata.PersistentTask;
+import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -44,6 +48,8 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Map;
+import java.util.Optional;
 
 import static java.util.Objects.requireNonNullElse;
 import static org.elasticsearch.core.TimeValue.timeValueSeconds;
@@ -89,11 +95,45 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
 
     @Override
     protected void doExecute(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        if (clusterService.localNode().getId().equals(request.getTaskId().getNodeId())) {
-            getRunningTaskFromNode(thisTask, request, listener);
+        final Task runningTask;
+        final String nodeId;
+        PersistentTask<?> persistentTask = getPersistentTask(request.getTaskId());
+        if (persistentTask != null) {
+            if (persistentTask.isAssigned()) {
+                runningTask = getRunningPersistentTaskFromTaskManager(request.getTaskId());
+                nodeId = persistentTask.getExecutorNode();
+            } else {
+                listener.onFailure(
+                    new ElasticsearchException("Persistent task with id [{}] is not assigned to a node", request.getTaskId())
+                );
+                return;
+            }
         } else {
-            runOnNodeWithTaskIfPossible(thisTask, request, listener);
+            try {
+                TaskId taskId = new TaskId(request.getTaskId());
+                runningTask = getRunningPersistentTaskFromTaskManager(request.getTaskId());
+                nodeId = taskId.getNodeId();
+            } catch (IllegalArgumentException e) {
+                listener.onFailure(new ElasticsearchException("Persistent task with id [{}] was not found", request.getTaskId()));
+                return;
+            }
         }
+        if (clusterService.localNode().getId().equals(nodeId)) {
+            getRunningTaskFromNode(thisTask, request, listener, runningTask);
+        } else {
+            runOnNodeWithTaskIfPossible(thisTask, request, nodeId, listener);
+        }
+    }
+
+    /*
+     * This method accepts either a taskId or a persistentTaskId. We don't know which one it is at the time this method is called.
+     * It returns the PersistentTask if there is a persistent task for this id in the cluster state, or null otherwise.
+     */
+    private PersistentTask<?> getPersistentTask(String maybePersistentTaskId) {
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
+        return persistentTasksCustomMetadata.getTask(maybePersistentTaskId);
     }
 
     /**
@@ -101,8 +141,13 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * {@link TaskId#getNodeId()}. If the node isn't in the cluster then this will just proceed to
      * {@link #getFinishedTaskFromIndex(Task, GetTaskRequest, ActionListener)} on this node.
      */
-    private void runOnNodeWithTaskIfPossible(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        DiscoveryNode node = clusterService.state().nodes().get(request.getTaskId().getNodeId());
+    private void runOnNodeWithTaskIfPossible(
+        Task thisTask,
+        GetTaskRequest request,
+        String nodeId,
+        ActionListener<GetTaskResponse> listener
+    ) {
+        DiscoveryNode node = clusterService.state().nodes().get(nodeId);
         if (node == null) {
             // Node is no longer part of the cluster! Try and look the task up from the results index.
             getFinishedTaskFromIndex(thisTask, request, ActionListener.wrap(listener::onResponse, e -> {
@@ -111,7 +156,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                         "task ["
                             + request.getTaskId()
                             + "] belongs to the node ["
-                            + request.getTaskId().getNodeId()
+                            + nodeId
                             + "] which isn't part of the cluster and there is no record of the task",
                         e
                     );
@@ -134,8 +179,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
      * Executed on the node that should be running the task to find and return the running task. Falls back to
      * {@link #getFinishedTaskFromIndex(Task, GetTaskRequest, ActionListener)} if the task isn't still running.
      */
-    void getRunningTaskFromNode(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener) {
-        Task runningTask = taskManager.getTask(request.getTaskId().getId());
+    void getRunningTaskFromNode(Task thisTask, GetTaskRequest request, ActionListener<GetTaskResponse> listener, Task runningTask) {
         if (runningTask == null) {
             // Task isn't running, go look in the task index
             getFinishedTaskFromIndex(thisTask, request, listener);
@@ -158,7 +202,7 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 taskManager.registerRemovedTaskListener(removedTaskListener);
                 // Check if the task had finished before we registered the listener, so we wouldn't wait
                 // for an event that would never come
-                if (taskManager.getTask(request.getTaskId().getId()) == null) {
+                if (taskManager.getTask(runningTask.getId()) == null) {
                     future.onResponse(null);
                 }
                 final ActionListener<Void> waitedForCompletionListener = ActionListener.runBefore(
@@ -184,6 +228,24 @@ public class TransportGetTaskAction extends HandledTransportAction<GetTaskReques
                 listener.onResponse(new GetTaskResponse(new TaskResult(false, info)));
             }
         }
+    }
+
+    private Task getRunningTaskFromTaskManager(String taskIdString) {
+        TaskId taskId = new TaskId(taskIdString);
+        return taskManager.getTask(taskId.getId());
+    }
+
+    private Task getRunningPersistentTaskFromTaskManager(String persistentTaskId) {
+        Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
+            .entrySet()
+            .stream()
+            .filter(entry -> entry.getValue().getType().equals("persistent"))
+            .filter(
+                entry -> entry.getValue() instanceof AllocatedPersistentTask
+                    && persistentTaskId.equals((((AllocatedPersistentTask) entry.getValue()).getPersistentTaskId()))
+            )
+            .findAny();
+        return optionalTask.<Task>map(Map.Entry::getValue).orElse(null);
     }
 
     /**

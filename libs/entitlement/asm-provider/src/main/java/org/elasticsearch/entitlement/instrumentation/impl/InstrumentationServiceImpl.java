@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
+
     @Override
     public Instrumenter newInstrumenter(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
         return new InstrumenterImpl(classNameSuffix, instrumentationMethods);
@@ -52,6 +53,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         IOException {
         var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
         var checkerClass = Class.forName(entitlementCheckerClassName);
+        var instrumentationTargetAnnotationDescriptor = Type.getDescriptor(
+            Class.forName("org.elasticsearch.entitlement.bridge.InstrumentationTarget")
+        );
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
@@ -65,7 +69,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                     @Override
                     public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
                         var av = super.visitAnnotation(descriptor, visible);
-                        if (descriptor.equals("InstrumentationTarget")) {
+                        if (descriptor.equals(instrumentationTargetAnnotationDescriptor)) {
                             return new InstrumentationTargetAnnotationVisitor(
                                 av,
                                 className,
@@ -80,7 +84,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             }
         };
         reader.accept(visitor, 0);
-        return null;
+        return methodsToInstrument;
     }
 
     private static class InstrumentationTargetAnnotationVisitor extends AnnotationVisitor {

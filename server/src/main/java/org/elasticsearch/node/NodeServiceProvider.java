@@ -9,6 +9,7 @@
 
 package org.elasticsearch.node;
 
+import org.elasticsearch.bootstrap.PluginRegistrationObserver;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -51,9 +52,21 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
+    private final PluginRegistrationObserver pluginRegistrationObserver;
+
+    NodeServiceProvider(PluginRegistrationObserver pluginRegistrationObserver) {
+        this.pluginRegistrationObserver = pluginRegistrationObserver;
+    }
+
     PluginsService newPluginService(Environment environment, Settings settings) {
         // this creates a PluginsService with an empty list of classpath plugins
-        return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+        return new PluginsService(
+            settings,
+            environment.configFile(),
+            environment.modulesFile(),
+            environment.pluginsFile(),
+            pluginRegistrationObserver
+        );
     }
 
     ScriptService newScriptService(

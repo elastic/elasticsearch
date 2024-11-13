@@ -42,6 +42,8 @@ class Bootstrap {
     // the loaded settings for the node, not valid until after phase 2 of initialization
     private final SetOnce<Environment> nodeEnv = new SetOnce<>();
 
+    public final SetOnce<PluginRegistrationObserver> pluginsEnvironment = new SetOnce<>();
+
     Bootstrap(PrintStream out, PrintStream err, ServerArgs args) {
         this.out = out;
         this.err = err;

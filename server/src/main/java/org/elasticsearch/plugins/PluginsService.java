@@ -16,6 +16,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.node.info.PluginsAndModules;
+import org.elasticsearch.bootstrap.PluginRegistrationObserver;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -103,6 +104,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private final Settings settings;
     private final Path configPath;
+    private final PluginRegistrationObserver observer;
 
     /**
      * We keep around a list of plugins and modules. The order of
@@ -121,10 +123,21 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
-    @SuppressWarnings("this-escape")
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
+        this(settings, configPath, modulesDirectory, pluginsDirectory, (pluginName, modules) -> {});
+    }
+
+    @SuppressWarnings("this-escape")
+    public PluginsService(
+        Settings settings,
+        Path configPath,
+        Path modulesDirectory,
+        Path pluginsDirectory,
+        PluginRegistrationObserver observer
+    ) {
         this.settings = settings;
         this.configPath = configPath;
+        this.observer = observer;
 
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         addServerExportsService(qualifiedExports);
@@ -485,6 +498,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             spiLayerAndLoader,
             qualifiedExports
         );
+        observer.registerModules(name, pluginLayerAndLoader.layer.modules());
         final ClassLoader pluginClassLoader = pluginLayerAndLoader.loader();
 
         if (spiLayerAndLoader == null) {

@@ -214,6 +214,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
 
     private Map<String, Object> runtimeMappings = emptyMap();
 
+    private boolean skipInnerHits = false;
+
     /**
      * Constructs a new search source builder.
      */
@@ -289,6 +291,11 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+            skipInnerHits = in.readBoolean();
+        } else {
+            skipInnerHits = false;
         }
     }
 
@@ -378,6 +385,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             out.writeOptionalNamedWriteable(rankBuilder);
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE)) {
+            out.writeBoolean(skipInnerHits);
         }
     }
 
@@ -1280,6 +1290,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         rewrittenBuilder.collapse = collapse;
         rewrittenBuilder.pointInTimeBuilder = pointInTimeBuilder;
         rewrittenBuilder.runtimeMappings = runtimeMappings;
+        rewrittenBuilder.skipInnerHits = skipInnerHits;
         return rewrittenBuilder;
     }
 
@@ -1638,6 +1649,18 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         }
 
         knnSearch = knnBuilders.stream().map(knnBuilder -> knnBuilder.build(size())).collect(Collectors.toList());
+        if (rankBuilder != null) {
+            if (retrieverBuilder != null) {
+                throw new IllegalArgumentException("Cannot specify both [rank] and [retriever].");
+            }
+            RetrieverBuilder transformedRetriever = rankBuilder.toRetriever(this, clusterSupportsFeature);
+            if (transformedRetriever != null) {
+                this.retriever(transformedRetriever);
+                rankBuilder = null;
+                subSearchSourceBuilders.clear();
+                knnSearch.clear();
+            }
+        }
         searchUsageConsumer.accept(searchUsage);
         return this;
     }
@@ -1826,6 +1849,9 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (false == runtimeMappings.isEmpty()) {
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
+        if (skipInnerHits) {
+            builder.field("skipInnerHits", true);
+        }
 
         return builder;
     }
@@ -1836,6 +1862,15 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         innerToXContent(builder, params);
         builder.endObject();
         return builder;
+    }
+
+    public SearchSourceBuilder skipInnerHits(boolean skipInnerHits) {
+        this.skipInnerHits = skipInnerHits;
+        return this;
+    }
+
+    public boolean skipInnerHits() {
+        return this.skipInnerHits;
     }
 
     public static class IndexBoost implements Writeable, ToXContentObject {
@@ -2092,7 +2127,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             collapse,
             trackTotalHitsUpTo,
             pointInTimeBuilder,
-            runtimeMappings
+            runtimeMappings,
+            skipInnerHits
         );
     }
 
@@ -2137,7 +2173,8 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
             && Objects.equals(collapse, other.collapse)
             && Objects.equals(trackTotalHitsUpTo, other.trackTotalHitsUpTo)
             && Objects.equals(pointInTimeBuilder, other.pointInTimeBuilder)
-            && Objects.equals(runtimeMappings, other.runtimeMappings);
+            && Objects.equals(runtimeMappings, other.runtimeMappings)
+            && Objects.equals(skipInnerHits, other.skipInnerHits);
     }
 
     @Override

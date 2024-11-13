@@ -135,7 +135,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
     static SearchPhase nextPhase(
         Client client,
-        SearchPhaseContext context,
+        AbstractSearchAsyncAction<?> context,
         SearchPhaseResults<SearchPhaseResult> queryResults,
         AggregatedDfs aggregatedDfs
     ) {
@@ -147,7 +147,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     }
 
     @Override
-    protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+    protected SearchPhase getNextPhase() {
         return nextPhase(client, this, results, null);
     }
 

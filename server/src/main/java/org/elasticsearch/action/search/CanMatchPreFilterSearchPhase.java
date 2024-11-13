@@ -131,7 +131,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
     @Override
     public void run() {
         assert assertSearchCoordinationThread();
-        checkNoMissingShards();
         runCoordinatorRewritePhase();
     }
 
@@ -175,7 +174,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
         } else {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
+            GroupShardsIterator<SearchShardIterator> matchingShards = new GroupShardsIterator<>(matchedShardLevelRequests);
+            // verify missing shards only for the shards that we hit for the query
+            checkNoMissingShards(matchingShards);
+            new Round(matchingShards).run();
         }
     }
 
@@ -185,9 +187,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         results.consumeResult(result, () -> {});
     }
 
-    private void checkNoMissingShards() {
+    private void checkNoMissingShards(GroupShardsIterator<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        doCheckNoMissingShards(getName(), request, shardsIts);
+        doCheckNoMissingShards(getName(), request, shards);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {

@@ -75,6 +75,14 @@ public interface InferenceService extends Closeable {
     InferenceServiceConfiguration getConfiguration();
 
     /**
+     * Whether this service should be hidden from the API. Should be used for services
+     * that are not ready to be used.
+     */
+    default Boolean hideFromConfigurationApi() {
+        return Boolean.FALSE;
+    }
+
+    /**
      * The task types supported by the service
      * @return Set of supported.
      */
@@ -175,6 +183,15 @@ public interface InferenceService extends Closeable {
      * @return The model with updated embedding details
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
+     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @return The model with updated chat completion details
+     */
+    default Model updateModelWithChatCompletionDetails(Model model) {
         return model;
     }
 

@@ -27,7 +27,11 @@ public class IndexStats implements Iterable<IndexShardStats> {
 
     private final ClusterHealthStatus health;
 
-    private final IndexMetadata metadata;
+    private final IndexMetadata.State state;
+
+    private final List<String> tierPreference;
+
+    private final long creationDate;
 
     private final ShardStats shards[];
 
@@ -35,13 +39,17 @@ public class IndexStats implements Iterable<IndexShardStats> {
         String index,
         String uuid,
         @Nullable ClusterHealthStatus health,
-        @Nullable IndexMetadata metadata,
+        @Nullable IndexMetadata.State state,
+        @Nullable List<String> tierPreference,
+        @Nullable long creationDate,
         ShardStats[] shards
     ) {
         this.index = index;
         this.uuid = uuid;
         this.health = health;
-        this.metadata = metadata;
+        this.state = state;
+        this.tierPreference = tierPreference;
+        this.creationDate = creationDate;
         this.shards = shards;
     }
 
@@ -58,15 +66,15 @@ public class IndexStats implements Iterable<IndexShardStats> {
     }
 
     public IndexMetadata.State getState() {
-        return metadata == null ? null : metadata.getState();
+        return state;
     }
 
     public List<String> getTierPreference() {
-        return metadata == null ? null : metadata.getTierPreference();
+        return tierPreference;
     }
 
     public long getCreationDate() {
-        return metadata == null ? -1 : metadata.getCreationDate();
+        return creationDate;
     }
 
     public ShardStats[] getShards() {
@@ -136,14 +144,25 @@ public class IndexStats implements Iterable<IndexShardStats> {
         private final String indexName;
         private final String uuid;
         private final ClusterHealthStatus health;
-        private final IndexMetadata metadata;
+        private final IndexMetadata.State state;
+        private final List<String> tierPreference;
+        private final long creationDate;
         private final List<ShardStats> shards = new ArrayList<>();
 
-        public IndexStatsBuilder(String indexName, String uuid, @Nullable ClusterHealthStatus health, @Nullable IndexMetadata metadata) {
+        public IndexStatsBuilder(
+                String indexName,
+                String uuid,
+                @Nullable ClusterHealthStatus health,
+                @Nullable IndexMetadata.State state,
+                @Nullable List<String> tierPreference,
+                @Nullable long creationDate
+        ) {
             this.indexName = indexName;
             this.uuid = uuid;
             this.health = health;
-            this.metadata = metadata;
+            this.state = state;
+            this.tierPreference = tierPreference;
+            this.creationDate = creationDate;
         }
 
         public IndexStatsBuilder add(ShardStats shardStats) {
@@ -152,7 +171,7 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
 
         public IndexStats build() {
-            return new IndexStats(indexName, uuid, health, metadata, shards.toArray(new ShardStats[shards.size()]));
+            return new IndexStats(indexName, uuid, health, state, tierPreference, creationDate, shards.toArray(new ShardStats[shards.size()]));
         }
     }
 }

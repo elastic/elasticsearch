@@ -29,6 +29,7 @@ import java.time.temporal.ChronoUnit;
 import java.time.temporal.TemporalAccessor;
 import java.util.List;
 import java.util.Locale;
+import java.util.function.LongSupplier;
 
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.hamcrest.Matchers.containsString;
@@ -259,6 +260,175 @@ public class DateFormattersTests extends ESTestCase {
             assertThat(instant.getNano(), is(999876550));
             assertThat(formatter.format(instant), is("-0.12345"));
             assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000"));
+            assertThat(instant.getEpochSecond(), is(-86400L));
+            assertThat(instant.getNano(), is(0));
+            assertThat(formatter.format(instant), is("-86400000"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+        {
+            Instant instant = Instant.from(formatter.parse("-86400000.999999"));
+            assertThat(instant.getEpochSecond(), is(-86401L));
+            assertThat(instant.getNano(), is(999000001));
+            assertThat(formatter.format(instant), is("-86400000.999999"));
+            assertThat(Instant.from(formatter.parse(formatter.format(instant))), is(instant));
+        }
+
+        // validate that negative epoch millis around rounded appropriately by the parser
+        LongSupplier supplier = () -> 0L;
+        {
+            Instant instant = formatter.toDateMathParser().parse("0", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("0", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("1", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.001999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-1", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("1", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.001Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-1", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.999999", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.999999", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999000001Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.999999", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.999999", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999000001Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("6250000430768", supplier, true, ZoneId.of("UTC"));
+            assertEquals("2168-01-20T23:13:50.768999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-6250000430768", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1771-12-12T00:46:09.232999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("6250000430768", supplier, false, ZoneId.of("UTC"));
+            assertEquals("2168-01-20T23:13:50.768Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-6250000430768", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1771-12-12T00:46:09.232Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.123450", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000123450Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.123450", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999876550Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.123450", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000123450Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.123450", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999876550Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.123456", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000123456Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.123456", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999876544Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("0.123456", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.000123456Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-0.123456", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.999876544Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("86400000", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-02T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-86400000", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("86400000", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-02T00:00:00Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-86400000", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T00:00:00Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("86400000.999999", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-02T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-86400000.999999", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-30T23:59:59.999000001Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("86400000.999999", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-02T00:00:00.000999999Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-86400000.999999", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-30T23:59:59.999000001Z", instant.toString());
+        }
+
+        {
+            Instant instant = formatter.toDateMathParser().parse("200.89", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.200890Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-200.89", supplier, true, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.799110Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("200.89", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1970-01-01T00:00:00.200890Z", instant.toString());
+        }
+        {
+            Instant instant = formatter.toDateMathParser().parse("-200.89", supplier, false, ZoneId.of("UTC"));
+            assertEquals("1969-12-31T23:59:59.799110Z", instant.toString());
         }
     }
 

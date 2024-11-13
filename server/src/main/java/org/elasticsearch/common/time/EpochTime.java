@@ -161,6 +161,14 @@ class EpochTime {
             Long nanosOfMilli = fieldValues.remove(NANOS_OF_MILLI);
             long secondsAndMillis = fieldValues.remove(this);
 
+            // piggy back whether the formatter is in a "round up" mode or not via negative nanos
+            // ... which are not valid except in the context of our parser wanting to round up
+            boolean roundUp = false;
+            if (nanosOfMilli != null && nanosOfMilli < 0) {
+                nanosOfMilli = -nanosOfMilli;
+                roundUp = true;
+            }
+
             long seconds;
             long nanos;
             if (isNegative != null) {
@@ -169,10 +177,15 @@ class EpochTime {
                 nanos = secondsAndMillis % 1000 * 1_000_000;
                 // `secondsAndMillis < 0` implies negative timestamp; so `nanos < 0`
                 if (nanosOfMilli != null) {
-                    // aggregate fractional part of the input; subtract b/c `nanos < 0`
-                    nanos -= nanosOfMilli;
+                    if (roundUp) {
+                        // these are not the nanos you think they are; these are "round up nanos" not the fractional part of the input
+                        nanos += nanosOfMilli;
+                    } else {
+                        // aggregate fractional part of the input; subtract b/c `nanos < 0`
+                        nanos -= nanosOfMilli;
+                    }
                 }
-                if (nanos != 0) {
+                if (nanos < 0) {
                     // nanos must be positive. B/c the timestamp is represented by the
                     // (seconds, nanos) tuple, seconds moves 1s toward negative-infinity
                     // and nanos moves 1s toward positive-infinity
@@ -261,7 +274,7 @@ class EpochTime {
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
         new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER1),
-        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, 999_999L)),
+        JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, -999_999L)),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER1),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER2)
     );

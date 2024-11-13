@@ -291,7 +291,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
             rankBuilder = in.readOptionalNamedWriteable(RankBuilder.class);
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)) {
+        if (in.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)) {
             skipInnerHits = in.readBoolean();
         } else {
             skipInnerHits = false;
@@ -385,7 +385,7 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         } else if (rankBuilder != null) {
             throw new IllegalArgumentException("cannot serialize [rank] to version [" + out.getTransportVersion().toReleaseVersion() + "]");
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)) {
+        if (out.getTransportVersion().isPatchFrom(TransportVersions.SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16)) {
             out.writeBoolean(skipInnerHits);
         }
     }

@@ -21,41 +21,6 @@ import java.util.stream.IntStream;
 
 public class TimeBasedUUIDGeneratorTests extends ESTestCase {
 
-    private void assertUUIDUniqueness(final UUIDGenerator generator, final int count) {
-        assertEquals(count, generateUUIDs(generator, count).size());
-    }
-
-    private Set<String> generateUUIDs(final UUIDGenerator generator, final int count) {
-        return IntStream.range(0, count).mapToObj(i -> generator.getBase64UUID()).collect(HashSet::new, Set::add, Set::addAll);
-    }
-
-    private void assertUUIDFormat(final UUIDGenerator generator, final int count) {
-        IntStream.range(0, count).forEach(i -> {
-            final String uuid = generator.getBase64UUID();
-            assertNotNull(uuid);
-            assertEquals(20, uuid.length());
-            assertFalse(uuid.contains("+"));
-            assertFalse(uuid.contains("/"));
-            assertFalse(uuid.contains("="));
-        });
-    }
-
-    private UUIDGenerator createGenerator(
-        final Supplier<Long> timestampSupplier,
-        final Supplier<Integer> sequenceIdSupplier,
-        final Supplier<byte[]> macAddressSupplier
-    ) {
-        return new TimeBasedUUIDGenerator(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
-    }
-
-    private UUIDGenerator createKOrderedGenerator(
-        final Supplier<Long> timestampSupplier,
-        final Supplier<Integer> sequenceIdSupplier,
-        final Supplier<byte[]> macAddressSupplier
-    ) {
-        return new TimeBasedKOrderedUUIDGenerator(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
-    }
-
     public void testTimeBasedUUIDGeneration() {
         assertUUIDFormat(createGenerator(() -> Instant.now().toEpochMilli(), () -> 0, new TestRandomMacAddressSupplier()), 100_000);
     }
@@ -157,6 +122,41 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
         assertArrayEquals("MAC address does not match", macAddress, decoder.decodeMacAddress());
     }
 
+    private void assertUUIDUniqueness(final UUIDGenerator generator, final int count) {
+        assertEquals(count, generateUUIDs(generator, count).size());
+    }
+
+    private Set<String> generateUUIDs(final UUIDGenerator generator, final int count) {
+        return IntStream.range(0, count).mapToObj(i -> generator.getBase64UUID()).collect(HashSet::new, Set::add, Set::addAll);
+    }
+
+    private void assertUUIDFormat(final UUIDGenerator generator, final int count) {
+        IntStream.range(0, count).forEach(i -> {
+            final String uuid = generator.getBase64UUID();
+            assertNotNull(uuid);
+            assertEquals(20, uuid.length());
+            assertFalse(uuid.contains("+"));
+            assertFalse(uuid.contains("/"));
+            assertFalse(uuid.contains("="));
+        });
+    }
+
+    private UUIDGenerator createGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        return new TimeBasedUUIDGenerator(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
+    }
+
+    private UUIDGenerator createKOrderedGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        return new TimeBasedKOrderedUUIDGenerator(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
+    }
+
     private static class TestRandomMacAddressSupplier implements Supplier<byte[]> {
         private final byte[] macAddress = new byte[] { randomByte(), randomByte(), randomByte(), randomByte(), randomByte(), randomByte() };
 
@@ -223,7 +223,6 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
      * A utility class to decode the K-ordered UUID extracting the original timestamp, MAC address and sequence ID.
      */
     private static class TestTimeBasedKOrderedUUIDDecoder {
-        private static final Base64.Decoder UUID_URL_DECODER = Base64.getUrlDecoder();
 
         private final byte[] decodedBytes;
 
@@ -233,7 +232,7 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
          * @param base64UUID The base64-encoded UUID string to decode.
          */
         TestTimeBasedKOrderedUUIDDecoder(final String base64UUID) {
-            this.decodedBytes = UUID_URL_DECODER.decode(base64UUID);
+            this.decodedBytes = Base64.getUrlDecoder().decode(base64UUID);
         }
 
         /**

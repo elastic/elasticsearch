@@ -34,6 +34,11 @@ public class EsqlCapabilities {
         FN_BIT_LENGTH,
 
         /**
+         * Support for function {@code BYTE_LENGTH}.
+         */
+        FN_BYTE_LENGTH,
+
+        /**
          * Support for function {@code REVERSE}.
          */
         FN_REVERSE,

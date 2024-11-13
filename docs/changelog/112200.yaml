@@ -1,6 +1,0 @@
-pr: 112200
-summary: "ES|QL: better validation of GROK patterns"
-area: ES|QL
-type: bug
-issues:
- - 112111

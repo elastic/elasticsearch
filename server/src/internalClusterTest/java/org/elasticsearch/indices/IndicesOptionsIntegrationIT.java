@@ -287,7 +287,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);
@@ -338,7 +338,7 @@ public class IndicesOptionsIntegrationIT extends ESIntegTestCase {
         verify(indicesStats(indices), false);
         verify(forceMerge(indices), false);
         verify(refreshBuilder(indices), false);
-        verify(validateQuery(indices), true);
+        verify(validateQuery(indices), false);
         verify(getAliases(indices), false);
         verify(getFieldMapping(indices), false);
         verify(getMapping(indices), false);

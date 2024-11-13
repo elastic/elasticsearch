@@ -1,5 +1,0 @@
-pr: 114715
-summary: Ignore unrecognized openai sse fields
-area: Machine Learning
-type: bug
-issues: []

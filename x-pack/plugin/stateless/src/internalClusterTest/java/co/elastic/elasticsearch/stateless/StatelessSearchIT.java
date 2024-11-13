@@ -1306,9 +1306,18 @@ public class StatelessSearchIT extends AbstractStatelessIntegTestCase {
         mockTransportService.addSendBehavior((connection, requestId, action, request, options) -> {
             if (action.equals(TransportNewCommitNotificationAction.NAME + "[u]")) {
                 assertThat(engine.getPersistedLocalCheckpoint(), greaterThanOrEqualTo(0L));
-                safeAwait(newCommitNotificationLatch);
+                mockTransportService.getThreadPool().generic().execute(() -> {
+                    try {
+                        safeAwait(newCommitNotificationLatch);
+                        connection.sendRequest(requestId, action, request, options);
+                    } catch (Exception e) {
+                        assert false : e;
+                        throw new RuntimeException(e);
+                    }
+                });
+            } else {
+                connection.sendRequest(requestId, action, request, options);
             }
-            connection.sendRequest(requestId, action, request, options);
         });
 
         // Fire a refresh, which triggers a new commit notification

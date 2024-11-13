@@ -466,6 +466,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         }
     }
 
+    // Borrowed this test from IncrementalBulkIT and added test for metrics to it
     public void testIncrementalBulkLowWatermarkSplitMetrics() throws Exception {
         final String nodeName = internalCluster().startNode(
             Settings.builder()
@@ -541,6 +542,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
         assertFalse(refCounted.hasReferences());
     }
 
+    // Borrowed this test from IncrementalBulkIT and added test for metrics to it
     public void testIncrementalBulkHighWatermarkSplitMetrics() throws Exception {
         final String nodeName = internalCluster().startNode(
             Settings.builder()

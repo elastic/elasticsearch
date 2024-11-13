@@ -102,7 +102,7 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/113694
 - class: org.elasticsearch.xpack.remotecluster.RemoteClusterSecurityWithApmTracingRestIT
   method: testTracingCrossCluster
-  issue: https://github.com/elastic/elasticsearch/issues/112731g
+  issue: https://github.com/elastic/elasticsearch/issues/112731
 - class: org.elasticsearch.xpack.restart.MLModelDeploymentFullClusterRestartIT
   method: testDeploymentSurvivesRestart {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/115528

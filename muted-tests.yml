@@ -97,9 +97,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testGet
-  issue: https://github.com/elastic/elasticsearch/issues/114135
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
@@ -230,6 +227,19 @@ tests:
 - class: org.elasticsearch.packaging.test.DockerTests
   method: test011SecurityEnabledStatus
   issue: https://github.com/elastic/elasticsearch/issues/116628
+- class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
+  method: testSettingsApplied
+  issue: https://github.com/elastic/elasticsearch/issues/116694
+- class: org.elasticsearch.snapshots.SnapshotShutdownIT
+  method: testRestartNodeDuringSnapshot
+  issue: https://github.com/elastic/elasticsearch/issues/116730
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116740
+- class: org.elasticsearch.action.search.SearchRequestTests
+  method: testSerializationConstants
+  issue: https://github.com/elastic/elasticsearch/issues/116752
+- class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
+  issue: https://github.com/elastic/elasticsearch/issues/116182
 
 # Examples:
 #

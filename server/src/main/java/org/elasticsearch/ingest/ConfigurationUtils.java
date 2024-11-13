@@ -214,7 +214,7 @@ public final class ConfigurationUtils {
         if (value == null) {
             return defaultValue;
         } else {
-            return readBoolean(processorType, processorTag, propertyName, value).booleanValue();
+            return readBoolean(processorType, processorTag, propertyName, value);
         }
     }
 
@@ -227,6 +227,20 @@ public final class ConfigurationUtils {
     ) {
         Object value = configuration.remove(propertyName);
         return readBoolean(processorType, processorTag, propertyName, value);
+    }
+
+    public static boolean readRequiredBooleanProperty(
+        String processorType,
+        String processorTag,
+        Map<String, Object> configuration,
+        String propertyName
+    ) {
+        Boolean value = readOptionalBooleanProperty(processorType, processorTag, configuration, propertyName);
+        if (value == null) {
+            throw newConfigurationException(processorType, processorTag, propertyName, "required property is missing");
+        } else {
+            return value;
+        }
     }
 
     private static Boolean readBoolean(String processorType, String processorTag, String propertyName, Object value) {
@@ -268,7 +282,7 @@ public final class ConfigurationUtils {
                 processorType,
                 processorTag,
                 propertyName,
-                "property cannot be converted to an int [" + value.toString() + "]"
+                "property cannot be converted to an int [" + value + "]"
             );
         }
     }
@@ -296,7 +310,7 @@ public final class ConfigurationUtils {
                 processorType,
                 processorTag,
                 propertyName,
-                "property cannot be converted to a double [" + value.toString() + "]"
+                "property cannot be converted to a double [" + value + "]"
             );
         }
     }

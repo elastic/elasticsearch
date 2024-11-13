@@ -147,10 +147,10 @@ AVG(salary):double | bucket:date
 
 bucketWithOffset#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 // tag::bucketWithOffset[]
-FROM employees 
+FROM employees
 | STATS dates = MV_SORT(VALUES(birth_date)) BY b = BUCKET(birth_date + 1 HOUR, 1 YEAR) - 1 HOUR
 | EVAL d_count = MV_COUNT(dates)
-| SORT d_count
+| SORT d_count, b
 | LIMIT 3
 // end::bucketWithOffset[]
 ;

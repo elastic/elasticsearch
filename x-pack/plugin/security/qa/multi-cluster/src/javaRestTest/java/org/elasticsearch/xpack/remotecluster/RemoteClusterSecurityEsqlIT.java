@@ -337,6 +337,8 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         configureRemoteCluster();
         populateData();
 
+        String remoteSearchUserAPIKey = createRemoteSearchUserAPIKey();
+
         // query remote cluster only
         Request request = esqlRequest("""
             FROM my_remote_cluster:employees
@@ -347,21 +349,25 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertRemoteOnlyResults(response);
 
         // same as above but authenticate with API key
-        response = performRequestWithRemoteSearchUserViaAPIKey(request);
+        response = performRequestWithRemoteSearchUserViaAPIKey(request, remoteSearchUserAPIKey);
         assertRemoteOnlyResults(response);
 
         // query remote and local cluster
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
+        request = esqlRequest("""
             FROM my_remote_cluster:employees,employees
             | SORT emp_id ASC
-            | LIMIT 10"""));
+            | LIMIT 10""");
+        response = performRequestWithRemoteSearchUser(request);
+        assertRemoteAndLocalResults(response);
+
+        response = performRequestWithRemoteSearchUserViaAPIKey(request, remoteSearchUserAPIKey);
         assertRemoteAndLocalResults(response);
 
         // update role to include both employees and employees2 for the remote cluster
         final var putRoleRequest = new Request("PUT", "/_security/role/" + REMOTE_SEARCH_ROLE);
         putRoleRequest.setJsonEntity("""
             {
-              "indices": [{"names": [""], "privileges": ["read_cross_cluster"]}],
+              "indices": [{"names": ["employees*"], "privileges": ["read","read_cross_cluster"]}],
               "remote_indices": [
                 {
                   "names": ["employees*"],
@@ -374,12 +380,24 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertOK(response);
 
         // query remote cluster only - but also include employees2 which the user now access
-        response = performRequestWithRemoteSearchUser(esqlRequest("""
+        request = esqlRequest("""
             FROM my_remote_cluster:employees,my_remote_cluster:employees2
             | SORT emp_id ASC
             | LIMIT 2
-            | KEEP emp_id, department"""));
+            | KEEP emp_id, department""");
+        response = performRequestWithRemoteSearchUser(request);
         assertRemoteOnlyAgainst2IndexResults(response);
+
+        response = performRequestWithRemoteSearchUserViaAPIKey(request, remoteSearchUserAPIKey);
+        /*
+         * The above fails with:
+         *  {"error":{"root_cause":[{"type":"security_exception","reason":"action [indices:data/read/esql/cluster] towards
+         *   remote cluster is unauthorized for API key id [rDUuJ5MB_nttSrmX4Feg] of user [remote_search_user] authenticated by
+         *   API key id [n1EuJ5MBAKTJzttycnXQ] of user [test_user] on indices [employees2],
+         *   this action is granted by the index privileges [read,all]"
+         */
+        assertRemoteOnlyAgainst2IndexResults(response);
+
     }
 
     @SuppressWarnings("unchecked")
@@ -699,7 +717,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             assertWithEnrich(response);
 
             // same as above but authenticate with API key
-            response = performRequestWithRemoteSearchUserViaAPIKey(request);
+            response = performRequestWithRemoteSearchUserViaAPIKey(request, createRemoteSearchUserAPIKey());
             assertWithEnrich(response);
 
             // Query cluster
@@ -1002,7 +1020,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         return client().performRequest(request);
     }
 
-    private Response performRequestWithRemoteSearchUserViaAPIKey(final Request request) throws IOException {
+    private Response performRequestWithRemoteSearchUserViaAPIKey(Request request, String encodedApiKey) throws IOException {
+        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encodedApiKey));
+        return client().performRequest(request);
+    }
+
+    private String createRemoteSearchUserAPIKey() throws IOException {
         final Request createApiKeyRequest = new Request("POST", "_security/api_key");
         createApiKeyRequest.setJsonEntity("""
             {
@@ -1016,8 +1039,7 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         assertOK(response);
         final Map<String, Object> responseAsMap = responseAsMap(response);
         final String encoded = (String) responseAsMap.get("encoded");
-        request.setOptions(RequestOptions.DEFAULT.toBuilder().addHeader("Authorization", "ApiKey " + encoded));
-        return client().performRequest(request);
+        return encoded;
     }
 
     @SuppressWarnings("unchecked")

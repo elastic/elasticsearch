@@ -3,4 +3,4 @@ summary: Epoch Millis Rounding Down and Not Up
 area: "Infra/Core, Search"
 type: bug
 issues: 
-   - 109542
+ - 109542

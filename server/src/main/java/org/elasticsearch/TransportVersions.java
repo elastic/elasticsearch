@@ -198,7 +198,7 @@ public class TransportVersions {
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_00_0);
     public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_00_0);
-  
+
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -6,11 +6,11 @@ matchWithField
 required_capability: match_function
 
 // tag::match-with-field[]
-from books 
-| where match(author, "Faulkner")
-| keep book_no, author 
-| sort book_no 
-| limit 5;
+FROM books 
+| WHERE MATCH(author, "Faulkner")
+| KEEP book_no, author 
+| SORT book_no 
+| LIMIT 5;
 // end::match-with-field[]
 
 // tag::match-with-field-result[]

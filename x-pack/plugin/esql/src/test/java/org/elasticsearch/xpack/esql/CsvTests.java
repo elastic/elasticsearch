@@ -498,7 +498,7 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+        testCase.assertWarnings(false).assertWarnings(normalized);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {

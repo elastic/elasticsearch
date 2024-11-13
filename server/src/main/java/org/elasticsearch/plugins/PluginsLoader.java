@@ -21,6 +21,8 @@ import java.io.IOException;
 import java.lang.ModuleLayer.Controller;
 import java.lang.module.Configuration;
 import java.lang.module.ModuleFinder;
+import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.nio.file.Path;
@@ -372,7 +374,15 @@ public class PluginsLoader {
 
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
     static final Path[] urlsToPaths(Set<URL> urls) {
-        return urls.stream().map(PluginsService::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+        return urls.stream().map(PluginsLoader::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
+    }
+
+    static final URI uncheckedToURI(URL url) {
+        try {
+            return url.toURI();
+        } catch (URISyntaxException e) {
+            throw new AssertionError(new IOException(e));
+        }
     }
 
     private static List<Configuration> parentConfigurationOrBoot(List<ModuleLayer> parentLayers) {

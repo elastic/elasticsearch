@@ -13,9 +13,7 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.search.fetch.StoredFieldsContext;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
@@ -159,6 +157,7 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
     }
 
     @Override
+<<<<<<< HEAD
     public QueryBuilder explainQuery() {
         // the original matching set of the TextSimilarityRank retriever is specified by its nested retriever
         return new RankDocsQueryBuilder(rankDocs, new QueryBuilder[] { innerRetrievers.get(0).retriever().explainQuery() }, true);
@@ -185,6 +184,9 @@ public class TextSimilarityRankRetrieverBuilder extends CompoundRetrieverBuilder
             preFilterQueryBuilders.forEach(newQuery::filter);
             sourceBuilder.query(newQuery);
         }
+=======
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
+>>>>>>> 5b25dee334e (Propagating nested inner_hits to the parent compound retriever (#116408))
         sourceBuilder.rankBuilder(
             new TextSimilarityRankBuilder(this.field, this.inferenceId, this.inferenceText, this.rankWindowSize, this.minScore)
         );

@@ -27,12 +27,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
+import java.util.Base64;
 import java.util.HashSet;
 import java.util.Random;
 import java.util.Set;
 
 public class UUIDTests extends ESTestCase {
 
+    static final Base64.Decoder BASE_64_URL_DECODER = Base64.getUrlDecoder();
     static UUIDGenerator timeUUIDGen = new TimeBasedUUIDGenerator();
     static UUIDGenerator randomUUIDGen = new RandomBasedUUIDGenerator();
     static UUIDGenerator kOrderedUUIDGen = new TimeBasedKOrderedUUIDGenerator();
@@ -240,7 +242,13 @@ public class UUIDTests extends ESTestCase {
     }
 
     private void verifyUUIDIsUrlSafe(String uuid) {
-        assertTrue(uuid.matches("^[A-Za-z0-9_-]+$"));
-        assertFalse(uuid.contains("="));
+        assertTrue("UUID contains invalid characters: " + uuid, uuid.matches("^[A-Za-z0-9_-]+$"));
+        assertFalse("UUID should not contain padding characters: " + uuid, uuid.contains("="));
+
+        try {
+            BASE_64_URL_DECODER.decode(uuid);
+        } catch (IllegalArgumentException e) {
+            throw new AssertionError("UUID is not a valid Base64 URL-safe encoded string: " + uuid);
+        }
     }
 }

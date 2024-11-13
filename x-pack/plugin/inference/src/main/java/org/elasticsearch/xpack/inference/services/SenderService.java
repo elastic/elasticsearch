@@ -104,14 +104,11 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 
+    @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         init();
-        doStart(model, listener);
-    }
 
-    @Override
-    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
-        start(model, listener);
+        doStart(model, listener);
     }
 
     protected void doStart(Model model, ActionListener<Boolean> listener) {

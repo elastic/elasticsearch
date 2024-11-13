@@ -12,7 +12,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
@@ -91,7 +90,7 @@ public abstract class AbstractTestInferenceService implements InferenceService {
     protected abstract ServiceSettings getServiceSettingsFromMap(Map<String, Object> serviceSettingsMap);
 
     @Override
-    public void start(Model model, TimeValue timeout, ActionListener<Boolean> listener) {
+    public void start(Model model, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

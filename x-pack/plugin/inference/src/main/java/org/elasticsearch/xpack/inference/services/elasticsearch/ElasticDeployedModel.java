@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
@@ -32,7 +31,7 @@ public class ElasticDeployedModel extends ElasticsearchInternalModel {
     }
 
     @Override
-    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest(TimeValue timeout) {
+    public StartTrainedModelDeploymentAction.Request getStartTrainedModelDeploymentActionRequest() {
         throw new IllegalStateException("cannot start model that uses an existing deployment");
     }
 

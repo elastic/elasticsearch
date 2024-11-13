@@ -139,10 +139,9 @@ public interface InferenceService extends Closeable {
     /**
      * Start or prepare the model for use.
      * @param model The model
-     * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
+    void start(Model model, ActionListener<Boolean> listener);
 
     /**
      * Stop the model deployment.
@@ -151,6 +150,17 @@ public interface InferenceService extends Closeable {
      * @param listener The listener
      */
     default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
+        listener.onResponse(true);
+    }
+
+    /**
+     * Put the model definition (if applicable)
+     * The main purpose of this function is to download ELSER
+     * The default action does nothing except acknowledge the request (true).
+     * @param modelVariant The configuration of the model variant to be downloaded
+     * @param listener The listener
+     */
+    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 

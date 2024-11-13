@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.function;
 
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
@@ -15,6 +16,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
+import java.util.function.Predicate;
 
 /**
  * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
@@ -40,6 +42,11 @@ public abstract class Function extends Expression {
     @Override
     public Nullability nullable() {
         return Expressions.nullable(children());
+    }
+
+    /** Return a predicate that checks if this aggregate function can be used by a provided {@link XPackLicenseState} */
+    public Predicate<XPackLicenseState> getLicenseChecker() {
+        return license -> true;
     }
 
     @Override

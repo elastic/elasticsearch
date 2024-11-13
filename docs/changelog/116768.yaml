@@ -1,0 +1,12 @@
+pr: 116768
+summary: Make `remove_binary` required on `attachment` processors
+area: Ingest Node
+type: breaking
+issues: []
+breaking:
+  title: Make `remove_binary` required on `attachment` processors
+  area: Ingest Node
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

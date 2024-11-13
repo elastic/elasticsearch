@@ -476,6 +476,9 @@ public class EsqlCapabilities {
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
         DELAY_DEBUG_FN(Build.current().isSnapshot()),
+
+        /** Capability for remote metadata test */
+        METADATA_FIELDS_REMOTE_TEST(false),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co

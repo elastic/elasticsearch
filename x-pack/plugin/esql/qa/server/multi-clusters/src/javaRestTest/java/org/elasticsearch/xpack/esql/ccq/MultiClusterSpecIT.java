@@ -101,9 +101,18 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
+        boolean remoteMetadata = testCase.requiredCapabilities.contains("metadata_fields_remote_test");
+        if (remoteMetadata) {
+            // remove the capability from the test to enable it
+            testCase.requiredCapabilities = testCase.requiredCapabilities.stream()
+                .filter(c -> c.equals("metadata_fields_remote_test") == false)
+                .toList();
+        }
         super.shouldSkipTest(testName);
         checkCapabilities(remoteClusterClient(), remoteFeaturesService(), testName, testCase);
-        assumeFalse("can't test with _index metadata", hasIndexMetadata(testCase.query));
+        // Do not run tests including "METADATA _index" unless marked with metadata_fields_remote_test,
+        // because they may produce inconsistent results with multiple clusters.
+        assumeFalse("can't test with _index metadata", (remoteMetadata == false) && hasIndexMetadata(testCase.query));
         assumeTrue(
             "Test " + testName + " is skipped on " + Clusters.oldVersion(),
             isEnabled(testName, instructions, Clusters.oldVersion())
@@ -151,6 +160,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return twoClients(localClient, remoteClient);
     }
 
+    // These indices are used in metadata tests so we want them on remote only for consistency
+    public static final List<String> METADATA_INDICES = List.of("employees", "apps", "ul_logs");
+
     /**
      * Creates a new mock client that dispatches every request to both the local and remote clusters, excluding _bulk and _query requests.
      * - '_bulk' requests are randomly sent to either the local or remote cluster to populate data. Some spec tests, such as AVG,
@@ -166,6 +178,8 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             String endpoint = request.getEndpoint();
             if (endpoint.startsWith("/_query")) {
                 return localClient.performRequest(request);
+            } else if (endpoint.endsWith("/_bulk") && METADATA_INDICES.stream().anyMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
+                return remoteClient.performRequest(request);
             } else if (endpoint.endsWith("/_bulk") && ENRICH_SOURCE_INDICES.stream().noneMatch(i -> endpoint.equals("/" + i + "/_bulk"))) {
                 return bulkClient.performRequest(request);
             } else {
@@ -203,6 +217,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
         return clones;
     }
 
+    /**
+     * Convert FROM employees ... => FROM *:employees,employees
+     */
     static CsvSpecReader.CsvTestCase convertToRemoteIndices(CsvSpecReader.CsvTestCase testCase) {
         String query = testCase.query;
         String[] commands = query.split("\\|");

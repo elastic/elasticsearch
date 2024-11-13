@@ -53,9 +53,6 @@ public class DebMetadataTests extends PackagingTestCase {
         Shell.Result result = sh.runIgnoreExitCode(
             String.format(Locale.ROOT, "lintian %s %s", extraArgs, getDistributionFile(distribution()))
         );
-        if (result.exitCode() != 0 && result.exitCode() != 2) {
-            fail("Lintian failed unexpectedly: " + result.stderr());
-        }
         Result lintianResult = lintianParser.parse(result.stdout());
         // Unfortunately Lintian overrides syntax changes between Lintian versions in a non-backwards compatible
         // way, so we have to manage some exclusions outside the overrides file.

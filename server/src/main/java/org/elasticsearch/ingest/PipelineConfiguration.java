@@ -34,7 +34,11 @@ import java.util.Map;
 import java.util.Objects;
 
 /**
- * Encapsulates a pipeline's id and configuration as a blob
+ * Encapsulates a pipeline's id and configuration as a loosely typed map -- see {@link Pipeline} for the
+ * parsed and processed object(s) that a pipeline configuration will become. This class is used for things
+ * like keeping track of pipelines in the cluster state (where a pipeline is 'just some json') whereas the
+ * {@link Pipeline} class is used in the actual processing of ingest documents through pipelines in the
+ * {@link IngestService}.
  */
 public final class PipelineConfiguration implements SimpleDiffable<PipelineConfiguration>, ToXContentObject {
 

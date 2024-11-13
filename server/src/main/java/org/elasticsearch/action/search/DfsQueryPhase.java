@@ -44,7 +44,7 @@ final class DfsQueryPhase extends SearchPhase {
     private final AggregatedDfs dfs;
     private final List<DfsKnnResults> knnResults;
     private final Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     private final SearchTransportService searchTransportService;
     private final SearchProgressListener progressListener;
 
@@ -54,7 +54,7 @@ final class DfsQueryPhase extends SearchPhase {
         List<DfsKnnResults> knnResults,
         SearchPhaseResults<SearchPhaseResult> queryResult,
         Function<SearchPhaseResults<SearchPhaseResult>, SearchPhase> nextPhaseFactory,
-        SearchPhaseContext context
+        AbstractSearchAsyncAction<?> context
     ) {
         super("dfs_query");
         this.progressListener = context.getTask().getProgressListener();
@@ -65,10 +65,6 @@ final class DfsQueryPhase extends SearchPhase {
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
         this.searchTransportService = context.getSearchTransport();
-
-        // register the release of the query consumer to free up the circuit breaker memory
-        // at the end of the search
-        context.addReleasable(queryResult);
     }
 
     @Override

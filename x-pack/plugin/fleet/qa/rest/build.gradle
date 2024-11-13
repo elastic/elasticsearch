@@ -1,8 +1,15 @@
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
 
-dependencies {
-  yamlRestTestImplementation(testArtifact(project(xpackModule('core'))))
-}
+import org.elasticsearch.gradle.internal.info.BuildParams
+
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-test-artifact'
 
 restResources {
   restApi {
@@ -10,11 +17,17 @@ restResources {
   }
 }
 
-testClusters.configureEach {
-  testDistribution = 'DEFAULT'
-  setting 'xpack.security.enabled', 'true'
-  setting 'xpack.license.self_generated.type', 'trial'
-  extraConfigFile 'roles.yml', file('roles.yml')
-  user username: 'elastic_admin', password: 'admin-password'
-  user username: 'fleet_unprivileged_secrets', password: 'password', role: 'unprivileged_secrets'
+artifacts {
+  restXpackTests(new File(projectDir, "src/yamlRestTest/resources/rest-api-spec/test"))
+}
+
+tasks.named('yamlRestTest') {
+  usesDefaultDistribution()
+}
+tasks.named('yamlRestCompatTest') {
+  usesDefaultDistribution()
+}
+if (BuildParams.inFipsJvm){
+  // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
+  tasks.named("yamlRestTest").configure{enabled = false }
 }

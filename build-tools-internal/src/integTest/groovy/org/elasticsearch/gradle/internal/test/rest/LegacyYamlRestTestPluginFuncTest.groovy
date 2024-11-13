@@ -34,7 +34,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTest", '--stacktrace').build()
+        def result = gradleRunner("yamlRestTest").build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.NO_SOURCE
@@ -68,7 +68,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         file("src/yamlRestTest/java/MockIT.java") << "import org.junit.Test;class MockIT { @Test public void doNothing() { }}"
 
         when:
-        def result = gradleRunner("yamlRestTest", "printYamlRestTestClasspath", '--stacktrace').build()
+        def result = gradleRunner("yamlRestTest", "printYamlRestTestClasspath").build()
 
         then:
         result.task(':yamlRestTest').outcome == TaskOutcome.SKIPPED
@@ -137,7 +137,7 @@ class LegacyYamlRestTestPluginFuncTest extends AbstractRestResourcesFuncTest {
         """
 
         when:
-        def result = gradleRunner("yamlRestTest", "--console", 'plain', '--stacktrace').buildAndFail()
+        def result = gradleRunner("yamlRestTest", "--console", 'plain').buildAndFail()
 
         then:
         result.task(":distribution:archives:integ-test-zip:buildExpanded").outcome == TaskOutcome.SUCCESS

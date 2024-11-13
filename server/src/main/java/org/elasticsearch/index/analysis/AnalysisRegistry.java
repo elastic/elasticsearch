@@ -190,7 +190,7 @@ public final class AnalysisRegistry implements Closeable {
             });
         }
 
-        return new NamedAnalyzer(
+        return overrideAnalyzer(
             (NamedAnalyzer) analyzerProvider.get(environment, analyzer).get(),
             TextFieldMapper.Defaults.POSITION_INCREMENT_GAP
         );
@@ -726,15 +726,20 @@ public final class AnalysisRegistry implements Closeable {
         NamedAnalyzer analyzer;
         if (analyzerF instanceof NamedAnalyzer) {
             // if we got a named analyzer back, use it...
-            analyzer = (NamedAnalyzer) analyzerF;
-            if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
-                // unless the positionIncrementGap needs to be overridden
-                analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
-            }
+            analyzer = overrideAnalyzer(analyzerF, overridePositionIncrementGap);
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }
         checkVersions(analyzer);
+        return analyzer;
+    }
+
+    private static NamedAnalyzer overrideAnalyzer(Analyzer analyzerF, int overridePositionIncrementGap) {
+        NamedAnalyzer analyzer = (NamedAnalyzer) analyzerF;
+        if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
+            // unless the positionIncrementGap needs to be overridden
+            analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
+        }
         return analyzer;
     }
 

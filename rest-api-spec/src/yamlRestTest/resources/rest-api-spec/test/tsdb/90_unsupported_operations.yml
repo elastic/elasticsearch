@@ -129,7 +129,7 @@ noop update:
             {}
 
 ---
-update:
+regular update:
   - requires:
       cluster_features: [ "routing.logsb_route_on_sort_fields" ]
       reason: error message changed

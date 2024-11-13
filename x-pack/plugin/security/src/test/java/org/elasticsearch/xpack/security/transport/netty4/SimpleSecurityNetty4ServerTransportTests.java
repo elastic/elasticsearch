@@ -454,7 +454,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -486,7 +486,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -518,7 +518,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             DiscoveryNode node = DiscoveryNodeUtils.create(
                 service.getLocalNode().getId(),
                 clientAddress,
-                service.getLocalNode().getVersion()
+                service.getLocalNode().getVersionInformation()
             );
             try (Transport.Connection connection2 = openConnection(serviceA, node, TestProfiles.LIGHT_PROFILE)) {
                 sslEngine = getEngineFromAcceptedChannel(originalTransport, connection2);
@@ -562,7 +562,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
-                fcService.getLocalNode().getVersion()
+                fcService.getLocalNode().getVersionInformation()
             );
 
             // 1. Connection will fail because FC server certificate is not trusted by default
@@ -679,7 +679,7 @@ public class SimpleSecurityNetty4ServerTransportTests extends AbstractSimpleTran
             final DiscoveryNode node = DiscoveryNodeUtils.create(
                 fcService.getLocalNode().getId(),
                 remoteAccessAddress,
-                fcService.getLocalNode().getVersion()
+                fcService.getLocalNode().getVersionInformation()
             );
             final Settings qcSettings = Settings.builder().put("xpack.security.remote_cluster_client.ssl.enabled", "false").build();
             try (

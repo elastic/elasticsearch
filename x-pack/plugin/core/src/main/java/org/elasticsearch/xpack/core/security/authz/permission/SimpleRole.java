@@ -210,7 +210,7 @@ public class SimpleRole implements Role {
         final RemoteIndicesPermission remoteIndicesPermission = this.remoteIndicesPermission.forCluster(remoteClusterAlias);
 
         if (remoteIndicesPermission.remoteIndicesGroups().isEmpty()
-            && remoteClusterPermissions.hasPrivileges(remoteClusterAlias) == false) {
+            && remoteClusterPermissions.hasAnyPrivileges(remoteClusterAlias) == false) {
             return RoleDescriptorsIntersection.EMPTY;
         }
 
@@ -224,7 +224,7 @@ public class SimpleRole implements Role {
         return new RoleDescriptorsIntersection(
             new RoleDescriptor(
                 REMOTE_USER_ROLE_NAME,
-                remoteClusterPermissions.privilegeNames(remoteClusterAlias, remoteClusterVersion),
+                remoteClusterPermissions.collapseAndRemoveUnsupportedPrivileges(remoteClusterAlias, remoteClusterVersion),
                 // The role descriptors constructed here may be cached in raw byte form, using a hash of their content as a
                 // cache key; we therefore need deterministic order when constructing them here, to ensure cache hits for
                 // equivalent role descriptors

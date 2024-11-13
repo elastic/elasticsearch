@@ -244,6 +244,34 @@ public class VerifierTests extends ESTestCase {
                 + " [ip] in [test1, test2, test3] and [2] other indices, [keyword] in [test6]",
             error("from test* | where multi_typed is not null", analyzer)
         );
+
+        for (String functionName : List.of("to_timeduration", "to_dateperiod")) {
+            String lineNumber = functionName.equalsIgnoreCase("to_timeduration") ? "47" : "45";
+            String errorType = functionName.equalsIgnoreCase("to_timeduration") ? "time_duration" : "date_period";
+            assertEquals(
+                "1:" + lineNumber + ": Cannot use field [unsupported] with unsupported type [flattened]",
+                error("from test* | eval x = now() + " + functionName + "(unsupported)", analyzer)
+            );
+            assertEquals(
+                "1:" + lineNumber + ": argument of [" + functionName + "(multi_typed)] must be a constant, received [multi_typed]",
+                error("from test* | eval x = now() + " + functionName + "(multi_typed)", analyzer)
+            );
+            assertThat(
+                error("from test* | eval x = unsupported, y = now() + " + functionName + "(x)", analyzer),
+                containsString("1:23: Cannot use field [unsupported] with unsupported type [flattened]")
+            );
+            assertThat(
+                error("from test* | eval x = multi_typed, y = now() + " + functionName + "(x)", analyzer),
+                containsString(
+                    "1:48: argument of ["
+                        + functionName
+                        + "(x)] must be ["
+                        + errorType
+                        + " or string], "
+                        + "found value [x] type [unsupported]"
+                )
+            );
+        }
     }
 
     public void testRoundFunctionInvalidInputs() {
@@ -392,6 +420,19 @@ public class VerifierTests extends ESTestCase {
         );
 
         assertEquals("1:60: Unknown column [m]", error("from test | stats m = max(languages), min(languages) WHERE m + 2 > 1 by emp_no"));
+    }
+
+    public void testAggWithNonBooleanFilter() {
+        for (String filter : List.of("\"true\"", "1", "1 + 0", "concat(\"a\", \"b\")")) {
+            String type = (filter.equals("1") || filter.equals("1 + 0")) ? "INTEGER" : "KEYWORD";
+            assertEquals("1:19: Condition expression needs to be boolean, found [" + type + "]", error("from test | where " + filter));
+            for (String by : List.of("", " by languages", " by bucket(salary, 10)")) {
+                assertEquals(
+                    "1:34: Condition expression needs to be boolean, found [" + type + "]",
+                    error("from test | stats count(*) where " + filter + by)
+                );
+            }
+        }
     }
 
     public void testGroupingInsideAggsAsAgg() {

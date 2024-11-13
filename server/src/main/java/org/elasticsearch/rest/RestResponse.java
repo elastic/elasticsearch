@@ -146,7 +146,7 @@ public final class RestResponse implements Releasable {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
 
-        if (channel.detailedErrorsEnabled()) {
+        if (channel.detailedErrorsEnabled() == false) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "http_detailed_errors",

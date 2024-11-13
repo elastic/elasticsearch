@@ -44,7 +44,7 @@ public abstract class Function extends Expression {
         return Expressions.nullable(children());
     }
 
-    /** Return a predicate that checks if this aggregate function can be used by a provided {@link XPackLicenseState} */
+    /** Return a predicate that checks if this function can be used by a provided {@link XPackLicenseState}.*/
     public Predicate<XPackLicenseState> getLicenseChecker() {
         return license -> true;
     }

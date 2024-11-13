@@ -10,6 +10,7 @@
 package org.elasticsearch.ingest.attachment;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.ArrayList;
@@ -28,11 +29,10 @@ import static org.hamcrest.core.Is.is;
 
 public class AttachmentProcessorFactoryTests extends ESTestCase {
 
-    private AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory();
+    private final AttachmentProcessor.Factory factory = new AttachmentProcessor.Factory();
 
     public void testBuildDefaults() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
 
         String processorTag = randomAlphaOfLength(10);
 
@@ -42,18 +42,11 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertFalse(processor.isIgnoreMissing());
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testConfigureIndexedChars() throws Exception {
         int indexedChars = randomIntBetween(1, 100000);
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("indexed_chars", indexedChars);
 
         String processorTag = randomAlphaOfLength(10);
@@ -61,28 +54,15 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTag(), equalTo(processorTag));
         assertThat(processor.getIndexedChars(), is(indexedChars));
         assertFalse(processor.isIgnoreMissing());
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testBuildTargetField() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("target_field", "_field");
         AttachmentProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getTargetField(), equalTo("_field"));
         assertFalse(processor.isIgnoreMissing());
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testBuildFields() throws Exception {
@@ -94,24 +74,16 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
             properties.add(property);
             fieldNames.add(property.name().toLowerCase(Locale.ROOT));
         }
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("properties", fieldNames);
         AttachmentProcessor processor = factory.create(null, null, null, config);
         assertThat(processor.getField(), equalTo("_field"));
         assertThat(processor.getProperties(), equalTo(properties));
         assertFalse(processor.isIgnoreMissing());
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testBuildIllegalFieldOption() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("properties", Collections.singletonList("invalid"));
         try {
             factory.create(null, null, null, config);
@@ -133,17 +105,10 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         } catch (ElasticsearchParseException e) {
             assertThat(e.getMessage(), equalTo("[properties] property isn't a list, but of type [java.lang.String]"));
         }
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testIgnoreMissing() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("ignore_missing", true);
 
         String processorTag = randomAlphaOfLength(10);
@@ -154,17 +119,10 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isIgnoreMissing());
-
-        assertWarnings(
-            "The default [remove_binary] value of 'false' is deprecated "
-                + "and will be set to 'true' in a future release. Set [remove_binary] explicitly to 'true'"
-                + " or 'false' to ensure no behavior change."
-        );
     }
 
     public void testRemoveBinary() throws Exception {
-        Map<String, Object> config = new HashMap<>();
-        config.put("field", "_field");
+        Map<String, Object> config = configWithRequiredFields();
         config.put("remove_binary", true);
 
         String processorTag = randomAlphaOfLength(10);
@@ -175,5 +133,14 @@ public class AttachmentProcessorFactoryTests extends ESTestCase {
         assertThat(processor.getTargetField(), equalTo("attachment"));
         assertThat(processor.getProperties(), sameInstance(AttachmentProcessor.Factory.DEFAULT_PROPERTIES));
         assertTrue(processor.isRemoveBinary());
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // Remove remove_binary from here iff we make it optional in AttachmentProcessor.create
+    private static Map<String, Object> configWithRequiredFields() {
+        Map<String, Object> config = new HashMap<>();
+        config.put("field", "_field");
+        config.put("remove_binary", false);
+        return config;
     }
 }

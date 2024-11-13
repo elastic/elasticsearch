@@ -8,7 +8,7 @@
       indices.create:
         index: myindex
   - do:
-    indices.stats: {}
+      indices.stats: {}
 
   - is_true: indices.myindex.creation_date
   - is_true: indices.myindex.tier_preference

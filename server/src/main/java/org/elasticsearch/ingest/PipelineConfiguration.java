@@ -167,17 +167,13 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         boolean changed = false;
         // This should be a List of Maps, where the keys are processor types and the values are config maps.
         // But we'll skip upgrading rather than fail if not.
-        Object processorList = mutableConfigMap.get(Pipeline.PROCESSORS_KEY);
-        if (processorList instanceof Iterable) {
-            for (Object processorMap : (Iterable<?>) processorList) {
-                if (processorMap instanceof Map) {
-                    Object processorConfig = ((Map<?, ?>) processorMap).get(type);
-                    if (processorConfig instanceof Map) {
-                        @SuppressWarnings("unchecked") // All XContent maps will be <String, Object>
-                        Map<String, Object> processorConfigMap = (Map<String, Object>) processorConfig;
-                        if (upgrader.maybeUpgrade(processorConfigMap)) {
-                            changed = true;
-                        }
+        if (mutableConfigMap.get(Pipeline.PROCESSORS_KEY) instanceof Iterable<?> processors) {
+            for (Object processor : processors) {
+                if (processor instanceof Map<?, ?> processorMap && processorMap.get(type) instanceof Map<?, ?> targetProcessor) {
+                    @SuppressWarnings("unchecked") // All XContent maps will be <String, Object>
+                    Map<String, Object> processorConfigMap = (Map<String, Object>) targetProcessor;
+                    if (upgrader.maybeUpgrade(processorConfigMap)) {
+                        changed = true;
                     }
                 }
             }

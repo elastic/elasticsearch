@@ -164,6 +164,7 @@ import org.elasticsearch.plugins.MetadataUpgrader;
 import org.elasticsearch.plugins.NetworkPlugin;
 import org.elasticsearch.plugins.PersistentTaskPlugin;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.RecoveryPlannerPlugin;
 import org.elasticsearch.plugins.ReloadablePlugin;
@@ -259,6 +260,7 @@ class NodeConstruction {
      */
     static NodeConstruction prepareConstruction(
         Environment initialEnvironment,
+        PluginsLoader pluginsLoader,
         NodeServiceProvider serviceProvider,
         boolean forbidPrivateIndexSettings
     ) {
@@ -266,7 +268,7 @@ class NodeConstruction {
         try {
             NodeConstruction constructor = new NodeConstruction(closeables);
 
-            Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider);
+            Settings settings = constructor.createEnvironment(initialEnvironment, serviceProvider, pluginsLoader);
             constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
@@ -399,7 +401,7 @@ class NodeConstruction {
         return Optional.of(plugin);
     }
 
-    private Settings createEnvironment(Environment initialEnvironment, NodeServiceProvider serviceProvider) {
+    private Settings createEnvironment(Environment initialEnvironment, NodeServiceProvider serviceProvider, PluginsLoader pluginsLoader) {
         // Pass the node settings to the DeprecationLogger class so that it can have the deprecation.skip_deprecated_settings setting:
         Settings envSettings = initialEnvironment.settings();
         DeprecationLogger.initialize(envSettings);

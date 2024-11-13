@@ -26,9 +26,9 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.jdk.JarHell;
 import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.node.ReportingService;
+import org.elasticsearch.plugins.PluginsLoader.LoadedPluginLayer;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
@@ -47,10 +47,8 @@ import java.security.PrivilegedAction;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
-import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -63,7 +61,6 @@ import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 import static org.elasticsearch.jdk.ModuleQualifiedExportsService.addExportsService;
 import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifiedExportsAndOpens;
 
@@ -101,9 +98,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private static final Logger logger = LogManager.getLogger(PluginsService.class);
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(PluginsService.class);
 
-    private final Settings settings;
-    private final Path configPath;
-
     /**
      * We keep around a list of plugins and modules. The order of
      * this list is that which the plugins and modules were loaded in.
@@ -117,69 +111,31 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     /**
      * Constructs a new PluginService
      *
-     * @param settings         The settings of the system
-     * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
-     * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
+     * @param pluginsLoader the information required to complete loading of plugins
      */
     @SuppressWarnings("this-escape")
-    public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
-        this.settings = settings;
-        this.configPath = configPath;
+    public PluginsService(PluginsLoader pluginsLoader) {
+        Map<String, LoadedPlugin> loadedPlugins = loadPluginBundles(pluginsLoader);
 
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
-        addServerExportsService(qualifiedExports);
-
-        Set<PluginBundle> seenBundles = new LinkedHashSet<>();
-
-        // load modules
-        List<PluginDescriptor> modulesList = new ArrayList<>();
-        Set<String> moduleNameList = new HashSet<>();
-        if (modulesDirectory != null) {
-            try {
-                Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
-                modules.stream().map(PluginBundle::pluginDescriptor).forEach(m -> {
-                    modulesList.add(m);
-                    moduleNameList.add(m.getName());
-                });
-                seenBundles.addAll(modules);
-            } catch (IOException ex) {
-                throw new IllegalStateException("Unable to initialize modules", ex);
-            }
-        }
-
-        // load plugins
-        List<PluginDescriptor> pluginsList = new ArrayList<>();
-        if (pluginsDirectory != null) {
-            try {
-                // TODO: remove this leniency, but tests bogusly rely on it
-                if (isAccessibleDirectory(pluginsDirectory, logger)) {
-                    PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
-                    Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
-                    plugins.stream().map(PluginBundle::pluginDescriptor).forEach(pluginsList::add);
-                    seenBundles.addAll(plugins);
-                }
-            } catch (IOException ex) {
-                throw new IllegalStateException("Unable to initialize plugins", ex);
-            }
-        }
-
-        LinkedHashMap<String, LoadedPlugin> loadedPlugins = loadBundles(seenBundles, qualifiedExports);
+        var modulesDescriptors = pluginsLoader.moduleDescriptors();
+        var pluginDescriptors = pluginsLoader.pluginDescriptors();
 
         var inspector = PluginIntrospector.getInstance();
-        this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginsList, loadedPlugins), modulesList);
+        this.info = new PluginsAndModules(getRuntimeInfos(inspector, pluginDescriptors, loadedPlugins), modulesDescriptors);
         this.plugins = List.copyOf(loadedPlugins.values());
 
-        checkDeprecations(inspector, pluginsList, loadedPlugins);
+        checkDeprecations(inspector, pluginDescriptors, loadedPlugins);
 
         checkMandatoryPlugins(
-            pluginsList.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
-            new HashSet<>(MANDATORY_SETTING.get(settings))
+            pluginDescriptors.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
+            new HashSet<>(MANDATORY_SETTING.get(pluginsLoader.settings()))
         );
 
         // we don't log jars in lib/ we really shouldn't log modules,
         // but for now: just be transparent so we can debug any potential issues
+        Set<String> moduleNames = new HashSet<>(modulesDescriptors.stream().map(PluginDescriptor::getName).toList());
         for (String name : loadedPlugins.keySet()) {
-            if (moduleNameList.contains(name)) {
+            if (moduleNames.contains(name)) {
                 logger.info("loaded module [{}]", name);
             } else {
                 logger.info("loaded plugin [{}]", name);
@@ -282,23 +238,14 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private LinkedHashMap<String, LoadedPlugin> loadBundles(
-        Set<PluginBundle> bundles,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
-    ) {
-        LinkedHashMap<String, LoadedPlugin> loaded = new LinkedHashMap<>();
-        Map<String, Set<URL>> transitiveUrls = new HashMap<>();
-        List<PluginBundle> sortedBundles = PluginsUtils.sortBundles(bundles);
-        if (sortedBundles.isEmpty() == false) {
-            Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
-            for (PluginBundle bundle : sortedBundles) {
-                PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadBundle(bundle, loaded, qualifiedExports);
-            }
+    private Map<String, LoadedPlugin> loadPluginBundles(PluginsLoader pluginsLoader) {
+        Map<String, LoadedPlugin> loadedPlugins = new LinkedHashMap<>();
+        for (LoadedPluginLayer loadedPluginLayer : pluginsLoader.loadPluginLayers().values()) {
+            loadBundle(loadedPluginLayer, loadedPlugins, pluginsLoader.settings(), pluginsLoader.configPath());
         }
 
-        loadExtensions(loaded.values());
-        return loaded;
+        loadExtensions(loadedPlugins.values());
+        return loadedPlugins;
     }
 
     // package-private for test visibility
@@ -444,19 +391,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     private void loadBundle(
-        PluginBundle bundle,
-        Map<String, LoadedPlugin> loaded,
-        Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
+        LoadedPluginLayer loadedPluginLayer,
+        Map<String, LoadedPlugin> loadedPlugins,
+        Settings settings,
+        Path configPath
     ) {
-        String name = bundle.plugin.getName();
-        logger.debug(() -> "Loading bundle: " + name);
+        String name = loadedPluginLayer.pluginBundle().plugin.getName();
+        logger.debug(() -> "Loading plugin bundle: " + name);
 
-        PluginsUtils.verifyCompatibility(bundle.plugin);
-
-        // collect the list of extended plugins
+        // validate the list of extended plugins
         List<LoadedPlugin> extendedPlugins = new ArrayList<>();
-        for (String extendedPluginName : bundle.plugin.getExtendedPlugins()) {
-            LoadedPlugin extendedPlugin = loaded.get(extendedPluginName);
+        for (String extendedPluginName : loadedPluginLayer.pluginBundle().plugin.getExtendedPlugins()) {
+            LoadedPlugin extendedPlugin = loadedPlugins.get(extendedPluginName);
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
@@ -468,43 +414,24 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             );
         }
 
-        final ClassLoader parentLoader = ExtendedPluginsClassLoader.create(
-            getClass().getClassLoader(),
-            extendedPlugins.stream().map(LoadedPlugin::loader).toList()
-        );
-        LayerAndLoader spiLayerAndLoader = null;
-        if (bundle.hasSPI()) {
-            spiLayerAndLoader = createSPI(bundle, parentLoader, extendedPlugins, qualifiedExports);
-        }
-
-        final ClassLoader pluginParentLoader = spiLayerAndLoader == null ? parentLoader : spiLayerAndLoader.loader();
-        final LayerAndLoader pluginLayerAndLoader = createPlugin(
-            bundle,
-            pluginParentLoader,
-            extendedPlugins,
-            spiLayerAndLoader,
-            qualifiedExports
-        );
-        final ClassLoader pluginClassLoader = pluginLayerAndLoader.loader();
-
-        if (spiLayerAndLoader == null) {
-            // use full implementation for plugins extending this one
-            spiLayerAndLoader = pluginLayerAndLoader;
-        }
+        PluginBundle pluginBundle = loadedPluginLayer.pluginBundle();
+        ClassLoader pluginClassLoader = loadedPluginLayer.pluginClassLoader();
+        ClassLoader spiClassLoader = loadedPluginLayer.spiClassLoader();
+        ModuleLayer spiModuleLayer = loadedPluginLayer.spiModuleLayer();
 
         // reload SPI with any new services from the plugin
-        reloadLuceneSPI(pluginClassLoader);
+        reloadLuceneSPI(loadedPluginLayer.pluginClassLoader());
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            privilegedSetContextClassLoader(pluginClassLoader);
+            privilegedSetContextClassLoader(loadedPluginLayer.pluginClassLoader());
 
             Plugin plugin;
-            if (bundle.pluginDescriptor().isStable()) {
-                stablePluginsRegistry.scanBundleForStablePlugins(bundle, pluginClassLoader);
+            if (pluginBundle.pluginDescriptor().isStable()) {
+                stablePluginsRegistry.scanBundleForStablePlugins(pluginBundle, pluginClassLoader);
                 /*
                 Contrary to old plugins we don't need an instance of the plugin here.
                 Stable plugin register components (like CharFilterFactory) in stable plugin registry, which is then used in AnalysisModule
@@ -514,16 +441,16 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 We need to pass a name though so that we can show that a plugin was loaded (via cluster state api)
                 This might need to be revisited once support for settings is added
                  */
-                plugin = new StablePluginPlaceHolder(bundle.plugin.getName());
+                plugin = new StablePluginPlaceHolder(pluginBundle.plugin.getName());
             } else {
 
-                Class<? extends Plugin> pluginClass = loadPluginClass(bundle.plugin.getClassname(), pluginClassLoader);
+                Class<? extends Plugin> pluginClass = loadPluginClass(pluginBundle.plugin.getClassname(), pluginClassLoader);
                 if (pluginClassLoader != pluginClass.getClassLoader()) {
                     throw new IllegalStateException(
                         "Plugin ["
                             + name
                             + "] must reference a class loader local Plugin class ["
-                            + bundle.plugin.getClassname()
+                            + pluginBundle.plugin.getClassname()
                             + "] (class loader ["
                             + pluginClass.getClassLoader()
                             + "])"
@@ -531,7 +458,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
                 plugin = loadPlugin(pluginClass, settings, configPath);
             }
-            loaded.put(name, new LoadedPlugin(bundle.plugin, plugin, spiLayerAndLoader.loader(), spiLayerAndLoader.layer()));
+            loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin, spiClassLoader, spiModuleLayer));
         } finally {
             privilegedSetContextClassLoader(cl);
         }

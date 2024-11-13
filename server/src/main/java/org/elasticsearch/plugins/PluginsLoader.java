@@ -27,6 +27,7 @@ import java.nio.file.Path;
 import java.security.AccessController;
 import java.security.PrivilegedAction;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
@@ -49,9 +50,15 @@ public class PluginsLoader {
      * @param spiClassLoader The exported {@link ClassLoader} visible to other Java modules
      * @param spiModuleLayer The exported {@link ModuleLayer} visible to other Java modules
      */
-    public record LoadedPluginLayer(ClassLoader pluginClassLoader, ClassLoader spiClassLoader, ModuleLayer spiModuleLayer) {
+    public record LoadedPluginLayer(
+        PluginBundle pluginBundle,
+        ClassLoader pluginClassLoader,
+        ClassLoader spiClassLoader,
+        ModuleLayer spiModuleLayer
+    ) {
 
         public LoadedPluginLayer {
+            Objects.requireNonNull(pluginBundle);
             Objects.requireNonNull(pluginClassLoader);
             Objects.requireNonNull(spiClassLoader);
             Objects.requireNonNull(spiModuleLayer);
@@ -81,6 +88,8 @@ public class PluginsLoader {
     private final Settings settings;
     private final Path configPath;
 
+    private final List<PluginDescriptor> moduleDescriptors;
+    private final List<PluginDescriptor> pluginDescriptors;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
 
     /**
@@ -104,10 +113,13 @@ public class PluginsLoader {
         if (modulesDirectory != null) {
             try {
                 Set<PluginBundle> modules = PluginsUtils.getModuleBundles(modulesDirectory);
+                moduleDescriptors = modules.stream().map(PluginBundle::pluginDescriptor).toList();
                 seenBundles.addAll(modules);
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize modules", ex);
             }
+        } else {
+            moduleDescriptors = Collections.emptyList();
         }
 
         // load plugin layers
@@ -117,17 +129,42 @@ public class PluginsLoader {
                 if (isAccessibleDirectory(pluginsDirectory, logger)) {
                     PluginsUtils.checkForFailedPluginRemovals(pluginsDirectory);
                     Set<PluginBundle> plugins = PluginsUtils.getPluginBundles(pluginsDirectory);
+                    pluginDescriptors = plugins.stream().map(PluginBundle::pluginDescriptor).toList();
                     seenBundles.addAll(plugins);
+                } else {
+                    pluginDescriptors = Collections.emptyList();
                 }
             } catch (IOException ex) {
                 throw new IllegalStateException("Unable to initialize plugins", ex);
             }
+        } else {
+            pluginDescriptors = Collections.emptyList();
         }
 
-        this.loadedPluginLayers = loadBundles(seenBundles, qualifiedExports);
+        this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
     }
 
-    private Map<String, LoadedPluginLayer> loadBundles(
+    public Settings settings() {
+        return settings;
+    }
+
+    public Path configPath() {
+        return configPath;
+    }
+
+    public List<PluginDescriptor> moduleDescriptors() {
+        return moduleDescriptors;
+    }
+
+    public List<PluginDescriptor> pluginDescriptors() {
+        return pluginDescriptors;
+    }
+
+    public Map<String, LoadedPluginLayer> loadPluginLayers() {
+        return loadedPluginLayers;
+    }
+
+    private Map<String, LoadedPluginLayer> loadPluginLayers(
         Set<PluginBundle> bundles,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
     ) {
@@ -138,14 +175,14 @@ public class PluginsLoader {
             Set<URL> systemLoaderURLs = JarHell.parseModulesAndClassPath();
             for (PluginBundle bundle : sortedBundles) {
                 PluginsUtils.checkBundleJarHell(systemLoaderURLs, bundle, transitiveUrls);
-                loadBundle(bundle, loaded, qualifiedExports);
+                loadPluginLayer(bundle, loaded, qualifiedExports);
             }
         }
 
         return loaded;
     }
 
-    private void loadBundle(
+    private void loadPluginLayer(
         PluginBundle bundle,
         Map<String, LoadedPluginLayer> loaded,
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports
@@ -188,7 +225,7 @@ public class PluginsLoader {
             spiLayerAndLoader = pluginLayerAndLoader;
         }
 
-        loaded.put(name, new LoadedPluginLayer(pluginClassLoader, spiLayerAndLoader.loader, spiLayerAndLoader.layer));
+        loaded.put(name, new LoadedPluginLayer(bundle, pluginClassLoader, spiLayerAndLoader.loader, spiLayerAndLoader.layer));
     }
 
     static LayerAndLoader createSPI(

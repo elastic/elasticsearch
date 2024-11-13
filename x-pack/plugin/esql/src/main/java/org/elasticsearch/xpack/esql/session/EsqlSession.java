@@ -365,7 +365,7 @@ public class EsqlSession {
                 try {
                     plan = analyzeAction.apply(indexResolution, enrichResolution);
                 } catch (VerificationException ve) {
-                    LOGGER.debug("Analyzing the plan (first attempt, with filter) failed with {}", ve.);
+                    LOGGER.debug("Analyzing the plan (first attempt, with filter) failed with {}", ve.getDetailedMessage());
                     // interested only in a VerificationException, but this time we are taking out the index filter
                     // to try and make the index resolution work without any index filtering. In the next step... to be continued
                     l.onResponse(tuple);

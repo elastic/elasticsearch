@@ -274,6 +274,7 @@ class EpochTime {
     static final DateFormatter MILLIS_FORMATTER = new JavaDateFormatter(
         "epoch_millis",
         new JavaTimeDateTimePrinter(MILLISECONDS_FORMATTER1),
+        // we utilize negative sign here to denote that this nanos value is a "round up" operation and not a fraction of a millisecond value
         JavaTimeDateTimeParser.createRoundUpParserGenerator(builder -> builder.parseDefaulting(EpochTime.NANOS_OF_MILLI, -999_999L)),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER1),
         new JavaTimeDateTimeParser(MILLISECONDS_FORMATTER2)

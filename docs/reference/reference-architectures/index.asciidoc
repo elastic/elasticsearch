@@ -1,5 +1,5 @@
 [[reference-architectures]]
-== Reference architectures
+= Reference architectures
 
 Elasticsearch reference architectures are blueprints for deploying Elasticsearch clusters tailored to different use cases. Whether you're handling logs or metrics these reference architectureßs focus on scalability, reliability, and efficient resource utilization. Use these guidelines to deploy Elasticsearch for your use case.
 

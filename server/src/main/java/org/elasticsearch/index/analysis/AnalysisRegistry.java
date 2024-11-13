@@ -724,9 +724,9 @@ public final class AnalysisRegistry implements Closeable {
             throw new IllegalArgumentException("analyzer [" + analyzerFactory.name() + "] created null analyzer");
         }
         NamedAnalyzer analyzer;
-        if (analyzerF instanceof NamedAnalyzer) {
+        if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
             // if we got a named analyzer back, use it...
-            analyzer = overrideAnalyzer((NamedAnalyzer) analyzerF, overridePositionIncrementGap);
+            analyzer = overrideAnalyzer(namedAnalyzer, overridePositionIncrementGap);
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
         }

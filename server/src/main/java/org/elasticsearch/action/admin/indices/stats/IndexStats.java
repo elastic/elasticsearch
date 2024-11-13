@@ -171,7 +171,15 @@ public class IndexStats implements Iterable<IndexShardStats> {
         }
 
         public IndexStats build() {
-            return new IndexStats(indexName, uuid, health, state, tierPreference, creationDate, shards.toArray(new ShardStats[shards.size()]));
+            return new IndexStats(
+                indexName,
+                uuid,
+                health,
+                state,
+                tierPreference,
+                creationDate,
+                shards.toArray(new ShardStats[shards.size()])
+            );
         }
     }
 }

@@ -138,12 +138,20 @@ public class Add extends DateTimeArithmeticOperation implements BinaryComparison
     @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
     static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
         // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
-        return DateUtils.toLong(
-            Instant.from(
-                ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
-                    .plus(temporalAmount)
-            )
-        );
+        try {
+            return DateUtils.toLong(
+                Instant.from(
+                    ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
+                        .plus(temporalAmount)
+                )
+            );
+        } catch (IllegalArgumentException e) {
+            /*
+             toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
+             to avoid returning here.
+            */
+            throw new DateTimeException("Date nanos out of range.  Must be between 1970-01-01T00:00:00Z and 2262-04-11T23:47:16.854775807");
+        }
     }
 
     @Override

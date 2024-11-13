@@ -1,5 +1,0 @@
-pr: 113387
-summary: "Add `CircuitBreaker` to TDigest, Step 3: Connect with ESQL CB"
-area: ES|QL
-type: enhancement
-issues: []

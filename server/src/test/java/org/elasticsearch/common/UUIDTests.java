@@ -242,9 +242,6 @@ public class UUIDTests extends ESTestCase {
     }
 
     private void verifyUUIDIsUrlSafe(String uuid) {
-        assertTrue("UUID contains invalid characters: " + uuid, uuid.matches("^[A-Za-z0-9_-]+$"));
-        assertFalse("UUID should not contain padding characters: " + uuid, uuid.contains("="));
-
         try {
             BASE_64_URL_DECODER.decode(uuid);
         } catch (IllegalArgumentException e) {

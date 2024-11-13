@@ -817,7 +817,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy",
-            "behavioral_analytics-events-default_policy"
+            "behavioral_analytics-events-default_policy",
+            "logs-apm.app_logs-default_policy",
+            "logs-apm.error_logs-default_policy",
+            "metrics-apm.app_metrics-default_policy",
+            "metrics-apm.internal_metrics-default_policy",
+            "metrics-apm.service_destination_10m_metrics-default_policy",
+            "metrics-apm.service_destination_1m_metrics-default_policy",
+            "metrics-apm.service_destination_60m_metrics-default_policy",
+            "metrics-apm.service_summary_10m_metrics-default_policy",
+            "metrics-apm.service_summary_1m_metrics-default_policy",
+            "metrics-apm.service_summary_60m_metrics-default_policy",
+            "metrics-apm.service_transaction_10m_metrics-default_policy",
+            "metrics-apm.service_transaction_1m_metrics-default_policy",
+            "metrics-apm.service_transaction_60m_metrics-default_policy",
+            "metrics-apm.transaction_10m_metrics-default_policy",
+            "metrics-apm.transaction_1m_metrics-default_policy",
+            "metrics-apm.transaction_60m_metrics-default_policy",
+            "traces-apm.rum_traces-default_policy",
+            "traces-apm.sampled_traces-default_policy",
+            "traces-apm.traces-default_policy"
         );
     }
 
@@ -1726,7 +1745,7 @@ public abstract class ESRestTestCase extends ESTestCase {
         ensureHealth(restClient, "", requestConsumer);
     }
 
-    protected static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
+    public static void ensureHealth(RestClient restClient, String index, Consumer<Request> requestConsumer) throws IOException {
         Request request = new Request("GET", "/_cluster/health" + (index.isBlank() ? "" : "/" + index));
         requestConsumer.accept(request);
         try {
@@ -1909,7 +1928,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      * emitted in v8. Note that this message is also permitted in certain YAML test cases, it can be removed there too.
      * See https://github.com/elastic/elasticsearch/issues/66419 for more details.
      */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
+    @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
     private static final String WAIT_FOR_ACTIVE_SHARDS_DEFAULT_DEPRECATION_MESSAGE = "the default value for the ?wait_for_active_shards "
         + "parameter will change from '0' to 'index-setting' in version 8; specify '?wait_for_active_shards=index-setting' "
         + "to adopt the future default behaviour, or '?wait_for_active_shards=0' to preserve today's behaviour";

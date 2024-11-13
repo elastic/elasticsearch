@@ -12,14 +12,14 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
 import java.util.Collections;
 import java.util.Map;
 
-public class MonitoringFeatureSetUsage extends XPackFeatureSet.Usage {
+public class MonitoringFeatureSetUsage extends XPackFeatureUsage {
 
     @Nullable
     private Boolean collectionEnabled;

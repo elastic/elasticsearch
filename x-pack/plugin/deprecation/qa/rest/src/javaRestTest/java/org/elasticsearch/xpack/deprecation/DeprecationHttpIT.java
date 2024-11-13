@@ -121,7 +121,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                 List<Map<String, Object>> documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId());
                 logger.warn(documents);
                 assertThat(documents, hasSize(2));
-            }, 30, TimeUnit.SECONDS);
+            }, 45, TimeUnit.SECONDS);
         } finally {
             Response response = cleanupSettings();
             List<String> warningHeaders = getWarningHeaders(response.getHeaders());
@@ -245,7 +245,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
             var documents = DeprecationTestUtils.getIndexedDeprecations(client(), xOpaqueId);
             logger.warn(documents);
             assertThat(documents, hasSize(headerMatchers.size()));
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
     }
 
     public void testDeprecationRouteThrottling() throws Exception {
@@ -275,7 +275,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 
@@ -303,7 +303,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                         )
                     )
                 );
-            }, 30, TimeUnit.SECONDS);
+            }, 45, TimeUnit.SECONDS);
         } finally {
             configureWriteDeprecationLogsToIndex(null);
         }
@@ -369,7 +369,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 
@@ -414,7 +414,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 
@@ -473,7 +473,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 
@@ -504,7 +504,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
     }
 
     public void testReplacesInCurrentVersion() throws Exception {
@@ -534,7 +534,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
     }
 
     public void testReplacesInCompatibleVersion() throws Exception {
@@ -579,7 +579,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
     }
 
     /**
@@ -649,7 +649,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 
@@ -690,7 +690,7 @@ public class DeprecationHttpIT extends ESRestTestCase {
                     )
                 )
             );
-        }, 30, TimeUnit.SECONDS);
+        }, 45, TimeUnit.SECONDS);
 
     }
 

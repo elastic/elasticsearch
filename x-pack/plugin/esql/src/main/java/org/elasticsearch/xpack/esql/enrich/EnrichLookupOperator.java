@@ -16,6 +16,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AsyncOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.Operator;
+import org.elasticsearch.compute.operator.ResponseHeadersCollector;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
@@ -36,6 +37,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     private final String matchType;
     private final String matchField;
     private final List<NamedExpression> enrichFields;
+    private final ResponseHeadersCollector responseHeadersCollector;
     private final Source source;
     private long totalTerms = 0L;
 
@@ -109,6 +111,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         this.matchField = matchField;
         this.enrichFields = enrichFields;
         this.source = source;
+        this.responseHeadersCollector = new ResponseHeadersCollector(enrichLookupService.getThreadPool().getThreadContext());
     }
 
     @Override
@@ -125,7 +128,11 @@ public final class EnrichLookupOperator extends AsyncOperator {
             enrichFields,
             source
         );
-        enrichLookupService.lookupAsync(request, parentTask, listener.map(inputPage::appendPage));
+        enrichLookupService.lookupAsync(
+            request,
+            parentTask,
+            ActionListener.runBefore(listener.map(inputPage::appendPage), responseHeadersCollector::collect)
+        );
     }
 
     @Override
@@ -147,6 +154,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
     protected void doClose() {
         // TODO: Maybe create a sub-task as the parent task of all the lookup tasks
         // then cancel it when this operator terminates early (e.g., have enough result).
+        responseHeadersCollector.finish();
     }
 
     @Override

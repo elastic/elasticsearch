@@ -150,6 +150,8 @@ teardown:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:18: evaluation of \\[ENRICH ages-policy ON ak\\] failed, treating result as null. Only first 20 failures recorded."
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"immortal\\"'
       esql.query:
         body:
           query: 'FROM employees | ENRICH ages-policy ON ak | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'
@@ -170,6 +172,12 @@ teardown:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:18: evaluation of \\[ENRICH ages-policy ON name\\] failed, treating result as null. Only first 20 failures recorded."
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"Joe Soap\\"'
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"Jane Doe\\"'
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"Jane Immortal\\"'
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"Magic Mike\\"'
+        - 'Line 1:18: java.lang.NumberFormatException: For input string: \\"Anon Ymous\\"'
       esql.query:
         body:
           query: 'FROM employees | ENRICH ages-policy ON name | STATS count=COUNT(*) BY description | SORT count DESC, description ASC'

@@ -168,6 +168,10 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
+    public ThreadPool getThreadPool() {
+        return transportService.getThreadPool();
+    }
+
     /**
      * Convert a request as sent to {@link #lookupAsync} into a transport request after
      * preflight checks have been performed.

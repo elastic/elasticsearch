@@ -49,7 +49,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     private final Map<String, List<String>> indexTierPreferenceMap;
 
-    private final Map<String, long> indexCreationDateMap;
+    private final Map<String, Long> indexCreationDateMap;
 
     private final ShardStats[] shards;
 
@@ -60,8 +60,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
-            indexMetadataMap = in.readMap(IndexMetadata::readFrom);
-            indexTierPreferenceMap = in.readMap(in::readStringList);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            indexTierPreferenceMap = in.readMap(StreamInput::readStringCollectionAsList);
             indexCreationDateMap = in.readMap(StreamInput::readLong);
         } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
@@ -72,7 +72,7 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             indexCreationDateMap = Map.of();
         } else {
             indexHealthMap = Map.of();
-            indexMetadataMap = Map.of();
+            indexStateMap = Map.of();
             indexTierPreferenceMap = Map.of();
             indexCreationDateMap = Map.of();
         }

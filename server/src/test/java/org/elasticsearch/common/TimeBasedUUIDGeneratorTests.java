@@ -21,8 +21,6 @@ import java.util.stream.IntStream;
 
 public class TimeBasedUUIDGeneratorTests extends ESTestCase {
 
-    private static final Base64.Decoder UUID_URL_DECODER = Base64.getUrlDecoder();
-
     private void assertUUIDUniqueness(final UUIDGenerator generator, final int count) {
         assertEquals(count, generateUUIDs(generator, count).size());
     }

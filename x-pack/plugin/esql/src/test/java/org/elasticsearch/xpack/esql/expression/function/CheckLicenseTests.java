@@ -38,22 +38,23 @@ import static org.hamcrest.Matchers.containsString;
 public class CheckLicenseTests extends ESTestCase {
 
     private final EsqlParser parser = new EsqlParser();
-    private final String esql = "from tests | eval dummy() | LIMIT 10";
+    private final String esql = "from tests | eval license() | LIMIT 10";
 
     public void testLicense() {
         for (License.OperationMode functionLicense : License.OperationMode.values()) {
             final LicensedFeature functionLicenseFeature = random().nextBoolean()
-                ? LicensedFeature.momentary("test", "dummy", functionLicense)
-                : LicensedFeature.persistent("test", "dummy", functionLicense);
-            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> new DummyFunction(
-                source,
-                functionLicenseFeature
-            );
+                ? LicensedFeature.momentary("test", "license", functionLicense)
+                : LicensedFeature.persistent("test", "license", functionLicense);
+            final EsqlFunctionRegistry.FunctionBuilder builder = (source, expression, cfg) -> {
+                final LicensedFunction licensedFunction = new LicensedFunction(source);
+                licensedFunction.setLicensedFeature(functionLicenseFeature);
+                return licensedFunction;
+            };
             for (License.OperationMode operationMode : License.OperationMode.values()) {
                 if (License.OperationMode.TRIAL != operationMode && License.OperationMode.compare(operationMode, functionLicense) < 0) {
                     // non-compliant license
                     final VerificationException ex = expectThrows(VerificationException.class, () -> analyze(builder, operationMode));
-                    assertThat(ex.getMessage(), containsString("current license is non-compliant for function [dummy()]"));
+                    assertThat(ex.getMessage(), containsString("current license is non-compliant for function [license()]"));
                 } else {
                     // compliant license
                     assertNotNull(analyze(builder, operationMode));
@@ -63,7 +64,7 @@ public class CheckLicenseTests extends ESTestCase {
     }
 
     private LogicalPlan analyze(EsqlFunctionRegistry.FunctionBuilder builder, License.OperationMode operationMode) {
-        final FunctionDefinition def = EsqlFunctionRegistry.def(DummyFunction.class, builder, "dummy");
+        final FunctionDefinition def = EsqlFunctionRegistry.def(LicensedFunction.class, builder, "license");
         final EsqlFunctionRegistry registry = new EsqlFunctionRegistry(def) {
             @Override
             public EsqlFunctionRegistry snapshotRegistry() {
@@ -86,12 +87,17 @@ public class CheckLicenseTests extends ESTestCase {
         return licenseState;
     }
 
-    private static class DummyFunction extends Function {
+    // It needs to be public because we run validation on it via reflection in org.elasticsearch.xpack.esql.tree.EsqlNodeSubclassTests.
+    // This test prevents to add the license as constructor parameter too.
+    public static class LicensedFunction extends Function {
 
-        private final LicensedFeature licensedFeature;
+        private LicensedFeature licensedFeature;
 
-        private DummyFunction(Source source, LicensedFeature licensedFeature) {
+        public LicensedFunction(Source source) {
             super(source, List.of());
+        }
+
+        void setLicensedFeature(LicensedFeature licensedFeature) {
             this.licensedFeature = licensedFeature;
         }
 

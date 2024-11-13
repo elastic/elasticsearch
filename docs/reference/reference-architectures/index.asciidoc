@@ -28,7 +28,9 @@ a|
 * Provide insights and alerts using logs, metrics, traces, or various event types to ensure optimal performance and quick issue resolution for applications.
 * Apply Machine Learning and Search AI to assist in dealing with the large amount of data.
 * Deploy an architecture model that allows for maximum flexibility between storage cost and performance.
+| Additional architectures are on the way. 
 
+Stay tuned for updates. |
 
 |===
 

@@ -565,7 +565,7 @@ A common case is a new functionality that needs a BWC bridge in an unreleased ve
 Another use case, since the introduction of serverless, is to test BWC against main in addition to the other released branches.
 To do so, specify the `bwc.refspec` remote and branch to use for the BWC build as `origin/main`.
 To test against main, you will also need to create a new version in link:./server/src/main/java/org/elasticsearch/Version.java[Version.java],
-increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp 
+increment `elasticsearch` in link:./build-tools-internal/version.properties[version.properties], and hard-code the `project.version` for ml-cpp
 in link:./x-pack/plugin/ml/build.gradle[ml/build.gradle].
 
 In general, to test the changes, you can instruct Gradle to build the BWC version from another remote/branch combination instead of pulling the release branch from GitHub.

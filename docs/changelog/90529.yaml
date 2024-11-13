@@ -1,7 +1,7 @@
 pr: 90529
 summary: Output a consistent format when generating error json
 area: Infra/REST API
-type: "breaking, bug"
+type: "breaking"
 issues:
  - 89387
 breaking:

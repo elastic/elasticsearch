@@ -28,7 +28,7 @@ import java.util.Base64;
  * The result is a compact base64-encoded string, optimized for efficient compression of the _id field in an inverted index.
  */
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
-    private static final Base64.Encoder BASE_64_NO_PADDING = Base64.getEncoder().withoutPadding();
+    private static final Base64.Encoder BASE_64_URL_ENCODER_NO_PADDING = Base64.getUrlEncoder().withoutPadding();
 
     @Override
     public String getBase64UUID() {
@@ -68,6 +68,6 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
 
         assert buffer.position() == uuidBytes.length;
 
-        return BASE_64_NO_PADDING.encodeToString(uuidBytes);
+        return BASE_64_URL_ENCODER_NO_PADDING.encodeToString(uuidBytes);
     }
 }

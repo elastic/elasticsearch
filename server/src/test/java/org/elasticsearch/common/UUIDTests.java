@@ -38,15 +38,15 @@ public class UUIDTests extends ESTestCase {
     static UUIDGenerator kOrderedUUIDGen = new TimeBasedKOrderedUUIDGenerator();
 
     public void testRandomUUID() {
-        verifyUUIDSet(100000, randomUUIDGen);
+        verifyUUIDSet(100000, randomUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testTimeUUID() {
-        verifyUUIDSet(100000, timeUUIDGen);
+        verifyUUIDSet(100000, timeUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testKOrderedUUID() {
-        verifyUUIDSet(100000, kOrderedUUIDGen);
+        verifyUUIDSet(100000, kOrderedUUIDGen).forEach(this::verifyUUIDIsUrlSafe);
     }
 
     public void testThreadedRandomUUID() {
@@ -143,6 +143,7 @@ public class UUIDTests extends ESTestCase {
             globalSet.addAll(runner.uuidSet);
         }
         assertEquals(count * uuids, globalSet.size());
+        globalSet.forEach(this::verifyUUIDIsUrlSafe);
     }
 
     private static double testCompression(final UUIDGenerator generator, int numDocs, int numDocsPerSecond, int numNodes, Logger logger)
@@ -236,5 +237,10 @@ public class UUIDTests extends ESTestCase {
 
     private static int getUnpaddedBase64StringLength(int sizeInBytes) {
         return (int) Math.ceil(sizeInBytes * 4.0 / 3.0);
+    }
+
+    private void verifyUUIDIsUrlSafe(String uuid) {
+        assertTrue(uuid.matches("^[A-Za-z0-9_-]+$"));
+        assertFalse(uuid.contains("="));
     }
 }

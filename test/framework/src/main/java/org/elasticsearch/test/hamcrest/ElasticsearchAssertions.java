@@ -380,6 +380,10 @@ public class ElasticsearchAssertions {
         }
     }
 
+    /**
+     * Same as {@link #assertResponse(RequestBuilder, Consumer)} but runs the same assertion on multiple requests that are started
+     * concurrently.
+     */
     @SafeVarargs
     public static <Q extends ActionRequest, R extends ActionResponse> void assertResponses(
         Consumer<R> consumer,

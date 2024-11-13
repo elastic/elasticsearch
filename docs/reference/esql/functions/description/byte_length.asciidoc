@@ -2,6 +2,6 @@
 
 *Description*
 
-Returns the bit length of a string.
+Returns the byte length of a string.
 
 NOTE: All strings are in UTF-8, so a single character can use multiple bytes.

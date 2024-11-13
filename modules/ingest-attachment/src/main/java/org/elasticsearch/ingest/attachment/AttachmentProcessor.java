@@ -328,4 +328,12 @@ public final class AttachmentProcessor extends AbstractProcessor {
             return this.toString().toLowerCase(Locale.ROOT);
         }
     }
+
+    public static boolean maybeUpgradeConfig(Map<String, Object> config) {
+        // Instances created before 9.0 may not have the remove_binary option.
+        // On upgrade to 9.x, we explicitly set it to false, which was considered the default.
+        boolean changed = config.putIfAbsent("remove_binary", false) == null;
+        System.out.printf("Looking at attachment processor for field %s - changed = %s%n", config.get("field"), changed);
+        return changed;
+    }
 }

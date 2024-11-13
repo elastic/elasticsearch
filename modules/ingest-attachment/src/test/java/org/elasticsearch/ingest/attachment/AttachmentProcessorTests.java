@@ -601,7 +601,7 @@ public class AttachmentProcessorTests extends ESTestCase {
     private Object getAsBinaryOrBase64(String filename) throws Exception {
         String path = "/org/elasticsearch/ingest/attachment/test/sample-files/" + filename;
         try (InputStream is = AttachmentProcessorTests.class.getResourceAsStream(path)) {
-            byte bytes[] = IOUtils.toByteArray(is);
+            byte[] bytes = IOUtils.toByteArray(is);
             // behave like CBOR from time to time
             if (rarely()) {
                 return bytes;
@@ -609,5 +609,26 @@ public class AttachmentProcessorTests extends ESTestCase {
                 return Base64.getEncoder().encodeToString(bytes);
             }
         }
+    }
+
+    public void testMaybeUpgradeConfig_setsRemoveBinaryToTrueIfMissing() {
+        Map<String, Object> config = new HashMap<>(Map.of("field", "_attachment"));
+        boolean changed = AttachmentProcessor.maybeUpgradeConfig(config);
+        assertThat(changed, is(true));
+        assertThat(config, is(Map.of("field", "_attachment", "remove_binary", false)));
+    }
+
+    public void testMaybeUpgradeConfig_doesNothingIfRemoveBinaryFalse() {
+        Map<String, Object> config = new HashMap<>(Map.of("field", "_attachment", "remove_binary", false));
+        boolean changed = AttachmentProcessor.maybeUpgradeConfig(config);
+        assertThat(changed, is(false));
+        assertThat(config, is(Map.of("field", "_attachment", "remove_binary", false)));
+    }
+
+    public void testMaybeUpgradeConfig_doesNothingIfRemoveBinaryTrue() {
+        Map<String, Object> config = new HashMap<>(Map.of("field", "_attachment", "remove_binary", true));
+        boolean changed = AttachmentProcessor.maybeUpgradeConfig(config);
+        assertThat(changed, is(false));
+        assertThat(config, is(Map.of("field", "_attachment", "remove_binary", true)));
     }
 }

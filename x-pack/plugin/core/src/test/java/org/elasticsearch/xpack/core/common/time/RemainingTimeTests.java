@@ -32,6 +32,11 @@ public class RemainingTimeTests extends ESTestCase {
         assertThat(remainingTime.get(), Matchers.equalTo(TimeValue.ZERO));
     }
 
+    public void testMaxTime() {
+        var remainingTime = RemainingTime.from(Instant::now, TimeValue.MAX_VALUE);
+        assertThat(remainingTime.get(), Matchers.equalTo(TimeValue.MAX_VALUE));
+    }
+
     // always add the first value, which is read when RemainingTime.from is called, then add the test values
     private Supplier<Instant> times(Instant... instants) {
         var startTime = Stream.of(Instant.now());

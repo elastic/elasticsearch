@@ -106,6 +106,8 @@ As a long-term solution, we recommend you do one of the following best suited
 to your use case: 
 
 * add nodes to the affected <<data-tiers,data tiers>>
++
+TIP: You should enable <<xpack-autoscaling,autoscaling>> for clusters deployed using our {ess}, {ece}, and {eck} platforms.
 
 * upgrade existing nodes to increase disk space
 +

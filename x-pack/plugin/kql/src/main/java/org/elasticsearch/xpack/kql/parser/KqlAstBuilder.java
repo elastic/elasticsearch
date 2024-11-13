@@ -124,7 +124,7 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
             return subQuery;
         }
 
-        return QueryBuilders.nestedQuery(nestedFieldName, subQuery, ScoreMode.None);
+        return wrapWithNestedQuery(nestedFieldName, QueryBuilders.nestedQuery(nestedFieldName, subQuery, ScoreMode.None));
     }
 
     @Override

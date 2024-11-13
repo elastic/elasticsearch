@@ -836,6 +836,8 @@ public class GoogleVertexAiServiceTests extends ESTestCase {
                 """
                     {
                            "provider": "googlevertexai",
+                           "name": "Google Vertex AI",
+                           "icon": "googleAIStudioIcon",
                            "task_types": [
                                 {
                                     "task_type": "text_embedding",

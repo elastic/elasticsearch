@@ -76,6 +76,9 @@ public class AzureAiStudioService extends SenderService {
 
     static final String NAME = "azureaistudio";
 
+    private static final String SERVICE_NAME = "Azure AI Studio";
+    private static final String ICON = "azureAIStudioIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public AzureAiStudioService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -447,15 +450,20 @@ public class AzureAiStudioService extends SenderService {
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = AzureAiStudioEmbeddingsModel.Configuration.get();
-                        case COMPLETION -> taskSettingsConfig = AzureAiStudioChatCompletionModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            case TEXT_EMBEDDING -> taskSettingsConfig = AzureAiStudioEmbeddingsModel.Configuration.get();
+                            case COMPLETION -> taskSettingsConfig = AzureAiStudioChatCompletionModel.Configuration.get();
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

@@ -20,6 +20,8 @@ public class InferenceServiceConfigurationTestUtils {
 
     public static InferenceServiceConfiguration getRandomServiceConfigurationField() {
         return new InferenceServiceConfiguration.Builder().setProvider(randomAlphaOfLength(10))
+            .setName(randomAlphaOfLength(8))
+            .setIcon(randomAlphaOfLength(4))
             .setTaskTypes(getRandomTaskTypeConfiguration())
             .setConfiguration(getRandomServiceConfiguration(10))
             .build();

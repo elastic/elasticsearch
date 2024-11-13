@@ -751,6 +751,8 @@ public class MistralServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "mistral",
+                       "name": "Mistral",
+                       "icon": "mistralIcon",
                        "task_types": [
                             {
                                 "task_type": "text_embedding",

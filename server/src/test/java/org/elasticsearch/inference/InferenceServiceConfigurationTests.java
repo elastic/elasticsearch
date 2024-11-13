@@ -29,6 +29,8 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
         String content = XContentHelper.stripWhitespace("""
             {
                "provider": "some_provider",
+               "name": "Some Provider",
+               "icon": "someProviderIcon",
                "task_types": [
                   {
                "task_type": "text_embedding",
@@ -184,6 +186,8 @@ public class InferenceServiceConfigurationTests extends ESTestCase {
         Map<String, Object> configFieldAsMap = configField.toMap();
 
         assertThat(configFieldAsMap.get("provider"), equalTo(configField.getProvider()));
+        assertThat(configFieldAsMap.get("name"), equalTo(configField.getName()));
+        assertThat(configFieldAsMap.get("icon"), equalTo(configField.getIcon()));
         assertThat(configFieldAsMap.get("task_types"), equalTo(configField.getTaskTypes()));
         assertThat(configFieldAsMap.get("configuration"), equalTo(configField.getConfiguration()));
     }

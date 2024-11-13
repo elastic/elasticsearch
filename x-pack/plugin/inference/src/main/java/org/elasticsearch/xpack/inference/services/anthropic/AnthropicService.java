@@ -56,6 +56,9 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class AnthropicService extends SenderService {
     public static final String NAME = "anthropic";
 
+    private static final String SERVICE_NAME = "Anthropic";
+    private static final String ICON = "anthropicIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.COMPLETION);
 
     public AnthropicService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -258,14 +261,19 @@ public class AnthropicService extends SenderService {
                     )
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case COMPLETION -> taskSettingsConfig = AnthropicChatCompletionModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            case COMPLETION -> taskSettingsConfig = AnthropicChatCompletionModel.Configuration.get();
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

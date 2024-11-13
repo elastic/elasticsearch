@@ -157,6 +157,8 @@ public class AmazonBedrockServiceTests extends ESTestCase {
                 """
                     {
                          "provider": "amazonbedrock",
+                         "name": "Amazon Bedrock",
+                         "icon": "amazonBedrockIcon",
                          "task_types": [
                                {
                                    "task_type": "text_embedding",

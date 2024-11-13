@@ -1596,6 +1596,8 @@ public class CohereServiceTests extends ESTestCase {
                 """
                     {
                             "provider": "cohere",
+                            "name": "Cohere",
+                            "icon": "cohereIcon",
                             "task_types": [
                                  {
                                      "task_type": "text_embedding",

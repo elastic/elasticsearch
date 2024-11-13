@@ -1395,6 +1395,8 @@ public class AzureAiStudioServiceTests extends ESTestCase {
                 """
                     {
                         "provider": "azureaistudio",
+                        "name": "Azure AI Studio",
+                        "icon": "azureAIStudioIcon",
                         "task_types": [
                              {
                                  "task_type": "text_embedding",

@@ -66,6 +66,9 @@ public class GoogleVertexAiService extends SenderService {
 
     public static final String NAME = "googlevertexai";
 
+    private static final String SERVICE_NAME = "Google Vertex AI";
+    private static final String ICON = "googleAIStudioIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.RERANK);
 
     public GoogleVertexAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -379,15 +382,20 @@ public class GoogleVertexAiService extends SenderService {
                 configurationMap.putAll(GoogleVertexAiSecretSettings.Configuration.get());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = GoogleVertexAiEmbeddingsModel.Configuration.get();
-                        case RERANK -> taskSettingsConfig = GoogleVertexAiRerankModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            case TEXT_EMBEDDING -> taskSettingsConfig = GoogleVertexAiEmbeddingsModel.Configuration.get();
+                            case RERANK -> taskSettingsConfig = GoogleVertexAiRerankModel.Configuration.get();
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

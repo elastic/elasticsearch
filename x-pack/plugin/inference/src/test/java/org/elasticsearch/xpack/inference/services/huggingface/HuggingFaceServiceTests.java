@@ -872,6 +872,8 @@ public class HuggingFaceServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "hugging_face",
+                       "name": "Hugging Face",
+                       "icon": "huggingFaceIcon",
                        "task_types": [
                             {
                                 "task_type": "text_embedding",

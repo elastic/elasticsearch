@@ -1134,6 +1134,8 @@ public class GoogleAiStudioServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "googleaistudio",
+                       "name": "Google AI Studio",
+                       "icon": "googleAIStudioIcon",
                        "task_types": [
                             {
                                 "task_type": "text_embedding",

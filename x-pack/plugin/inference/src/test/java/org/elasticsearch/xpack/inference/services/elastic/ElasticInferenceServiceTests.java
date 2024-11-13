@@ -500,6 +500,8 @@ public class ElasticInferenceServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "elastic",
+                       "name": "Elastic",
+                       "icon": "elasticIcon",
                        "task_types": [
                             {
                                 "task_type": "sparse_embedding",

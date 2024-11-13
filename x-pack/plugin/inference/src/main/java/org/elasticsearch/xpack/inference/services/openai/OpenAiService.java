@@ -68,6 +68,9 @@ import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFie
 public class OpenAiService extends SenderService {
     public static final String NAME = "openai";
 
+    private static final String SERVICE_NAME = "OpenAI";
+    private static final String ICON = "openAIIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING, TaskType.COMPLETION);
 
     public OpenAiService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -422,15 +425,20 @@ public class OpenAiService extends SenderService {
                     )
                 );
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
-                        case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            case TEXT_EMBEDDING -> taskSettingsConfig = OpenAiEmbeddingsModel.Configuration.get();
+                            case COMPLETION -> taskSettingsConfig = OpenAiChatCompletionModel.Configuration.get();
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

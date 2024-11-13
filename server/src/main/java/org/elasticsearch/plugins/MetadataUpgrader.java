@@ -49,17 +49,21 @@ public class MetadataUpgrader {
                     // Group by the type of custom metadata to be upgraded (the entry key)
                     Map.Entry::getKey,
                     // For each type, extract the operators (the entry values), collect to a list, and make an operator which combines them
-                    collectingAndThen(mapping(Map.Entry::getValue, toList()), this::combineCustomOperators)
+                    collectingAndThen(mapping(Map.Entry::getValue, toList()), CombiningCustomUpgrader::new)
                 )
             );
     }
 
-    private UnaryOperator<Metadata.Custom> combineCustomOperators(List<UnaryOperator<Metadata.Custom>> operators) {
-        return custom -> {
-            for (UnaryOperator<Metadata.Custom> operator : operators) {
-                custom = operator.apply(custom);
+    private record CombiningCustomUpgrader(List<UnaryOperator<Metadata.Custom>> upgraders) implements UnaryOperator<Metadata.Custom> {
+
+        @Override
+        public Metadata.Custom apply(Metadata.Custom custom) {
+            Metadata.Custom upgraded = custom;
+            for (UnaryOperator<Metadata.Custom> upgrader : upgraders) {
+                upgraded = upgrader.apply(upgraded);
             }
-            return custom;
-        };
+            return upgraded;
+        }
     }
+
 }

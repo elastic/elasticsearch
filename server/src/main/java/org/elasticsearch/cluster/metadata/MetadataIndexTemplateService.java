@@ -383,9 +383,7 @@ public class MetadataIndexTemplateService {
         }
 
         logger.info("{} component template [{}]", existing == null ? "adding" : "updating", name);
-        return ClusterState.builder(projectState.cluster())
-            .putProjectMetadata(ProjectMetadata.builder(project).put(name, finalComponentTemplate))
-            .build();
+        return projectState.updatedState(builder -> builder.put(name, finalComponentTemplate));
     }
 
     @Nullable
@@ -472,12 +470,12 @@ public class MetadataIndexTemplateService {
                 throw new ResourceNotFoundException(names[0]);
             }
         }
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
-        for (String templateName : templateNames) {
-            logger.info("removing component template [{}]", templateName);
-            projectBuilder.removeComponentTemplate(templateName);
-        }
-        return ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).build();
+        return projectState.updatedState(projectBuilder -> {
+            for (String templateName : templateNames) {
+                logger.info("removing component template [{}]", templateName);
+                projectBuilder.removeComponentTemplate(templateName);
+            }
+        });
     }
 
     /**
@@ -629,9 +627,11 @@ public class MetadataIndexTemplateService {
             HeaderWarning.addWarning(warning);
         }
 
-        ComposableIndexTemplate finalIndexTemplate = template;
+        final ComposableIndexTemplate finalIndexTemplate;
         Template innerTemplate = template.template();
-        if (innerTemplate != null) {
+        if (innerTemplate == null) {
+            finalIndexTemplate = template;
+        } else {
             // We may need to normalize index settings, so do that also
             Settings finalSettings = innerTemplate.settings();
             if (finalSettings != null) {
@@ -656,9 +656,7 @@ public class MetadataIndexTemplateService {
             name,
             template.indexPatterns()
         );
-        return ClusterState.builder(projectState.cluster())
-            .putProjectMetadata(ProjectMetadata.builder(project).put(name, finalIndexTemplate))
-            .build();
+        return projectState.updatedState(builder -> builder.put(name, finalIndexTemplate));
     }
 
     /**
@@ -1060,12 +1058,12 @@ public class MetadataIndexTemplateService {
             );
         }
 
-        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(project);
-        for (String templateName : templateNames) {
-            logger.info("removing index template [{}]", templateName);
-            projectBuilder.removeIndexTemplate(templateName);
-        }
-        return ClusterState.builder(projectState.cluster()).putProjectMetadata(projectBuilder).build();
+        return projectState.updatedState(projectBuilder -> {
+            for (String templateName : templateNames) {
+                logger.info("removing index template [{}]", templateName);
+                projectBuilder.removeIndexTemplate(templateName);
+            }
+        });
     }
 
     /**

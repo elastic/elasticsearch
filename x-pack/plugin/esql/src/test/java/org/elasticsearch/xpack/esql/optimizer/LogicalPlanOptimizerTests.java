@@ -11,6 +11,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
 import org.elasticsearch.common.lucene.BytesRefs;
 import org.elasticsearch.compute.aggregation.QuantileStates;
+import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.LongVectorBlock;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.dissect.DissectParser;
 import org.elasticsearch.index.IndexMode;
@@ -38,7 +40,6 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
-import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
@@ -149,6 +150,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.EQ;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GT;
 import static org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.EsqlBinaryComparison.BinaryComparisonOperation.GTE;
@@ -167,6 +169,7 @@ import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.startsWith;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE", reason = "debug")
@@ -491,6 +494,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var alias = as(aggregates.get(0), Alias.class);
         var max = as(alias.child(), Max.class);
         assertThat(Expressions.name(max.arguments().get(0)), equalTo("emp_no"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'x' shadowed by field at line 2:45",
+            "Line 2:9: Field 'x' shadowed by field at line 2:45"
+        );
     }
 
     // expected stats b by b (grouping overrides the rest of the aggs)
@@ -513,6 +521,11 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var aggregates = agg.aggregates();
         assertThat(aggregates, hasSize(1));
         assertThat(Expressions.names(aggregates), contains("b"));
+        assertWarnings(
+            "No limit defined, adding default limit of [1000]",
+            "Line 2:28: Field 'b' shadowed by field at line 2:47",
+            "Line 2:9: Field 'b' shadowed by field at line 2:47"
+        );
     }
 
     /**
@@ -553,6 +566,278 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var agg = as(limit.child(), Aggregate.class);
         assertThat(agg.aggregates(), hasSize(2));
         assertThat(Expressions.names(agg.aggregates()), contains("sum(salary)", "sum(salary) WheRe last_name ==   \"Doe\""));
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[sum(salary) where false{r}#26],[ConstantNullBlock[positions=1]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAgg() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) where false
+            """);
+
+        var project = as(plan, Limit.class);
+        var source = as(project.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("sum(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#68]]
+     * \_Eval[[$$SUM$sum(salary)_+_1$0{r$}#79 + 1[INTEGER] AS sum(salary) + 1 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_LocalRelation[[$$SUM$sum(salary)_+_1$0{r$}#79],[ConstantNullBlock[positions=1]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAggWithExpression() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("sum(salary) + 1 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(1));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        assertThat(blocks[0].getPositionCount(), is(1));
+        assertTrue(blocks[0].areAllValuesNull());
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#4, sum(salary) + 2{r}#6, emp_no{f}#7]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_2$1{r$}#18 + 2[INTEGER] AS sum(salary) + 2]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#7],[SUM(salary{f}#12,true[BOOLEAN]) AS $$SUM$sum(salary)_+_2$1, emp_no{f}#7]]
+     *       \_EsRelation[test][_meta_field{f}#13, emp_no{f}#7, first_name{f}#8, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalMixedFilterAndNoFilter() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false,
+                    sum(salary) + 2
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("sum(salary) + 1 where false", "sum(salary) + 2", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 2"));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Project[[sum(salary) + 1 where false{r}#3, sum(salary) + 3{r}#5, sum(salary) + 2 where false{r}#7]]
+     * \_Eval[[null[LONG] AS sum(salary) + 1 where false, $$SUM$sum(salary)_+_3$1{r$}#19 + 3[INTEGER] AS sum(salary) + 3, nu
+     * ll[LONG] AS sum(salary) + 2 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[],[SUM(salary{f}#13,true[BOOLEAN]) AS $$SUM$sum(salary)_+_3$1]]
+     *       \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalFilterFalseAndNull() {
+        var plan = plan("""
+            from test
+            | stats sum(salary) + 1 where false,
+                    sum(salary) + 3,
+                    sum(salary) + 2 where null
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(
+            Expressions.names(project.projections()),
+            contains("sum(salary) + 1 where false", "sum(salary) + 3", "sum(salary) + 2 where null")
+        );
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(3));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        alias = as(eval.fields().get(1), Alias.class);
+        assertThat(Expressions.name(alias.child()), containsString("sum(salary) + 3"));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(LONG));
+
+        var limit = as(eval.child(), Limit.class);
+        var aggregate = as(limit.child(), Aggregate.class);
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count(salary) where false{r}#3],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalCount() {
+        var plan = plan("""
+            from test
+            | stats count(salary) where false
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count(salary) where false"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[count_distinct(salary + 2) + 3 where false{r}#3]]
+     * \_Eval[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15 + 3[INTEGER] AS count_distinct(salary + 2) + 3 where false]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_LocalRelation[[$$COUNTDISTINCT$count_distinct(>$0{r$}#15],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    public void testReplaceStatsFilteredAggWithEvalCountDistinctInExpression() {
+        var plan = plan("""
+            from test
+            | stats count_distinct(salary + 2) + 3 where false
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("count_distinct(salary + 2) + 3 where false"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(alias.name(), is("count_distinct(salary + 2) + 3 where false"));
+        var add = as(alias.child(), Add.class);
+        var literal = as(add.right(), Literal.class);
+        assertThat(literal.fold(), is(3));
+
+        var limit = as(eval.child(), Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[max{r}#91, max_a{r}#94, min{r}#97, min_a{r}#100, emp_no{f}#101]]
+     * \_Eval[[null[INTEGER] AS max_a, null[INTEGER] AS min_a]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#101],[MAX(salary{f}#106,true[BOOLEAN]) AS max, MIN(salary{f}#106,true[BOOLEAN]) AS min, emp_
+     * no{f}#101]]
+     *       \_EsRelation[test][_meta_field{f}#107, emp_no{f}#101, first_name{f}#10..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSameAggWithAndWithoutFilter() {
+        var plan = plan("""
+            from test
+            | stats max = max(salary), max_a = max(salary) where null,
+                    min = min(salary), min_a = min(salary) where to_string(null) == "abc"
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("max", "max_a", "min", "min_a", "emp_no"));
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(2));
+
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("max_a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(INTEGER));
+
+        alias = as(eval.fields().getLast(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("min_a"));
+        assertTrue(alias.child().foldable());
+        assertThat(alias.child().fold(), nullValue());
+        assertThat(alias.child().dataType(), is(INTEGER));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("max", "min", "emp_no"));
+
+        var source = as(aggregate.child(), EsRelation.class);
+    }
+
+    /*
+     * Limit[1000[INTEGER]]
+     * \_LocalRelation[[count{r}#7],[LongVectorBlock[vector=ConstantLongVector[positions=1, value=0]]]]
+     */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/100634") // i.e. PropagateEvalFoldables applicability to Aggs
+    public void testReplaceStatsFilteredAggWithEvalFilterUsingEvaledValue() {
+        var plan = plan("""
+            from test
+            | eval my_length = length(concat(first_name, null))
+            | stats count = count(my_length) where my_length > 0
+            """);
+
+        var limit = as(plan, Limit.class);
+        var source = as(limit.child(), LocalRelation.class);
+        assertThat(Expressions.names(source.output()), contains("count"));
+        Block[] blocks = source.supplier().get();
+        assertThat(blocks.length, is(1));
+        var block = as(blocks[0], LongVectorBlock.class);
+        assertThat(block.getPositionCount(), is(1));
+        assertThat(block.asVector().getLong(0), is(0L));
+    }
+
+    /*
+     * Project[[c{r}#67, emp_no{f}#68]]
+     * \_Eval[[0[LONG] AS c]]
+     *   \_Limit[1000[INTEGER]]
+     *     \_Aggregate[STANDARD,[emp_no{f}#68],[emp_no{f}#68]]
+     *       \_EsRelation[test][_meta_field{f}#74, emp_no{f}#68, first_name{f}#69, ..]
+     */
+    public void testReplaceStatsFilteredAggWithEvalSingleAggWithGroup() {
+        var plan = plan("""
+            from test
+            | stats c = count(emp_no) where false
+              by emp_no
+            """);
+
+        var project = as(plan, Project.class);
+        assertThat(Expressions.names(project.projections()), contains("c", "emp_no"));
+
+        var eval = as(project.child(), Eval.class);
+        assertThat(eval.fields().size(), is(1));
+        var alias = as(eval.fields().getFirst(), Alias.class);
+        assertThat(Expressions.name(alias), containsString("c"));
+
+        var limit = as(eval.child(), Limit.class);
+
+        var aggregate = as(limit.child(), Aggregate.class);
+        assertThat(Expressions.names(aggregate.aggregates()), contains("emp_no"));
+
+        var source = as(aggregate.child(), EsRelation.class);
     }
 
     public void testQlComparisonOptimizationsApply() {
@@ -5792,7 +6077,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval initial = substring(first_name, 1) | where match(initial, "A")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [initial], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [initial], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
 
@@ -5800,7 +6085,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
             from test | eval text=concat(first_name, last_name) | where match(text, "cat")"""));
         assertTrue(e.getMessage().startsWith("Found "));
         assertEquals(
-            "1:67: [MATCH] cannot operate on [text], which is not a field from an index mapping",
+            "1:67: [MATCH] function cannot operate on [text], which is not a field from an index mapping",
             e.getMessage().substring(header.length())
         );
     }
@@ -5813,11 +6098,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         VerificationException ve = expectThrows(VerificationException.class, () -> plan(queryText));
         assertThat(
             ve.getMessage(),
-            containsString("[MATCH] cannot operate on [text::keyword], which is not a field from an index mapping")
+            containsString("[MATCH] function cannot operate on [text::keyword], which is not a field from an index mapping")
         );
-    }
-
-    private Literal nullOf(DataType dataType) {
-        return new Literal(Source.EMPTY, null, dataType);
     }
 }

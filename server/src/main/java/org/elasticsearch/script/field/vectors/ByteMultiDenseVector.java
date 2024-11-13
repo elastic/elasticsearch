@@ -10,6 +10,7 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
 import java.util.Iterator;
@@ -30,6 +31,43 @@ public class ByteMultiDenseVector implements MultiDenseVector {
         this.numVecs = numVecs;
         this.dims = dims;
         this.magnitudesBytes = magnitudesBytes;
+    }
+
+    @Override
+    public float maxSimDotProduct(float[][] query) {
+        throw new UnsupportedOperationException("use [float maxSimDotProduct(byte[][] queryVector)] instead");
+    }
+
+    @Override
+    public float maxSimDotProduct(byte[][] query) {
+        float[] sums = new float[query.length];
+        while (vectorValues.hasNext()) {
+            byte[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                sums[i] += VectorUtil.dotProduct(query[i], vv);
+            }
+        }
+        float max = -Float.MAX_VALUE;
+        for (float s : sums) {
+            max = Math.max(max, s);
+        }
+        return max;
+    }
+
+    @Override
+    public float maxSimInvHamming(byte[][] query) {
+        float[] sums = new float[query.length];
+        while (vectorValues.hasNext()) {
+            byte[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                sums[i] += ((dims - VectorUtil.xorBitCount(vv, query[i])) / (float) dims);
+            }
+        }
+        float max = -Float.MAX_VALUE;
+        for (float s : sums) {
+            max = Math.max(max, s);
+        }
+        return max;
     }
 
     @Override

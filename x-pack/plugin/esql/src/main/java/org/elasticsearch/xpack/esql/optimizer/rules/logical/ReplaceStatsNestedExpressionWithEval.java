@@ -9,8 +9,11 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -21,6 +24,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Stats;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.IdentityHashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -51,20 +55,43 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         boolean groupingChanged = false;
 
+        Map<NamedExpression, NamedExpression> replacedAggs = new IdentityHashMap<>();
+
         // start with the groupings since the aggs might duplicate it
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
             Expression g = newGroupings.get(i);
             // Move the alias into an eval and replace it with its attribute.
             // Exception: Categorize is internal to the aggregation and remains in the groupings. We move its child expression into an eval.
-            // TODO: actually extract the CATEGORIZE's child expression
-            if (g instanceof Alias as && as.child() instanceof Categorize == false) {
-                groupingChanged = true;
-                var attr = as.toAttribute();
-                evals.add(as);
-                evalNames.put(as.name(), attr);
-                newGroupings.set(i, attr);
-                if (as.child() instanceof GroupingFunction gf) {
-                    groupingAttributes.put(gf, attr);
+            if (g instanceof Alias as) {
+                if (as.child() instanceof Categorize cat) {
+                    if (cat.field() instanceof Attribute == false) {
+                        groupingChanged = true;
+                        var catAs = new Alias(as.source(), as.name(), cat.field());
+                        var attr = catAs.toAttribute();
+                        evals.add(catAs);
+                        evalNames.put(catAs.name(), attr);
+                        Categorize replacement = cat.replaceChildren(List.of(attr));
+                        newGroupings.set(i, replacement);
+                        ReferenceAttribute ref = new ReferenceAttribute(
+                            as.source(),
+                            as.name(),
+                            attr.dataType(),
+                            attr.nullable(),
+                            attr.id(),
+                            true
+                        );
+                        groupingAttributes.put(cat, ref);
+                        replacedAggs.put(as.toAttribute(), ref);
+                    }
+                } else {
+                    groupingChanged = true;
+                    var attr = as.toAttribute();
+                    evals.add(as);
+                    evalNames.put(as.name(), attr);
+                    newGroupings.set(i, attr);
+                    if (as.child() instanceof GroupingFunction gf) {
+                        groupingAttributes.put(gf, attr);
+                    }
                 }
             }
         }
@@ -82,6 +109,11 @@ public final class ReplaceStatsNestedExpressionWithEval extends OptimizerRules.O
         int[] counter = new int[] { 0 };
         // for the aggs make sure to unwrap the agg function and check the existing groupings
         for (NamedExpression agg : aggs) {
+            NamedExpression r = replacedAggs.get(agg);
+            if (r != null) {
+                aggsChanged.set(true);
+                agg = r;
+            }
             NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {
                 // if the child is a nested expression
                 Expression child = as.child();

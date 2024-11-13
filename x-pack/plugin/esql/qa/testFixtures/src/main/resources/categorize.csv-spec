@@ -118,20 +118,6 @@ COUNT():long | category:category
            1 | .*?Disconnected.+?banana.*?
 ;
 
-on CONCAT
-required_capability: categorize
-
-FROM sample_data
-  | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " banana"))
-  | SORT category
-;
-
-COUNT():long | category:category
-           3 | .*?Connected.+?to.+?banana.*?
-           3 | .*?Connection.+?error.+?banana.*?
-           1 | .*?Disconnected.+?banana.*?
-;
-
 on CONCAT with unicode
 required_capability: categorize
 

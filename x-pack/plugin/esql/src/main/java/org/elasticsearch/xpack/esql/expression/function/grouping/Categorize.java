@@ -97,7 +97,7 @@ public class Categorize extends GroupingFunction implements Validatable {
     }
 
     @Override
-    public Expression replaceChildren(List<Expression> newChildren) {
+    public Categorize replaceChildren(List<Expression> newChildren) {
         return new Categorize(source(), newChildren.get(0));
     }
 

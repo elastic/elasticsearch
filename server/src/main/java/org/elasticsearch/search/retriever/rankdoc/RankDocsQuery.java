@@ -283,7 +283,7 @@ public class RankDocsQuery extends Query {
         return starts;
     }
 
-    RankDoc[] rankDocs() {
+    public RankDoc[] rankDocs() {
         return docs;
     }
 

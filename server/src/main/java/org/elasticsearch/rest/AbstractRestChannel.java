@@ -13,10 +13,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.BytesStream;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
@@ -65,15 +63,6 @@ public abstract class AbstractRestChannel implements RestChannel {
         this.filterPath = request.param("filter_path", null);
         this.pretty = request.paramAsBoolean("pretty", false);
         this.human = request.paramAsBoolean("human", false);
-
-        if (request.getRestApiVersion() == RestApiVersion.V_8 && detailedErrorsEnabled == false) {
-            deprecationLogger.warn(
-                DeprecationCategory.API,
-                "http_detailed_errors",
-                "The JSON format of non-detailed errors will change in Elasticsearch 9.0 to match the JSON structure"
-                    + " used for detailed errors. To keep using the existing format, use the V8 REST API."
-            );
-        }
     }
 
     @Override

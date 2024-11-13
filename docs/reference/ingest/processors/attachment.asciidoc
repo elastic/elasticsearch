@@ -82,7 +82,6 @@ The document's `attachment` object contains extracted properties for the file:
   "_seq_no": 22,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
       "language": "ro",
@@ -95,7 +94,8 @@ The document's `attachment` object contains extracted properties for the file:
 // TESTRESPONSE[s/"_seq_no": \d+/"_seq_no" : $body._seq_no/ s/"_primary_term" : 1/"_primary_term" : $body._primary_term/]
 
 NOTE: Keeping the binary as a field within the document might consume a lot of resources. It is highly recommended
-      to remove that field from the document. Set `remove_binary` to `true` to automatically remove the field.
+      to remove that field from the document. Set `remove_binary` to `true` to automatically remove the field, as in
+      the examples shown here.
 
 [[attachment-fields]]
 ==== Exported fields
@@ -250,7 +250,6 @@ Returns this:
   "_seq_no": 35,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "attachment": {
       "content_type": "application/rtf",
       "language": "is",
@@ -299,7 +298,6 @@ Returns this:
   "_seq_no": 40,
   "_primary_term": 1,
   "_source": {
-    "data": "e1xydGYxXGFuc2kNCkxvcmVtIGlwc3VtIGRvbG9yIHNpdCBhbWV0DQpccGFyIH0=",
     "max_size": 5,
     "attachment": {
       "content_type": "application/rtf",
@@ -396,7 +394,6 @@ Returns this:
     "attachments" : [
       {
         "filename" : "ipsum.txt",
-        "data" : "dGhpcyBpcwpqdXN0IHNvbWUgdGV4dAo=",
         "attachment" : {
           "content_type" : "text/plain; charset=ISO-8859-1",
           "language" : "en",
@@ -406,7 +403,6 @@ Returns this:
       },
       {
         "filename" : "test.txt",
-        "data" : "VGhpcyBpcyBhIHRlc3QK",
         "attachment" : {
           "content_type" : "text/plain; charset=ISO-8859-1",
           "language" : "en",

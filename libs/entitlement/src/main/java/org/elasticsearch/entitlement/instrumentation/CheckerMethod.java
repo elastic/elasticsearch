@@ -12,11 +12,12 @@ package org.elasticsearch.entitlement.instrumentation;
 import java.util.List;
 
 /**
- * A structure to use as a key/lookup for a method target of instrumentation
+ * A structure to use as a representation of the checker method the instrumentation will inject.
  *
  * @param className the "internal name" of the class: includes the package info, but with periods replaced by slashes
- * @param methodName the method name
- * @param parameterTypes a list of "internal names" for the parameter types
- * @param isStatic a flag to indicate if the target method is static or instance
+ * @param methodName the checker method name
+ * @param parameterDescriptors a list of
+ *                             <a href="https://docs.oracle.com/javase/specs/jvms/se23/html/jvms-4.html#jvms-4.3">type descriptors</a>)
+ *                             for methodName parameters.
  */
-public record MethodKey(String className, String methodName, List<String> parameterTypes, boolean isStatic) {}
+public record CheckerMethod(String className, String methodName, List<String> parameterDescriptors) {}

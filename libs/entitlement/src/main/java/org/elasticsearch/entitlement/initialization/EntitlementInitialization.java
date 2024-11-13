@@ -11,13 +11,13 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Set;
 
@@ -40,11 +40,9 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = new ElasticsearchEntitlementChecker();
 
-        // TODO: Configure actual entitlement grants instead of this hardcoded one
-        Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecker")
-            .getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        Map<MethodKey, CheckerMethod> methodMap = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
+            "org.elasticsearch.entitlement.bridge.EntitlementChecker"
+        );
 
         inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);

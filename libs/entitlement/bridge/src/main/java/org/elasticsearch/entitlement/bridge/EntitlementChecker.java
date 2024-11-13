@@ -10,5 +10,6 @@
 package org.elasticsearch.entitlement.bridge;
 
 public interface EntitlementChecker {
+    @InstrumentationTarget(className = "java/lang/System", methodName = "exit", isStatic = true)
     void checkSystemExit(Class<?> callerClass, int status);
 }

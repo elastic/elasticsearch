@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
+import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.objectweb.asm.AnnotationVisitor;
@@ -23,7 +24,6 @@ import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.io.InputStream;
-import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.stream.Stream;
 
@@ -40,9 +40,9 @@ public class InstrumenterImpl implements Instrumenter {
      * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
     private final String classNameSuffix;
-    private final Map<MethodKey, Method> instrumentationMethods;
+    private final Map<MethodKey, CheckerMethod> instrumentationMethods;
 
-    public InstrumenterImpl(String classNameSuffix, Map<MethodKey, Method> instrumentationMethods) {
+    public InstrumenterImpl(String classNameSuffix, Map<MethodKey, CheckerMethod> instrumentationMethods) {
         this.classNameSuffix = classNameSuffix;
         this.instrumentationMethods = instrumentationMethods;
     }
@@ -177,7 +177,7 @@ public class InstrumenterImpl implements Instrumenter {
     class EntitlementMethodVisitor extends MethodVisitor {
         private final boolean instrumentedMethodIsStatic;
         private final String instrumentedMethodDescriptor;
-        private final Method instrumentationMethod;
+        private final CheckerMethod instrumentationMethod;
         private boolean hasCallerSensitiveAnnotation = false;
 
         EntitlementMethodVisitor(
@@ -185,7 +185,7 @@ public class InstrumenterImpl implements Instrumenter {
             MethodVisitor methodVisitor,
             boolean instrumentedMethodIsStatic,
             String instrumentedMethodDescriptor,
-            Method instrumentationMethod
+            CheckerMethod instrumentationMethod
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
@@ -262,9 +262,12 @@ public class InstrumenterImpl implements Instrumenter {
         private void invokeInstrumentationMethod() {
             mv.visitMethodInsn(
                 INVOKEINTERFACE,
-                Type.getInternalName(instrumentationMethod.getDeclaringClass()),
-                instrumentationMethod.getName(),
-                Type.getMethodDescriptor(instrumentationMethod),
+                instrumentationMethod.className(),
+                instrumentationMethod.methodName(),
+                Type.getMethodDescriptor(
+                    Type.VOID_TYPE,
+                    instrumentationMethod.parameterDescriptors().stream().map(Type::getType).toArray(Type[]::new)
+                ),
                 true
             );
         }

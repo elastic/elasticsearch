@@ -11,6 +11,7 @@ package org.elasticsearch.entitlement.instrumentation.impl;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -192,7 +193,12 @@ public class InstrumenterTests extends ESTestCase {
      * is not what would happen when it's run by the agent.
      */
     private InstrumenterImpl createInstrumenter(Class<?> classToInstrument, String... methodNames) throws NoSuchMethodException {
-        Method v1 = EntitlementChecker.class.getMethod("checkSystemExit", Class.class, int.class);
+        var checkSystemExitMethod = EntitlementChecker.class.getMethod("checkSystemExit", Class.class, int.class);
+        CheckerMethod v1 = new CheckerMethod(
+            Type.getInternalName(EntitlementChecker.class),
+            checkSystemExitMethod.getName(),
+            Arrays.stream(Type.getArgumentTypes(checkSystemExitMethod)).map(Type::getDescriptor).toList()
+        );
         var methods = Arrays.stream(methodNames).map(name -> {
             try {
                 return instrumentationService.methodKeyForTarget(classToInstrument.getMethod(name, int.class));

@@ -11,15 +11,14 @@ import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.query.QueryBuilder;
+import org.elasticsearch.index.query.RankDocsQueryBuilder;
 import org.elasticsearch.license.LicenseUtils;
-import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.retriever.CompoundRetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilderWrapper;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
-import org.elasticsearch.search.retriever.rankdoc.RankDocsQueryBuilder;
 import org.elasticsearch.search.sort.ScoreSortBuilder;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
@@ -129,11 +128,10 @@ public final class QueryRuleRetrieverBuilder extends CompoundRetrieverBuilder<Qu
     }
 
     @Override
-    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
-        var ret = super.createSearchSourceBuilder(pit, retrieverBuilder);
-        checkValidSort(ret.sorts());
-        ret.query(new RuleQueryBuilder(ret.query(), matchCriteria, rulesetIds));
-        return ret;
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder source) {
+        checkValidSort(source.sorts());
+        source.query(new RuleQueryBuilder(source.query(), matchCriteria, rulesetIds));
+        return source;
     }
 
     private static void checkValidSort(List<SortBuilder<?>> sortBuilders) {

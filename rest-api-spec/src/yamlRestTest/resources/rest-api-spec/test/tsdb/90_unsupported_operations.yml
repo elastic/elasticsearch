@@ -71,8 +71,8 @@ setup:
 ---
 index with routing:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   - do:
       catch: /specifying routing is not supported because the destination index \[test\] is in time_series mode/
@@ -94,8 +94,8 @@ index with routing:
 ---
 index with routing over _bulk:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   - do:
       bulk:
@@ -109,8 +109,8 @@ index with routing over _bulk:
 ---
 noop update:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   - do:
       search:
@@ -131,8 +131,8 @@ noop update:
 ---
 update:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   # We fail even though the document isn't found.
   - do:
@@ -156,8 +156,8 @@ update:
 ---
 update over _bulk:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   - do:
       bulk:
@@ -170,8 +170,8 @@ update over _bulk:
 ---
 search with routing:
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: tsdb indexing changed in 8.2.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   # We fail even though the document isn't found.
   - do:

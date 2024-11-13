@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.search.retriever.rankdoc;
+package org.elasticsearch.index.query;
 
 import org.apache.lucene.index.IndexReader;
 import org.apache.lucene.search.Query;
@@ -16,15 +16,13 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.index.query.AbstractQueryBuilder;
-import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.QueryRewriteContext;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.search.rank.RankDoc;
+import org.elasticsearch.search.retriever.rankdoc.RankDocsQuery;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.RRF_QUERY_REWRITE;
@@ -56,6 +54,15 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
     }
 
     @Override
+    protected void extractInnerHitBuilders(Map<String, InnerHitContextBuilder> innerHits) {
+        if (queryBuilders != null) {
+            for (QueryBuilder query : queryBuilders) {
+                InnerHitContextBuilder.extractInnerHits(query, innerHits);
+            }
+        }
+    }
+
+    @Override
     protected QueryBuilder doRewrite(QueryRewriteContext queryRewriteContext) throws IOException {
         if (queryBuilders != null) {
             QueryBuilder[] newQueryBuilders = new QueryBuilder[queryBuilders.length];
@@ -71,7 +78,7 @@ public class RankDocsQueryBuilder extends AbstractQueryBuilder<RankDocsQueryBuil
         return super.doRewrite(queryRewriteContext);
     }
 
-    RankDoc[] rankDocs() {
+    public RankDoc[] rankDocs() {
         return rankDocs;
     }
 

@@ -45,6 +45,10 @@ import static org.elasticsearch.xpack.esql.CsvSpecReader.specParser;
 import static org.elasticsearch.xpack.esql.CsvTestUtils.isEnabled;
 import static org.elasticsearch.xpack.esql.CsvTestsDataLoader.ENRICH_SOURCE_INDICES;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.classpathResources;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.INLINESTATS_V2;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.JOIN_PLANNING_V1;
+import static org.elasticsearch.xpack.esql.action.EsqlCapabilities.Cap.METADATA_FIELDS_REMOTE_TEST;
 import static org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase.Mode.SYNC;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doAnswer;
@@ -101,7 +105,7 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected void shouldSkipTest(String testName) throws IOException {
-        boolean remoteMetadata = testCase.requiredCapabilities.contains("metadata_fields_remote_test");
+        boolean remoteMetadata = testCase.requiredCapabilities.contains(METADATA_FIELDS_REMOTE_TEST.capabilityName());
         if (remoteMetadata) {
             // remove the capability from the test to enable it
             testCase.requiredCapabilities = testCase.requiredCapabilities.stream()
@@ -117,9 +121,9 @@ public class MultiClusterSpecIT extends EsqlSpecTestCase {
             "Test " + testName + " is skipped on " + Clusters.oldVersion(),
             isEnabled(testName, instructions, Clusters.oldVersion())
         );
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats"));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("inlinestats_v2"));
-        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains("join_planning_v1"));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(INLINESTATS_V2.capabilityName()));
+        assumeFalse("INLINESTATS not yet supported in CCS", testCase.requiredCapabilities.contains(JOIN_PLANNING_V1.capabilityName()));
     }
 
     private TestFeatureService remoteFeaturesService() throws IOException {

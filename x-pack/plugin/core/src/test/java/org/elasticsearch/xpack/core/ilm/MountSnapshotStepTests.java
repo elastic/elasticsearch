@@ -42,7 +42,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String restoredIndexPrefix = randomAlphaOfLength(10);
         MountSearchableSnapshotRequest.Storage storage = randomStorageType();
         Integer totalShardsPerNode = randomTotalShardsPerNode(true);
-        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage, totalShardsPerNode);
+        return new MountSnapshotStep(stepKey, nextStepKey, client, restoredIndexPrefix, storage, totalShardsPerNode, between(0, 10));
     }
 
     public static MountSearchableSnapshotRequest.Storage randomStorageType() {
@@ -61,7 +61,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             instance.getClient(),
             instance.getRestoredIndexPrefix(),
             instance.getStorage(),
-            instance.getTotalShardsPerNode()
+            instance.getTotalShardsPerNode(),
+            instance.getNumberOfReplicas()
         );
     }
 
@@ -72,7 +73,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String restoredIndexPrefix = instance.getRestoredIndexPrefix();
         MountSearchableSnapshotRequest.Storage storage = instance.getStorage();
         Integer totalShardsPerNode = instance.getTotalShardsPerNode();
-        switch (between(0, 4)) {
+        int numberOfReplicas = instance.getNumberOfReplicas();
+        switch (between(0, 5)) {
             case 0:
                 key = new StepKey(key.phase(), key.action(), key.name() + randomAlphaOfLength(5));
                 break;
@@ -94,10 +96,21 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             case 4:
                 totalShardsPerNode = totalShardsPerNode == null ? 1 : totalShardsPerNode + randomIntBetween(1, 100);
                 break;
+            case 5:
+                numberOfReplicas = randomValueOtherThan(numberOfReplicas, () -> between(0, 10));
+                break;
             default:
                 throw new AssertionError("Illegal randomisation branch");
         }
-        return new MountSnapshotStep(key, nextKey, instance.getClient(), restoredIndexPrefix, storage, totalShardsPerNode);
+        return new MountSnapshotStep(
+            key,
+            nextKey,
+            instance.getClient(),
+            restoredIndexPrefix,
+            storage,
+            totalShardsPerNode,
+            numberOfReplicas
+        );
     }
 
     public void testCreateWithInvalidTotalShardsPerNode() throws Exception {
@@ -111,10 +124,29 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                invalidTotalShardsPerNode
+                invalidTotalShardsPerNode,
+                0
             )
         );
         assertEquals("[total_shards_per_node] must be >= 1", exception.getMessage());
+    }
+
+    public void testCreateWithInvalidNumberOfReplicas() throws Exception {
+        int invalidNumberOfReplicas = randomIntBetween(-100, -1);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new MountSnapshotStep(
+                randomStepKey(),
+                randomStepKey(),
+                client,
+                RESTORED_INDEX_PREFIX,
+                randomStorageType(),
+                null,
+                invalidNumberOfReplicas
+            )
+        );
+        assertEquals("[number_of_replicas] must be >= 0", exception.getMessage());
     }
 
     public void testPerformActionFailure() {
@@ -175,6 +207,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         ilmCustom.put("snapshot_name", snapshotName);
         String repository = "repository";
         ilmCustom.put("snapshot_repository", repository);
+        int numberOfReplicas = between(0, 10);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -195,14 +228,17 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                numberOfReplicas
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 randomStepKey(),
                 randomStepKey(),
                 client,
                 RESTORED_INDEX_PREFIX,
-                randomStorageType()
+                randomStorageType(),
+                null,
+                numberOfReplicas
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -299,6 +335,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
             ilmCustom.put("snapshot_name", snapshotName);
             String repository = "repository";
             ilmCustom.put("snapshot_repository", repository);
+            int numberOfReplicas = between(0, 10);
 
             IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
                 .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -319,14 +356,17 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     indexName,
                     RESTORED_INDEX_PREFIX,
                     indexNameSnippet,
-                    new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                    new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                    numberOfReplicas
                 );
                 MountSnapshotStep step = new MountSnapshotStep(
                     randomStepKey(),
                     randomStepKey(),
                     client,
                     RESTORED_INDEX_PREFIX,
-                    randomStorageType()
+                    randomStorageType(),
+                    null,
+                    numberOfReplicas
                 );
                 performActionAndWait(step, indexMetadata, clusterState, null);
             }
@@ -341,6 +381,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         ilmCustom.put("snapshot_name", snapshotName);
         String repository = "repository";
         ilmCustom.put("snapshot_repository", repository);
+        int numberOfReplicas = between(0, 10);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -361,7 +402,10 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME, ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() }
+                new String[] {
+                    LifecycleSettings.LIFECYCLE_NAME,
+                    ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey() },
+                numberOfReplicas
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -369,7 +413,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                null
+                null,
+                numberOfReplicas
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -383,6 +428,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         ilmCustom.put("snapshot_name", snapshotName);
         String repository = "repository";
         ilmCustom.put("snapshot_repository", repository);
+        int numberOfReplicas = between(0, 10);
 
         IndexMetadata.Builder indexMetadataBuilder = IndexMetadata.builder(indexName)
             .settings(settings(IndexVersion.current()).put(LifecycleSettings.LIFECYCLE_NAME, policyName))
@@ -403,7 +449,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 indexName,
                 RESTORED_INDEX_PREFIX,
                 indexName,
-                new String[] { LifecycleSettings.LIFECYCLE_NAME }
+                new String[] { LifecycleSettings.LIFECYCLE_NAME },
+                numberOfReplicas
             );
             MountSnapshotStep step = new MountSnapshotStep(
                 new StepKey(TimeseriesLifecycleType.FROZEN_PHASE, randomAlphaOfLength(10), randomAlphaOfLength(10)),
@@ -411,7 +458,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 client,
                 RESTORED_INDEX_PREFIX,
                 randomStorageType(),
-                randomTotalShardsPerNode(false)
+                randomTotalShardsPerNode(false),
+                numberOfReplicas
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -439,7 +487,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         String indexName,
         String restoredIndexPrefix,
         String expectedSnapshotIndexName,
-        String[] expectedIgnoredIndexSettings
+        String[] expectedIgnoredIndexSettings,
+        int expectedNumberOfReplicas
     ) {
         return new NoOpClient(threadPool) {
             @Override
@@ -461,6 +510,11 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 assertThat(mountSearchableSnapshotRequest.ignoreIndexSettings(), is(expectedIgnoredIndexSettings));
                 assertThat(mountSearchableSnapshotRequest.mountedIndexName(), is(restoredIndexPrefix + indexName));
                 assertThat(mountSearchableSnapshotRequest.snapshotIndexName(), is(expectedSnapshotIndexName));
+
+                assertThat(
+                    IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.get(mountSearchableSnapshotRequest.indexSettings()),
+                    equalTo(expectedNumberOfReplicas)
+                );
 
                 // invoke the awaiting listener with a very generic 'response', just to fulfill the contract
                 listener.onResponse((Response) new RestoreSnapshotResponse((RestoreInfo) null));

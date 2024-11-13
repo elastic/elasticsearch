@@ -21,6 +21,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.Stash;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.ilm.AllocateAction;
@@ -939,7 +941,10 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             new Phase(
                 "frozen",
                 TimeValue.ZERO,
-                singletonMap(SearchableSnapshotAction.NAME, new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode))
+                singletonMap(
+                    SearchableSnapshotAction.NAME,
+                    new SearchableSnapshotAction(snapshotRepo, randomBoolean(), totalShardsPerNode, 0)
+                )
             ),
             null
         );
@@ -974,6 +979,43 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
             "expected total_shards_per_node to be " + totalShardsPerNode + ", but got: " + snapshotTotalShardsPerNode,
             snapshotTotalShardsPerNode,
             totalShardsPerNode
+        );
+    }
+
+    public void testSearchableSnapshotActionWithReplicas() throws Exception {
+        createSnapshotRepo(client(), snapshotRepo, randomBoolean());
+        createNewSingletonPolicy(client(), policy, "cold", new SearchableSnapshotAction(snapshotRepo, true, null, 1));
+
+        createComposableTemplate(
+            client(),
+            randomAlphaOfLengthBetween(5, 10).toLowerCase(Locale.ROOT),
+            dataStream,
+            new Template(Settings.builder().put(LifecycleSettings.LIFECYCLE_NAME, policy).build(), null, null)
+        );
+
+        indexDocument(client(), dataStream, true);
+
+        // rolling over the data stream so we can apply the searchable snapshot policy to a backing index that's not the write index
+        rolloverMaxOneDocCondition(client(), dataStream);
+
+        String backingIndexName = DataStream.getDefaultBackingIndexName(dataStream, 1L);
+        String restoredIndexName = SearchableSnapshotAction.FULL_RESTORED_INDEX_PREFIX + backingIndexName;
+        assertTrue(waitUntil(() -> {
+            try {
+                return indexExists(restoredIndexName);
+            } catch (IOException e) {
+                return false;
+            }
+        }, 30, TimeUnit.SECONDS));
+
+        assertThat(
+            new ObjectPath(getIndexSettings(restoredIndexName)).evaluateExact(
+                Stash.EMPTY,
+                restoredIndexName,
+                "settings",
+                IndexMetadata.SETTING_NUMBER_OF_REPLICAS
+            ).toString(),
+            equalTo("1")
         );
     }
 

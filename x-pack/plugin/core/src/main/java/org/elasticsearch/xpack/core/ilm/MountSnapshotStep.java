@@ -41,6 +41,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     private final MountSearchableSnapshotRequest.Storage storageType;
     @Nullable
     private final Integer totalShardsPerNode;
+    private final int numberOfReplicas;
 
     public MountSnapshotStep(
         StepKey key,
@@ -48,7 +49,8 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         Client client,
         String restoredIndexPrefix,
         MountSearchableSnapshotRequest.Storage storageType,
-        @Nullable Integer totalShardsPerNode
+        @Nullable Integer totalShardsPerNode,
+        int numberOfReplicas
     ) {
         super(key, nextStepKey, client);
         this.restoredIndexPrefix = restoredIndexPrefix;
@@ -57,6 +59,11 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
             throw new IllegalArgumentException("[" + SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
+
+        if (numberOfReplicas < 0) {
+            throw new IllegalArgumentException("[" + SearchableSnapshotAction.NUMBER_OF_REPLICAS.getPreferredName() + "] must be >= 0");
+        }
+        this.numberOfReplicas = numberOfReplicas;
     }
 
     public MountSnapshotStep(
@@ -66,7 +73,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         String restoredIndexPrefix,
         MountSearchableSnapshotRequest.Storage storageType
     ) {
-        this(key, nextStepKey, client, restoredIndexPrefix, storageType, null);
+        this(key, nextStepKey, client, restoredIndexPrefix, storageType, null, 0);
     }
 
     @Override
@@ -85,6 +92,10 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
     @Nullable
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
+    }
+
+    public int getNumberOfReplicas() {
+        return numberOfReplicas;
     }
 
     @Override
@@ -167,6 +178,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         if (totalShardsPerNode != null) {
             settingsBuilder.put(ShardsLimitAllocationDecider.INDEX_TOTAL_SHARDS_PER_NODE_SETTING.getKey(), totalShardsPerNode);
         }
+        settingsBuilder.put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numberOfReplicas);
 
         final MountSearchableSnapshotRequest mountSearchableSnapshotRequest = new MountSearchableSnapshotRequest(
             TimeValue.MAX_VALUE,
@@ -245,7 +257,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType, totalShardsPerNode);
+        return Objects.hash(super.hashCode(), restoredIndexPrefix, storageType, totalShardsPerNode, numberOfReplicas);
     }
 
     @Override
@@ -260,6 +272,7 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         return super.equals(obj)
             && Objects.equals(restoredIndexPrefix, other.restoredIndexPrefix)
             && Objects.equals(storageType, other.storageType)
-            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode);
+            && Objects.equals(totalShardsPerNode, other.totalShardsPerNode)
+            && numberOfReplicas == other.numberOfReplicas;
     }
 }

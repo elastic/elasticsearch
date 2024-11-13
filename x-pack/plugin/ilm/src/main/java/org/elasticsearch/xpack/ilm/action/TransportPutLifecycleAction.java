@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.ilm.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
@@ -285,6 +286,18 @@ public class TransportPutLifecycleAction extends TransportMasterNodeAction<PutLi
                         + phase.getName()
                         + "] phase "
                         + "must exist before it can be referenced by an ILM policy"
+                );
+            }
+            if (state.getMinTransportVersion().before(TransportVersions.ILM_SEARCHABLE_SNAPSHOT_REPLICAS)
+                && action.getNumberOfReplicas() != 0) {
+                throw new IllegalArgumentException(
+                    "parameter ["
+                        + SearchableSnapshotAction.NUMBER_OF_REPLICAS
+                        + "] is not supported by the ["
+                        + SearchableSnapshotAction.NAME
+                        + "] action in the ["
+                        + phase.getName()
+                        + "] phase until the cluster has been fully upgraded"
                 );
             }
         }

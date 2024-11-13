@@ -16,6 +16,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.NAME;
+import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.NUMBER_OF_REPLICAS;
 import static org.elasticsearch.xpack.core.ilm.SearchableSnapshotAction.TOTAL_SHARDS_PER_NODE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -103,9 +104,19 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
         IllegalArgumentException exception = expectThrows(
             IllegalArgumentException.class,
-            () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode)
+            () -> new SearchableSnapshotAction("test", true, invalidTotalShardsPerNode, null)
         );
         assertEquals("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1", exception.getMessage());
+    }
+
+    public void testCreateWithInvalidNumberOfReplicas() {
+        int invalidNumberOfReplicas = randomIntBetween(-100, -1);
+
+        IllegalArgumentException exception = expectThrows(
+            IllegalArgumentException.class,
+            () -> new SearchableSnapshotAction("test", true, null, invalidNumberOfReplicas)
+        );
+        assertEquals("[" + NUMBER_OF_REPLICAS.getPreferredName() + "] must be >= 0", exception.getMessage());
     }
 
     private List<StepKey> expectedStepKeysWithForceMerge(String phase) {
@@ -171,13 +182,32 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
 
     @Override
     protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
-        return switch (randomIntBetween(0, 2)) {
-            case 0 -> new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), instance.isForceMergeIndex());
-            case 1 -> new SearchableSnapshotAction(instance.getSnapshotRepository(), instance.isForceMergeIndex() == false);
+        return switch (randomIntBetween(0, 3)) {
+            case 0 -> new SearchableSnapshotAction(
+                randomAlphaOfLengthBetween(5, 10),
+                instance.isForceMergeIndex(),
+                instance.getTotalShardsPerNode(),
+                instance.getNumberOfReplicas()
+            );
+            case 1 -> new SearchableSnapshotAction(
+                instance.getSnapshotRepository(),
+                instance.isForceMergeIndex() == false,
+                instance.getTotalShardsPerNode(),
+                instance.getNumberOfReplicas()
+            );
             case 2 -> new SearchableSnapshotAction(
                 instance.getSnapshotRepository(),
                 instance.isForceMergeIndex(),
-                instance.getTotalShardsPerNode() == null ? 1 : instance.getTotalShardsPerNode() + randomIntBetween(1, 100)
+                instance.getTotalShardsPerNode() == null ? 1 : instance.getTotalShardsPerNode() + randomIntBetween(1, 100),
+                instance.getNumberOfReplicas()
+            );
+            case 3 -> new SearchableSnapshotAction(
+                instance.getSnapshotRepository(),
+                instance.isForceMergeIndex(),
+                instance.getTotalShardsPerNode(),
+                instance.getNumberOfReplicas() != 0 && randomBoolean()
+                    ? null
+                    : randomValueOtherThan(instance.getNumberOfReplicas(), () -> between(0, 10))
             );
             default -> throw new IllegalArgumentException("Invalid mutation branch");
         };
@@ -187,7 +217,8 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
         return new SearchableSnapshotAction(
             randomAlphaOfLengthBetween(5, 10),
             randomBoolean(),
-            (randomBoolean() ? null : randomIntBetween(1, 100))
+            (randomBoolean() ? null : randomIntBetween(1, 100)),
+            randomBoolean() ? null : randomIntBetween(0, 10)
         );
     }
 }

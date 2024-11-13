@@ -33,6 +33,7 @@ import java.util.List;
 import java.util.Objects;
 
 import static org.elasticsearch.TransportVersions.ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE;
+import static org.elasticsearch.TransportVersions.ILM_SEARCHABLE_SNAPSHOT_REPLICAS;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_REPOSITORY_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOTS_SNAPSHOT_NAME_SETTING_KEY;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_PARTIAL_SETTING_KEY;
@@ -51,6 +52,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
     public static final ParseField SNAPSHOT_REPOSITORY = new ParseField("snapshot_repository");
     public static final ParseField FORCE_MERGE_INDEX = new ParseField("force_merge_index");
     public static final ParseField TOTAL_SHARDS_PER_NODE = new ParseField("total_shards_per_node");
+    public static final ParseField NUMBER_OF_REPLICAS = new ParseField("number_of_replicas");
     public static final String CONDITIONAL_DATASTREAM_CHECK_KEY = BranchingStep.NAME + "-on-datastream-check";
     public static final String CONDITIONAL_SKIP_ACTION_STEP = BranchingStep.NAME + "-check-prerequisites";
     public static final String CONDITIONAL_SKIP_GENERATE_AND_CLEAN = BranchingStep.NAME + "-check-existing-snapshot";
@@ -60,13 +62,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     private static final ConstructingObjectParser<SearchableSnapshotAction, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
-        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2])
+        a -> new SearchableSnapshotAction((String) a[0], a[1] == null || (boolean) a[1], (Integer) a[2], (Integer) a[3])
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), SNAPSHOT_REPOSITORY);
         PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FORCE_MERGE_INDEX);
         PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), TOTAL_SHARDS_PER_NODE);
+        PARSER.declareInt(ConstructingObjectParser.optionalConstructorArg(), NUMBER_OF_REPLICAS);
     }
 
     public static SearchableSnapshotAction parse(XContentParser parser) {
@@ -77,8 +80,14 @@ public class SearchableSnapshotAction implements LifecycleAction {
     private final boolean forceMergeIndex;
     @Nullable
     private final Integer totalShardsPerNode;
+    private final int numberOfReplicas;
 
-    public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex, @Nullable Integer totalShardsPerNode) {
+    public SearchableSnapshotAction(
+        String snapshotRepository,
+        boolean forceMergeIndex,
+        @Nullable Integer totalShardsPerNode,
+        @Nullable Integer numberOfReplicas
+    ) {
         if (Strings.hasText(snapshotRepository) == false) {
             throw new IllegalArgumentException("the snapshot repository must be specified");
         }
@@ -89,14 +98,22 @@ public class SearchableSnapshotAction implements LifecycleAction {
             throw new IllegalArgumentException("[" + TOTAL_SHARDS_PER_NODE.getPreferredName() + "] must be >= 1");
         }
         this.totalShardsPerNode = totalShardsPerNode;
+
+        if (numberOfReplicas == null) {
+            this.numberOfReplicas = 0;
+        } else if (numberOfReplicas < 0) {
+            throw new IllegalArgumentException("[" + NUMBER_OF_REPLICAS.getPreferredName() + "] must be >= 0");
+        } else {
+            this.numberOfReplicas = numberOfReplicas;
+        }
     }
 
     public SearchableSnapshotAction(String snapshotRepository, boolean forceMergeIndex) {
-        this(snapshotRepository, forceMergeIndex, null);
+        this(snapshotRepository, forceMergeIndex, null, null);
     }
 
     public SearchableSnapshotAction(String snapshotRepository) {
-        this(snapshotRepository, true, null);
+        this(snapshotRepository, true, null, null);
     }
 
     public SearchableSnapshotAction(StreamInput in) throws IOException {
@@ -105,6 +122,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         this.totalShardsPerNode = in.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE)
             ? in.readOptionalInt()
             : null;
+        this.numberOfReplicas = in.getTransportVersion().onOrAfter(ILM_SEARCHABLE_SNAPSHOT_REPLICAS) ? in.readVInt() : 0;
     }
 
     boolean isForceMergeIndex() {
@@ -117,6 +135,10 @@ public class SearchableSnapshotAction implements LifecycleAction {
 
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
+    }
+
+    public int getNumberOfReplicas() {
+        return numberOfReplicas;
     }
 
     @Override
@@ -320,7 +342,8 @@ public class SearchableSnapshotAction implements LifecycleAction {
             client,
             getRestoredIndexPrefix(mountSnapshotKey),
             storageType,
-            totalShardsPerNode
+            totalShardsPerNode,
+            numberOfReplicas
         );
         WaitForIndexColorStep waitForGreenIndexHealthStep = new WaitForIndexColorStep(
             waitForGreenRestoredIndexKey,
@@ -427,6 +450,12 @@ public class SearchableSnapshotAction implements LifecycleAction {
         if (out.getTransportVersion().onOrAfter(ILM_ADD_SEARCHABLE_SNAPSHOT_TOTAL_SHARDS_PER_NODE)) {
             out.writeOptionalInt(totalShardsPerNode);
         }
+        if (out.getTransportVersion().onOrAfter(ILM_SEARCHABLE_SNAPSHOT_REPLICAS)) {
+            out.writeVInt(numberOfReplicas);
+        } else {
+            // setting number_of_replicas is invalid until the cluster is fully upgraded so this shouldn't happen
+            assert numberOfReplicas == 0 : Strings.toString(this);
+        }
     }
 
     @Override
@@ -436,6 +465,9 @@ public class SearchableSnapshotAction implements LifecycleAction {
         builder.field(FORCE_MERGE_INDEX.getPreferredName(), forceMergeIndex);
         if (totalShardsPerNode != null) {
             builder.field(TOTAL_SHARDS_PER_NODE.getPreferredName(), totalShardsPerNode);
+        }
+        if (numberOfReplicas != 0) {
+            builder.field(NUMBER_OF_REPLICAS.getPreferredName(), numberOfReplicas);
         }
         builder.endObject();
         return builder;
@@ -452,12 +484,13 @@ public class SearchableSnapshotAction implements LifecycleAction {
         SearchableSnapshotAction that = (SearchableSnapshotAction) o;
         return Objects.equals(snapshotRepository, that.snapshotRepository)
             && Objects.equals(forceMergeIndex, that.forceMergeIndex)
-            && Objects.equals(totalShardsPerNode, that.totalShardsPerNode);
+            && Objects.equals(totalShardsPerNode, that.totalShardsPerNode)
+            && numberOfReplicas == that.numberOfReplicas;
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode);
+        return Objects.hash(snapshotRepository, forceMergeIndex, totalShardsPerNode, numberOfReplicas);
     }
 
     @Nullable

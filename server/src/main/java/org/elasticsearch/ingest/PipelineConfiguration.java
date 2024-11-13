@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -182,7 +183,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
             try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
                 return new PipelineConfiguration(id, BytesReference.bytes(builder.map(mutableConfigMap)), xContentType);
             } catch (IOException e) {
-                throw new RuntimeException(e);
+                throw new UncheckedIOException(e);
             }
         } else {
             return this;

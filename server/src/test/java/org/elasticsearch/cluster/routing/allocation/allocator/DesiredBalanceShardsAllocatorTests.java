@@ -44,6 +44,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.FakeThreadPoolMasterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.util.concurrent.DeterministicTaskQueue;
 import org.elasticsearch.common.util.concurrent.PrioritizedEsThreadPoolExecutor;
 import org.elasticsearch.core.TimeValue;
@@ -168,7 +169,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             reconcileAction,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         assertValidStats(desiredBalanceShardsAllocator.getStats());
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator(allocateUnassigned));
@@ -295,7 +297,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             threadPool,
             clusterService,
             reconcileAction,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = new AllocationService(
             new AllocationDeciders(List.of()),
@@ -396,7 +399,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, time::get, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(time::get), shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -413,7 +416,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
             },
             reconcileAction,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -522,7 +526,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -540,7 +544,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
             },
             reconcileAction,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
         allocationServiceRef.set(allocationService);
@@ -625,7 +630,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -643,7 +648,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
             },
             reconcileAction,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
 
         var allocationService = createAllocationService(desiredBalanceShardsAllocator, gatewayAllocator);
@@ -712,7 +718,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var delegateAllocator = createShardsAllocator();
         var clusterSettings = createBuiltInClusterSettings();
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool::relativeTimeInMillis, delegateAllocator) {
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator) {
 
             final AtomicReference<DesiredBalance> lastComputationInput = new AtomicReference<>();
 
@@ -734,7 +740,8 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             clusterService,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -780,18 +787,15 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         var clusterService = ClusterServiceUtils.createClusterService(clusterState, threadPool);
 
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
-            threadPool::relativeTimeInMillis,
-            delegateAllocator
-        );
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
         var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
             clusterService,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         );
 
         var service = createAllocationService(desiredBalanceShardsAllocator, createGatewayAllocator());
@@ -833,18 +837,15 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         final var resetCalled = new AtomicBoolean();
         var delegateAllocator = createShardsAllocator();
-        var desiredBalanceComputer = new DesiredBalanceComputer(
-            createBuiltInClusterSettings(),
-            threadPool::relativeTimeInMillis,
-            delegateAllocator
-        );
+        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), threadPool, delegateAllocator);
         var desiredBalanceAllocator = new DesiredBalanceShardsAllocator(
             delegateAllocator,
             threadPool,
             clusterService,
             desiredBalanceComputer,
             (reconcilerClusterState, rerouteStrategy) -> reconcilerClusterState,
-            TelemetryProvider.NOOP
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
         ) {
             @Override
             public void resetDesiredBalance() {

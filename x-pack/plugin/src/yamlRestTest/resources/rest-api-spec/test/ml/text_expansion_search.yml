@@ -345,3 +345,15 @@ setup:
                 model_id: text_expansion_model
                 model_text: "octopus comforter smells"
                 pruning_config: { }
+---
+"Test text-expansion that displays error for invalid queried field type without prune config":
+  - do:
+      catch: /\[keyword\] is not an appropriate field type for this query/
+      search:
+        index: index-with-rank-features
+        body:
+          query:
+            text_expansion:
+              source_text:
+                model_id: text_expansion_model
+                model_text: "octopus comforter smells"

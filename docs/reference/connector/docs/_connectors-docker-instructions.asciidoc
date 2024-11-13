@@ -59,7 +59,7 @@ docker run \
 --network "elastic" \
 --tty \
 --rm \
-docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
+docker.elastic.co/integrations/elastic-connectors:{version}.0 \
 /app/bin/elastic-ingest \
 -c /config/config.yml
 ----
@@ -67,7 +67,7 @@ docker.elastic.co/enterprise-search/elastic-connectors:{version}.0 \
 
 Refer to {connectors-python}/docs/DOCKER.md[`DOCKER.md`^] in the `elastic/connectors` repo for more details.
 
-Find all available Docker images in the https://www.docker.elastic.co/r/enterprise-search/elastic-connectors[official registry].
+Find all available Docker images in the https://www.docker.elastic.co/r/integrations/elastic-connectors[official registry].
 
 [TIP]
 ====

@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.operator.compariso
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslator;
 import org.elasticsearch.xpack.esql.core.planner.ExpressionTranslators;
 import org.elasticsearch.xpack.esql.core.planner.TranslatorHandler;
+import org.elasticsearch.xpack.esql.core.querydsl.query.KqlQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchAll;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.TermsQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
@@ -90,6 +92,7 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
+        new KqlFunctionTranslator(),
         new Scalars()
     );
 
@@ -537,6 +540,13 @@ public final class EsqlExpressionTranslators {
         @Override
         protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
             return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), null);
+        }
+    }
+
+    public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
+        @Override
+        protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
+            return new KqlQuery(kqlFunction.source(), kqlFunction.queryAsText());
         }
     }
 }

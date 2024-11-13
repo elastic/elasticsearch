@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
@@ -682,6 +683,14 @@ public class Verifier {
                 QueryString.class,
                 lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
                 qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
+                failures
+            );
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Kql.class,
+                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                kqlFunc -> "[" + kqlFunc.functionName() + "] " + kqlFunc.functionType(),
                 failures
             );
             checkCommandsBeforeExpression(

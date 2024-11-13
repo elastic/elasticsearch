@@ -203,6 +203,7 @@ public class ShardSearchPhaseAPMMetricsTests extends ESSingleNodeTestCase {
                         """)
                     .setThreadPools(ExecutorNames.DEFAULT_SYSTEM_INDEX_THREAD_POOLS)
                     .setOrigin(ShardSearchPhaseAPMMetricsTests.class.getSimpleName())
+                    .setVersionMetaKey("version")
                     .build()
             );
         }

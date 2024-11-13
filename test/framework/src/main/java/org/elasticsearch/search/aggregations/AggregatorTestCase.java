@@ -47,7 +47,6 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.PackedInts;
@@ -363,13 +362,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
-        });
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,

@@ -55,7 +55,6 @@ import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
-import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
@@ -758,13 +757,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
             List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
-            List<String> commonOpts = List.of(
-                "-ea",
-                "-esa",
-                System.getProperty("tests.jvm.argline", ""),
-                systemProperties,
-                jvmArgs
-            );
+            List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
 
             String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
                 .filter(not(String::isEmpty))

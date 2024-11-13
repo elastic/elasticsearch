@@ -5,8 +5,13 @@ type: breaking
 issues: []
 breaking:
   title: Make `remove_binary` required on `attachment` processors
-  area: Ingest Node
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Ingest
+  details: >-
+    The `remove_binary` option is now required on the `attachment` ingest processor. (Previously, not setting it would
+    result in a deprecation warning and a value of false.)
+  impact: >-
+    Users should specify a value for the `remove_binary` option when creating `attachment` ingest processors. They
+    can set it to false to preserve the previous behavior. However, this can consume a lot of resources, so it is
+    normally recommended to set to true. The option will be set to false on existing processors stored in the cluster
+    state on upgrade, to preserve the previous behavior.
   notable: false

@@ -67,9 +67,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public static final ParseField NUM_CANDS_FIELD = new ParseField("num_candidates");
     public static final ParseField QUERY_VECTOR_FIELD = new ParseField("query_vector");
     public static final ParseField VECTOR_SIMILARITY_FIELD = new ParseField("similarity");
-    public static final ParseField RESCORE_VECTOR_OVERSAMPLE = new ParseField("rescore_vector_oversample");
     public static final ParseField FILTER_FIELD = new ParseField("filter");
     public static final ParseField QUERY_VECTOR_BUILDER_FIELD = new ParseField("query_vector_builder");
+    public static final ParseField RESCORE_FIELD = new ParseField("rescore");
 
     public static final ConstructingObjectParser<KnnVectorQueryBuilder, Void> PARSER = new ConstructingObjectParser<>(
         "knn",
@@ -80,8 +80,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             null,
             (Integer) args[2],
             (Integer) args[3],
-            (Float) args[4],
-            (Float) args[6]
+            (RescoreVectorBuilder) args[6],
+            (Float) args[4]
         )
     );
 
@@ -101,7 +101,12 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             (p, c, n) -> p.namedObject(QueryVectorBuilder.class, n, c),
             QUERY_VECTOR_BUILDER_FIELD
         );
-        PARSER.declareFloat(optionalConstructorArg(), RESCORE_VECTOR_OVERSAMPLE);
+        PARSER.declareField(
+            optionalConstructorArg(),
+            (p, c) -> RescoreVectorBuilder.fromXContent(p),
+            RESCORE_FIELD,
+            ObjectParser.ValueType.OBJECT_OR_NULL
+        );
         PARSER.declareFieldArray(
             KnnVectorQueryBuilder::addFilterQueries,
             (p, c) -> AbstractQueryBuilder.parseTopLevelQuery(p),
@@ -123,10 +128,17 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     private final Float vectorSimilarity;
     private final QueryVectorBuilder queryVectorBuilder;
     private final Supplier<float[]> queryVectorSupplier;
-    private final Float rescoreOversample;
+    private final RescoreVectorBuilder rescoreVectorBuilder;
 
-    public KnnVectorQueryBuilder(String fieldName, float[] queryVector, Integer k, Integer numCands, Float vectorSimilarity) {
-        this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity, null);
+    public KnnVectorQueryBuilder(
+        String fieldName,
+        float[] queryVector,
+        Integer k,
+        Integer numCands,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float vectorSimilarity
+    ) {
+        this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, rescoreVectorBuilder, vectorSimilarity);
     }
 
     public KnnVectorQueryBuilder(
@@ -136,27 +148,29 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Integer numCands,
         Float vectorSimilarity
     ) {
-        this(fieldName, null, queryVectorBuilder, null, k, numCands, vectorSimilarity, null);
+        this(fieldName, null, queryVectorBuilder, null, k, numCands, null, vectorSimilarity);
     }
 
-    public KnnVectorQueryBuilder(String fieldName, byte[] queryVector, Integer k, Integer numCands, Float vectorSimilarity) {
-        this(fieldName, VectorData.fromBytes(queryVector), null, null, k, numCands, vectorSimilarity);
-    }
-
-    public KnnVectorQueryBuilder(String fieldName, VectorData queryVector, Integer k, Integer numCands, Float vectorSimilarity) {
-        this(fieldName, queryVector, null, null, k, numCands, vectorSimilarity);
-    }
-
-    private KnnVectorQueryBuilder(
+    public KnnVectorQueryBuilder(
         String fieldName,
-        VectorData queryVector,
-        QueryVectorBuilder queryVectorBuilder,
-        Supplier<float[]> queryVectorSupplier,
+        byte[] queryVector,
         Integer k,
         Integer numCands,
+        RescoreVectorBuilder rescoreVectorBuilder,
         Float vectorSimilarity
     ) {
-        this(fieldName, queryVector, null, null, k, numCands, vectorSimilarity, null);
+        this(fieldName, VectorData.fromBytes(queryVector), null, null, k, numCands, rescoreVectorBuilder, vectorSimilarity);
+    }
+
+    public KnnVectorQueryBuilder(
+        String fieldName,
+        VectorData queryVector,
+        Integer k,
+        Integer numCands,
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float vectorSimilarity
+    ) {
+        this(fieldName, queryVector, null, null, k, numCands, rescoreVectorBuilder, vectorSimilarity);
     }
 
     private KnnVectorQueryBuilder(
@@ -166,8 +180,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         Supplier<float[]> queryVectorSupplier,
         Integer k,
         Integer numCands,
-        Float vectorSimilarity,
-        Float rescoreOversample
+        RescoreVectorBuilder rescoreVectorBuilder,
+        Float vectorSimilarity
     ) {
         if (k != null && k < 1) {
             throw new IllegalArgumentException("[" + K_FIELD.getPreferredName() + "] must be greater than 0");
@@ -204,7 +218,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this.vectorSimilarity = vectorSimilarity;
         this.queryVectorBuilder = queryVectorBuilder;
         this.queryVectorSupplier = queryVectorSupplier;
-        this.rescoreOversample = rescoreOversample;
+        this.rescoreVectorBuilder = rescoreVectorBuilder;
     }
 
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
@@ -246,9 +260,9 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             this.queryVectorBuilder = null;
         }
         if (in.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
-            this.rescoreOversample = in.readOptionalFloat();
+            this.rescoreVectorBuilder = in.readOptional(RescoreVectorBuilder::new);
         } else {
-            this.rescoreOversample = null;
+            this.rescoreVectorBuilder = null;
         }
 
         this.queryVectorSupplier = null;
@@ -276,10 +290,6 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         return numCands;
     }
 
-    public Float rescoreOversample() {
-        return rescoreOversample;
-    }
-
     public List<QueryBuilder> filterQueries() {
         return filterQueries;
     }
@@ -287,6 +297,10 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     @Nullable
     public QueryVectorBuilder queryVectorBuilder() {
         return queryVectorBuilder;
+    }
+
+    public RescoreVectorBuilder rescoreVectorBuilder() {
+        return rescoreVectorBuilder;
     }
 
     public KnnVectorQueryBuilder addFilterQuery(QueryBuilder filterQuery) {
@@ -356,7 +370,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             out.writeOptionalNamedWriteable(queryVectorBuilder);
         }
         if (out.getTransportVersion().onOrAfter(KNN_QUERY_RESCORE_OVERSAMPLE)) {
-            out.writeOptionalFloat(rescoreOversample);
+            out.writeOptionalWriteable(rescoreVectorBuilder);
         }
     }
 
@@ -391,6 +405,11 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             }
             builder.endArray();
         }
+        if (rescoreVectorBuilder != null) {
+            builder.startObject(RESCORE_FIELD.getPreferredName());
+            rescoreVectorBuilder.toXContent(builder, params);
+            builder.endObject();
+        }
         boostAndQueryNameToXContent(builder);
         builder.endObject();
     }
@@ -406,7 +425,8 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             if (queryVectorSupplier.get() == null) {
                 return this;
             }
-            return new KnnVectorQueryBuilder(fieldName, queryVectorSupplier.get(), k, numCands, vectorSimilarity).boost(boost)
+            return new KnnVectorQueryBuilder(fieldName, queryVectorSupplier.get(), k, numCands, rescoreVectorBuilder, vectorSimilarity)
+                .boost(boost)
                 .queryName(queryName)
                 .addFilterQueries(filterQueries);
         }
@@ -428,9 +448,16 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
                 }
                 ll.onResponse(null);
             })));
-            return new KnnVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, toSet::get, k, numCands, vectorSimilarity).boost(
-                boost
-            ).queryName(queryName).addFilterQueries(filterQueries);
+            return new KnnVectorQueryBuilder(
+                fieldName,
+                queryVector,
+                queryVectorBuilder,
+                toSet::get,
+                k,
+                numCands,
+                rescoreVectorBuilder,
+                vectorSimilarity
+            ).boost(boost).queryName(queryName).addFilterQueries(filterQueries);
         }
         if (ctx.convertToInnerHitsRewriteContext() != null) {
             return new ExactKnnQueryBuilder(queryVector, fieldName, vectorSimilarity).boost(boost).queryName(queryName);
@@ -448,10 +475,16 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             rewrittenQueries.add(rewrittenQuery);
         }
         if (changed) {
-            return new KnnVectorQueryBuilder(fieldName, queryVector, queryVectorBuilder, queryVectorSupplier, k, numCands, vectorSimilarity)
-                .boost(boost)
-                .queryName(queryName)
-                .addFilterQueries(rewrittenQueries);
+            return new KnnVectorQueryBuilder(
+                fieldName,
+                queryVector,
+                queryVectorBuilder,
+                queryVectorSupplier,
+                k,
+                numCands,
+                rescoreVectorBuilder,
+                vectorSimilarity
+            ).boost(boost).queryName(queryName).addFilterQueries(rewrittenQueries);
         }
         return this;
     }
@@ -495,6 +528,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
 
         DenseVectorFieldType vectorFieldType = (DenseVectorFieldType) fieldType;
         String parentPath = context.nestedLookup().getNestedParent(fieldName);
+        Float rescoreOversample = rescoreVectorBuilder() == null ? null : rescoreVectorBuilder.oversample();
 
         if (parentPath != null) {
             final BitSetProducer parentBitSet;
@@ -550,7 +584,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             filterQueries,
             vectorSimilarity,
             queryVectorBuilder,
-            rescoreOversample
+            rescoreVectorBuilder
         );
     }
 
@@ -563,7 +597,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             && Objects.equals(filterQueries, other.filterQueries)
             && Objects.equals(vectorSimilarity, other.vectorSimilarity)
             && Objects.equals(queryVectorBuilder, other.queryVectorBuilder)
-            && Objects.equals(rescoreOversample, other.rescoreOversample);
+            && Objects.equals(rescoreVectorBuilder, other.rescoreVectorBuilder);
     }
 
     @Override

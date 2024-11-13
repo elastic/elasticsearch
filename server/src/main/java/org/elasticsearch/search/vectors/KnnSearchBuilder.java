@@ -407,7 +407,7 @@ public class KnnSearchBuilder implements Writeable, ToXContentFragment, Rewritea
         if (queryVectorBuilder != null) {
             throw new IllegalArgumentException("missing rewrite");
         }
-        return new KnnVectorQueryBuilder(field, queryVector, null, numCands, similarity).boost(boost)
+        return new KnnVectorQueryBuilder(field, queryVector, null, numCands, null, similarity).boost(boost)
             .queryName(queryName)
             .addFilterQueries(filterQueries);
     }

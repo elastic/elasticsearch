@@ -98,7 +98,7 @@ public class RetrieverTelemetryIT extends ESIntegTestCase {
         {
             performSearch(
                 new SearchSourceBuilder().retriever(
-                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null))
+                    new StandardRetrieverBuilder(new KnnVectorQueryBuilder("vector", new float[] { 1.0f }, 10, 15, null, null))
                 )
             );
         }

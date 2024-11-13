@@ -1851,9 +1851,6 @@ public final class SearchSourceBuilder implements Writeable, ToXContentObject, R
         if (false == runtimeMappings.isEmpty()) {
             builder.field(RUNTIME_MAPPINGS_FIELD.getPreferredName(), runtimeMappings);
         }
-        if (skipInnerHits) {
-            builder.field("skipInnerHits", true);
-        }
 
         return builder;
     }

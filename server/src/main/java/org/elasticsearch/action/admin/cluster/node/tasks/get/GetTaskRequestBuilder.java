@@ -26,7 +26,7 @@ public class GetTaskRequestBuilder extends ActionRequestBuilder<GetTaskRequest, 
      * Set the TaskId to look up. Required.
      */
     public final GetTaskRequestBuilder setTaskId(TaskId taskId) {
-        request.setTaskId(taskId);
+        request.setTaskId(taskId.toString());
         return this;
     }
 

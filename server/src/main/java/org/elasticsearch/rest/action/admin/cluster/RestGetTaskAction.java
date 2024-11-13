@@ -40,7 +40,7 @@ public class RestGetTaskAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        TaskId taskId = new TaskId(request.param("task_id"));
+        String taskId = request.param("task_id");
         boolean waitForCompletion = request.paramAsBoolean("wait_for_completion", false);
         TimeValue timeout = getTimeout(request);
 

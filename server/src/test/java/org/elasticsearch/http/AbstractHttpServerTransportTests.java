@@ -361,7 +361,11 @@ public class AbstractHttpServerTransportTests extends ESTestCase {
         Map<String, List<String>> restHeaders = new HashMap<>();
         restHeaders.put(Task.TRACE_PARENT_HTTP_HEADER, Collections.singletonList(traceParentValue));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(fakeRequest, randomBoolean(), RestStatus.BAD_REQUEST);
+        RestControllerTests.AssertingChannel channel = new RestControllerTests.AssertingChannel(
+            fakeRequest,
+            randomBoolean(),
+            RestStatus.BAD_REQUEST
+        );
 
         try (
             AbstractHttpServerTransport transport = new AbstractHttpServerTransport(

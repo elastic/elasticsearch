@@ -71,12 +71,11 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
         // The sequence ID is set close to its max value (0x00FF_FFFF) to quickly trigger an overflow.
         // However, since we are generating only 1000 UUIDs, the timestamp is expected to change at least once,
         // ensuring uniqueness even if the sequence ID wraps around.
-        final int count = 1000;
         assertEquals(
-            count,
+            1000,
             generateUUIDs(
                 createGenerator(() -> Instant.now().toEpochMilli(), () -> 0x00FF_FFFF - 10, new TestRandomMacAddressSupplier()),
-                count
+                1000
             ).size()
         );
     }

@@ -131,6 +131,7 @@ import static org.hamcrest.CoreMatchers.startsWith;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -1744,7 +1745,7 @@ public class TransportSearchActionTests extends ESTestCase {
             NodeClient client = new NodeClient(settings, threadPool);
 
             SearchService searchService = mock(SearchService.class);
-            when(searchService.getRewriteContext(any(), any(), any(), any())).thenReturn(
+            when(searchService.getRewriteContext(any(), any(), any(), anyBoolean())).thenReturn(
                 new QueryRewriteContext(null, null, null, null, null, false)
             );
             ClusterService clusterService = new ClusterService(

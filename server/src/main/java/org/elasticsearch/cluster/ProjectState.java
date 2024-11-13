@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.RoutingTable;
 
 import java.util.Objects;
+import java.util.function.Consumer;
 
 /**
  * Encapsulates all the information for a single project
@@ -62,5 +63,11 @@ public final class ProjectState {
     @Override
     public int hashCode() {
         return Objects.hash(cluster, project);
+    }
+
+    public ClusterState updatedState(Consumer<ProjectMetadata.Builder> projectBuilderConsumer) {
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(metadata());
+        projectBuilderConsumer.accept(projectBuilder);
+        return ClusterState.builder(cluster).putProjectMetadata(projectBuilder).build();
     }
 }

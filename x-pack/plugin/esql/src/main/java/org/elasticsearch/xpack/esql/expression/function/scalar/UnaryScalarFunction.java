@@ -55,6 +55,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Tanh;
 import org.elasticsearch.xpack.esql.expression.function.scalar.multivalue.AbstractMultivalueFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -80,6 +81,7 @@ public abstract class UnaryScalarFunction extends EsqlScalarFunction {
         entries.add(Acos.ENTRY);
         entries.add(Asin.ENTRY);
         entries.add(Atan.ENTRY);
+        entries.add(ByteLength.ENTRY);
         entries.add(Cbrt.ENTRY);
         entries.add(Ceil.ENTRY);
         entries.add(Cos.ENTRY);

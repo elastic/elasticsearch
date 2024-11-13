@@ -20,6 +20,7 @@ import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker
 import java.lang.instrument.Instrumentation;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -44,12 +45,20 @@ public class EntitlementInitialization {
             "org.elasticsearch.entitlement.bridge.EntitlementChecker"
         );
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
-        inst.retransformClasses(System.class);
+        var classesToTransform = methodMap.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+
+        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), classesToTransform), true);
+        // TODO: should we limit this array somehow?
+        var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
+        inst.retransformClasses(classesToRetransform);
     }
 
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
+    private static Class<?> internalNameToClass(String internalName) {
+        try {
+            return Class.forName(internalName.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(

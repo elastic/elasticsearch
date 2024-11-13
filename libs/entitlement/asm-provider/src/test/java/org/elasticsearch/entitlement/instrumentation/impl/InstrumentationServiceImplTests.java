@@ -64,9 +64,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(
-                    new MethodKey("org/example/TestTargetClass", "someMethod", List.of(), false)
-                ),
+                equalTo(new MethodKey("org/example/TestTargetClass", "someMethod", List.of(), false)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestEntitlementChecker",
@@ -80,9 +78,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(
-                    new MethodKey("org/example/TestTargetClass2", "someMethod2", List.of("I", "I"), false)
-                ),
+                equalTo(new MethodKey("org/example/TestTargetClass2", "someMethod2", List.of("I", "I"), false)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestEntitlementChecker",

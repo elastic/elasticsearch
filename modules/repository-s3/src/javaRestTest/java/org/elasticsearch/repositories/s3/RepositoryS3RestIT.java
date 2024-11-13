@@ -28,7 +28,7 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoryS3JavaRestTest extends ESRestTestCase {
+public class RepositoryS3RestIT extends ESRestTestCase {
 
     private static final String BUCKET = "RepositoryS3JavaRestTest-bucket";
     private static final String BASE_PATH = "RepositoryS3JavaRestTest-base-path";

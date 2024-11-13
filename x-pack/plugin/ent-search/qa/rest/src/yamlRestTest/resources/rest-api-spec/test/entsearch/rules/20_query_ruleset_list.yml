@@ -389,6 +389,4 @@ teardown:
         suffix: 1
         always: 1
   - match: { results.0.rule_type_counts: { pinned: 4, exclude: 1 } }
-
-
-
+  

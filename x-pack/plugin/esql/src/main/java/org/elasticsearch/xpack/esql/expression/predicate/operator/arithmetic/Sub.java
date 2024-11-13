@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -22,7 +23,9 @@ import org.elasticsearch.xpack.esql.expression.function.Param;
 import java.io.IOException;
 import java.time.DateTimeException;
 import java.time.Duration;
+import java.time.Instant;
 import java.time.Period;
+import java.time.ZonedDateTime;
 import java.time.temporal.TemporalAmount;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
@@ -62,7 +65,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
             SubDatetimesEvaluator.Factory::new,
-            null
+            SubDateNanosEvaluator.Factory::new
         );
     }
 
@@ -75,7 +78,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
             SubUnsignedLongsEvaluator.Factory::new,
             SubDoublesEvaluator.Factory::new,
             SubDatetimesEvaluator.Factory::new,
-            null
+            SubDateNanosEvaluator.Factory::new
         );
     }
 
@@ -143,6 +146,17 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
     static long processDatetimes(long datetime, @Fixed TemporalAmount temporalAmount) {
         // using a UTC conversion since `datetime` is always a UTC-Epoch timestamp, either read from ES or converted through a function
         return asMillis(asDateTime(datetime).minus(temporalAmount));
+    }
+
+    @Evaluator(extraName = "DateNanos", warnExceptions = { ArithmeticException.class, DateTimeException.class })
+    static long processDateNanos(long dateNanos, @Fixed TemporalAmount temporalAmount) {
+        // Instant.plus behaves differently from ZonedDateTime.plus, but DateUtils generally works with instants.
+        return DateUtils.toLong(
+            Instant.from(
+                ZonedDateTime.ofInstant(DateUtils.toInstant(dateNanos), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
+                    .minus(temporalAmount)
+            )
+        );
     }
 
     @Override

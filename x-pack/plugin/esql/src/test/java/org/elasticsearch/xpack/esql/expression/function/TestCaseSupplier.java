@@ -1113,29 +1113,62 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
      *
      */
     public static List<TypedDataSupplier> dateNanosCases() {
+        return dateNanosCases(Instant.EPOCH, DateUtils.MAX_NANOSECOND_INSTANT);
+    }
+
+    /**
+     * Generate cases for {@link DataType#DATE_NANOS}.
+     *
+     */
+    public static List<TypedDataSupplier> dateNanosCases(Instant minValue, Instant maxValue) {
         // maximum nanosecond date in ES is 2262-04-11T23:47:16.854775807Z
-        return List.of(
-            new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> DateUtils.toLong(Instant.EPOCH), DataType.DATE_NANOS),
-            new TypedDataSupplier(
-                "<21st century date nanos>",
-                () -> DateUtils.toLong(ESTestCase.randomInstantBetween(Instant.EPOCH, Instant.parse("2100-01-01T00:00:00Z"))),
-                DataType.DATE_NANOS
-            ),
-            new TypedDataSupplier(
-                "<22nd century date nanos>",
-                () -> DateUtils.toLong(
-                    ESTestCase.randomInstantBetween(Instant.parse("2100-01-01T00:00:00Z"), Instant.parse("2200-01-01T00:00:00Z"))
-                ),
-                DataType.DATE_NANOS
-            ),
-            new TypedDataSupplier(
-                "<23rd century date nanos>",
-                () -> DateUtils.toLong(
-                    ESTestCase.randomInstantBetween(Instant.parse("2200-01-01T00:00:00Z"), Instant.parse("2250-01-01T00:00:00Z"))
-                ),
-                DataType.DATE_NANOS
-            )
-        );
+        Instant twentyOneHundred = Instant.parse("2100-01-01T00:00:00Z");
+        Instant twentyTwoHundred = Instant.parse("2200-01-01T00:00:00Z");
+        Instant twentyTwoFifty = Instant.parse("2250-01-01T00:00:00Z");
+
+        List<TypedDataSupplier> cases = new ArrayList<>();
+        if (minValue.isAfter(Instant.EPOCH) == false) {
+            cases.add(
+                new TypedDataSupplier("<1970-01-01T00:00:00.000000000Z>", () -> DateUtils.toLong(Instant.EPOCH), DataType.DATE_NANOS)
+            );
+        }
+
+        Instant lower = Instant.EPOCH.isBefore(minValue) ? minValue : Instant.EPOCH;
+        Instant upper = twentyOneHundred.isAfter(maxValue) ? maxValue : twentyOneHundred;
+        if (upper.isAfter(lower)) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<21st century date nanos>",
+                    () -> DateUtils.toLong(ESTestCase.randomInstantBetween(lower, upper)),
+                    DataType.DATE_NANOS
+                )
+            );
+        }
+
+        Instant lower2 = twentyOneHundred.isBefore(minValue) ? minValue : twentyOneHundred;
+        Instant upper2 = twentyTwoHundred.isAfter(maxValue) ? maxValue : twentyTwoHundred;
+        if (upper.isAfter(lower)) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<22nd century date nanos>",
+                    () -> DateUtils.toLong(ESTestCase.randomInstantBetween(lower2, upper2)),
+                    DataType.DATE_NANOS
+                )
+            );
+        }
+
+        Instant lower3 = twentyTwoHundred.isBefore(minValue) ? minValue : twentyTwoHundred;
+        Instant upper3 = twentyTwoFifty.isAfter(maxValue) ? maxValue : twentyTwoFifty;
+        if (upper.isAfter(lower)) {
+            cases.add(
+                new TypedDataSupplier(
+                    "<23rd century date nanos>",
+                    () -> DateUtils.toLong(ESTestCase.randomInstantBetween(lower3, upper3)),
+                    DataType.DATE_NANOS
+                )
+            );
+        }
+        return cases;
     }
 
     public static List<TypedDataSupplier> datePeriodCases() {

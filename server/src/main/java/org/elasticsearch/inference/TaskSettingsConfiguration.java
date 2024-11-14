@@ -107,7 +107,7 @@ public class TaskSettingsConfiguration implements Writeable, ToXContentObject {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeEnum(taskType);
-        out.writeMapValues(configuration);
+        out.writeMap(configuration, StreamOutput::writeWriteable);
     }
 
     public Map<String, Object> toMap() {

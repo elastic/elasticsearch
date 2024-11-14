@@ -14,14 +14,17 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.test.ESTestCase.randomAlphaOfLength;
+import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomInt;
 
 public class InferenceServiceConfigurationTestUtils {
 
     public static InferenceServiceConfiguration getRandomServiceConfigurationField() {
+        var name = randomBoolean() ? randomAlphaOfLength(12) : null;
+        var icon = randomBoolean() ? randomAlphaOfLength(6) : null;
         return new InferenceServiceConfiguration.Builder().setProvider(randomAlphaOfLength(10))
-            .setName(randomAlphaOfLength(8))
-            .setIcon(randomAlphaOfLength(4))
+            .setName(name)
+            .setIcon(icon)
             .setTaskTypes(getRandomTaskTypeConfiguration())
             .setConfiguration(getRandomServiceConfiguration(10))
             .build();

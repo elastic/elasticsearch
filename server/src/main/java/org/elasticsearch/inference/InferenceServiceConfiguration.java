@@ -10,11 +10,13 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -28,8 +30,10 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
+import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 
 /**
  * Represents the configuration field settings for an inference provider.
@@ -37,7 +41,9 @@ import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg
 public class InferenceServiceConfiguration implements Writeable, ToXContentObject {
 
     private final String provider;
+    @Nullable
     private final String name;
+    @Nullable
     private final String icon;
     private final List<TaskSettingsConfiguration> taskTypes;
     private final Map<String, SettingsConfiguration> configuration;
@@ -46,10 +52,12 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
      * Constructs a new {@link InferenceServiceConfiguration} instance with specified properties.
      *
      * @param provider       The name of the service provider.
+     * @param name           The user friendly name of the service provider
+     * @param icon           The icon of the service provider
      * @param taskTypes      A list of {@link TaskSettingsConfiguration} supported by the service provider.
      * @param configuration  The configuration of the service provider, defined by {@link SettingsConfiguration}.
      */
-    private InferenceServiceConfiguration(
+    public InferenceServiceConfiguration(
         String provider,
         String name,
         String icon,
@@ -65,8 +73,12 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
     public InferenceServiceConfiguration(StreamInput in) throws IOException {
         this.provider = in.readString();
-        this.name = in.readString();
-        this.icon = in.readString();
+        this.name = (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICES_NAME_ICON_ADDED))
+            ? in.readOptionalString()
+            : null;
+        this.icon = (in.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICES_NAME_ICON_ADDED))
+            ? in.readOptionalString()
+            : null;
         this.taskTypes = in.readCollectionAsList(TaskSettingsConfiguration::new);
         this.configuration = in.readMap(SettingsConfiguration::new);
     }
@@ -91,8 +103,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
 
     static {
         PARSER.declareString(constructorArg(), PROVIDER_FIELD);
-        PARSER.declareString(constructorArg(), NAME_FIELD);
-        PARSER.declareString(constructorArg(), ICON_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), NAME_FIELD);
+        PARSER.declareStringOrNull(optionalConstructorArg(), ICON_FIELD);
         PARSER.declareObjectArray(constructorArg(), (p, c) -> TaskSettingsConfiguration.fromXContent(p), TASK_TYPES_FIELD);
         PARSER.declareObject(constructorArg(), (p, c) -> p.map(), CONFIGURATION_FIELD);
     }
@@ -122,8 +134,12 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         builder.startObject();
         {
             builder.field(PROVIDER_FIELD.getPreferredName(), provider);
-            builder.field(NAME_FIELD.getPreferredName(), name);
-            builder.field(ICON_FIELD.getPreferredName(), icon);
+            if (name != null) {
+                builder.field(NAME_FIELD.getPreferredName(), name);
+            }
+            if (icon != null) {
+                builder.field(ICON_FIELD.getPreferredName(), icon);
+            }
             builder.field(TASK_TYPES_FIELD.getPreferredName(), taskTypes);
             builder.field(CONFIGURATION_FIELD.getPreferredName(), configuration);
         }
@@ -146,18 +162,20 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(provider);
-        out.writeString(name);
-        out.writeString(icon);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INFERENCE_SERVICES_NAME_ICON_ADDED)) {
+            out.writeOptionalString(name);
+            out.writeOptionalString(icon);
+        }
         out.writeCollection(taskTypes);
-        out.writeMapValues(configuration);
+        out.writeMap(configuration, StreamOutput::writeWriteable);
     }
 
     public Map<String, Object> toMap() {
         Map<String, Object> map = new HashMap<>();
 
         map.put(PROVIDER_FIELD.getPreferredName(), provider);
-        map.put(NAME_FIELD.getPreferredName(), name);
-        map.put(ICON_FIELD.getPreferredName(), icon);
+        Optional.ofNullable(name).ifPresent(n -> map.put(NAME_FIELD.getPreferredName(), n));
+        Optional.ofNullable(icon).ifPresent(i -> map.put(ICON_FIELD.getPreferredName(), i));
         map.put(TASK_TYPES_FIELD.getPreferredName(), taskTypes);
         map.put(CONFIGURATION_FIELD.getPreferredName(), configuration);
 
@@ -170,8 +188,8 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
         if (o == null || getClass() != o.getClass()) return false;
         InferenceServiceConfiguration that = (InferenceServiceConfiguration) o;
         return provider.equals(that.provider)
-            && name.equals(that.name)
-            && icon.equals(that.icon)
+            && Objects.equals(name, that.name)
+            && Objects.equals(icon, that.icon)
             && Objects.equals(taskTypes, that.taskTypes)
             && Objects.equals(configuration, that.configuration);
     }
@@ -194,12 +212,12 @@ public class InferenceServiceConfiguration implements Writeable, ToXContentObjec
             return this;
         }
 
-        public Builder setName(String name) {
+        public Builder setName(@Nullable String name) {
             this.name = name;
             return this;
         }
 
-        public Builder setIcon(String icon) {
+        public Builder setIcon(@Nullable String icon) {
             this.icon = icon;
             return this;
         }

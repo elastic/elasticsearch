@@ -3494,15 +3494,17 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // We want to see when a shard snapshot operation checks for and finds an interrupt signal during shutdown. A
             // PausedSnapshotException indicates we're in shutdown because that's the only case when shard snapshots are signaled to pause.
             // An AbortedSnapshotException may also occur during shutdown if an uncommon error occurs.
-            Supplier<?> messageSupplier = () -> String.format(
-                Locale.ROOT,
-                "Shard snapshot operation is aborting. ShardId [%s], SnapshotID [%s], File [%s], Stage [%s]",
-                shardId,
-                snapshotId,
-                fileName,
-                shardSnapshotStage
+            ShutdownLogger.shutdownLogger.debug(
+                () -> String.format(
+                    Locale.ROOT,
+                    "Shard snapshot operation is aborting. ShardId [%s], SnapshotID [%s], File [%s], Stage [%s]",
+                    shardId,
+                    snapshotId,
+                    fileName,
+                    shardSnapshotStage
+                ),
+                e
             );
-            ShutdownLogger.shutdownLogger.debug(messageSupplier, e);
             assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }

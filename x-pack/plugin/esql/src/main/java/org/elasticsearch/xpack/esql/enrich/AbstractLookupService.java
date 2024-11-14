@@ -168,8 +168,8 @@ abstract class AbstractLookupService<R extends AbstractLookupService.Request, T 
         );
     }
 
-    public ThreadPool getThreadPool() {
-        return transportService.getThreadPool();
+    public ThreadContext getThreadContext() {
+        return transportService.getThreadPool().getThreadContext();
     }
 
     /**

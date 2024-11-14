@@ -111,7 +111,7 @@ public final class EnrichLookupOperator extends AsyncOperator {
         this.matchField = matchField;
         this.enrichFields = enrichFields;
         this.source = source;
-        this.responseHeadersCollector = new ResponseHeadersCollector(enrichLookupService.getThreadPool().getThreadContext());
+        this.responseHeadersCollector = new ResponseHeadersCollector(enrichLookupService.getThreadContext());
     }
 
     @Override

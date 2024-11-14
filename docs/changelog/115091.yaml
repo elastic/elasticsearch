@@ -1,5 +1,5 @@
 pr: 115091
-summary: Added strict range type checks for ENRICH
+summary: Added stricter range type checks and runtime warnings for ENRICH
 area: ES|QL
 type: bug
 issues:

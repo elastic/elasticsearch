@@ -179,6 +179,7 @@ public final class IndexPrivilege extends Privilege {
     public static final IndexPrivilege NONE = new IndexPrivilege("none", Automatons.EMPTY);
     public static final IndexPrivilege ALL = new IndexPrivilege("all", ALL_AUTOMATON);
     public static final IndexPrivilege READ = new IndexPrivilege("read", READ_AUTOMATON);
+    public static final IndexPrivilege READ_FAILURES = new IndexPrivilege("read_failures", READ_AUTOMATON);
     public static final IndexPrivilege READ_CROSS_CLUSTER = new IndexPrivilege("read_cross_cluster", READ_CROSS_CLUSTER_AUTOMATON);
     public static final IndexPrivilege CREATE = new IndexPrivilege("create", CREATE_AUTOMATON);
     public static final IndexPrivilege INDEX = new IndexPrivilege("index", INDEX_AUTOMATON);
@@ -221,6 +222,7 @@ public final class IndexPrivilege extends Privilege {
             entry("create_index", CREATE_INDEX),
             entry("monitor", MONITOR),
             entry("read", READ),
+            entry("read_failures", READ_FAILURES),
             entry("index", INDEX),
             entry("delete", DELETE),
             entry("write", WRITE),

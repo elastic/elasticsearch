@@ -32,12 +32,6 @@ public class MatchOperatorIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-    @Override
-    protected EsqlQueryResponse run(EsqlQueryRequest request) {
-        assumeTrue("match operator capability not available", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-        return super.run(request);
-    }
-
     public void testSimpleWhereMatch() {
         var query = """
             FROM test

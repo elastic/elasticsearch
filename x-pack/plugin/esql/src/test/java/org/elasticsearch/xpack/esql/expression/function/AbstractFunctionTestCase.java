@@ -816,6 +816,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (unaryOperator != null) {
             return RailRoadDiagram.unaryOperator(unaryOperator);
         }
+        String searchOperator = searchOperator(name);
+        if (searchOperator != null) {
+            return RailRoadDiagram.searchOperator(searchOperator);
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             return RailRoadDiagram.functionSignature(definition);
@@ -1253,11 +1257,20 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "greater_than_or_equal" -> ">=";
             case "less_than" -> "<";
             case "less_than_or_equal" -> "<=";
-            case "match_operator" -> ":";
             case "mod" -> "%";
             case "mul" -> "*";
             case "not_equals" -> "!=";
             case "sub" -> "-";
+            default -> null;
+        };
+    }
+
+    /**
+     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     */
+    private static String searchOperator(String name) {
+        return switch (name) {
+            case "match_operator" -> ":";
             default -> null;
         };
     }

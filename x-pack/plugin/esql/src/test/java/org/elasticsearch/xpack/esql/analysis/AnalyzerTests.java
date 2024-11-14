@@ -2321,8 +2321,6 @@ public class AnalyzerTests extends ESTestCase {
     }
 
     public void testFromEnrichAndMatchColonUsage() {
-        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         LogicalPlan plan = analyze("""
             from *:test
             | EVAL x = to_string(languages)

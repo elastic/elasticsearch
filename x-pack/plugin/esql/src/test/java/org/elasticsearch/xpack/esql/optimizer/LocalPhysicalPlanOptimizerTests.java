@@ -1092,8 +1092,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         var plan = plannerOptimizer.plan("""
             from test
             | where first_name:"Anna"
@@ -1124,8 +1122,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         String query = """
             from test
             | where first_name:"Anna" and first_name:"Anneke"

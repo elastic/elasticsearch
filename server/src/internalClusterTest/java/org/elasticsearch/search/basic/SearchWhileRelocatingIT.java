@@ -90,7 +90,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
                                                     .allMatch(ssf -> ssf.getCause() instanceof NoShardAvailableActionException)) {
                                                 nonCriticalExceptions.add(
                                                     "Count is "
-                                                        + response.getHits().getTotalHits().value()
+                                                        + response.getHits().getTotalHits().value
                                                         + " but "
                                                         + numDocs
                                                         + " was expected. "

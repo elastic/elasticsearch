@@ -181,18 +181,22 @@ public class BlobFileRanges {
         for (var internalFile : internalFiles) {
             var blobLocation = compoundCommit.commitFiles().get(internalFile);
             assert blobLocation != null : internalFile;
-            var floor = replicatedRanges.floorEntry(blobLocation.offset());
-            if (useReplicatedRanges && floor != null) {
-                blobFileRanges.put(
-                    internalFile,
-                    // tailMap returns a view of the backing map where the first element is the replicated range corresponding to
-                    // the file's header, followed by the replicated range for the file's footer, and then replicated ranges for
-                    // other files.
-                    new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedRanges.tailMap(floor.getKey(), true)))
-                );
-            } else {
+            if (useReplicatedRanges == false || replicatedRanges.isEmpty()) {
                 blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation));
+                continue;
             }
+
+            var header = replicatedRanges.floorKey(blobLocation.offset());
+            var footer = replicatedRanges.floorKey(blobLocation.offset() + blobLocation.fileLength() - 1);
+            if (header == null || footer == null) {
+                blobFileRanges.put(internalFile, new BlobFileRanges(blobLocation));
+                continue;
+            }
+
+            blobFileRanges.put(
+                internalFile,
+                new BlobFileRanges(blobLocation, unmodifiableNavigableMap(replicatedRanges.subMap(header, true, footer, true)))
+            );
         }
         return blobFileRanges;
     }

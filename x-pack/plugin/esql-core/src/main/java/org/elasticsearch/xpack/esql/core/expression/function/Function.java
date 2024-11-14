@@ -43,7 +43,7 @@ public abstract class Function extends Expression {
         return Expressions.nullable(children());
     }
 
-    /** Return a predicate that checks if this function can be used by a provided {@link XPackLicenseState}.*/
+    /** Return true if this function can be executed under the provided {@link XPackLicenseState}, otherwise false.*/
     public boolean checkLicense(XPackLicenseState state) {
         return true;
     }

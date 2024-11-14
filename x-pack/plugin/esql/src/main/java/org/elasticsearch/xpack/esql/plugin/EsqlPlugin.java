@@ -120,7 +120,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 services.client(),
-                services.clusterService()
+                services.clusterService().state()
             ),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory

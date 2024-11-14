@@ -699,7 +699,7 @@ public class Verifier {
             );
             checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
-            checkSemanticTextQueries(condition, inferenceContext, failures);
+            checkSemanticTextQueries(condition, inferenceContext, isCrossClusterSearch, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));

@@ -12,7 +12,7 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -128,7 +128,7 @@ public class EsqlSession {
         PlanningMetrics planningMetrics,
         IndicesExpressionGrouper indicesExpressionGrouper,
         Client client,
-        ClusterService clusterService
+        ClusterState clusterState
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -143,7 +143,7 @@ public class EsqlSession {
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.client = client;
-        this.inferenceContext = new InferenceContext(clusterService.state().getMetadata().getIndices());
+        this.inferenceContext = new InferenceContext(clusterState.getMetadata().getIndices());
     }
 
     public String sessionId() {

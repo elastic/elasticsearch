@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.esql.core.querydsl.query;
 
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.inference.InferenceResults;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 

@@ -13,6 +13,8 @@ import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.ClusterName;
+import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.collect.Iterators;
@@ -432,7 +434,7 @@ public class CsvTests extends ESTestCase {
             new PlanningMetrics(),
             null,
             null,
-            null
+            new ClusterState.Builder(new ClusterName("name")).build()
         );
         TestPhysicalOperationProviders physicalOperationProviders = testOperationProviders(testDataset);
 

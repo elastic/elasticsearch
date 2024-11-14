@@ -66,10 +66,7 @@ public class MatchTests extends AbstractFunctionTestCase {
         return supportedPerPosition;
     }
 
-    protected static void addPositiveTestCase(
-        List<DataType> paramDataTypes,
-        List<TestCaseSupplier> suppliers
-    ) {
+    protected static void addPositiveTestCase(List<DataType> paramDataTypes, List<TestCaseSupplier> suppliers) {
 
         // Positive case - creates an ES field from the field parameter type
         suppliers.add(

@@ -69,8 +69,8 @@ public final class WelfordAlgorithm {
         }
         double delta = mean - meanValue;
         m2 += m2Value + delta * delta * count * countValue / (count + countValue);
+        mean = (mean * count + meanValue * countValue) / (count + countValue);
         count += countValue;
-        mean += delta * countValue / (count);
     }
 
     public double evaluate() {

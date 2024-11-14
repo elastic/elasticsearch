@@ -26,7 +26,7 @@ public class LuceneSyntheticSourceChangesSnapshotTests extends SearchBasedChange
         return Settings.builder()
             .put(super.indexSettings())
             .put(INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC.name())
-            .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
+            .put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true)
             .build();
     }
 

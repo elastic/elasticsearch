@@ -396,7 +396,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (enableRecoverySource && originalSource != null && adaptedSource != originalSource) {
             // if we omitted source or modified it we add the _recovery_source to ensure we have it for ops based recovery
             BytesRef ref = originalSource.toBytesRef();
-            if (isSynthetic() && context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+            if (context.indexSettings().isRecoverySourceSyntheticEnabled()) {
+                assert isSynthetic() : "recovery source should not be disabled on non-synthetic source";
                 /**
                  * We use synthetic source for recovery, so we omit the recovery source.
                  * Instead, we record only the size of the uncompressed source.

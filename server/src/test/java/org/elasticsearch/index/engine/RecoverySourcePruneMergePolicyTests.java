@@ -55,7 +55,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     IndexWriterConfig iwc = newIndexWriterConfig();
                     RecoverySourcePruneMergePolicy mp = new RecoverySourcePruneMergePolicy(
                         syntheticRecoverySource ? null : "extra_source",
-                        "extra_source_size",
+                        syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         pruneIdField,
                         MatchNoDocsQuery::new,
                         newLogMergePolicy()
@@ -146,7 +146,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                     iwc.setMergePolicy(
                         new RecoverySourcePruneMergePolicy(
                             syntheticRecoverySource ? null : "extra_source",
-                            "extra_source_size",
+                            syntheticRecoverySource ? "extra_source_size" : "extra_source",
                             pruneIdField,
                             () -> new TermQuery(new Term("even", "true")),
                             iwc.getMergePolicy()
@@ -221,7 +221,7 @@ public class RecoverySourcePruneMergePolicyTests extends ESTestCase {
                 iwc.setMergePolicy(
                     new RecoverySourcePruneMergePolicy(
                         syntheticRecoverySource ? null : "extra_source",
-                        "extra_source_size",
+                        syntheticRecoverySource ? "extra_source_size" : "extra_source",
                         false,
                         MatchAllDocsQuery::new,
                         iwc.getMergePolicy()

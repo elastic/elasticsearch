@@ -34,14 +34,13 @@ import java.util.Set;
 
 /**
  * A {@link SearchBasedChangesSnapshot} that utilizes a synthetic field loader to rebuild the recovery source.
- * This snapshot is activated when {@link IndexSettings#RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING}
+ * This snapshot is activated when {@link IndexSettings#RECOVERY_USE_SYNTHETIC_SOURCE_SETTING}
  * is enabled on the underlying index.
  *
  * The {@code maxMemorySizeInBytes} parameter limits the total size of uncompressed _sources
  * loaded into memory during batch retrieval.
  */
 public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnapshot {
-    public static final int DEFAULT_SEARCH_BATCH_SIZE = 1024;
     public static final long DEFAULT_MEMORY_SIZE = 4 * 1024 * 1024; // 4MB
 
     private final long maxMemorySizeInBytes;

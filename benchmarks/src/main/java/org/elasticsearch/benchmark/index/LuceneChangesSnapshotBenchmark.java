@@ -106,10 +106,7 @@ public class LuceneChangesSnapshotBenchmark {
     public void setup() throws IOException {
         this.path = Files.createTempDirectory("snapshot_changes");
         Settings settings = mode.startsWith("logsdb")
-            ? Settings.builder()
-                .put("index.mode", "logsdb")
-                .put(IndexSettings.RECOVERY_SOURCE_SYNTHETIC_ENABLED_SETTING.getKey(), true)
-                .build()
+            ? Settings.builder().put("index.mode", "logsdb").put(IndexSettings.RECOVERY_USE_SYNTHETIC_SOURCE_SETTING.getKey(), true).build()
             : Settings.EMPTY;
         this.mapperService = MapperServiceFactory.create(settings, readMappings(dataset));
         IndexWriterConfig config = new IndexWriterConfig();

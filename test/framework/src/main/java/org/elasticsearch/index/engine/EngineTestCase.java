@@ -1360,8 +1360,7 @@ public abstract class EngineTestCase extends ESTestCase {
             assertThat(luceneOp.toString(), luceneOp.primaryTerm(), equalTo(translogOp.primaryTerm()));
             assertThat(luceneOp.opType(), equalTo(translogOp.opType()));
             if (luceneOp.opType() == Translog.Operation.Type.INDEX) {
-                if (engine.engineConfig.getMapperService().mappingLookup().isSourceSynthetic()
-                    && engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
+                if (engine.engineConfig.getIndexSettings().isRecoverySourceSyntheticEnabled()) {
                     assertToXContentEquivalent(
                         ((Translog.Index) luceneOp).source(),
                         ((Translog.Index) translogOp).source(),

@@ -130,7 +130,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             assert targetClassName != null : "InstrumentationTarget for " + checkerMethodName + " is missing className";
             assert targetMethodName != null : "InstrumentationTarget for " + checkerMethodName + " is missing methodName";
             var targetParameterTypes = Arrays.stream(Type.getArgumentTypes(checkerMethodDescriptor))
-                .skip(1)
+                .skip(targetMethodIsStatic ? 1 : 2)
                 .map(Type::getInternalName)
                 .toList();
             var methodToInstrument = new MethodKey(targetClassName, targetMethodName, targetParameterTypes, targetMethodIsStatic);

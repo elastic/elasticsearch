@@ -29,6 +29,7 @@ import java.util.Map;
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.startsWith;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
 /**
@@ -55,7 +56,12 @@ public class InstrumenterTests extends ESTestCase {
      * Contains all the virtual methods from {@link ClassToInstrument},
      * allowing this test to call them on the dynamically loaded instrumented class.
      */
-    public interface Testable {}
+    public interface Testable {
+        // This method is here to demonstrate Instrumenter does not get confused by overloads
+        void someMethod(int arg);
+
+        void someMethod(int arg, String anotherArg);
+    }
 
     /**
      * This is a placeholder for real class library methods.
@@ -73,14 +79,24 @@ public class InstrumenterTests extends ESTestCase {
         public static void anotherSystemExit(int status) {
             assertEquals(123, status);
         }
+
+        public void someMethod(int arg) {}
+
+        public void someMethod(int arg, String anotherArg) {}
+
+        public static void someStaticMethod(int arg) {}
+
+        public static void someStaticMethod(int arg, String anotherArg) {}
     }
 
     static final class TestException extends RuntimeException {}
 
     public interface MockEntitlementChecker extends EntitlementChecker {
-        void checkSomeMethod(Class<?> clazz, int arg);
+        void checkSomeStaticMethod(Class<?> clazz, int arg);
 
-        void checkSomeMethod(Class<?> clazz, int arg, String anotherArg);
+        void checkSomeStaticMethod(Class<?> clazz, int arg, String anotherArg);
+
+        void checkSomeInstanceMethod(Class<?> clazz, Testable that, int arg, String anotherArg);
     }
 
     /**
@@ -98,8 +114,9 @@ public class InstrumenterTests extends ESTestCase {
         volatile boolean isActive;
 
         int checkSystemExitCallCount = 0;
-        int checkSomeMethodIntCallCount = 0;
-        int checkSomeMethodIntStringCallCount = 0;
+        int checkSomeStaticMethodIntCallCount = 0;
+        int checkSomeStaticMethodIntStringCallCount = 0;
+        int checkSomeInstanceMethodCallCount = 0;
 
         @Override
         public void checkSystemExit(Class<?> callerClass, int status) {
@@ -116,19 +133,32 @@ public class InstrumenterTests extends ESTestCase {
         }
 
         @Override
-        public void checkSomeMethod(Class<?> callerClass, int arg) {
-            checkSomeMethodIntCallCount++;
+        public void checkSomeStaticMethod(Class<?> callerClass, int arg) {
+            checkSomeStaticMethodIntCallCount++;
             assertSame(InstrumenterTests.class, callerClass);
             assertEquals(123, arg);
             throwIfActive();
         }
 
         @Override
-        public void checkSomeMethod(Class<?> callerClass, int arg, String anotherArg) {
-            checkSomeMethodIntStringCallCount++;
+        public void checkSomeStaticMethod(Class<?> callerClass, int arg, String anotherArg) {
+            checkSomeStaticMethodIntStringCallCount++;
             assertSame(InstrumenterTests.class, callerClass);
             assertEquals(123, arg);
             assertEquals("abc", anotherArg);
+            throwIfActive();
+        }
+
+        @Override
+        public void checkSomeInstanceMethod(Class<?> callerClass, Testable that, int arg, String anotherArg) {
+            checkSomeInstanceMethodCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertThat(
+                that.getClass().getName(),
+                startsWith("org.elasticsearch.entitlement.instrumentation.impl.InstrumenterTests$ClassToInstrument")
+            );
+            assertEquals(123, arg);
+            assertEquals("def", anotherArg);
             throwIfActive();
         }
     }
@@ -235,20 +265,14 @@ public class InstrumenterTests extends ESTestCase {
         assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(2));
     }
 
-    public static class TestClassToInstrumentWithOverloads implements Testable {
-        public static void someMethod(int arg) {}
-
-        public static void someMethod(int arg, String anotherArg) {}
-    }
-
     public void testInstrumenterWorksWithOverloads() throws Exception {
-        var classToInstrument = TestClassToInstrumentWithOverloads.class;
+        var classToInstrument = ClassToInstrument.class;
 
         Map<MethodKey, CheckerMethod> methods = Map.of(
-            instrumentationService.methodKeyForTarget(classToInstrument.getMethod("someMethod", int.class)),
-            getCheckerMethod(MockEntitlementChecker.class, "checkSomeMethod", Class.class, int.class),
-            instrumentationService.methodKeyForTarget(classToInstrument.getMethod("someMethod", int.class, String.class)),
-            getCheckerMethod(MockEntitlementChecker.class, "checkSomeMethod", Class.class, int.class, String.class)
+            instrumentationService.methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class)),
+            getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class),
+            instrumentationService.methodKeyForTarget(classToInstrument.getMethod("someStaticMethod", int.class, String.class)),
+            getCheckerMethod(MockEntitlementChecker.class, "checkSomeStaticMethod", Class.class, int.class, String.class)
         );
 
         var instrumenter = createInstrumenter(methods);
@@ -267,11 +291,43 @@ public class InstrumenterTests extends ESTestCase {
         getTestEntitlementChecker().isActive = true;
 
         // After checking is activated, everything should throw
-        assertThrows(TestException.class, () -> callStaticMethod(newClass, "someMethod", 123));
-        assertThrows(TestException.class, () -> callStaticMethod(newClass, "someMethod", 123, "abc"));
+        assertThrows(TestException.class, () -> callStaticMethod(newClass, "someStaticMethod", 123));
+        assertThrows(TestException.class, () -> callStaticMethod(newClass, "someStaticMethod", 123, "abc"));
 
-        assertThat(getTestEntitlementChecker().checkSomeMethodIntCallCount, is(1));
-        assertThat(getTestEntitlementChecker().checkSomeMethodIntStringCallCount, is(1));
+        assertThat(getTestEntitlementChecker().checkSomeStaticMethodIntCallCount, is(1));
+        assertThat(getTestEntitlementChecker().checkSomeStaticMethodIntStringCallCount, is(1));
+    }
+
+    public void testInstrumenterWorksWithInstanceMethodsAndOverloads() throws Exception {
+        var classToInstrument = ClassToInstrument.class;
+
+        Map<MethodKey, CheckerMethod> methods = Map.of(
+            instrumentationService.methodKeyForTarget(classToInstrument.getMethod("someMethod", int.class, String.class)),
+            getCheckerMethod(MockEntitlementChecker.class, "checkSomeInstanceMethod", Class.class, Testable.class, int.class, String.class)
+        );
+
+        var instrumenter = createInstrumenter(methods);
+
+        byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
+        }
+
+        Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
+            classToInstrument.getName() + "_NEW",
+            newBytecode
+        );
+
+        getTestEntitlementChecker().isActive = true;
+
+        Testable testTargetClass = (Testable) (newClass.getConstructor().newInstance());
+
+        // This overload is not instrumented, so it will not throw
+        testTargetClass.someMethod(123);
+        assertThrows(TestException.class, () -> testTargetClass.someMethod(123, "def"));
+
+        assertThat(getTestEntitlementChecker().checkSomeInstanceMethodCallCount, is(1));
     }
 
     /** This test doesn't replace classToInstrument in-place but instead loads a separate

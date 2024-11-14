@@ -28,22 +28,24 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
+    static class TestTargetClass {}
+
     interface TestChecker {
         @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "staticMethod", isStatic = true)
         void checkStaticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
 
         @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someMethod")
-        void checkInstanceMethodNoArgs(Class<?> clazz);
+        void checkInstanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
 
         @InstrumentationTarget(className = "org/example/TestTargetClass2", methodName = "someMethod2")
-        void checkInstanceMethodWithArgs(Class<?> clazz, int x, int y);
+        void checkInstanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
     }
 
     interface TestCheckerOverloads {
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod")
+        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod", isStatic = true)
         void checkInstanceMethodWithOverload(Class<?> clazz, int x, int y);
 
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod")
+        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod", isStatic = true)
         void checkInstanceMethodWithOverload(Class<?> clazz, int x, String y);
     }
 
@@ -74,7 +76,10 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "checkInstanceMethodNoArgs",
-                        List.of("Ljava/lang/Class;")
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
+                        )
                     )
                 )
             )
@@ -87,7 +92,12 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "checkInstanceMethodWithArgs",
-                        List.of("Ljava/lang/Class;", "I", "I")
+                        List.of(
+                            "Ljava/lang/Class;",
+                            "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;",
+                            "I",
+                            "I"
+                        )
                     )
                 )
             )
@@ -101,7 +111,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "java/lang/String"), false)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "java/lang/String"), true)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
@@ -114,7 +124,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "I"), false)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "I"), true)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",

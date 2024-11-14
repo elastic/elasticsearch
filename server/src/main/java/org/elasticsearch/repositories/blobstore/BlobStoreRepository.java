@@ -153,6 +153,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -3480,10 +3481,12 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
                 // A normally running shard snapshot should be in stage INIT or STARTED. And we know it's not in PAUSING or ABORTED because
                 // the ensureNotAborted() call above did not throw. The remaining options don't make sense, if they ever happen.
                 logger.error(
-                    "Shard snapshot found no interrupt signal, but is in an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
-                    shardId,
-                    snapshotId,
-                    shardSnapshotStage
+                    () -> Strings.format(
+                        "Shard snapshot found an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
+                        shardId,
+                        snapshotId,
+                        shardSnapshotStage
+                    )
                 );
                 assert false;
             }
@@ -3491,15 +3494,15 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // We want to see when a shard snapshot operation checks for and finds an interrupt signal during shutdown. A
             // PausedSnapshotException indicates we're in shutdown because that's the only case when shard snapshots are signaled to pause.
             // An AbortedSnapshotException may also occur during shutdown if an uncommon error occurs.
-            ShutdownLogger.shutdownLogger.debug(
-                "Shard snapshot operation is aborting. ShardId [{}], SnapshotID [{}], File [{}], Stage [{}], Message [{}], Stacktrace: {}",
+            Supplier<?> messageSupplier = () -> String.format(
+                Locale.ROOT,
+                "Shard snapshot operation is aborting. ShardId [%s], SnapshotID [%s], File [%s], Stage [%s]",
                 shardId,
                 snapshotId,
                 fileName,
-                shardSnapshotStage,
-                e.getMessage(),
-                e.getStackTrace()
+                shardSnapshotStage
             );
+            ShutdownLogger.shutdownLogger.debug(messageSupplier, e);
             assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }

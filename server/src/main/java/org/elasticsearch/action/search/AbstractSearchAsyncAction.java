@@ -251,7 +251,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
-                if (pendingExecutions.queuedItems.get() < maxConcurrentRequestsPerNode) {
+                if (pendingExecutions.released.get() == false) {
                     pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
                     pendingExecutions.flushQueue();
                 }
@@ -829,10 +829,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
 
         void flushQueue() {
-            if (semaphore.tryAcquire()) {
+            while (semaphore.tryAcquire()) {
                 var task = pollNextTaskOrReleasePermit();
                 if (task != null) {
                     executeAndRelease(task);
+                } else {
+                    return;
                 }
             }
         }

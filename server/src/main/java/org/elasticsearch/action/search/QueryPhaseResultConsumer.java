@@ -318,7 +318,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
     }
 
-    private synchronized long addEstimateAndMaybeBreak(long estimatedSize) {
+    private long addEstimateAndMaybeBreak(long estimatedSize) {
         circuitBreaker.addEstimateBytesAndMaybeBreak(estimatedSize, "<reduce_aggs>");
         circuitBreakerBytes += estimatedSize;
         maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);

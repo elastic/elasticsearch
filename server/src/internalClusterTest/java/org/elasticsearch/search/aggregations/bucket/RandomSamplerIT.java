@@ -115,16 +115,15 @@ public class RandomSamplerIT extends ESIntegTestCase {
             }
         );
 
-        assertResponses(
-            response -> {
-                InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
-                double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
-                long docCount = sampler.getDocCount();
-                assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
-                assertEquals(numericValue, sampleNumericValue[0], tolerance);
-                assertEquals(docCount, sampledDocCount[0]);
-            },
+        assertResponses(response -> {
+            InternalRandomSampler sampler = response.getAggregations().get("sampler");
+            double monotonicValue = ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+            double numericValue = ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+            long docCount = sampler.getDocCount();
+            assertEquals(monotonicValue, sampleMonotonicValue[0], tolerance);
+            assertEquals(numericValue, sampleNumericValue[0], tolerance);
+            assertEquals(docCount, sampledDocCount[0]);
+        },
             IntStream.rangeClosed(0, NUM_SAMPLE_RUNS - 1)
                 .mapToObj(
                     num -> prepareSearch("idx").setPreference("shard:0")
@@ -146,13 +145,12 @@ public class RandomSamplerIT extends ESIntegTestCase {
         double[] sampleNumericValue = new double[1];
         double[] sampledDocCount = new double[1];
 
-        assertResponses(
-            response -> {
-                InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                sampleMonotonicValue[0] += ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
-                sampleNumericValue[0] += ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
-                sampledDocCount[0] += sampler.getDocCount();
-            },
+        assertResponses(response -> {
+            InternalRandomSampler sampler = response.getAggregations().get("sampler");
+            sampleMonotonicValue[0] += ((Avg) sampler.getAggregations().get("mean_monotonic")).getValue();
+            sampleNumericValue[0] += ((Avg) sampler.getAggregations().get("mean_numeric")).getValue();
+            sampledDocCount[0] += sampler.getDocCount();
+        },
             IntStream.rangeClosed(0, NUM_SAMPLE_RUNS - 1)
                 .mapToObj(
                     num -> prepareSearch("idx").addAggregation(
@@ -194,22 +192,21 @@ public class RandomSamplerIT extends ESIntegTestCase {
         Map<String, Double> sampleNumericValue = new HashMap<>();
         Map<String, Double> sampledDocCount = new HashMap<>();
 
-        assertResponses(
-            response -> {
-                InternalRandomSampler sampler = response.getAggregations().get("sampler");
-                Histogram histo = sampler.getAggregations().get("histo");
-                for (Histogram.Bucket bucket : histo.getBuckets()) {
-                    sampleMonotonicValue.compute(
-                        bucket.getKeyAsString(),
-                        (k, v) -> ((Avg) bucket.getAggregations().get("mean_monotonic")).getValue() + (v == null ? 0 : v)
-                    );
-                    sampleNumericValue.compute(
-                        bucket.getKeyAsString(),
-                        (k, v) -> ((Avg) bucket.getAggregations().get("mean_numeric")).getValue() + (v == null ? 0 : v)
-                    );
-                    sampledDocCount.compute(bucket.getKeyAsString(), (k, v) -> bucket.getDocCount() + (v == null ? 0 : v));
-                }
-            },
+        assertResponses(response -> {
+            InternalRandomSampler sampler = response.getAggregations().get("sampler");
+            Histogram histo = sampler.getAggregations().get("histo");
+            for (Histogram.Bucket bucket : histo.getBuckets()) {
+                sampleMonotonicValue.compute(
+                    bucket.getKeyAsString(),
+                    (k, v) -> ((Avg) bucket.getAggregations().get("mean_monotonic")).getValue() + (v == null ? 0 : v)
+                );
+                sampleNumericValue.compute(
+                    bucket.getKeyAsString(),
+                    (k, v) -> ((Avg) bucket.getAggregations().get("mean_numeric")).getValue() + (v == null ? 0 : v)
+                );
+                sampledDocCount.compute(bucket.getKeyAsString(), (k, v) -> bucket.getDocCount() + (v == null ? 0 : v));
+            }
+        },
             IntStream.rangeClosed(0, NUM_SAMPLE_RUNS - 1)
                 .mapToObj(
                     num -> prepareSearch("idx").addAggregation(
@@ -220,7 +217,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
                                     .subAggregation(avg("mean_monotonic").field(MONOTONIC_VALUE))
                                     .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
                             )
-                        )
+                    )
                 )
                 .toList()
                 .toArray(new SearchRequestBuilder[0])

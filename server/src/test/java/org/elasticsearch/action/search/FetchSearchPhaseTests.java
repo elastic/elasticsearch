@@ -784,6 +784,8 @@ public class FetchSearchPhaseTests extends ESTestCase {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         w.addDocument(new Document());
+        w.addDocument(new Document());
+        w.addDocument(new Document());
         IndexReader r = w.getReader();
         w.close();
         SearchContext searchContext = null;
@@ -791,8 +793,9 @@ public class FetchSearchPhaseTests extends ESTestCase {
             ContextIndexSearcher contextIndexSearcher = createSearcher(r);
             searchContext = createSearchContext(contextIndexSearcher, true);
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            fetchPhase.execute(searchContext, new int[] { 0 }, null);
+            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null);
             assertTrue(searchContext.queryResult().searchTimedOut());
+            assertEquals(1, searchContext.fetchResult().hits().getHits().length);
         } finally {
             if (searchContext != null) {
                 searchContext.fetchResult().decRef();
@@ -806,14 +809,22 @@ public class FetchSearchPhaseTests extends ESTestCase {
         Directory dir = newDirectory();
         RandomIndexWriter w = new RandomIndexWriter(random(), dir);
         w.addDocument(new Document());
+        w.addDocument(new Document());
+        w.addDocument(new Document());
         IndexReader r = w.getReader();
         w.close();
+        SearchContext searchContext = null;
         try {
             ContextIndexSearcher contextIndexSearcher = createSearcher(r);
-            SearchContext searchContext = createSearchContext(contextIndexSearcher, false);
+            searchContext = createSearchContext(contextIndexSearcher, false);
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0 }, null));
+            SearchContext context = searchContext;
+            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(context, new int[] { 0, 1, 2 }, null));
+            assertNull(searchContext.fetchResult().hits());
         } finally {
+            if (searchContext != null) {
+                searchContext.fetchResult().decRef();
+            }
             r.close();
             dir.close();
         }
@@ -833,12 +844,18 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     private static FetchPhase createFetchPhase(ContextIndexSearcher contextIndexSearcher) {
         return new FetchPhase(Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
+            boolean processCalledOnce = false;
             @Override
             public void setNextReader(LeafReaderContext readerContext) {}
 
             @Override
             public void process(FetchSubPhase.HitContext hitContext) {
-                contextIndexSearcher.throwTimeExceededException();
+                //we throw only once one doc has been fetched, so we can test partial results are returned
+                if (processCalledOnce) {
+                    contextIndexSearcher.throwTimeExceededException();
+                } else {
+                    processCalledOnce = true;
+                }
             }
 
             @Override

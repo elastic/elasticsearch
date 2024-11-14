@@ -75,7 +75,7 @@ public final class FetchSearchResult extends SearchPhaseResult {
 
     private static boolean assertNoSearchTarget(SearchHits hits) {
         for (SearchHit hit : hits.getHits()) {
-            assert hit == null || hit.getShard() == null : "expected null but got: " + hit.getShard();
+            assert hit.getShard() == null : "expected null but got: " + hit.getShard();
         }
         return true;
     }

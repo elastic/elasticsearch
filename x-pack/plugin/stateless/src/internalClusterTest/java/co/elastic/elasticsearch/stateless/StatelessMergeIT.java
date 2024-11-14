@@ -295,18 +295,6 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             assertThat(mergeDocs.getLong(), greaterThan(0L));
             assertThat(mergeBytes.getLong(), greaterThan(0L));
             assertThat(mergeTime.getLong(), greaterThan(0L));
-
-            assertThat(mergeDocs.attributes().get("index_name"), equalTo(indexName));
-            assertThat(mergeBytes.attributes().get("index_name"), equalTo(indexName));
-            assertThat(mergeTime.attributes().get("index_name"), equalTo(indexName));
-
-            assertThat(mergeDocs.attributes().get("shard_id"), equalTo(0));
-            assertThat(mergeBytes.attributes().get("shard_id"), equalTo(0));
-            assertThat(mergeTime.attributes().get("shard_id"), equalTo(0));
-
-            Object mergeId = mergeDocs.attributes().get("merge_id");
-            assertThat(mergeBytes.attributes().get("merge_id"), equalTo(mergeId));
-            assertThat(mergeTime.attributes().get("merge_id"), equalTo(mergeId));
         }
 
         long totalDocs = docs.stream().mapToLong(Measurement::getLong).sum();

@@ -18,13 +18,10 @@
 package co.elastic.elasticsearch.stateless.engine;
 
 import org.apache.lucene.index.MergePolicy;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
-
-import java.util.Map;
 
 public class MergeMetrics {
 
@@ -43,22 +40,9 @@ public class MergeMetrics {
         mergeTimeInMillis = meterRegistry.registerLongHistogram(MERGE_TIME_IN_MILLIS, "Merge time in milliseconds", "milliseconds");
     }
 
-    public void markMergeMetrics(MergePolicy.OneMerge currentMerge, long tookMillis, Map<String, Object> attributes) {
-        mergeSizeInBytes.incrementBy(currentMerge.totalBytesSize(), attributes);
-        mergeNumDocs.incrementBy(currentMerge.totalNumDocs(), attributes);
-        mergeTimeInMillis.record(tookMillis, attributes);
-    }
-
-    public static Map<String, Object> mergeIdentifiers(ShardId shardId, String mergeId) {
-        return Map.of(
-            "index_name",
-            shardId.getIndex().getName(),
-            "index_uuid",
-            shardId.getIndex().getUUID(),
-            "shard_id",
-            shardId.id(),
-            "merge_id",
-            mergeId
-        );
+    public void markMergeMetrics(MergePolicy.OneMerge currentMerge, long tookMillis) {
+        mergeSizeInBytes.incrementBy(currentMerge.totalBytesSize());
+        mergeNumDocs.incrementBy(currentMerge.totalNumDocs());
+        mergeTimeInMillis.record(tookMillis);
     }
 }

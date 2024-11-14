@@ -29,16 +29,13 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongUpDownCounter;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
-import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
 
 /**
@@ -89,13 +86,12 @@ public class GetVirtualBatchedCompoundCommitChunksPressure {
         );
     }
 
-    public Releasable markChunkStarted(int bytes, ShardId shardId) {
-        var metricAttributes = Map.<String, Object>of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
+    public Releasable markChunkStarted(int bytes) {
         long currentChunksBytes = this.currentChunksBytes.addAndGet(bytes);
         if (currentChunksBytes > chunksBytesLimit) {
             long bytesWithoutChunk = currentChunksBytes - bytes;
             this.currentChunksBytes.getAndAdd(-bytes);
-            this.metricRejections.incrementBy(1, Maps.copyMapWithAddedEntry(metricAttributes, "rejected_bytes", bytes));
+            this.metricRejections.incrementBy(1);
             throw new EsRejectedExecutionException(
                 "rejected execution of VBCC chunk request ["
                     + "current_chunks_bytes="
@@ -109,12 +105,12 @@ public class GetVirtualBatchedCompoundCommitChunksPressure {
                     + "]"
             );
         }
-        this.metricCurrentChunksBytes.add(bytes, metricAttributes);
+        this.metricCurrentChunksBytes.add(bytes);
         logger.trace(() -> Strings.format("added chunk request with [%d] bytes", bytes));
         // We assert that the releasable is called only once. If the assertion fails, this means the memory is adjusted twice.
         return Releasables.assertOnce(() -> {
             this.currentChunksBytes.getAndAdd(-bytes);
-            this.metricCurrentChunksBytes.add(-bytes, metricAttributes);
+            this.metricCurrentChunksBytes.add(-bytes);
             logger.trace(() -> Strings.format("removed chunk request with [%d] bytes", bytes));
         });
     }

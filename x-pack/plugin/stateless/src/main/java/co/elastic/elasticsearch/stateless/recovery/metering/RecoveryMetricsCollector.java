@@ -156,17 +156,6 @@ public class RecoveryMetricsCollector implements IndexEventListener {
     }
 
     public static Map<String, Object> commonMetricLabels(IndexShard indexShard) {
-        return Map.of(
-            "index_name",
-            indexShard.shardId().getIndex().getName(),
-            "index_uuid",
-            indexShard.shardId().getIndex().getUUID(),
-            "shard_id",
-            indexShard.shardId().id(),
-            "primary",
-            indexShard.routingEntry().primary(),
-            "allocation_id",
-            indexShard.routingEntry().allocationId() != null ? indexShard.routingEntry().allocationId().getId() : "null"
-        );
+        return Map.of("primary", indexShard.routingEntry().primary());
     }
 }

@@ -193,8 +193,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
                     if (success) {
-                        mergeMetrics.get()
-                            .markMergeMetrics(currentMerge, tookMS, MergeMetrics.mergeIdentifiers(shardId, onGoingMerge.getId()));
+                        mergeMetrics.get().markMergeMetrics(currentMerge, tookMS);
                     }
                     // TODO: Consider if we should adjust these metrics when a failure happens
                     mergeTracking.mergeFinished(currentMerge, onGoingMerge, tookMS);

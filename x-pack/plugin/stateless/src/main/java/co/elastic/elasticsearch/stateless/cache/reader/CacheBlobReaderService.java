@@ -109,7 +109,7 @@ public class CacheBlobReaderService {
                 rangeSize,
                 objectStoreFetchExecutor
             ),
-            createReadCompleteCallback(shardId, totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
+            createReadCompleteCallback(totalBytesReadFromObjectStore, CachePopulationSource.BlobStore, cachePopulationReason)
         );
         var latestUploadInfo = tracker.getLatestUploadInfo(locationPrimaryTermAndGeneration);
         if (latestUploadInfo.isUploaded()) {
@@ -124,7 +124,7 @@ public class CacheBlobReaderService {
                     indexingShardCacheBlobReaderChunkSize,
                     threadPool
                 ),
-                createReadCompleteCallback(shardId, totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
+                createReadCompleteCallback(totalBytesReadFromIndexing, CachePopulationSource.Peer, cachePopulationReason)
             );
             return new SwitchingCacheBlobReader(
                 tracker,
@@ -136,7 +136,6 @@ public class CacheBlobReaderService {
     }
 
     private MeteringCacheBlobReader.ReadCompleteCallback createReadCompleteCallback(
-        ShardId shardId,
         LongConsumer bytesReadCounter,
         CachePopulationSource cachePopulationSource,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason
@@ -144,14 +143,7 @@ public class CacheBlobReaderService {
         return (bytesRead, readTimeNanos) -> {
             bytesReadCounter.accept(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(
-                    bytesRead,
-                    readTimeNanos,
-                    shardId.getIndexName(),
-                    shardId.getId(),
-                    cachePopulationReason,
-                    cachePopulationSource
-                );
+                .recordCachePopulationMetrics(bytesRead, readTimeNanos, cachePopulationReason, cachePopulationSource);
         };
     }
 }

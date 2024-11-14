@@ -1,0 +1,24 @@
+---
+document parser experiment:
+  - do:
+      indices.create:
+        index: test
+        body:
+          mappings:
+            properties:
+              name:
+                type: keyword
+              value:
+                type: integer
+              price:
+                type: double
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        refresh: true
+        body:
+          name: "A"
+          value: 12
+          price: 13.5

@@ -48,8 +48,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.Executor;
+import java.util.concurrent.LinkedTransferQueue;
 import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -248,6 +248,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     failOnUnavailable(shardIndex, shardRoutings);
                 } else {
                     performPhaseOnShard(shardIndex, shardRoutings, routing);
+                }
+            }
+            for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
+                if (pendingExecutions.queuedItems.get() < maxConcurrentRequestsPerNode) {
+                    pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
+                    pendingExecutions.flushQueue();
                 }
             }
         }
@@ -800,11 +806,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     private static final class PendingExecutions {
         private final Semaphore semaphore;
-        private final ConcurrentLinkedQueue<Consumer<Releasable>> queue = new ConcurrentLinkedQueue<>();
+        private final AtomicInteger queuedItems;
+        private final int permits;
+        private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
 
         PendingExecutions(int permits) {
-            assert permits > 0 : "not enough permits: " + permits;
-            semaphore = new Semaphore(permits);
+            semaphore = new Semaphore(0);
+            this.permits = permits;
+            queuedItems = new AtomicInteger();
         }
 
         void submit(Consumer<Releasable> task) {
@@ -812,11 +821,18 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 executeAndRelease(task);
             } else {
                 queue.add(task);
-                if (semaphore.tryAcquire()) {
-                    task = pollNextTaskOrReleasePermit();
-                    if (task != null) {
-                        executeAndRelease(task);
-                    }
+                if (queuedItems.incrementAndGet() == permits) {
+                    semaphore.release(permits);
+                }
+                flushQueue();
+            }
+        }
+
+        void flushQueue() {
+            if (semaphore.tryAcquire()) {
+                var task = pollNextTaskOrReleasePermit();
+                if (task != null) {
+                    executeAndRelease(task);
                 }
             }
         }

@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
 import java.util.List;
+import java.util.Locale;
 import java.util.function.Supplier;
 
 import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
@@ -41,7 +42,7 @@ public class ElasticInferenceServiceSparseEmbeddingsRequestManager extends Elast
 
     private static ResponseHandler createSparseEmbeddingsHandler() {
         return new ElasticInferenceServiceResponseHandler(
-            String.format("%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
+            String.format(Locale.ROOT, "%s sparse embeddings", ELASTIC_INFERENCE_SERVICE_IDENTIFIER),
             ElasticInferenceServiceSparseEmbeddingsResponseEntity::fromResponse
         );
     }

@@ -76,7 +76,8 @@ public final class KnnRetrieverBuilder extends RetrieverBuilder {
                 (QueryVectorBuilder) args[2],
                 (int) args[3],
                 (int) args[4],
-                (RescoreVectorBuilder) args[6], (Float) args[5]
+                (RescoreVectorBuilder) args[6],
+                (Float) args[5]
             );
         }
     );

@@ -70,7 +70,8 @@ public class RankDocsRetrieverBuilderTests extends ESTestCase {
                     null,
                     randomInt(10),
                     randomIntBetween(10, 100),
-                    randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)), randomFloat()
+                    randomBoolean() ? null : new RescoreVectorBuilder(randomFloatBetween(1.0f, 10.0f, false)),
+                    randomFloat()
                 );
                 if (randomBoolean()) {
                     knnRetrieverBuilder.preFilterQueryBuilders = preFilters(queryRewriteContext);

@@ -62,7 +62,8 @@ public class KnnRetrieverBuilderParsingTests extends AbstractXContentTestCase<Kn
             null,
             k,
             numCands,
-            rescoreVectorBuilder, similarity
+            rescoreVectorBuilder,
+            similarity
         );
 
         List<QueryBuilder> preFilterQueryBuilders = new ArrayList<>();

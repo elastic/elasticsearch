@@ -735,7 +735,7 @@ public class Verifier {
                 plan,
                 condition,
                 Match.class,
-                lp -> (lp instanceof Limit == false),
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );

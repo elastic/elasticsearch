@@ -244,7 +244,7 @@ public class TransportGetVirtualBatchedCompoundCommitChunkAction extends Transpo
             try {
                 // The pressure releasable is got first, so that we do not allocate memory if the pressure outright rejects the chunk size.
                 final int requestLength = request.getLength();
-                Releasable finalReleasable = vbccChunksPressure.markChunkStarted(requestLength, shardId);
+                Releasable finalReleasable = vbccChunksPressure.markChunkStarted(requestLength);
                 try {
                     // The following allocation may throw a CBE, in which case we release the pressure in the `finally` block.
                     final ReleasableBytesStreamOutput output = new ReleasableBytesStreamOutput(requestLength, bigArrays);

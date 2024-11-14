@@ -107,14 +107,7 @@ public class IndexBlobStoreCacheDirectory extends BlobStoreCacheDirectory {
         return (bytesRead, readTimeNanos) -> {
             bytesReadAdder.add(bytesRead);
             cacheService.getBlobCacheMetrics()
-                .recordCachePopulationMetrics(
-                    bytesRead,
-                    readTimeNanos,
-                    shardId.getIndexName(),
-                    shardId.getId(),
-                    cachePopulationReason,
-                    CachePopulationSource.BlobStore
-                );
+                .recordCachePopulationMetrics(bytesRead, readTimeNanos, cachePopulationReason, CachePopulationSource.BlobStore);
         };
     }
 

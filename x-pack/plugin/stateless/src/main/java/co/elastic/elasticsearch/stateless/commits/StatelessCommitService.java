@@ -718,15 +718,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         );
 
         // Update the histograms with the new remote blob store upload info.
-        final Map<String, Object> attributes = Map.of(
-            "index_name",
-            virtualBcc.getShardId().getIndexName(),
-            "shard_id",
-            virtualBcc.getShardId().id()
-        );
-        bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()), attributes);
-        bccNumberCommitsHistogram.record(virtualBcc.size(), attributes);
-        bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis(), attributes);
+        bccSizeInMegabytesHistogram.record(ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
+        bccNumberCommitsHistogram.record(virtualBcc.size());
+        bccAgeHistogram.record(threadPool.relativeTimeInMillis() - virtualBcc.getCreationTimeInMillis());
 
         bccUpload.run();
     }

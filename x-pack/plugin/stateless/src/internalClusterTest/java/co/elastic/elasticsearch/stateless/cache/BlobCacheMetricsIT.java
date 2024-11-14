@@ -31,7 +31,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
@@ -42,7 +41,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 
 import static co.elastic.elasticsearch.stateless.lucene.BlobStoreCacheDirectoryTestUtils.getCacheService;
 import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING;
@@ -99,20 +97,10 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         ensureGreen(flushedIndex, notFlushedIndex);
 
         // The flushed index should warm from the BlobStore
-        assertMetricsArePresent(
-            searchNode,
-            findSearchShard(flushedIndex).shardId(),
-            BlobCacheMetrics.CachePopulationReason.Warming,
-            CachePopulationSource.BlobStore
-        );
+        assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.Warming, CachePopulationSource.BlobStore);
 
         // The not-flushed index should warm from the indexing node
-        assertMetricsArePresent(
-            searchNode,
-            findSearchShard(notFlushedIndex).shardId(),
-            BlobCacheMetrics.CachePopulationReason.Warming,
-            CachePopulationSource.Peer
-        );
+        assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.Warming, CachePopulationSource.Peer);
 
         // clear the metrics
         getTestTelemetryPlugin(searchNode).resetMeter();
@@ -140,12 +128,7 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         safeGet(prepareSearch(indexName).setQuery(matchAllQuery()).setSize(10_000).execute()).decRef();
 
         // Confirm we see cache-miss metrics on the search node
-        assertMetricsArePresent(
-            searchNode,
-            findSearchShard(indexName).shardId(),
-            BlobCacheMetrics.CachePopulationReason.CacheMiss,
-            expectedPopulationSource
-        );
+        assertMetricsArePresent(searchNode, BlobCacheMetrics.CachePopulationReason.CacheMiss, expectedPopulationSource);
     }
 
     public void testWarmingMetricsArePublishedOnIndexNode() {
@@ -168,12 +151,7 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         // Confirm we see warming metrics on the newly assigned node
-        assertMetricsArePresent(
-            otherIndexNode,
-            findIndexShard(indexName).shardId(),
-            BlobCacheMetrics.CachePopulationReason.Warming,
-            CachePopulationSource.BlobStore
-        );
+        assertMetricsArePresent(otherIndexNode, BlobCacheMetrics.CachePopulationReason.Warming, CachePopulationSource.BlobStore);
     }
 
     private String createIndexWithNoReplicas(String namePrefix) {
@@ -206,34 +184,30 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
 
     private static void assertMetricsArePresent(
         String nodeName,
-        ShardId shardId,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
         CachePopulationSource cachePopulationSource
     ) {
         final TestTelemetryPlugin telemetryPlugin = getTestTelemetryPlugin(nodeName);
 
         // There is at least one `population.throughput.histogram` measurement
-        assertContainsMeasurementForShard(
+        assertContainsMeasurement(
             telemetryPlugin.getDoubleHistogramMeasurement("es.blob_cache.population.throughput.histogram"),
             cachePopulationReason,
-            cachePopulationSource,
-            shardId
+            cachePopulationSource
         );
 
         // There is at least one `population.bytes.total` measurement
-        assertContainsMeasurementForShard(
+        assertContainsMeasurement(
             telemetryPlugin.getLongCounterMeasurement("es.blob_cache.population.bytes.total"),
             cachePopulationReason,
-            cachePopulationSource,
-            shardId
+            cachePopulationSource
         );
 
         // There is at least one `population.time.total` measurement
-        assertContainsMeasurementForShard(
+        assertContainsMeasurement(
             telemetryPlugin.getLongCounterMeasurement("es.blob_cache.population.time.total"),
             cachePopulationReason,
-            cachePopulationSource,
-            shardId
+            cachePopulationSource
         );
     }
 
@@ -244,28 +218,24 @@ public class BlobCacheMetricsIT extends AbstractStatelessIntegTestCase {
             .orElseThrow();
     }
 
-    private static void assertContainsMeasurementForShard(
+    private static void assertContainsMeasurement(
         List<Measurement> measurements,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        CachePopulationSource cachePopulationSource,
-        ShardId shardId
+        CachePopulationSource cachePopulationSource
     ) {
         assertTrue(
             "No " + cachePopulationReason + "/" + cachePopulationSource + " metrics found in " + measurements,
-            measurements.stream().anyMatch(m -> isMeasurementForShard(m, cachePopulationReason, cachePopulationSource, shardId))
+            measurements.stream().anyMatch(m -> isMatchingMeasurement(m, cachePopulationReason, cachePopulationSource))
         );
     }
 
-    private static boolean isMeasurementForShard(
+    private static boolean isMatchingMeasurement(
         Measurement measurement,
         BlobCacheMetrics.CachePopulationReason cachePopulationReason,
-        CachePopulationSource cachePopulationSource,
-        ShardId shardId
+        CachePopulationSource cachePopulationSource
     ) {
         Map<String, Object> attributes = measurement.attributes();
         return attributes.get(BlobCacheMetrics.CACHE_POPULATION_REASON_ATTRIBUTE_KEY) == cachePopulationReason.name()
-            && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name()
-            && Objects.equals(attributes.get(BlobCacheMetrics.SHARD_ID_ATTRIBUTE_KEY), shardId.getId())
-            && shardId.getIndexName().equals(attributes.get(BlobCacheMetrics.INDEX_ATTRIBUTE_KEY));
+            && attributes.get(BlobCacheMetrics.CACHE_POPULATION_SOURCE_ATTRIBUTE_KEY) == cachePopulationSource.name();
     }
 }

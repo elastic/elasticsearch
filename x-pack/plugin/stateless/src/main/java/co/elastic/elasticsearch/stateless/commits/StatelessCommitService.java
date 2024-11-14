@@ -172,7 +172,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
      */
     public static final Setting<Boolean> STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT = Setting.boolSetting(
         "stateless.commit.use_internal_files_replicated_content",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

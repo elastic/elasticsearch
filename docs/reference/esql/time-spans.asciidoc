@@ -11,32 +11,43 @@ The time span contains two elements, an integer value and a temporal unit, both 
 
 Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like `+` and `-`. There are conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>>, <<esql-to_timeduration, TO_TIMEDURATION>> and their corresponding cast operators `::DATE_PERIOD` and `::TIME_DURATION`.
 
-[float]
-=== Examples of using time spans in {esql}
+==== Examples of using time spans in {esql}
+
 
 With `BUCKET`
-[source, esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, 1 week)
-| SORT week
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan-result]
+|===
+
 
 With `DATE_TRUNC`
-[source, esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| EVAL x = date_trunc(240 hours, hire_date)
+include::{esql-specs}/date.csv-spec[tag=docsDateTrunc]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsDateTrunc-result]
+|===
+
 
 With `+` and/or `-`
-[source, esql]
+[source.merge.styled,esql]
 ----
-FROM employees
-| EVAL x = hire_date + 1 month - 1 day
+include::{esql-specs}/date.csv-spec[tag=docsNowWhere]
 ----
+[%header.monospaced.styled,format=dsv,separator=|]
+|===
+include::{esql-specs}/date.csv-spec[tag=docsNowWhere-result]
+|===
 
-When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value.
+
+When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value in arithmetic operations like `+` and/or `-`.
 [source, esql]
 ----
 POST /_query
@@ -49,12 +60,37 @@ POST /_query
 }
 ----
 
+When a time span is provided as a name parameter in string format, it can be converted automatically to its corresponding time span value in grouping functions and scalar functions, like `BUCKET` and `DATE_TRUNC`.
+[source, esql]
+----
+POST /_query
+{
+   "query": """
+   FROM employees
+   | WHERE hire_date >= "1985-01-01T00:00:00Z" AND hire_date < "1986-01-01T00:00:00Z"
+   | STATS hires_per_week = COUNT(*) BY week = BUCKET(hire_date, ?timespan)
+   | SORT week
+   """,
+   "params": [{"timespan" : "1 week"}]
+}
+----
 
-[float]
-=== Supported Temporal Units
+[source, esql]
+----
+POST /_query
+{
+   "query": """
+   FROM employees
+   | KEEP first_name, last_name, hire_date
+   | EVAL year_hired = DATE_TRUNC(?timespan, hire_date)
+   """,
+   "params": [{"timespan" : "1 year"}]
+}
+----
 
-The supported temporal units are listed in the following table
 
+[[esql-time-spans-table]]
+==== Supported temporal units
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 Temporal Units|Valid Abbreviations
@@ -68,5 +104,3 @@ minute|min, minutes
 second|s, sec, seconds
 millisecond|ms, milliseconds
 |===
-
-

@@ -1205,17 +1205,17 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         assertThat(measurements.size(), equalTo(pages * 4));
         for (int p = 0; p < pages; p++) {
             // The first refresh results in two measurements (one that adds bytes, and one that removes bytes) for each page chunk request
-            assertMeasurement(measurements.get(p * 2), PAGE_SIZE, indexName1, index1shardId);
-            assertMeasurement(measurements.get(p * 2 + 1), -PAGE_SIZE, indexName1, index1shardId);
+            assertMeasurement(measurements.get(p * 2), PAGE_SIZE);
+            assertMeasurement(measurements.get(p * 2 + 1), -PAGE_SIZE);
             // The second refresh had the same amount of measurements, that appear after the first refresh's measurements
-            assertMeasurement(measurements.get(pages * 2 + p * 2), PAGE_SIZE, indexName2, index2shardId);
-            assertMeasurement(measurements.get(pages * 2 + p * 2 + 1), -PAGE_SIZE, indexName2, index2shardId);
+            assertMeasurement(measurements.get(pages * 2 + p * 2), PAGE_SIZE);
+            assertMeasurement(measurements.get(pages * 2 + p * 2 + 1), -PAGE_SIZE);
         }
 
         measurements = metricsPlugin.getLongCounterMeasurement(CHUNK_REQUESTS_REJECTED_METRIC);
         assertThat(measurements.size(), equalTo(2));
-        assertRejectionMeasurement(measurements.get(0), PAGE_SIZE, indexName2, index2shardId);
-        assertRejectionMeasurement(measurements.get(1), PAGE_SIZE, indexName2, index2shardId);
+        assertRejectionMeasurement(measurements.get(0));
+        assertRejectionMeasurement(measurements.get(1));
     }
 
     public void testVirtualBatchedCompoundCommitUploadMetrics() throws Exception {
@@ -1243,19 +1243,19 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
 
                 final List<Measurement> sizeMeasurements = metricsPlugin.getLongHistogramMeasurement(BCC_TOTAL_SIZE_HISTOGRAM_METRIC);
                 assertThat(sizeMeasurements, hasSize(1));
-                assertMeasurement2(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()), indexName, shardId);
+                assertMeasurement(sizeMeasurements.get(0), ByteSizeUnit.BYTES.toMB(virtualBcc.getTotalSizeInBytes()));
 
                 final List<Measurement> nCommitsMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_NUMBER_COMMITS_HISTOGRAM_METRIC
                 );
                 assertThat(nCommitsMeasurements, hasSize(1));
-                assertMeasurement2(nCommitsMeasurements.get(0), virtualBcc.size(), indexName, shardId);
+                assertMeasurement(nCommitsMeasurements.get(0), virtualBcc.size());
 
                 final List<Measurement> ageMeasurements = metricsPlugin.getLongHistogramMeasurement(
                     BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC
                 );
                 assertThat(ageMeasurements, hasSize(1));
-                assertThat(ageMeasurements.get(0).attributes(), equalTo(Map.of("index_name", indexName, "shard_id", shardId.id())));
+                assertThat(ageMeasurements.get(0).attributes(), equalTo(Map.of()));
                 // The exact value of age is not important as long as it is greater or equal than the minimum age
                 // that is measured before creating the upload task
                 assertThat(ageMeasurements.get(0).getLong(), greaterThanOrEqualTo(minAge));
@@ -1264,21 +1264,11 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
         }
     }
 
-    // TODO: merge the following two methods once we change all attribute names to be snake_case
-    private void assertMeasurement(Measurement measurement, long value, String indexName, ShardId shardId) {
+    private void assertMeasurement(Measurement measurement, long value) {
         assertThat(measurement.getLong(), equalTo(value));
-        assertThat(measurement.attributes().get("index_name"), equalTo(indexName));
-        assertThat(measurement.attributes().get("shard_id"), equalTo(shardId.id()));
     }
 
-    private void assertMeasurement2(Measurement measurement, long value, String indexName, ShardId shardId) {
-        assertThat(measurement.getLong(), equalTo(value));
-        assertThat(measurement.attributes().get("index_name"), equalTo(indexName));
-        assertThat(measurement.attributes().get("shard_id"), equalTo(shardId.id()));
-    }
-
-    private void assertRejectionMeasurement(Measurement measurement, int bytes, String indexName, ShardId shardId) {
-        assertMeasurement(measurement, 1L, indexName, shardId);
-        assertThat(measurement.attributes().get("rejected_bytes"), equalTo(bytes));
+    private void assertRejectionMeasurement(Measurement measurement) {
+        assertMeasurement(measurement, 1L);
     }
 }

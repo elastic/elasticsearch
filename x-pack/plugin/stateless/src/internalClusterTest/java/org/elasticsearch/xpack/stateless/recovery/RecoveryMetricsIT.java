@@ -93,8 +93,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
         });
@@ -105,8 +103,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
         });
@@ -119,8 +115,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
         });
@@ -148,8 +142,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertFalse("Total recovery time metric is not recorded", measurements.isEmpty());
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("EMPTY_STORE"));
         });
@@ -193,8 +185,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
         });
@@ -207,8 +197,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
         });
@@ -221,8 +209,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThanOrEqualTo(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(true));
             assertThat(metric.attributes().get("recovery_type"), equalTo("EXISTING_STORE"));
         });
@@ -257,8 +243,6 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             assertThat(measurements.size(), equalTo(1));
             final Measurement metric = measurements.get(0);
             assertThat(metric.value().longValue(), greaterThan(0L));
-            assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-            assertThat(metric.attributes().get("shard_id"), equalTo(0));
             assertThat(metric.attributes().get("primary"), equalTo(false));
             assertThat(metric.attributes().get("recovery_type"), equalTo("PEER"));
         });
@@ -321,13 +305,13 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
             plugin::getLongCounterMeasurement,
             RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_OBJECT_STORE_METRIC
         );
-        assertMetricAttributes(warmedFromObjectStoreMetric, indexName, 0, true);
+        assertMetricAttributes(warmedFromObjectStoreMetric, true);
 
         var readFromObjectStoreMetric = getSingleRecordedMetric(
             plugin::getLongCounterMeasurement,
             RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_OBJECT_STORE_METRIC
         );
-        assertMetricAttributes(readFromObjectStoreMetric, indexName, 0, true);
+        assertMetricAttributes(readFromObjectStoreMetric, true);
 
         assertThat(
             "No bytes read or warmed from object store",
@@ -346,7 +330,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 final long bytesWarmed = metric.getLong();
                 assertThat(bytesWarmed, greaterThanOrEqualTo(0L));
                 totalBytesWarmed += bytesWarmed;
-                assertMetricAttributes(metric, indexName, 0, true);
+                assertMetricAttributes(metric, true);
             }
             assertThat(totalBytesWarmed, greaterThan(0L));
         }
@@ -402,7 +386,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 RecoveryMetricsCollector.RECOVERY_BYTES_WARMED_FROM_INDEXING_METRIC
             );
             warmedBytes = metric.getLong() > 0;
-            assertMetricAttributes(metric, indexName, 0, false);
+            assertMetricAttributes(metric, false);
         }
         {
             var metric = getSingleRecordedMetric(
@@ -410,7 +394,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
                 RecoveryMetricsCollector.RECOVERY_BYTES_READ_FROM_INDEXING_METRIC
             );
             readBytes = metric.getLong() > 0;
-            assertMetricAttributes(metric, indexName, 0, false);
+            assertMetricAttributes(metric, false);
         }
         assertThat("No bytes read or warmed from indexing", warmedBytes || readBytes, equalTo(true));
     }
@@ -422,9 +406,7 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         return measurements.get(0);
     }
 
-    private void assertMetricAttributes(Measurement metric, String indexName, int shardId, boolean isPrimary) {
-        assertThat(metric.attributes().get("index_name"), equalTo(indexName));
-        assertThat(metric.attributes().get("shard_id"), equalTo(shardId));
+    private void assertMetricAttributes(Measurement metric, boolean isPrimary) {
         assertThat(metric.attributes().get("primary"), equalTo(isPrimary));
     }
 }

@@ -29,7 +29,6 @@ import org.elasticsearch.common.io.stream.InputStreamStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.BufferedChecksumStreamInput;
@@ -337,28 +336,25 @@ public class TranslogReplicatorReader implements Translog.Snapshot {
             );
         }
 
-        var attributes = Map.<String, Object>of("index_name", shardId.getIndexName(), "shard_id", shardId.id());
+        translogRecoveryMetrics.getTranslogReplayTimeHistogram().record(translogReplayTime.millis());
+        translogRecoveryMetrics.getTranslogFilesNetworkTimeHistogram().record(networkTime.millis());
 
-        translogRecoveryMetrics.getTranslogReplayTimeHistogram().record(translogReplayTime.millis(), attributes);
-        translogRecoveryMetrics.getTranslogFilesNetworkTimeHistogram().record(networkTime.millis(), attributes);
-
+        translogRecoveryMetrics.getTranslogFilesTotalCounter().incrementBy(blobCount, Map.of("translog_blob_type", "referenced"));
         translogRecoveryMetrics.getTranslogFilesTotalCounter()
-            .incrementBy(blobCount, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "referenced"));
-        translogRecoveryMetrics.getTranslogFilesTotalCounter()
-            .incrementBy(unreferencedBlobCount, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "unreferenced"));
+            .incrementBy(unreferencedBlobCount, Map.of("translog_blob_type", "unreferenced"));
 
         translogRecoveryMetrics.getTranslogFilesSizeCounter()
-            .incrementBy(blobSizeInBytes.getBytes(), Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "referenced"));
+            .incrementBy(blobSizeInBytes.getBytes(), Map.of("translog_blob_type", "referenced"));
         translogRecoveryMetrics.getTranslogFilesSizeCounter()
-            .incrementBy(unreferencedBlobSizeInBytes, Maps.copyMapWithAddedEntry(attributes, "translog_blob_type", "unreferenced"));
+            .incrementBy(unreferencedBlobSizeInBytes, Map.of("translog_blob_type", "unreferenced"));
 
         translogRecoveryMetrics.getTranslogOperationsTotalCounter()
-            .incrementBy(indexOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "index"));
+            .incrementBy(indexOperationsProcessed, Map.of("translog_op_type", "index"));
         translogRecoveryMetrics.getTranslogOperationsTotalCounter()
-            .incrementBy(deleteOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "delete"));
+            .incrementBy(deleteOperationsProcessed, Map.of("translog_op_type", "delete"));
         translogRecoveryMetrics.getTranslogOperationsTotalCounter()
-            .incrementBy(noOpOperationsProcessed, Maps.copyMapWithAddedEntry(attributes, "translog_op_type", "noop"));
+            .incrementBy(noOpOperationsProcessed, Map.of("translog_op_type", "noop"));
 
-        translogRecoveryMetrics.getTranslogOperationsSizeCounter().incrementBy(operationBytesRead, attributes);
+        translogRecoveryMetrics.getTranslogOperationsSizeCounter().incrementBy(operationBytesRead);
     }
 }

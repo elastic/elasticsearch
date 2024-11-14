@@ -28,7 +28,7 @@ import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
-import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.emptyClusterState;
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.markClusterEmptyInfo;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
@@ -206,16 +206,14 @@ final class ComputeListener implements Releasable {
      * Currently, additional failures are not recorded, TODO: check if this should be the case.
      */
     void markAsPartial(String computeClusterAlias, Exception e) {
+        var status = esqlExecutionInfo.getCluster(computeClusterAlias).getStatus();
+        assert status != EsqlExecutionInfo.Cluster.Status.SKIPPED
+            : "We shouldn't be running compute on a cluster that's already marked as skipped";
         // We use PARTIAL here because we can not know whether the cluster have already sent any data.
-        esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
-            assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
-                : "We shouldn't be running compute on a cluster that's already marked as skipped";
+        if (status != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
             LOGGER.debug("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
-            if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL) {
-                return v;
-            }
-            return emptyClusterState(v, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
-        });
+            markClusterEmptyInfo(esqlExecutionInfo, computeClusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
+        }
     }
 
     /**

@@ -166,7 +166,7 @@ public class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                execInfo.swapCluster(clusterAlias, (k, v) -> emptyClusterState(v, Cluster.Status.SKIPPED, e));
+                markClusterEmptyInfo(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
             } else {
                 throw e;
             }
@@ -211,7 +211,6 @@ public class EsqlSessionCCSUtils {
             } else {
                 // handles local cluster (when no concrete indices requested) and skip_unavailable=true clusters
                 Cluster.Status status;
-                ShardSearchFailure failure;
                 Exception failureException;
                 if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     status = Cluster.Status.SUCCESSFUL;
@@ -220,7 +219,7 @@ public class EsqlSessionCCSUtils {
                     status = Cluster.Status.SKIPPED;
                     failureException = new VerificationException("Unknown index [" + indexExpression + "]");
                 }
-                executionInfo.swapCluster(c, (k, v) -> emptyClusterState(v, status, failureException));
+                markClusterEmptyInfo(executionInfo, c, status, failureException);
             }
         }
         if (fatalErrorMessage != null) {
@@ -229,19 +228,26 @@ public class EsqlSessionCCSUtils {
     }
 
     /**
-     * Create an empty cluster state with the given status and potentially failure from exception.
+     * Mark cluster with an empty cluster state with the given status and potentially failure from exception.
      */
-    public static Cluster emptyClusterState(Cluster prev, Cluster.Status status, @Nullable Exception ex) {
-        var builder = new Cluster.Builder(prev).setStatus(status)
-            .setTook(new TimeValue(0))
-            .setTotalShards(0)
-            .setSuccessfulShards(0)
-            .setSkippedShards(0)
-            .setFailedShards(0);
-        if (ex != null) {
-            builder.setFailures(List.of(new ShardSearchFailure(ex)));
-        }
-        return builder.build();
+    public static void markClusterEmptyInfo(
+        EsqlExecutionInfo executionInfo,
+        String clusterAlias,
+        Cluster.Status status,
+        @Nullable Exception ex
+    ) {
+        executionInfo.swapCluster(clusterAlias, (k, v) -> {
+            Cluster.Builder builder = new Cluster.Builder(v).setStatus(status)
+                .setTook(executionInfo.tookSoFar())
+                .setTotalShards(0)
+                .setSuccessfulShards(0)
+                .setSkippedShards(0)
+                .setFailedShards(0);
+            if (ex != null) {
+                builder.setFailures(List.of(new ShardSearchFailure(ex)));
+            }
+            return builder.build();
+        });
     }
 
     // visible for testing

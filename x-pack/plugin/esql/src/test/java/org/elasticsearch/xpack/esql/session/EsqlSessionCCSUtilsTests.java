@@ -156,6 +156,35 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.SKIPPED);
         }
 
+        // skip_unavailable=true clusters are unavailable, both marked as PARTIAL
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
+            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
+
+            Exception ex = new NoSeedNodeLeftException("unable to connect");
+            var unvailableClusters = Map.of(remote1Alias, ex, remote2Alias, ex);
+            unvailableClusters.forEach(
+                (c, f) -> EsqlSessionCCSUtils.markClusterEmptyInfo(executionInfo, c, EsqlExecutionInfo.Cluster.Status.PARTIAL, ex)
+            );
+
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(localClusterAlias, remote1Alias, remote2Alias)));
+            assertNull(executionInfo.overallTook());
+
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertClusterStatusAndShardCounts(remote1Cluster, EsqlExecutionInfo.Cluster.Status.PARTIAL);
+
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.PARTIAL);
+        }
+
         // skip_unavailable=false cluster is unavailable, throws Exception
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
@@ -454,13 +483,20 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
 
     private void assertClusterStatusAndShardCounts(EsqlExecutionInfo.Cluster cluster, EsqlExecutionInfo.Cluster.Status status) {
         assertThat(cluster.getStatus(), equalTo(status));
-        assertNull(cluster.getTook());
         if (status == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+            assertNull(cluster.getTook());
             assertNull(cluster.getTotalShards());
             assertNull(cluster.getSuccessfulShards());
             assertNull(cluster.getSkippedShards());
             assertNull(cluster.getFailedShards());
         } else if (status == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            assertNotNull(cluster.getTook());
+            assertThat(cluster.getTotalShards(), equalTo(0));
+            assertThat(cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(cluster.getSkippedShards(), equalTo(0));
+            assertThat(cluster.getFailedShards(), equalTo(0));
+        } else if (status == EsqlExecutionInfo.Cluster.Status.PARTIAL) {
+            assertNotNull(cluster.getTook());
             assertThat(cluster.getTotalShards(), equalTo(0));
             assertThat(cluster.getSuccessfulShards(), equalTo(0));
             assertThat(cluster.getSkippedShards(), equalTo(0));

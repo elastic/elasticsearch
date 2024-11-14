@@ -12,11 +12,18 @@ import org.apache.lucene.document.Field;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.util.NumericUtils;
+import org.elasticsearch.compute.aggregation.AggregatorFunction;
+import org.elasticsearch.compute.aggregation.MinDoubleAggregatorFunctionSupplier;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.DriverContext;
+
+import java.util.List;
 
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.instanceOf;
 
 public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
@@ -31,7 +38,6 @@ public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
         return new NumberTypeTest() {
 
             double min = Double.MAX_VALUE;
-            double result = Double.MAX_VALUE;
 
             @Override
             public IndexableField newPointField() {
@@ -44,25 +50,38 @@ public class LuceneMinDoubleOperatorTests extends LuceneMinOperatorTestCase {
             }
 
             private double newValue() {
-                double value = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
+                final double value = randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true);
                 min = Math.min(min, value);
                 return value;
             }
 
             @Override
-            public void assertPage(Block block, BooleanBlock bb) {
-                assertThat(block, instanceOf(DoubleBlock.class));
-                DoubleBlock db = (DoubleBlock) block;
-                double v = db.getDouble(0);
-                result = Math.min(result, v);
+            public void assertPage(Page page) {
+                assertThat(page.getBlock(0), instanceOf(DoubleBlock.class));
+                final DoubleBlock db = page.getBlock(0);
+                assertThat(page.getBlock(1), instanceOf(BooleanBlock.class));
+                final BooleanBlock bb = page.getBlock(1);
                 if (bb.getBoolean(0) == false) {
-                    assertThat(v, equalTo(Double.POSITIVE_INFINITY));
+                    assertThat(db.getDouble(0), equalTo(Double.POSITIVE_INFINITY));
+                } else {
+                    assertThat(db.getDouble(0), greaterThanOrEqualTo(min));
                 }
             }
 
             @Override
-            public void assertMaxValue() {
-                assertThat(result, equalTo(min));
+            public AggregatorFunction newAggregatorFunction(DriverContext context) {
+                return new MinDoubleAggregatorFunctionSupplier(List.of(0, 1)).aggregator(context);
+            }
+
+            @Override
+            public void assertMinValue(Block block, boolean exactResult) {
+                assertThat(block, instanceOf(DoubleBlock.class));
+                final DoubleBlock db = (DoubleBlock) block;
+                if (exactResult) {
+                    assertThat(db.getDouble(0), equalTo(min));
+                } else {
+                    assertThat(db.getDouble(0), greaterThanOrEqualTo(min));
+                }
             }
         };
     }

@@ -17,8 +17,8 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
+import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.AnyOperatorTestCase;
 import org.elasticsearch.compute.operator.Driver;
@@ -26,6 +26,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.OperatorTestCase;
 import org.elasticsearch.compute.operator.TestResultPageSinkOperator;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.indices.CrankyCircuitBreakerService;
 import org.hamcrest.Matcher;
 import org.junit.After;
@@ -49,9 +50,11 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
 
         IndexableField newDocValuesField();
 
-        void assertPage(Block page, BooleanBlock bb);
+        void assertPage(Page page);
 
-        void assertMaxValue();
+        AggregatorFunction newAggregatorFunction(DriverContext context);
+
+        void assertMaxValue(Block block, boolean exactResult);
 
     }
 
@@ -168,16 +171,24 @@ public abstract class LuceneMaxOperatorTestCase extends AnyOperatorTestCase {
         OperatorTestCase.runDriver(drivers);
         assertThat(results.size(), lessThanOrEqualTo(taskConcurrency));
 
-        for (Page page : results) {
-            assertThat(page.getPositionCount(), is(1));
-            assertThat(page.getBlockCount(), is(2));
-            final Block block = page.getBlock(0);
-            assertThat(block.getPositionCount(), is(1));
-            numberTypeTest.assertPage(block, page.getBlock(1));
-        }
-        // We can't verify the limit
-        if (size <= limit) {
-            numberTypeTest.assertMaxValue();
+        try (AggregatorFunction aggregatorFunction = numberTypeTest.newAggregatorFunction(contexts.get())) {
+            for (Page page : results) {
+                assertThat(page.getPositionCount(), is(1)); // one row
+                assertThat(page.getBlockCount(), is(2)); // two blocks
+                numberTypeTest.assertPage(page);
+                aggregatorFunction.addIntermediateInput(page);
+            }
+
+            final Block[] result = new Block[1];
+            try {
+                aggregatorFunction.evaluateFinal(result, 0, contexts.get());
+                if (result[0].areAllValuesNull() == false) {
+                    boolean exactResult = size <= limit;
+                    numberTypeTest.assertMaxValue(result[0], exactResult);
+                }
+            } finally {
+                Releasables.close(result);
+            }
         }
     }
 

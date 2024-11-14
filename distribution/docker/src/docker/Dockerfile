@@ -232,9 +232,7 @@ LABEL org.label-schema.build-date="${build_date}" \\
   org.opencontainers.image.url="https://www.elastic.co/products/elasticsearch" \\
   org.opencontainers.image.vendor="Elastic" \\
   org.opencontainers.image.version="${version}"
-<% } %>
 
-<% if (docker_base == 'default') { %>
 LABEL name="Elasticsearch" \\
   maintainer="infra@elastic.co" \\
   vendor="Elastic" \\
@@ -244,10 +242,8 @@ LABEL name="Elasticsearch" \\
   description="You know, for search."
 <% } %>
 
-<% if (docker_base == 'default') { %>
 RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
-<% } else if (docker_base == 'iron_bank') { %>
-RUN mkdir /licenses && cp LICENSE.txt /licenses/LICENSE
+if (docker_base == 'iron_bank') { %>
 COPY LICENSE /licenses/LICENSE.addendum
 <% } %>
 

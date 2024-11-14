@@ -19,6 +19,7 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.util.Set;
 
 public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializingTestCase<StatelessPrimaryRelocationAction.Request> {
 
@@ -35,8 +36,12 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
             newDiscoveryNode(),
             UUIDs.randomBase64UUID(),
             randomNonNegativeLong(),
-            randomSet(1, 8, () -> randomIdentifier())
+            randomNotifiedSearchNodeIds()
         );
+    }
+
+    private static Set<String> randomNotifiedSearchNodeIds() {
+        return randomSet(1, 8, () -> randomIdentifier());
     }
 
     private static DiscoveryNode newDiscoveryNode() {
@@ -46,7 +51,7 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
     @Override
     protected StatelessPrimaryRelocationAction.Request mutateInstance(StatelessPrimaryRelocationAction.Request instance)
         throws IOException {
-        return switch (between(1, 5)) {
+        return switch (between(1, 6)) {
             case 1 -> new StatelessPrimaryRelocationAction.Request(
                 randomValueOtherThan(instance.recoveryId(), ESTestCase::randomNonNegativeLong),
                 instance.shardId(),
@@ -86,6 +91,14 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
                 instance.targetAllocationId(),
                 randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong),
                 instance.getNotifiedSearchNodeIds()
+            );
+            case 6 -> new StatelessPrimaryRelocationAction.Request(
+                instance.recoveryId(),
+                instance.shardId(),
+                instance.targetNode(),
+                instance.targetAllocationId(),
+                instance.clusterStateVersion(),
+                randomValueOtherThan(instance.getNotifiedSearchNodeIds(), () -> randomNotifiedSearchNodeIds())
             );
             default -> throw new AssertionError("impossible");
         };

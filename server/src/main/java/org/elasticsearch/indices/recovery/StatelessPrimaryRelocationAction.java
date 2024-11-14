@@ -113,7 +113,7 @@ public class StatelessPrimaryRelocationAction {
                 && targetNode.equals(request.targetNode)
                 && targetAllocationId.equals(request.targetAllocationId)
                 && clusterStateVersion == request.clusterStateVersion
-                && notifiedSearchNodeIds == request.notifiedSearchNodeIds;
+                && notifiedSearchNodeIds.equals(request.notifiedSearchNodeIds);
         }
 
         @Override

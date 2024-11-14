@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.expression.function.scalar.string;
 
 import org.apache.lucene.util.BytesRef;
-import org.apache.lucene.util.UnicodeUtil;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
@@ -28,16 +27,20 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-public class Length extends UnaryScalarFunction {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Length", Length::new);
+public class ByteLength extends UnaryScalarFunction {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        Expression.class,
+        "ByteLength",
+        ByteLength::new
+    );
 
     @FunctionInfo(
         returnType = "integer",
-        description = "Returns the character length of a string.",
+        description = "Returns the byte length of a string.",
         note = "All strings are in UTF-8, so a single character can use multiple bytes.",
-        examples = @Example(file = "eval", tag = "length")
+        examples = @Example(file = "eval", tag = "byteLength")
     )
-    public Length(
+    public ByteLength(
         Source source,
         @Param(
             name = "string",
@@ -48,7 +51,7 @@ public class Length extends UnaryScalarFunction {
         super(source, field);
     }
 
-    private Length(StreamInput in) throws IOException {
+    private ByteLength(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -64,30 +67,26 @@ public class Length extends UnaryScalarFunction {
 
     @Override
     protected TypeResolution resolveType() {
-        if (childrenResolved() == false) {
-            return new TypeResolution("Unresolved children");
-        }
-
-        return isString(field(), sourceText(), DEFAULT);
+        return childrenResolved() ? isString(field(), sourceText(), DEFAULT) : new TypeResolution("Unresolved children");
     }
 
     @Evaluator
     static int process(BytesRef val) {
-        return UnicodeUtil.codePointCount(val);
+        return val.length;
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Length(source(), newChildren.get(0));
+        return new ByteLength(source(), newChildren.get(0));
     }
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Length::new, field());
+        return NodeInfo.create(this, ByteLength::new, field());
     }
 
     @Override
     public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
-        return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
+        return new ByteLengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

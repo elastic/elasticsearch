@@ -118,6 +118,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StDistanc
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StX;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.StY;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.BitLength;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.EndsWith;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.LTrim;
@@ -311,6 +312,7 @@ public class EsqlFunctionRegistry {
             // string
             new FunctionDefinition[] {
                 def(BitLength.class, BitLength::new, "bit_length"),
+                def(ByteLength.class, ByteLength::new, "byte_length"),
                 def(Concat.class, Concat::new, "concat"),
                 def(EndsWith.class, EndsWith::new, "ends_with"),
                 def(LTrim.class, LTrim::new, "ltrim"),

@@ -1,29 +1,16 @@
 [[retrievers-examples]]
-=== Retrievers examples
 
-Learn how to combine different retrievers in these hands-on examples.
-To demonstrate the full functionality of retrievers, these examples require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
+Let's work through some hands-on examples to show the different usages and functionalities that
+retrievers now offer.
+
+=== Retrievers examples
 
 [discrete]
 [[retrievers-examples-setup]]
 ==== Add example data
 
-To begin with, we'll set up the necessary services and have them in place for later use.
+To begin with, lets create the `retrievers_example` index, and add some documents to it.
 
-[source,js]
-----
-PUT _inference/rerank/my-rerank-model
-{
- "service": "cohere",
- "service_settings": {
-   "model_id": "rerank-english-v3.0",
-   "api_key": "{{COHERE_API_KEY}}"
- }
-}
-----
-//NOTCONSOLE
-
-Now that we have our reranking service in place, lets create the `retrievers_example` index, and add some documents to it.
 [source,console]
 ----
 PUT retrievers_example
@@ -94,7 +81,7 @@ POST /retrievers_example/_refresh
 ----
 // TESTSETUP
 
-Now that we also have our documents in place, let's try to run some queries using retrievers.
+Now that we  have our documents in place, let's try to run some queries using retrievers.
 
 [discrete]
 [[retrievers-examples-combining-standard-knn-retrievers-with-rrf]]
@@ -341,162 +328,6 @@ Which would return the following response collapsed results
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 
 [discrete]
-[[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]
-==== Example: Rerank results of an RRF retriever
-
-Previously, we used a `text_similarity_reranker` retriever within an `rrf` retriever.
-Because retrievers support full composability, we can also rerank the results of an
-`rrf` retriever. Let's apply this to our first example.
-
-[source,js]
-----
-GET retrievers_example/_search
-{
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "rrf": {
-                   "retrievers": [
-                       {
-                           "standard":{
-                               "query":{
-                                   "query_string":{
-                                      "query": "(information retrieval) OR (artificial intelligence)",
-                                      "default_field": "text"
-                                   }
-                               }
-                           }
-                       },
-                       {
-                           "knn": {
-                               "field": "vector",
-                               "query_vector": [
-                                   0.23,
-                                   0.67,
-                                   0.89
-                               ],
-                               "k": 3,
-                               "num_candidates": 5
-                           }
-                       }
-                   ],
-                   "rank_window_size": 10,
-                   "rank_constant": 1
-               }
-           },
-           "field": "text",
-           "inference_id": "my-rerank-model",
-           "inference_text": "What are the state of the art applications of AI in information retrieval?"
-       }
-   },
-   "_source": false
-}
-
-----
-// NOTCONSOLE
-
-[discrete]
-[[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
-==== Example: RRF with semantic reranker
-
-For this example, we'll replace our semantic query with the `my-rerank-model`
-reranker we previously configured. Since this is a reranker, it needs an initial pool of
-documents to work with. In this case, we'll filter for documents about `ai` topics.
-
-[source,js]
-----
-GET /retrievers_example/_search
-{
-    "retriever": {
-        "rrf": {
-            "retrievers": [
-                {
-                    "knn": {
-                        "field": "vector",
-                        "query_vector": [
-                            0.23,
-                            0.67,
-                            0.89
-                        ],
-                        "k": 3,
-                        "num_candidates": 5
-                    }
-                },
-                {
-                    "text_similarity_reranker": {
-                        "retriever": {
-                            "standard": {
-                                "query": {
-                                    "term": {
-                                        "topic": "ai"
-                                    }
-                                }
-                            }
-                        },
-                        "field": "text",
-                        "inference_id": "my-rerank-model",
-                        "inference_text": "Can I use generative AI to identify user intent and improve search relevance?"
-                    }
-                }
-            ],
-            "rank_window_size": 10,
-            "rank_constant": 1
-        }
-    },
-    "_source": false
-}
-----
-// NOTCONSOLE
-
-[discrete]
-[[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
-==== Example: Chaining multiple semantic rerankers
-
-Full composability means we can chain together multiple retrievers of the same type. For instance, imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
-
-[source,js]
-----
-GET retrievers_example/_search
-{
-   "retriever": {
-       "text_similarity_reranker": {
-           "retriever": {
-               "text_similarity_reranker": {
-                   "retriever": {
-                       "knn": {
-                           "field": "vector",
-                           "query_vector": [
-                               0.23,
-                               0.67,
-                               0.89
-                           ],
-                           "k": 3,
-                           "num_candidates": 5
-                       }
-                   },
-                   "rank_window_size": 100,
-                   "field": "text",
-                   "inference_id": "my-rerank-model",
-                   "inference_text": "What are the state of the art applications of AI in information retrieval?"
-               }
-           },
-           "rank_window_size": 10,
-           "field": "text",
-           "inference_id": "my-other-more-expensive-rerank-model",
-           "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
-       }
-   },
-    "_source": false
-}
-----
-// NOTCONSOLE
-
-Note that our example applies two reranking steps. First, we rerank the top 100
-documents from the `knn` search using the `my-rerank-model` reranker. Then we
-pick the top 10 results and rerank them using the more fine-grained
-`my-other-more-expensive-rerank-model`.
-
-[discrete]
 [[retrievers-examples-rrf-and-aggregations]]
 ==== Example: Combine RRF with aggregations
 
@@ -635,7 +466,6 @@ The output of which would look like the following:
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-
 
 [discrete]
 [[retrievers-examples-explain-multiple-rrf]]
@@ -802,3 +632,175 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 // TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
 // TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
 // TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
+
+[discrete]
+[[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]
+==== Example: Rerank results of an RRF retriever
+
+To demonstrate the full functionality of retrievers, the following examples also require access to a <<semantic-reranking-models,semantic reranking model>> set up using the <<inference-apis,Elastic inference APIs>>.
+
+Let's setup a reranking service and use it through the `text_similarity_reranker` retriever to rerank our top results.
+
+[source,console]
+----
+PUT _inference/rerank/my-rerank-model
+{
+ "service": "cohere",
+ "service_settings": {
+   "model_id": "rerank-english-v3.0",
+   "api_key": "{{COHERE_API_KEY}}"
+ }
+}
+----
+//NOTCONSOLE
+
+Let's start by reranking the results of the `rrf` retriever in our previous example.
+
+[source,console]
+----
+GET retrievers_example/_search
+{
+   "retriever": {
+       "text_similarity_reranker": {
+           "retriever": {
+               "rrf": {
+                   "retrievers": [
+                       {
+                           "standard":{
+                               "query":{
+                                   "query_string":{
+                                      "query": "(information retrieval) OR (artificial intelligence)",
+                                      "default_field": "text"
+                                   }
+                               }
+                           }
+                       },
+                       {
+                           "knn": {
+                               "field": "vector",
+                               "query_vector": [
+                                   0.23,
+                                   0.67,
+                                   0.89
+                               ],
+                               "k": 3,
+                               "num_candidates": 5
+                           }
+                       }
+                   ],
+                   "rank_window_size": 10,
+                   "rank_constant": 1
+               }
+           },
+           "field": "text",
+           "inference_id": "my-rerank-model",
+           "inference_text": "What are the state of the art applications of AI in information retrieval?"
+       }
+   },
+   "_source": false
+}
+
+----
+// NOTCONSOLE
+
+[discrete]
+[[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
+==== Example: RRF with semantic reranker
+
+For this example, we'll replace the rrf's `standard` retriever with the `text_similarity_reranker` retriever, using the
+`my-rerank-model` reranker we previously configured. Since this is a reranker, it needs an initial pool of
+documents to work with. In this case, we'll rerank the top `rank_window_size` documents matching the  `ai` topic.
+
+[source,js]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                },
+                {
+                    "text_similarity_reranker": {
+                        "retriever": {
+                            "standard": {
+                                "query": {
+                                    "term": {
+                                        "topic": "ai"
+                                    }
+                                }
+                            }
+                        },
+                        "field": "text",
+                        "inference_id": "my-rerank-model",
+                        "inference_text": "Can I use generative AI to identify user intent and improve search relevance?"
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": false
+}
+----
+// NOTCONSOLE
+
+[discrete]
+[[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
+==== Example: Chaining multiple semantic rerankers
+
+Full composability means we can chain together multiple retrievers of the same type. For instance,
+imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
+
+[source,js]
+----
+GET retrievers_example/_search
+{
+   "retriever": {
+       "text_similarity_reranker": {
+           "retriever": {
+               "text_similarity_reranker": {
+                   "retriever": {
+                       "knn": {
+                           "field": "vector",
+                           "query_vector": [
+                               0.23,
+                               0.67,
+                               0.89
+                           ],
+                           "k": 3,
+                           "num_candidates": 5
+                       }
+                   },
+                   "rank_window_size": 100,
+                   "field": "text",
+                   "inference_id": "my-rerank-model",
+                   "inference_text": "What are the state of the art applications of AI in information retrieval?"
+               }
+           },
+           "rank_window_size": 10,
+           "field": "text",
+           "inference_id": "my-other-more-expensive-rerank-model",
+           "inference_text": "Applications of Large Language Models in technology and their impact on user satisfaction"
+       }
+   },
+    "_source": false
+}
+----
+// NOTCONSOLE
+
+Note that our example applies two reranking steps. First, we rerank the top 100
+documents from the `knn` search using the `my-rerank-model` reranker. Then we
+pick the top 10 results and rerank them using the more fine-grained
+`my-other-more-expensive-rerank-model`.

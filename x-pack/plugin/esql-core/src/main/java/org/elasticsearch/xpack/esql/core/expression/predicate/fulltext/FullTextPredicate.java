@@ -23,10 +23,6 @@ import java.util.Objects;
 
 public abstract class FullTextPredicate extends Expression {
 
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(MatchQueryPredicate.ENTRY, MultiMatchQueryPredicate.ENTRY, StringQueryPredicate.ENTRY);
-    }
-
     public enum Operator {
         AND,
         OR;

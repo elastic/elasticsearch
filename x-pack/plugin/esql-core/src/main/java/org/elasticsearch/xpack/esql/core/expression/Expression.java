@@ -29,14 +29,6 @@ import java.util.function.Supplier;
  * (which is a type of expression) with a single child, c.
  */
 public abstract class Expression extends Node<Expression> implements Resolvable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        for (NamedWriteableRegistry.Entry e : NamedExpression.getNamedWriteables()) {
-            entries.add(new NamedWriteableRegistry.Entry(Expression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
-        }
-        entries.add(Literal.ENTRY);
-        return entries;
-    }
 
     public static class TypeResolution {
         private final boolean failed;

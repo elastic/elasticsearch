@@ -291,19 +291,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
         }
     }
 
-    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            IntBlock.ENTRY,
-            LongBlock.ENTRY,
-            FloatBlock.ENTRY,
-            DoubleBlock.ENTRY,
-            BytesRefBlock.ENTRY,
-            BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY,
-            CompositeBlock.ENTRY
-        );
-    }
-
     /**
      * Serialization type for blocks: 0 and 1 replace false/true used in pre-8.14
      */

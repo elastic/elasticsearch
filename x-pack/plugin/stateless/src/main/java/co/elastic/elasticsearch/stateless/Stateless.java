@@ -140,6 +140,7 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingRoleStrategy;
+import org.elasticsearch.cluster.routing.ShardRoutingState;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDecider;
@@ -985,10 +986,18 @@ public class Stateless extends Plugin
                             // a bulk request has a refresh included, the post-replication actions happen after the refresh. And the refresh
                             // may need to wait for the checkpoint to progress in order to send out a new VBCC commit notification. To
                             // break this stalemate, we update the checkpoint as early as here, when the translog has persisted a seqno.
-                            indexShard.updateLocalCheckpointForShard(
-                                indexShard.routingEntry().allocationId().getId(),
-                                indexEngine.getLastSyncedGlobalCheckpoint()
-                            );
+                            // We exclude the initializing state since the replication tracker may not yet be in primary mode and the local
+                            // checkpoint is updated as part of recovery. We ignore errors since this is best effort.
+                            try {
+                                if (indexShard.routingEntry().state() != ShardRoutingState.INITIALIZING) {
+                                    indexShard.updateLocalCheckpointForShard(
+                                        indexShard.routingEntry().allocationId().getId(),
+                                        indexEngine.getLastSyncedGlobalCheckpoint()
+                                    );
+                                }
+                            } catch (Exception e) {
+                                logger.debug(() -> "Failed to update local checkpoint", e);
+                            }
                         }
                     });
                     // We are pruning the archive for a given generation, only once we know all search shards are

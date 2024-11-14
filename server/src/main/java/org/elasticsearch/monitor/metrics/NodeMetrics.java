@@ -645,7 +645,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.indexing.low_watermark_splits",
+                "es.indexing.low_watermark_splits.total",
                 "Total number of times bulk requests are split due to SPLIT_BULK_LOW_WATERMARK",
                 "operations",
                 () -> new LongWithAttributes(
@@ -659,7 +659,7 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
-                "es.indexing.high_watermark_splits",
+                "es.indexing.high_watermark_splits.total",
                 "Total number of times bulk requests are split due to SPLIT_BULK_HIGH_WATERMARK",
                 "operations",
                 () -> new LongWithAttributes(

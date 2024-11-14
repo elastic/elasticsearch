@@ -110,7 +110,7 @@ public class TimeBasedUUIDGeneratorTests extends ESTestCase {
 
     public void testUUIDEncodingDecodingWithHash() {
         int hash = randomInt();
-        byte[] decoded = Base64.getDecoder().decode(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(hash)));
+        byte[] decoded = Base64.getUrlDecoder().decode(UUIDs.base64TimeBasedKOrderedUUIDWithHash(OptionalInt.of(hash)));
         assertEquals(hash, ByteUtils.readIntLE(decoded, decoded.length - 8));
     }
 

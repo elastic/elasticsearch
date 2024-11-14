@@ -47,7 +47,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     }
 
     public String getBase64UUID(OptionalInt hash) {
-        final int sequenceId = this.sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
+        final int sequenceId = sequenceNumber.incrementAndGet() & 0x00FF_FFFF;
 
         // Calculate timestamp to ensure ordering and avoid backward movement in case of time shifts.
         // Uses AtomicLong to guarantee that timestamp increases even if the system clock moves backward.

@@ -10,7 +10,7 @@ To demonstrate the full functionality of retrievers, these examples require acce
 
 To begin with, we'll set up the necessary services and have them in place for later use.
 
-[source,console]
+[source,js]
 ----
 PUT _inference/rerank/my-rerank-model
 {
@@ -92,7 +92,7 @@ POST /retrievers_example/_doc/5
 POST /retrievers_example/_refresh
 
 ----
-// NOTCONSOLE
+// TESTSETUP
 
 Now that we also have our documents in place, let's try to run some queries using retrievers.
 
@@ -146,7 +146,7 @@ GET /retrievers_example/_search
    "_source": false
 }
 ----
-// TEST[setup:retrievers_examples]
+// TEST
 
 Which would return the following response based on the final rrf score for each result
 
@@ -242,7 +242,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[setup:retrievers_examples]
+// TEST[continued]
 
 Which would return the following response collapsed results
 
@@ -393,7 +393,7 @@ GET retrievers_example/_search
 }
 
 ----
-// TEST[skip:no_access_to_reranker]
+// TEST[skip: no access to reranker service]
 
 [discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
@@ -446,7 +446,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[skip:no_access_to_reranker]
+// TEST[skip: no access to reranker service]
 
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
@@ -489,7 +489,7 @@ GET retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[skip:no_access_to_reranker]
+// TEST[skip: no access to reranker service]
 
 Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
@@ -549,7 +549,7 @@ GET retrievers_example/_search
     }
 }
 ----
-// TEST[setup:retrievers_examples]
+// TEST[continued]
 
 The output of which would look like the following:
 [source, console-result]
@@ -700,7 +700,7 @@ GET /retrievers_example/_search
     "explain": true
 }
 ----
-// TEST[setup:retrievers_examples]
+// TEST[continued]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
 [source, js]

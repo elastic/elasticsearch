@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -130,7 +131,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("mod", Mod.class),
         entry("neg", Neg.class),
         entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class)
+        entry("is_not_null", IsNotNull.class),
+        // Match operator is both a function and an operator
+        entry("match_operator", Match.class)
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -1250,6 +1253,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "greater_than_or_equal" -> ">=";
             case "less_than" -> "<";
             case "less_than_or_equal" -> "<=";
+            case "match_operator" -> ":";
             case "mod" -> "%";
             case "mul" -> "*";
             case "not_equals" -> "!=";

@@ -40,6 +40,7 @@ public record DesiredBalance(
         this(lastConvergedIndex, assignments, Map.of(), ComputationFinishReason.CONVERGED);
     }
 
+    public static final DesiredBalance NOT_MASTER = new DesiredBalance(-2, Map.of());
     public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 
     public ShardAssignment getAssignment(ShardId shardId) {

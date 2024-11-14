@@ -80,6 +80,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -694,6 +695,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
         try {
             assertTrue(listenersCalled.await(10, TimeUnit.SECONDS));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         } finally {
             clusterService.close();
             terminate(threadPool);
@@ -812,7 +814,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             assertThat(
                 "desired balance should be resetted on no longer master",
                 desiredBalanceShardsAllocator.getDesiredBalance(),
-                equalTo(DesiredBalance.INITIAL)
+                equalTo(DesiredBalance.NOT_MASTER)
             );
         } finally {
             clusterService.close();

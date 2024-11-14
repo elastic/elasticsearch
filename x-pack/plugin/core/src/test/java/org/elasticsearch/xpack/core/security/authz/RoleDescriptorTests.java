@@ -46,12 +46,10 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivilegesBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -65,7 +63,6 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
-import static org.mockito.Mockito.mock;
 
 public class RoleDescriptorTests extends ESTestCase {
 
@@ -1348,8 +1345,9 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(
             new RoleDescriptor(
                 "name",
-                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]), //all of these are allowed
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]), // all of these are allowed
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
@@ -1366,8 +1364,9 @@ public class RoleDescriptorTests extends ESTestCase {
         assertThat(
             new RoleDescriptor(
                 "name",
-                new String[]{"manage_security"}, // unlikely we will ever support allowing manage security across clusters
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new String[] { "manage_security" }, // unlikely we will ever support allowing manage security across clusters
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
@@ -1386,7 +1385,8 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 new ApplicationResourcePrivileges[] {
                     ApplicationResourcePrivileges.builder().application("app").privileges("foo").resources("res").build() },
                 null,
@@ -1406,11 +1406,11 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 new ConfigurableClusterPrivilege[] {
-                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo"))
-                },
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo")) },
                 null,
                 null,
                 null,
@@ -1427,7 +1427,8 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 new String[] { "foo" },
@@ -1446,7 +1447,8 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
@@ -1459,32 +1461,33 @@ public class RoleDescriptorTests extends ESTestCase {
             ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
             is(true)
         );
-        //remote indices privileges are not allowed
+        // remote indices privileges are not allowed
         assertThat(
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
                 null,
                 null,
                 new RoleDescriptor.RemoteIndicesPrivileges[] {
-                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build()
-                },
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null
             ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
             is(true)
         );
-        //remote cluster privileges are not allowed
+        // remote cluster privileges are not allowed
         assertThat(
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,
@@ -1494,7 +1497,7 @@ public class RoleDescriptorTests extends ESTestCase {
                 new RemoteClusterPermissions().addGroup(
                     new RemoteClusterPermissionGroup(
                         RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                        new String[]{"rmt"}
+                        new String[] { "rmt" }
                     )
                 ),
                 null,
@@ -1508,7 +1511,8 @@ public class RoleDescriptorTests extends ESTestCase {
             new RoleDescriptor(
                 "name",
                 RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
-                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new RoleDescriptor.IndicesPrivileges[] {
+                    RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build() },
                 null,
                 null,
                 null,

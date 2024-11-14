@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.BiFunction;
-import java.util.function.Supplier;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.kql.parser.KqlParsingContext.isDateField;
@@ -39,8 +38,6 @@ import static org.elasticsearch.xpack.kql.parser.ParserUtils.typedParsing;
 
 class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     private final KqlParsingContext kqlParsingContext;
-
-    private volatile String currentNestedPath;
 
     KqlAstBuilder(KqlParsingContext kqlParsingContext) {
         this.kqlParsingContext = kqlParsingContext;
@@ -107,10 +104,6 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     public QueryBuilder visitNestedQuery(KqlBaseParser.NestedQueryContext ctx) {
         String nestedFieldName = extractText(ctx.fieldName());
 
-        if (currentNestedPath != null) {
-            nestedFieldName = currentNestedPath + "." + nestedFieldName;
-        }
-
         if (kqlParsingContext.isNestedField(nestedFieldName) == false) {
             throw new KqlParsingException(
                 "[{}] is not a valid nested field name.",
@@ -119,13 +112,19 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
                 nestedFieldName
             );
         }
-        QueryBuilder subQuery = withNestedPath(nestedFieldName, () -> typedParsing(this, ctx.nestedSubQuery(), QueryBuilder.class));
+        QueryBuilder subQuery = kqlParsingContext.withNestedPath(
+            nestedFieldName,
+            () -> typedParsing(this, ctx.nestedSubQuery(), QueryBuilder.class)
+        );
 
         if (subQuery instanceof MatchNoneQueryBuilder) {
             return subQuery;
         }
 
-        return wrapWithNestedQuery(nestedFieldName, QueryBuilders.nestedQuery(nestedFieldName, subQuery, ScoreMode.None));
+        return wrapWithNestedQuery(
+            nestedFieldName,
+            QueryBuilders.nestedQuery(kqlParsingContext.fullFieldName(nestedFieldName), subQuery, ScoreMode.None)
+        );
     }
 
     @Override
@@ -258,21 +257,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
         };
     }
 
-    private QueryBuilder withNestedPath(String nestedPath, Supplier<QueryBuilder> queryBuilderSupplier) {
-        String previousNestedPath = this.currentNestedPath;
-        this.currentNestedPath = nestedPath;
-        QueryBuilder queryBuilder = queryBuilderSupplier.get();
-        this.currentNestedPath = previousNestedPath;
-        return queryBuilder;
-    }
-
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {
         assert ctx != null : "Field ctx cannot be null";
         String fieldNamePattern = extractText(ctx);
-
-        if (currentNestedPath != null) {
-            fieldNamePattern = currentNestedPath + "." + fieldNamePattern;
-        }
 
         Set<String> fieldNames = kqlParsingContext.resolveFieldNames(fieldNamePattern);
 
@@ -325,9 +312,9 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     }
 
     private QueryBuilder wrapWithNestedQuery(String fieldName, QueryBuilder query) {
-        String nestedPath = kqlParsingContext.nestedParent(fieldName);
+        String nestedPath = kqlParsingContext.nestedPath(fieldName);
 
-        if (nestedPath == null || nestedPath.equals(currentNestedPath)) {
+        if (nestedPath == null || nestedPath.equals(kqlParsingContext.currentNestedPath())) {
             return query;
         }
 

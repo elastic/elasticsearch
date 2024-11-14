@@ -173,6 +173,8 @@ teardown:
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"
+        - "Line 1:68: evaluation of \\[ENRICH networks-policy ON ip_str\\] failed, treating result as null. Only first 20 failures recorded."
+        - "Line 1:68: java.lang.IllegalArgumentException: 'invalid_' is not an IP string literal."
 
       esql.query:
         body:

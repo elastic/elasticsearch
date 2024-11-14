@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
@@ -34,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -57,10 +59,12 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
@@ -318,12 +322,81 @@ public class Verifier {
                     r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
                 );
             }
+            checkCategorizeGrouping(agg, failures);
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
         }
+    }
+
+    /**
+     * Check CATEGORIZE grouping function usages.
+     * <p>
+     *     Some of those checks are temporary, until the required syntax or engine changes are implemented.
+     * </p>
+     */
+    private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
+        // Forbid CATEGORIZE grouping function with other groupings
+        if (agg.groupings().size() > 1) {
+            agg.groupings().forEach(g -> {
+                g.forEachDown(
+                    Categorize.class,
+                    categorize -> failures.add(
+                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                    )
+                );
+            });
+        }
+
+        // Forbid CATEGORIZE grouping functions not being top level groupings
+        agg.groupings().forEach(g -> {
+            // Check all CATEGORIZE but the top level one
+            Alias.unwrap(g)
+                .children()
+                .forEach(
+                    child -> child.forEachDown(
+                        Categorize.class,
+                        c -> failures.add(
+                            fail(c, "CATEGORIZE grouping function [{}] can't be used within other expressions", c.sourceText())
+                        )
+                    )
+                );
+        });
+
+        // Forbid CATEGORIZE being used in the aggregations
+        agg.aggregates().forEach(a -> {
+            a.forEachDown(
+                Categorize.class,
+                categorize -> failures.add(
+                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
+                )
+            );
+        });
+
+        // Forbid CATEGORIZE being referenced in the aggregation functions
+        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
+        agg.groupings().forEach(g -> {
+            g.forEachDown(Alias.class, alias -> {
+                if (alias.child() instanceof Categorize categorize) {
+                    categorizeByAliasId.put(alias.id(), categorize);
+                }
+            });
+        });
+        agg.aggregates()
+            .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
+                var categorize = categorizeByAliasId.get(attribute.id());
+                if (categorize != null) {
+                    failures.add(
+                        fail(
+                            attribute,
+                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
+                            attribute.sourceText()
+                        )
+                    );
+                }
+            })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {

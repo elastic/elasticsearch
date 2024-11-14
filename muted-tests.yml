@@ -229,9 +229,6 @@ tests:
 - class: org.elasticsearch.repositories.s3.RepositoryS3RestIT
   method: testReloadCredentialsFromKeystore
   issue: https://github.com/elastic/elasticsearch/issues/116811
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testClientConnectionCloseMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/116815
 
 # Examples:
 #

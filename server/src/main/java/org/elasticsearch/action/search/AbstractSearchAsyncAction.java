@@ -805,17 +805,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     protected abstract SearchPhase getNextPhase();
 
     private static final class PendingExecutions {
-        private final Semaphore semaphore;
-        private final AtomicInteger queuedItems;
-        private final AtomicBoolean released;
+        private final Semaphore semaphore = new Semaphore(0);
+        private final AtomicInteger queuedItems = new AtomicInteger();
+        private final AtomicBoolean released = new AtomicBoolean(false);
         private final int permits;
         private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
 
         PendingExecutions(int permits) {
             this.permits = permits;
-            semaphore = new Semaphore(0);
-            queuedItems = new AtomicInteger();
-            released = new AtomicBoolean(false);
         }
 
         void submit(Consumer<Releasable> task) {

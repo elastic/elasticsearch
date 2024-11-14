@@ -348,8 +348,7 @@ public class AddTests extends AbstractScalarFunctionTestCase {
     private static long addNanos(Long date, TemporalAmount period) {
         return DateUtils.toLong(
             Instant.from(
-                ZonedDateTime.ofInstant(DateUtils.toInstant(date), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC)
-                    .plus(period)
+                ZonedDateTime.ofInstant(DateUtils.toInstant(date), org.elasticsearch.xpack.esql.core.util.DateUtils.UTC).plus(period)
             )
         );
     }

@@ -158,8 +158,7 @@ public class Sub extends DateTimeArithmeticOperation implements BinaryComparison
                         .minus(temporalAmount)
                 )
             );
-        }
-        catch (IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             /*
              toLong will throw IllegalArgumentException for out of range dates, but that includes the actual value which we want
              to avoid returning here.

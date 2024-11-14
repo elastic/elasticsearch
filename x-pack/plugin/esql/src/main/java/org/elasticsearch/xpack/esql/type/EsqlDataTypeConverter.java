@@ -79,7 +79,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTime;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrNanosOrTemporal;
-import static org.elasticsearch.xpack.esql.core.type.DataType.isDateTimeOrTemporal;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrDatePeriod;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTemporalAmount;
 import static org.elasticsearch.xpack.esql.core.type.DataType.isNullOrTimeDuration;

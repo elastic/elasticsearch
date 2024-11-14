@@ -316,7 +316,7 @@ public class EsqlSession {
                 // resolution to updateExecutionInfo
                 if (indexResolution.isValid()) {
                     EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
-                    EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.getUnavailableClusters());
+                    EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
                     if (executionInfo.isCrossClusterSearch()
                         && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) == 0) {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel

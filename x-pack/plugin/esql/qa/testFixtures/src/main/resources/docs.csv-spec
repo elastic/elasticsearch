@@ -663,7 +663,7 @@ required_capability: fn_bit_length
 FROM airports
 | WHERE country == "India"
 | KEEP city
-| EVAL fn_length=LENGTH(city), fn_bit_length = BIT_LENGTH(city)
+| EVAL fn_length = LENGTH(city), fn_bit_length = BIT_LENGTH(city)
 // end::bitLength[]
 | SORT city
 | LIMIT 3

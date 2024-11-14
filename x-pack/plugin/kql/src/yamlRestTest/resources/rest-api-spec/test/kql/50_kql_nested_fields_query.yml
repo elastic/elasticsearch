@@ -4,7 +4,7 @@ setup:
         - method: POST
           path: /_search
           capabilities: [ kql_query ]
-      test_runner_features: capabilities
+      test_runner_features: [ capabilities, contains ]
       reason: KQL query is not available
 
   - requires:
@@ -186,7 +186,6 @@ setup:
           }
   - match: { hits.total: 1 }
   - match: { hits.hits.0._id: "doc-1" }
-
 
   - do:
       search:

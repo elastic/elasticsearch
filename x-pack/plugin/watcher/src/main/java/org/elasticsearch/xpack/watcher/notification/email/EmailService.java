@@ -331,7 +331,7 @@ public class EmailService extends NotificationService<Account> {
         ).map(InternetAddress::getAddress);
 
         if (domainsOnly) {
-            // Pull out only the domain of the email address, so foo@bar.com
+            // Pull out only the domain of the email address, so foo@bar.com becomes bar.com
             stream = stream.map(emailAddress -> emailAddress.substring(emailAddress.lastIndexOf('@') + 1));
         }
 

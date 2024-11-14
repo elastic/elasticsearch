@@ -47,7 +47,7 @@ supports this parameter for CSV responses.
 (Optional, boolean) Should columns that are entirely `null` be removed from
 the `columns` and `values` portion of the results? Defaults to `false`. If
 `true` the response will include an extra section under the name
-`all_columns` which has the name of all columns. This parameter requires a `json` or `yaml` format for the response. 
+`all_columns` which has the name of all columns. The API only supports this parameter for CBOR, JSON, SMILE, and YAML responses. 
 
 `format`::
 (Optional, string) Format for the response. For valid values, refer to

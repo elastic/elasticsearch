@@ -69,10 +69,10 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
     private List<QuerySearchResult> buffer = new ArrayList<>();
     private List<SearchShard> emptyResults = new ArrayList<>();
     // the memory that is accounted in the circuit breaker for this consumer
-    private volatile long circuitBreakerBytes;
+    private long circuitBreakerBytes;
     // the memory that is currently used in the buffer
-    private volatile long aggsCurrentBufferSize;
-    private volatile long maxAggsCurrentBufferSize = 0;
+    private long aggsCurrentBufferSize;
+    private long maxAggsCurrentBufferSize = 0;
 
     private final ArrayDeque<MergeTask> queue = new ArrayDeque<>();
     private final AtomicReference<MergeTask> runningTask = new AtomicReference<>();
@@ -312,7 +312,7 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
         return queue.isEmpty() == false || runningTask.get() != null;
     }
 
-    private synchronized void addWithoutBreaking(long size) {
+    private void addWithoutBreaking(long size) {
         circuitBreaker.addWithoutBreaking(size);
         circuitBreakerBytes += size;
         maxAggsCurrentBufferSize = Math.max(maxAggsCurrentBufferSize, circuitBreakerBytes);
@@ -378,19 +378,20 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
                     if (hasFailure == false) {
                         aggsCurrentBufferSize += aggsSize;
                         // add one if a partial merge is pending
-                        int size = buffer.size() + (hasPartialReduce ? 1 : 0);
+                        var bufferRef = buffer;
+                        int size = bufferRef.size() + (hasPartialReduce ? 1 : 0);
                         if (size >= batchReduceSize) {
                             hasPartialReduce = true;
                             executeNextImmediately = false;
-                            MergeTask task = new MergeTask(buffer, aggsCurrentBufferSize, emptyResults, next);
-                            buffer = new ArrayList<>();
+                            MergeTask task = new MergeTask(bufferRef, aggsCurrentBufferSize, emptyResults, next);
+                            buffer = bufferRef = new ArrayList<>();
                             emptyResults = new ArrayList<>();
                             aggsCurrentBufferSize = 0;
                             queue.add(task);
-                            buffer.add(result);
+                            bufferRef.add(result);
                             tryExecuteNext();
                         } else {
-                            buffer.add(result);
+                            bufferRef.add(result);
                         }
                     }
                 }
@@ -521,27 +522,23 @@ public class QueryPhaseResultConsumer extends ArraySearchPhaseResults<SearchPhas
 
     private static class MergeTask {
         private final List<SearchShard> emptyResults;
-        private List<QuerySearchResult> buffer;
+        private final AtomicReference<List<QuerySearchResult>> buffer;
         private final long aggsBufferSize;
-        private Runnable next;
+        private final AtomicReference<Runnable> next;
 
         private MergeTask(List<QuerySearchResult> buffer, long aggsBufferSize, List<SearchShard> emptyResults, Runnable next) {
-            this.buffer = buffer;
+            this.buffer = new AtomicReference<>(buffer);
             this.aggsBufferSize = aggsBufferSize;
             this.emptyResults = emptyResults;
-            this.next = next;
+            this.next = new AtomicReference<>(next);
         }
 
-        public synchronized List<QuerySearchResult> consumeBuffer() {
-            List<QuerySearchResult> toRet = buffer;
-            buffer = null;
-            return toRet;
+        List<QuerySearchResult> consumeBuffer() {
+            return buffer.getAndSet(null);
         }
 
-        public synchronized Runnable consumeListener() {
-            Runnable n = next;
-            next = null;
-            return n;
+        Runnable consumeListener() {
+            return next.getAndSet(null);
         }
 
         public void cancel() {

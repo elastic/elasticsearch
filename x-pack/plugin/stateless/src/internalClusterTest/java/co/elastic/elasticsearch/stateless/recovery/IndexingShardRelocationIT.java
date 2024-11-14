@@ -25,7 +25,6 @@ import co.elastic.elasticsearch.stateless.action.TransportGetVirtualBatchedCompo
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
-import co.elastic.elasticsearch.stateless.commits.BatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
@@ -37,7 +36,6 @@ import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils;
 
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.index.IndexFileNames;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRunnable;
@@ -70,7 +68,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
-import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -78,7 +75,6 @@ import org.elasticsearch.index.MergePolicyConfig;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IllegalIndexShardStateException;
 import org.elasticsearch.index.shard.IndexShard;
-import org.elasticsearch.index.store.LuceneFilesExtensions;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.RecoveryClusterStateDelayListeners;
@@ -99,12 +95,10 @@ import org.elasticsearch.transport.TestTransportChannel;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
@@ -117,23 +111,25 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.IntConsumer;
+import java.util.function.LongSupplier;
 import java.util.stream.IntStream;
 
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static co.elastic.elasticsearch.stateless.objectstore.ObjectStoreTestUtils.getObjectStoreMockRepository;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.PRIMARY_CONTEXT_HANDOFF_ACTION_NAME;
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
+import static org.elasticsearch.blobcache.BlobCacheUtils.toIntBytes;
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.lessThan;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.oneOf;
@@ -144,7 +140,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins() {
         final var plugins = new ArrayList<>(super.nodePlugins());
         plugins.remove(Stateless.class);
-        plugins.add(DisableWarmingPlugin.class);
+        plugins.add(DisableWarmOnUploadPlugin.class);
         plugins.add(MockRepository.Plugin.class);
         plugins.add(InternalSettingsPlugin.class);
         return List.copyOf(plugins);
@@ -1034,15 +1030,15 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
     }
 
-    public static class DisableWarmingPlugin extends Stateless {
+    public static class DisableWarmOnUploadPlugin extends Stateless {
 
         static final Setting<Boolean> ENABLED_WARMING = Setting.boolSetting(
-            "test.stateless.warming_enabled",
+            "test.stateless.warm_on_upload_enabled",
             true,
             Setting.Property.NodeScope
         );
 
-        public DisableWarmingPlugin(Settings settings) {
+        public DisableWarmOnUploadPlugin(Settings settings) {
             super(settings);
         }
 
@@ -1070,7 +1066,13 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                     BlobStoreCacheDirectory directory,
                     ActionListener<Void> listener
                 ) {
-                    ActionListener.completeWith(listener, () -> null);
+                    // Makes sure recovery warming is completed before continuing with the shard recovery, so that when the test checks
+                    // the number of written regions in cache after the shard is started we are sure no other regions are likely to be
+                    // warmed afterward.
+                    var subscribableListener = new SubscribableListener<Void>();
+                    super.warmCacheRecovery(type, indexShard, commit, directory, subscribableListener);
+                    safeAwait(subscribableListener);
+                    subscribableListener.addListener(listener);
                 }
 
                 @Override
@@ -1081,12 +1083,15 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         }
     }
 
-    public void testRelocatingIndexShardFetchesFirstCommitsRegionsOnly() throws Exception {
+    public void testRelocatingIndexShardFetchesFirstRegionOnly() throws Exception {
         startMasterOnlyNode();
 
-        var cacheSize = ByteSizeValue.ofMb(1L);
-        var regionSize = ByteSizeValue.ofBytes((long) randomIntBetween(1, 3) * SharedBytes.PAGE_SIZE);
+        final int initialCommits = randomIntBetween(0, 3);
+        final long approximateInitialCommitSize = 2 * SharedBytes.PAGE_SIZE;
+        final long regionSizeInBytes = Math.max(1, initialCommits) * approximateInitialCommitSize * 2;
 
+        var cacheSize = ByteSizeValue.ofMb(1L);
+        var regionSize = ByteSizeValue.ofBytes(regionSizeInBytes);
         final var indexNodesSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), cacheSize)
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), regionSize)
@@ -1096,9 +1101,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(), ByteSizeValue.ofGb(1))
             .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 100)
             .put(disableIndexingDiskAndMemoryControllersNodeSettings())
-            // Disable warming because it will populate the cache for more than the test expects. Once ES-9363 is implemented and warming
-            // is skipped for commit with replicated ranges we can adjust DisableWarmingPlugin to disable warm-on-upload only.
-            .put(DisableWarmingPlugin.ENABLED_WARMING.getKey(), false)
             .build();
 
         final var indexNode = startIndexNode(indexNodesSettings);
@@ -1110,8 +1112,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
                     .put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false")
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
                     .put(MergePolicyConfig.INDEX_MERGE_ENABLED, false)
-                    // Causes extra reads when randomly enabled by the test framework, so it is disabled in this test
-                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
                     .build()
             ).setMapping("""
                     {
@@ -1126,57 +1126,50 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         var indexDirectory = IndexDirectory.unwrapDirectory(indexShard.store().directory());
         var commitService = internalCluster().getInstance(StatelessCommitService.class, indexNode);
 
-        var nbBlobs = randomIntBetween(1, 3);
-        long totalWriteCount = 0L;
+        LongSupplier virtualBccTotalSizeInBytes = () -> {
+            var virtualBcc = commitService.getCurrentVirtualBcc(indexShard.shardId());
+            return virtualBcc != null ? virtualBcc.getTotalSizeInBytes() : 0L;
+        };
 
-        for (int blob = 0; blob < nbBlobs; blob++) {
-            int nbCommits = randomIntBetween(1, 5);
-            for (int commit = 0; commit < nbCommits; commit++) {
-                long initialSizeInBytes = indexDirectory.estimateSizeInBytes();
-                while (indexDirectory.estimateSizeInBytes() - initialSizeInBytes < regionSize.getBytes() + 1L) {
-                    var bulkRequest = client().prepareBulk();
-                    for (int doc = 0; doc < 100; doc++) {
-                        bulkRequest.add(
-                            prepareIndex(indexName).setSource(
-                                "junk",
-                                Base64.getEncoder().encodeToString(randomAlphaOfLength(100).getBytes(StandardCharsets.UTF_8))
-                            )
-                        );
-                    }
-                    assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10)));
-                    indexShard.writeIndexingBuffer();
-                }
-                refresh(indexName);
-            }
-            flush(indexName);
+        logger.debug("--> create {} initial commit(s) to fill less than half of the region", initialCommits);
+        for (int commit = 0; commit < initialCommits; commit++) {
+            long previous = BlobCacheUtils.toPageAlignedSize(virtualBccTotalSizeInBytes.getAsLong());
 
-            var batchedCompoundCommit = commitService.getLatestUploadedBcc(indexShard.shardId());
-            assertThat(batchedCompoundCommit, notNullValue());
+            // Generates a commit that fits into one or two SharedBytes.PAGE_SIZE, depending on the randomized values of
+            // EngineConfig.USE_COMPOUND_FILE and IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.
+            indexBinaryDoc(indexName, 1);
+            refresh(indexName);
 
-            var blobLength = getBlobLength(indexDirectory, batchedCompoundCommit.primaryTermAndGeneration());
-            var blobRegionsTotal = computedFetchedRegions(0L, blobLength, regionSize.getBytes(), new HashSet<>()).size();
-            // flag to indicate that this is the BCC the new indexing node will recover from
-            boolean isRecoveredBcc = blob == nbBlobs - 1;
-
-            int blobRegionsForRecovery = computeFetchedRegionsForRecovery(
-                batchedCompoundCommit,
-                blobLength,
-                regionSize.getBytes(),
-                isRecoveredBcc
+            assertThat(
+                virtualBccTotalSizeInBytes.getAsLong() - previous,
+                allOf(greaterThan(0L), lessThanOrEqualTo(approximateInitialCommitSize))
             );
-            logger.debug(
-                "--> BCC blob {} of size [{}] bytes requires to read [{}/{}] regions of [{}] bytes during recovery",
-                batchedCompoundCommit.primaryTermAndGeneration(),
-                blobLength,
-                blobRegionsForRecovery,
-                blobRegionsTotal,
-                regionSize.getBytes()
-            );
-            assertThat(blobRegionsForRecovery, lessThan(blobRegionsTotal));
-            totalWriteCount += blobRegionsForRecovery;
         }
 
-        final var indexNode2 = startIndexNode(indexNodesSettings);
+        final long sizeOfInitialCommits = BlobCacheUtils.toPageAlignedSize(virtualBccTotalSizeInBytes.getAsLong());
+        assertThat("Expect initial commits to fill half of the region", sizeOfInitialCommits, lessThanOrEqualTo(regionSizeInBytes / 2));
+
+        final int largeDocSize = toIntBytes(regionSizeInBytes - sizeOfInitialCommits + randomLongBetween(1L, regionSize.getBytes() * 3));
+        assertThat("Expect last commit to fill the remaining space of the region", (long) largeDocSize, greaterThan(regionSizeInBytes / 2));
+        indexBinaryDoc(indexName, largeDocSize);
+        flush(indexName);
+
+        var batchedCompoundCommit = commitService.getLatestUploadedBcc(indexShard.shardId());
+        assertThat(batchedCompoundCommit, notNullValue());
+
+        long blobLength = getBlobLength(indexDirectory, batchedCompoundCommit.primaryTermAndGeneration());
+        assertThat("Expect blob to be larger than a single region", blobLength, greaterThan(regionSizeInBytes));
+
+        int blobRegionsTotal = computedFetchedRegions(0L, blobLength, regionSize.getBytes(), new HashSet<>()).size();
+        assertThat(blobRegionsTotal, greaterThan(1));
+
+        final var indexNode2 = startIndexNode(
+            Settings.builder()
+                .put(indexNodesSettings)
+                // Disable warm-on-upload since otherwise it populates the cache when uploading the flush after relocation handoff.
+                .put(DisableWarmOnUploadPlugin.ENABLED_WARMING.getKey(), false)
+                .build()
+        );
         ensureStableCluster(3);
 
         updateIndexSettings(Settings.builder().put("index.routing.allocation.exclude._name", indexNode), indexName);
@@ -1184,8 +1177,14 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         ensureGreen(indexName);
 
         var cacheService = internalCluster().getInstance(Stateless.SharedBlobCacheServiceSupplier.class, indexNode2).get();
-        assertThat(cacheService.getStats().writeCount(), equalTo(totalWriteCount));
+        assertThat(cacheService.getStats().writeCount(), equalTo(1L));
         assertThat(cacheService.getStats().numberOfRegions(), greaterThan(1));
+    }
+
+    private static void indexBinaryDoc(String indexName, int size) {
+        var bulkRequest = client().prepareBulk();
+        bulkRequest.add(prepareIndex(indexName).setSource("junk", Base64.getEncoder().encodeToString(randomByteArrayOfLength(size))));
+        assertNoFailures(bulkRequest.get(TimeValue.timeValueSeconds(10L)));
     }
 
     /**
@@ -1199,76 +1198,6 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         assertThat(blobs, notNullValue());
         assertThat(blobs.size(), equalTo(1));
         return blobs.get(blobName).length();
-    }
-
-    /**
-     * Computes the expected number of distinct regions to fetch in cache in order to recover the BCC.
-     */
-    public static int computeFetchedRegionsForRecovery(
-        BatchedCompoundCommit latestBcc,
-        long latestBccSizeInBytes,
-        long regionSizeInBytes,
-        boolean isRecoveredBcc
-    ) {
-        Set<Integer> regions = new HashSet<>();
-        if (latestBcc != null) {
-            long offset = 0L;
-            for (var compoundCommit : latestBcc.compoundCommits()) {
-                assert offset == BlobCacheUtils.toPageAlignedSize(offset);
-
-                // compute the number of fetched regions in cache required to read the header
-                computedFetchedRegions(offset, compoundCommit.headerSizeInBytes(), regionSizeInBytes, regions);
-                offset += compoundCommit.headerSizeInBytes();
-
-                // compute the number of fetched regions in cache required to read the replicated ranges
-                computedFetchedRegions(
-                    offset,
-                    compoundCommit.internalFilesReplicatedRanges().dataSizeInBytes(),
-                    regionSizeInBytes,
-                    regions
-                );
-                offset += compoundCommit.internalFilesReplicatedRanges().dataSizeInBytes();
-
-                // compute the number of fetched regions in cache to read the Lucene metadata files
-                var internalFiles = compoundCommit.commitFiles()
-                    .entrySet()
-                    .stream()
-                    .filter(entry -> compoundCommit.internalFiles().contains(entry.getKey()))
-                    .sorted(Comparator.comparingLong(f -> f.getValue().offset()))
-                    .toList();
-                for (var internalFile : internalFiles) {
-                    var blobLocation = internalFile.getValue();
-                    // Lucene fully reads metadata file and the most recent segments_N when opening the index. If those files are larger
-                    // than what the replicated ranges stores in the first region, then we need to account for the region(s) fetched to
-                    // read the whole file.
-                    if (REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE < blobLocation.fileLength()) {
-                        var fileName = internalFile.getKey();
-                        var fileExt = LuceneFilesExtensions.fromFile(fileName);
-                        if (fileExt != null && fileExt.isMetadata()
-                            || compoundCommit == latestBcc.lastCompoundCommit()
-                                && isRecoveredBcc
-                                && fileName.startsWith(IndexFileNames.SEGMENTS)) {
-                            computedFetchedRegions(offset, blobLocation.fileLength(), regionSizeInBytes, regions);
-                        }
-                    }
-                    offset += blobLocation.fileLength();
-                }
-
-                if (offset < latestBccSizeInBytes) {
-                    long compoundCommitSizePageAligned = BlobCacheUtils.toPageAlignedSize(compoundCommit.sizeInBytes());
-                    int paddingLength = Math.toIntExact(compoundCommitSizePageAligned - compoundCommit.sizeInBytes());
-
-                    // When assertions are enabled, extra reads are executed to assert that padding bytes at the end of the compound commit
-                    // are effectively zeros (see BatchedCompoundCommit#assertPaddingComposedOfZeros). Those reads trigger more cache misses
-                    // and populates the cache for regions that do not include headers, so we must account for them in this test.
-                    if (Assertions.ENABLED && 0 < paddingLength) {
-                        computedFetchedRegions(offset, paddingLength, regionSizeInBytes, regions);
-                    }
-                    offset += paddingLength;
-                }
-            }
-        }
-        return regions.size();
     }
 
     /**

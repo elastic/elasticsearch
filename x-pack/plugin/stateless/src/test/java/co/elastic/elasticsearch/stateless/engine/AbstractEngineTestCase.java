@@ -44,6 +44,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
+import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.blobstore.BlobContainer;
@@ -106,6 +107,7 @@ import java.util.function.LongSupplier;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL;
 import static co.elastic.elasticsearch.stateless.Stateless.SHARD_READ_THREAD_POOL_SETTING;
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.blobcache.shared.SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.mockito.ArgumentMatchers.any;
@@ -131,6 +133,8 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
         super.setUp();
         threadPools = ConcurrentCollections.newConcurrentMap();
         sharedBlobCacheService = mock(StatelessSharedBlobCacheService.class);
+        int cacheRegionSize = BlobCacheUtils.toIntBytes(SHARED_CACHE_REGION_SIZE_SETTING.get(Settings.EMPTY).getBytes());
+        when(sharedBlobCacheService.getRegionSize()).thenReturn(cacheRegionSize);
         // setup `real` blob container since test expect write/read from/to compound commits
         blobStorePath = PathUtils.get(createTempDir().toString());
         blobContainer = new FsBlobContainer(
@@ -538,7 +542,9 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     primaryTerm,
                     indexCommitRef.getIndexCommit().getGeneration(),
                     fileName -> uploadedBlobLocations.get(fileName),
-                    ESTestCase::randomNonNegativeLong
+                    ESTestCase::randomNonNegativeLong,
+                    sharedBlobCacheService.getRegionSize(),
+                    randomDoubleBetween(0.0d, 1.0d, true)
                 );
 
                 vbcc.appendCommit(

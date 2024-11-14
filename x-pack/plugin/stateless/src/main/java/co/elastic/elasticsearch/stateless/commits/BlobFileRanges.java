@@ -19,7 +19,6 @@ package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 
-import org.apache.lucene.codecs.CodecUtil;
 import org.elasticsearch.blobcache.BlobCacheUtils;
 import org.elasticsearch.common.util.set.Sets;
 
@@ -31,9 +30,6 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.TreeMap;
 
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
-import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE;
 import static java.util.Collections.unmodifiableNavigableMap;
 
 /**
@@ -174,7 +170,6 @@ public class BlobFileRanges {
             assert previous == null : "replicated range already exists: " + previous;
             replicatedRangesOffset += range.length();
         }
-        assert assertReplicatedRangesMatchInternalFiles(compoundCommit, replicatedRanges);
         assert assertNoOverlappingReplicatedRanges(replicatedRanges);
 
         var blobFileRanges = HashMap.<String, BlobFileRanges>newHashMap(internalFiles.size());
@@ -199,35 +194,6 @@ public class BlobFileRanges {
             );
         }
         return blobFileRanges;
-    }
-
-    /**
-     * Asserts that replicated ranges exist for header/footer of compound commit internal files.
-     */
-    private static boolean assertReplicatedRangesMatchInternalFiles(
-        StatelessCompoundCommit commit,
-        TreeMap<Long, ReplicatedByteRange> ranges
-    ) {
-        if (commit.internalFilesReplicatedRanges().isEmpty() == false) {
-            for (var internalFile : commit.internalFiles()) {
-                var blobLocation = commit.commitFiles().get(internalFile);
-                assert blobLocation != null : internalFile;
-
-                var header = ranges.floorEntry(blobLocation.offset());
-                assert header != null : "header not found for " + internalFile + " at position " + blobLocation.offset();
-                assert header.getValue() != null;
-                assert header.getValue().length >= ((blobLocation.fileLength() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE)
-                    ? blobLocation.fileLength()
-                    : REPLICATED_CONTENT_HEADER_SIZE);
-
-                long footerPosition = blobLocation.offset() + blobLocation.fileLength() - CodecUtil.footerLength();
-                var footer = ranges.floorEntry(footerPosition);
-                assert footer != null : "footer not found for " + internalFile + " at position " + footerPosition;
-                assert footer.getValue() != null;
-                assert footer.getValue().length >= REPLICATED_CONTENT_FOOTER_SIZE;
-            }
-        }
-        return true;
     }
 
     private static boolean assertNoOverlappingReplicatedRanges(TreeMap<Long, ReplicatedByteRange> ranges) {

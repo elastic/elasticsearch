@@ -71,7 +71,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     primaryTerm,
                     firstCommitGeneration,
                     uploadedBlobLocations::get,
-                    ESTestCase::randomNonNegativeLong
+                    ESTestCase::randomNonNegativeLong,
+                    fakeNode.sharedCacheService.getRegionSize(),
+                    randomDoubleBetween(0.0d, 1.0d, true)
                 );
                 for (StatelessCommitRef statelessCommitRef : indexCommits) {
                     assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
@@ -147,7 +149,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef commit : commits) {
@@ -182,7 +186,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
             for (StatelessCommitRef statelessCommitRef : commits) {
                 assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
@@ -286,7 +292,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             if (randomBoolean()) {
@@ -356,7 +364,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef commit : commits) {
@@ -392,7 +402,9 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef commit : commits) {

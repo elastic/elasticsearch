@@ -110,7 +110,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 primaryTerm,
                 indexCommits.get(0).getGeneration(),
                 (v) -> null,
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef ref : indexCommits) {
@@ -155,7 +157,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 primaryTerm,
                 indexCommits.get(0).getGeneration(),
                 (v) -> null,
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef ref : indexCommits) {
@@ -245,7 +249,9 @@ public class SharedBlobCacheWarmingServiceTests extends ESTestCase {
                 primaryTerm,
                 indexCommits.get(0).getGeneration(),
                 (v) -> null,
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
 
             for (StatelessCommitRef ref : indexCommits) {

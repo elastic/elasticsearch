@@ -295,7 +295,14 @@ public class EsqlSession {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
             inferenceContext.setIndices(indices.get().concreteIndices());
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, indices, policies, inferenceContext),
+                new AnalyzerContext(
+                    configuration,
+                    functionRegistry,
+                    indices,
+                    policies,
+                    inferenceContext,
+                    executionInfo.isCrossClusterSearch()
+                ),
                 verifier
             );
             var plan = analyzer.analyze(parsed);

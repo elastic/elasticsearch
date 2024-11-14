@@ -90,7 +90,7 @@ public class Verifier {
      * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, InferenceContext inferenceContext) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, InferenceContext inferenceContext, boolean isCrossClusterSearch) {
         assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
         // alias map, collected during the first iteration for better error messages
@@ -193,7 +193,7 @@ public class Verifier {
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
 
-            checkFullTextQueryFunctions(p, inferenceContext, failures);
+            checkFullTextQueryFunctions(p, inferenceContext, isCrossClusterSearch, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -673,7 +673,12 @@ public class Verifier {
      * @param plan root plan to check
      * @param failures failures found
      */
-    private static void checkFullTextQueryFunctions(LogicalPlan plan, InferenceContext inferenceContext, Set<Failure> failures) {
+    private static void checkFullTextQueryFunctions(
+        LogicalPlan plan,
+        InferenceContext inferenceContext,
+        boolean isCrossClusterSearch,
+        Set<Failure> failures
+    ) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
             checkCommandsBeforeExpression(
@@ -780,7 +785,12 @@ public class Verifier {
         return null;
     }
 
-    private static void checkSemanticTextQueries(Expression expression, InferenceContext inferenceContext, Set<Failure> failures) {
+    private static void checkSemanticTextQueries(
+        Expression expression,
+        InferenceContext inferenceContext,
+        boolean isCrossClusterSearch,
+        Set<Failure> failures
+    ) {
         expression.forEachDown(Match.class, matchFunction -> {
             Expression field = matchFunction.field();
             if (field.dataType() == DataType.SEMANTIC_TEXT && inferenceContext.hasMultipleInferenceIds(field.sourceText())) {
@@ -788,6 +798,16 @@ public class Verifier {
                     fail(
                         matchFunction,
                         "Field [{}] cannot be used with match because it is configured with multiple inference IDs.",
+                        field.sourceText()
+                    )
+                );
+            }
+
+            if (field.dataType() == DataType.SEMANTIC_TEXT && isCrossClusterSearch) {
+                failures.add(
+                    fail(
+                        matchFunction,
+                        "Field [{}] of type semantic_text cannot be used with match for cross cluster queries.",
                         field.sourceText()
                     )
                 );

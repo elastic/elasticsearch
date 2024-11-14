@@ -340,9 +340,6 @@ public class EsqlSession {
                             new IndexResolutionWrappingListener(l, indexResolution)
                         );
                         // return;
-                    } else {
-                        // the same enrich resolution received is returned in the listener
-                        l.onResponse(tuple);
                     }
                 }
                 if (requestFilter == null) {

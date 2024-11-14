@@ -34,7 +34,7 @@ public class KqlParsingContext {
         return new Builder(queryRewriteContext);
     }
 
-    private QueryRewriteContext queryRewriteContext;
+    private final QueryRewriteContext queryRewriteContext;
     private final boolean caseInsensitive;
     private final ZoneId timeZone;
     private final String defaultField;

@@ -34,6 +34,11 @@ public class EsqlCapabilities {
         FN_BIT_LENGTH,
 
         /**
+         * Support for function {@code BYTE_LENGTH}.
+         */
+        FN_BYTE_LENGTH,
+
+        /**
          * Support for function {@code REVERSE}.
          */
         FN_REVERSE,
@@ -471,12 +476,20 @@ public class EsqlCapabilities {
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
         DELAY_DEBUG_FN(Build.current().isSnapshot()),
+
+        /** Capability for remote metadata test */
+        METADATA_FIELDS_REMOTE_TEST(false),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co
          * - Refactor INLINESTATS and LOOKUP as a JOIN block
          */
         JOIN_PLANNING_V1(Build.current().isSnapshot()),
+
+        /**
+         * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
 
         /**
          * LOOKUP JOIN

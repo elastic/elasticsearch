@@ -1,5 +1,0 @@
-pr: 114368
-summary: "ESQL: Delay construction of warnings"
-area: EQL
-type: enhancement
-issues: []

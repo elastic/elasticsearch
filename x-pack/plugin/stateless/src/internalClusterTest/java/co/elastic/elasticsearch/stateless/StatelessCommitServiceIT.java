@@ -74,6 +74,18 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
     }
 
     /**
+     * Kick a node's StatelessClusterConsistencyService to validate membership and run pending tasks
+     * Blob store deletes are one such task. Without this, they only execute on the service's timer (every 5 seconds by default).
+     * @param indexNode node to kick
+     */
+    private void kickConsistencyService(String indexNode) {
+        var sync = new SubscribableListener<Void>();
+        internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode)
+            .ensureClusterStateConsistentWithRootBlob(sync, TimeValue.MAX_VALUE);
+        safeAwait(sync);
+    }
+
+    /**
      * Cycles the StatelessCommitService machinery to update search node tracking and ensure commits are uploaded to the blob store and any
      * unused VBCCs get deleted from the blob store. The VBCC vs commit distinction is important, since a commit cannot be deleted until all
      * of a VBCC's commits are unused. Assertions that the files are deleted must also be done in an assertBusy() loop, even after calling
@@ -91,12 +103,7 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
             () -> Long.MAX_VALUE
         );
 
-        // The index node will not perform any file deletions until it has verified that the cluster state in the blob store has not
-        // changed. The StatelessClusterConsistencyService doesn't run immediately, so we set a Listener and wait for it to run here.
-        var sync = new SubscribableListener<Void>();
-        internalCluster().getInstance(StatelessClusterConsistencyService.class, indexNode)
-            .ensureClusterStateConsistentWithRootBlob(sync, TimeValue.MAX_VALUE);
-        safeAwait(sync);
+        kickConsistencyService(indexNode);
 
         // Evict data from all node blob caches. This will force nodes to refresh their data caches from whatever remains on the remote blob
         // store.
@@ -219,6 +226,8 @@ public class StatelessCommitServiceIT extends AbstractStatelessIntegTestCase {
         );
         // There is still a little race with blob store file deletion after cycling the StatelessCommitService machinery above.
         assertBusy(() -> {
+            kickConsistencyService(indexNode);
+
             Set<PrimaryTermAndGeneration> shardCommitBlobs = listBlobsTermAndGenerations(shardId);
             for (PrimaryTermAndGeneration generation : commitsBeforeForceMerge) {
                 assertThat(shardCommitBlobs, not(hasItem(generation)));

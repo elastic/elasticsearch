@@ -13,6 +13,7 @@ import org.elasticsearch.common.util.ByteUtils;
 
 import java.nio.ByteBuffer;
 import java.util.OptionalInt;
+import java.util.function.Supplier;
 
 /**
  * Generates a base64-encoded, k-ordered UUID string optimized for compression and efficient indexing.
@@ -32,6 +33,14 @@ import java.util.OptionalInt;
 public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
     static final int SIZE_IN_BYTES = 15;
 
+    public TimeBasedKOrderedUUIDGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        super(timestampSupplier, sequenceIdSupplier, macAddressSupplier);
+    }
+
     @Override
     public String getBase64UUID() {
         return getBase64UUID(OptionalInt.empty());
@@ -45,7 +54,7 @@ public class TimeBasedKOrderedUUIDGenerator extends TimeBasedUUIDGenerator {
         // If the sequenceId overflows (reaches 0 within the same millisecond), the timestamp is incremented
         // to ensure strict ordering.
         long timestamp = this.lastTimestamp.accumulateAndGet(
-            currentTimeMillis(),
+            timestampSupplier.get(),
             sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
         );
 

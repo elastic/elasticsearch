@@ -9,37 +9,30 @@ package org.elasticsearch.xpack.security.authz.store;
 
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentFactory;
+import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
 
 import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.Base64;
 import java.util.Collection;
-import java.util.Comparator;
 
-import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
+import static java.util.Comparator.comparing;
 
 public final class QueryableRolesUtils {
 
     public static String calculateHash(final Collection<RoleDescriptor> roleDescriptors) {
         final MessageDigest hash = MessageDigests.sha256();
-        try (XContentBuilder jsonBuilder = XContentFactory.jsonBuilder()) {
-            // sorting the roles by name to ensure we generate a consistent hash version
-            // TODO: This is still not enough to guarantee a consistent hash version across nodes.
-            roleDescriptors.stream().sorted(Comparator.comparing(RoleDescriptor::getName)).forEach(role -> {
+        try (BytesStreamOutput out = new BytesStreamOutput();) {
+            roleDescriptors.stream().sorted(comparing(RoleDescriptor::getName)).forEach(role -> {
                 try {
-                    role.toXContent(jsonBuilder, EMPTY_PARAMS);
+                    role.writeTo(out);
                 } catch (IOException e) {
-                    throw new RuntimeException("failed to ", e);
+                    throw new RuntimeException("failed to serialize role", e);
                 }
             });
-            hash.update(BytesReference.bytes(jsonBuilder).array());
-        } catch (IOException e) {
-            throw new RuntimeException("failed to compute queryable roles version", e);
+            hash.update(BytesReference.toBytes(out.bytes()));
         }
-
         // HEX vs Base64 encoding is a trade-off between readability and space efficiency
         // opting for Base64 here to reduce the size of the cluster state
         return Base64.getEncoder().encodeToString(hash.digest());

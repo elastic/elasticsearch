@@ -6,7 +6,9 @@
  */
 package org.elasticsearch.xpack.core.security.support;
 
+import java.util.Collections;
 import java.util.Map;
+import java.util.TreeMap;
 
 public class MetadataUtils {
 
@@ -28,6 +30,10 @@ public class MetadataUtils {
     }
 
     public static Map<String, Object> getDeprecatedReservedMetadata(String reason) {
-        return Map.of(RESERVED_METADATA_KEY, true, DEPRECATED_METADATA_KEY, true, DEPRECATED_REASON_METADATA_KEY, reason);
+        final Map<String, Object> metadata = new TreeMap<>();
+        metadata.put(RESERVED_METADATA_KEY, true);
+        metadata.put(DEPRECATED_METADATA_KEY, true);
+        metadata.put(DEPRECATED_REASON_METADATA_KEY, reason);
+        return Collections.unmodifiableMap(metadata);
     }
 }

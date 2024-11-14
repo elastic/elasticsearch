@@ -99,7 +99,7 @@ abstract class FetchPhaseDocsIterator {
                     throw new SearchTimeoutException(shardTarget, "Time exceeded");
                 }
             }
-        } catch(SearchTimeoutException e) {
+        } catch (SearchTimeoutException e) {
             throw e;
         } catch (Exception e) {
             purgeSearchHits(searchHits);

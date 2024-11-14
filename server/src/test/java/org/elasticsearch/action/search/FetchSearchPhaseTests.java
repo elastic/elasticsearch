@@ -845,12 +845,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
     private static FetchPhase createFetchPhase(ContextIndexSearcher contextIndexSearcher) {
         return new FetchPhase(Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
             boolean processCalledOnce = false;
+
             @Override
             public void setNextReader(LeafReaderContext readerContext) {}
 
             @Override
             public void process(FetchSubPhase.HitContext hitContext) {
-                //we throw only once one doc has been fetched, so we can test partial results are returned
+                // we throw only once one doc has been fetched, so we can test partial results are returned
                 if (processCalledOnce) {
                     contextIndexSearcher.throwTimeExceededException();
                 } else {

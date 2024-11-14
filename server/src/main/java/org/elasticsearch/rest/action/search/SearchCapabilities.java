@@ -38,7 +38,7 @@ public final class SearchCapabilities {
     private static final String MULTI_DENSE_VECTOR_FIELD_MAPPER = "multi_dense_vector_field_mapper";
     /** Support propagating nested retrievers' inner_hits to top-level compound retrievers . */
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
-      /** Support multi-dense-vector script field access. */
+    /** Support multi-dense-vector script field access. */
     private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
 
     public static final Set<String> CAPABILITIES;

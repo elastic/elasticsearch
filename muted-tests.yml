@@ -232,6 +232,9 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
   method: testClientConnectionCloseMidStream
   issue: https://github.com/elastic/elasticsearch/issues/116815
+- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
+  method: testServerExceptionMidStream
+  issue: https://github.com/elastic/elasticsearch/issues/116838
 
 # Examples:
 #

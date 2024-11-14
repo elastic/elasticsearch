@@ -113,8 +113,9 @@ public class RestResponseTests extends ESTestCase {
         Exception t = new ElasticsearchException("an error occurred reading data", new FileNotFoundException("/foo/bar"));
         RestResponse response = new RestResponse(channel, t);
         String text = response.content().utf8ToString();
-        assertThat(text, containsString("an error occurred reading data"));
-        assertThat(text, not(containsString("FileNotFoundException")));
+        assertThat(text, containsString("""
+            {"type":"exception","reason":"an error occurred reading data"}"""));
+        assertThat(text, not(containsString("file_not_found_exception")));
         assertThat(text, not(containsString("/foo/bar")));
         assertThat(text, not(containsString("error_trace")));
     }

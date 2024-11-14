@@ -82,7 +82,7 @@ public class ElasticsearchJavaPlugin implements Plugin<Project> {
                 }
             });
         });
-        project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+        project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
             project.getTasks().withType(ShadowJar.class).configureEach(shadowJar -> {
                 /*
                  * Replace the default "-all" classifier with null

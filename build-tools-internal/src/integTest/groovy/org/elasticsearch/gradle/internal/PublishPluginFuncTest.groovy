@@ -96,7 +96,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.java'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             repositories {
@@ -186,7 +186,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.java'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             dependencies {
@@ -277,7 +277,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.internal-es-plugin'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             esplugin {

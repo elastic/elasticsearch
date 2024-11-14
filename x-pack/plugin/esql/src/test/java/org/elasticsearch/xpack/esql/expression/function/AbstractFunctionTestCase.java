@@ -869,7 +869,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }

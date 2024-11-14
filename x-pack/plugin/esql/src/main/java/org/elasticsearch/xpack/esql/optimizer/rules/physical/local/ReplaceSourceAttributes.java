@@ -29,6 +29,8 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
         var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
+        MetadataAttribute scoring = getScoringAttribute(plan);
+        List<Attribute> attributes;
         if (plan.indexMode() == IndexMode.TIME_SERIES) {
             Attribute tsid = null, timestamp = null;
             for (Attribute attr : plan.output()) {
@@ -42,14 +44,11 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             if (tsid == null || timestamp == null) {
                 throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
             }
-            MetadataAttribute scoring = getScoringAttribute(plan);
-            List<Attribute> attributes = scoring != null ? List.of(docId, tsid, timestamp, scoring) : List.of(docId, tsid, timestamp);
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
+            attributes = scoring != null ? List.of(docId, tsid, timestamp, scoring) : List.of(docId, tsid, timestamp);
         } else {
-            MetadataAttribute scoring = getScoringAttribute(plan);
-            List<Attribute> attributes = scoring != null ? List.of(docId, scoring) : List.of(docId);
-            return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
+            attributes = scoring != null ? List.of(docId, scoring) : List.of(docId);
         }
+        return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
     }
 
     private static MetadataAttribute getScoringAttribute(EsSourceExec plan) {

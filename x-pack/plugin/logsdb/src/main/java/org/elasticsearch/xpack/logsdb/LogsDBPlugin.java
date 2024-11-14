@@ -48,6 +48,7 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
     public Collection<?> createComponents(PluginServices services) {
         licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
+        logsdbIndexModeSettingsProvider.updateClusterIndexModeLogsdbEnabled(clusterSettings.get(CLUSTER_LOGSDB_ENABLED));
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_LOGSDB_ENABLED,

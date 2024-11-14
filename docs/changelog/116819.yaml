@@ -1,5 +1,5 @@
 pr: 116819
-summary: ESQL - match operator included in non-snapshot builds
+summary: ESQL - Add match operator (:)
 area: Search
 type: feature
 issues: []

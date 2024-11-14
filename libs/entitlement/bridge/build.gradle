@@ -9,8 +9,17 @@
 
 apply plugin: 'elasticsearch.build'
 
+configurations {
+  bridgeJar {
+    canBeConsumed = true
+    canBeResolved = false
+  }
+}
+
+artifacts {
+  bridgeJar(jar)
+}
 
 tasks.named('forbiddenApisMain').configure {
   replaceSignatureFiles 'jdk-signatures'
 }
-

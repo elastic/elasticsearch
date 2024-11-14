@@ -210,7 +210,7 @@ public class GoogleVertexAiService extends SenderService {
 
         var actionCreator = new GoogleVertexAiActionCreator(getSender(), getServiceComponents());
 
-        var action = googleVertexAiModel.accept(actionCreator, taskSettings);
+        var action = googleVertexAiModel.accept(actionCreator, taskSettings, inputType);
         action.execute(inputs, timeout, listener);
     }
 
@@ -235,7 +235,7 @@ public class GoogleVertexAiService extends SenderService {
         ).batchRequestsWithListeners(listener);
 
         for (var request : batchedRequests) {
-            var action = googleVertexAiModel.accept(actionCreator, taskSettings);
+            var action = googleVertexAiModel.accept(actionCreator, taskSettings, inputType);
             action.execute(new DocumentsOnlyInput(request.batch().inputs()), timeout, request.listener());
         }
     }

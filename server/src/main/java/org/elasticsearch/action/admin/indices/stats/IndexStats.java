@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.indices.stats;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.NodeFeature;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -20,6 +21,8 @@ import java.util.List;
 import java.util.Map;
 
 public class IndexStats implements Iterable<IndexShardStats> {
+
+    public static final NodeFeature TIER_CREATION_DATE = new NodeFeature("stats.tier_creation_date");
 
     private final String index;
 

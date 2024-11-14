@@ -1,8 +1,8 @@
 ---
 "Ensure index creation date and tier preference are exposed":
   - requires:
-      cluster_features: ["gte_v8.17.0"]
-      reason: index creation date and tier preference added to stats in 8.17.0
+      cluster_features: ["stats.tier_creation_date"]
+      reason: index creation date and tier preference added to stats in 8.17
 
   - do:
       indices.create:

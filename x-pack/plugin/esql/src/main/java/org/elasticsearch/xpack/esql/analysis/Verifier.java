@@ -205,7 +205,7 @@ public class Verifier {
         checkRemoteEnrich(plan, failures);
 
         if (failures.isEmpty()) {
-            CheckLicense(plan, licenseState, failures);
+            checkLicense(plan, licenseState, failures);
         }
 
         // gather metrics
@@ -553,7 +553,7 @@ public class Verifier {
         });
     }
 
-    private void CheckLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
+    private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
         plan.forEachExpressionDown(Function.class, p -> {
             if (p.getLicenseChecker().test(licenseState) == false) {
                 failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));

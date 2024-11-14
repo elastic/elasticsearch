@@ -143,14 +143,14 @@ public class IndexResolver {
             fields.put(name, field);
         }
 
-        boolean allEmpty = true;
-        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
-            allEmpty &= ir.get().isEmpty();
-        }
-        if (allEmpty) {
-            // If all the mappings are empty we return an empty set of resolved indices to line up with QL
-            return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
-        }
+        // boolean allEmpty = true;
+        // for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+        // allEmpty &= ir.get().isEmpty();
+        // }
+        // if (allEmpty) {
+        // // If all the mappings are empty we return an empty set of resolved indices to line up with QL
+        // return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()));
+        // }
 
         Map<String, IndexMode> concreteIndices = Maps.newMapWithExpectedSize(fieldCapsResponse.getIndexResponses().size());
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {

@@ -153,7 +153,6 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -3495,8 +3494,7 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             // PausedSnapshotException indicates we're in shutdown because that's the only case when shard snapshots are signaled to pause.
             // An AbortedSnapshotException may also occur during shutdown if an uncommon error occurs.
             ShutdownLogger.shutdownLogger.debug(
-                () -> String.format(
-                    Locale.ROOT,
+                () -> Strings.format(
                     "Shard snapshot operation is aborting. ShardId [%s], SnapshotID [%s], File [%s], Stage [%s]",
                     shardId,
                     snapshotId,

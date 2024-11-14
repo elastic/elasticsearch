@@ -111,7 +111,7 @@ public abstract class SearchBasedChangesSnapshot implements Translog.Snapshot, C
      * @return The next Translog.Operation in the snapshot.
      * @throws IOException If an I/O error occurs.
      */
-    public abstract Translog.Operation nextOperation() throws IOException;
+    protected abstract Translog.Operation nextOperation() throws IOException;
 
     /**
      * Returns the list of index leaf reader contexts.

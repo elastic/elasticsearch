@@ -93,7 +93,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
     }
 
     @Override
-    public Translog.Operation nextOperation() throws IOException {
+    protected Translog.Operation nextOperation() throws IOException {
         while (true) {
             if (operationQueue.isEmpty()) {
                 loadNextBatch();

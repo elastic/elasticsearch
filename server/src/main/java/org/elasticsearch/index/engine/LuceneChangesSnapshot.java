@@ -93,7 +93,7 @@ public final class LuceneChangesSnapshot extends SearchBasedChangesSnapshot {
     }
 
     @Override
-    public Translog.Operation nextOperation() throws IOException {
+    protected Translog.Operation nextOperation() throws IOException {
         assert assertAccessingThread();
         Translog.Operation op = null;
         for (int idx = nextDocIndex(); idx != -1; idx = nextDocIndex()) {

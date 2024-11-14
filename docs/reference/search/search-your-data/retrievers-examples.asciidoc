@@ -641,7 +641,7 @@ To demonstrate the full functionality of retrievers, the following examples also
 
 Let's setup a reranking service and use it through the `text_similarity_reranker` retriever to rerank our top results.
 
-[source,js]
+[source,console]
 ----
 PUT _inference/rerank/my-rerank-model
 {
@@ -652,11 +652,11 @@ PUT _inference/rerank/my-rerank-model
  }
 }
 ----
-//NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 Let's start by reranking the results of the `rrf` retriever in our previous example.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
@@ -701,7 +701,7 @@ GET retrievers_example/_search
 }
 
 ----
-// NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 [discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
@@ -711,7 +711,7 @@ For this example, we'll replace the rrf's `standard` retriever with the `text_si
 `my-rerank-model` reranker we previously configured. Since this is a reranker, it needs an initial pool of
 documents to work with. In this case, we'll rerank the top `rank_window_size` documents matching the  `ai` topic.
 
-[source,js]
+[source,console]
 ----
 GET /retrievers_example/_search
 {
@@ -754,7 +754,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
@@ -763,7 +763,7 @@ GET /retrievers_example/_search
 Full composability means we can chain together multiple retrievers of the same type. For instance,
 imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
-[source,js]
+[source,console]
 ----
 GET retrievers_example/_search
 {
@@ -798,7 +798,7 @@ GET retrievers_example/_search
     "_source": false
 }
 ----
-// NOTCONSOLE
+// TEST[skip: no_access_to_ml]
 
 Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we

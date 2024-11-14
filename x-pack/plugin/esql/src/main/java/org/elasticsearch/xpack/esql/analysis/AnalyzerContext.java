@@ -15,5 +15,6 @@ public record AnalyzerContext(
     Configuration configuration,
     EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
-    EnrichResolution enrichResolution
+    EnrichResolution enrichResolution,
+    InferenceContext inferenceContext
 ) {}

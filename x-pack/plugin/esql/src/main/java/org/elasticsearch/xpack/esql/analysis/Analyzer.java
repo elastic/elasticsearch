@@ -159,11 +159,11 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
     public LogicalPlan analyze(LogicalPlan plan) {
         BitSet partialMetrics = new BitSet(FeatureMetric.values().length);
-        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics));
+        return verify(execute(plan), gatherPreAnalysisMetrics(plan, partialMetrics), context().inferenceContext());
     }
 
-    public LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
-        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
+    protected LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics, InferenceContext inferenceContext) {
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics, inferenceContext);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

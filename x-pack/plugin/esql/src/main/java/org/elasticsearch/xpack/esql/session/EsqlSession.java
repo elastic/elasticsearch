@@ -31,6 +31,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
+import org.elasticsearch.xpack.esql.analysis.InferenceContext;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -112,7 +113,7 @@ public class EsqlSession {
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final Client client;
-    private final ClusterService clusterService;
+    private final InferenceContext inferenceContext;
 
     public EsqlSession(
         String sessionId,
@@ -142,7 +143,7 @@ public class EsqlSession {
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.client = client;
-        this.clusterService = clusterService;
+        this.inferenceContext = new InferenceContext(clusterService.state().getMetadata().getIndices());
     }
 
     public String sessionId() {
@@ -164,7 +165,7 @@ public class EsqlSession {
                         InferenceUtils.setInferenceResults(
                             analyzedPlan,
                             client,
-                            clusterService,
+                            inferenceContext,
                             listener,
                             (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
                         );
@@ -292,7 +293,11 @@ public class EsqlSession {
 
         preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
+            inferenceContext.setIndices(indices.get().concreteIndices());
+            Analyzer analyzer = new Analyzer(
+                new AnalyzerContext(configuration, functionRegistry, indices, policies, inferenceContext),
+                verifier
+            );
             var plan = analyzer.analyze(parsed);
             plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);

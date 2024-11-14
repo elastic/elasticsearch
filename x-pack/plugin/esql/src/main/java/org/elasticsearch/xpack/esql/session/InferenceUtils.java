@@ -10,25 +10,21 @@ package org.elasticsearch.xpack.esql.session;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.esql.analysis.InferenceContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
@@ -72,30 +68,10 @@ public class InferenceUtils {
         });
     }
 
-    public static Map<String, String> getInferenceIds(LogicalPlan analyzedPlan, ClusterService clusterService) {
-        final Map<String, String> result = new HashMap<>();
-
-        Map<String, IndexMetadata> indexMetadata = clusterService.state().getMetadata().getIndices();
-        analyzedPlan.forEachDown(plan -> {
-            if (plan instanceof EsRelation) {
-                for (String indexName : ((EsRelation) plan).index().concreteIndices()) {
-                    Map<String, InferenceFieldMetadata> inferenceFields = indexMetadata.get(indexName).getInferenceFields();
-                    for (String fieldName : inferenceFields.keySet()) {
-                        // TODO this does not handle things like fields conflicts or the idea that the same fieldName can have different
-                        // inference IDs in different indices
-                        // we want to move this in the Analyzer and have a check in the Verifier
-                        result.put(fieldName, inferenceFields.get(fieldName).getInferenceId());
-                    }
-                }
-            }
-        });
-        return result;
-    }
-
     public static void setInferenceResults(
         LogicalPlan plan,
         Client client,
-        ClusterService clusterService,
+        InferenceContext inferenceContext,
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
@@ -124,14 +100,10 @@ public class InferenceUtils {
                 }
             }
         );
-
-        Map<String, String> inferenceIds = getInferenceIds(plan, clusterService);
-
         for (Tuple<String, String> semanticQuery : semanticQueries) {
-
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
-                inferenceIds.get(semanticQuery.v1()),
+                inferenceContext.semanticTextInferenceId(semanticQuery.v1()),
                 null,
                 List.of(semanticQuery.v2()),
                 Map.of(),

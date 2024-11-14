@@ -270,7 +270,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     }
 
     @SuppressWarnings("unchecked")
-    public void testInvalidJSON() throws Exception {
+    public void testInvalidJson() throws Exception {
         doAnswer((Answer<Void>) invocation -> {
             invocation.getArgument(1, XContentParser.class).map(); // Throw if JSON is invalid
             ((Consumer<Exception>) invocation.getArgument(3)).accept(null);

@@ -348,7 +348,7 @@ Previously, we used a `text_similarity_reranker` retriever within an `rrf` retri
 Because retrievers support full composability, we can also rerank the results of an
 `rrf` retriever. Let's apply this to our first example.
 
-[source,console]
+[source,js]
 ----
 GET retrievers_example/_search
 {
@@ -393,7 +393,7 @@ GET retrievers_example/_search
 }
 
 ----
-// TEST[skip: no access to reranker service]
+// NOTCONSOLE
 
 [discrete]
 [[retrievers-examples-rrf-ranking-on-text-similarity-reranker-results]]
@@ -403,7 +403,7 @@ For this example, we'll replace our semantic query with the `my-rerank-model`
 reranker we previously configured. Since this is a reranker, it needs an initial pool of
 documents to work with. In this case, we'll filter for documents about `ai` topics.
 
-[source,console]
+[source,js]
 ----
 GET /retrievers_example/_search
 {
@@ -446,7 +446,7 @@ GET /retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[skip: no access to reranker service]
+// NOTCONSOLE
 
 [discrete]
 [[retrievers-examples-chaining-text-similarity-reranker-retrievers]]
@@ -454,7 +454,7 @@ GET /retrievers_example/_search
 
 Full composability means we can chain together multiple retrievers of the same type. For instance, imagine we have a computationally expensive reranker that's specialized for AI content. We can rerank the results of a `text_similarity_reranker` using another `text_similarity_reranker` retriever. Each reranker can operate on different fields and/or use different inference services.
 
-[source,console]
+[source,js]
 ----
 GET retrievers_example/_search
 {
@@ -489,7 +489,7 @@ GET retrievers_example/_search
     "_source": false
 }
 ----
-// TEST[skip: no access to reranker service]
+// NOTCONSOLE
 
 Note that our example applies two reranking steps. First, we rerank the top 100
 documents from the `knn` search using the `my-rerank-model` reranker. Then we
@@ -703,7 +703,7 @@ GET /retrievers_example/_search
 // TEST[continued]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
-[source, js]
+[source, console-result]
 ----
 {
     "took": 42,
@@ -732,7 +732,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                     "description": "rrf score: [0.5] computed for initial ranks [0, 1] with rankConstant: [1] as sum of [1 / (rank + rankConstant)] for each query",
                     "details": [
                         {
-                            "value": 0,
+                            "value": 0.0,
                             "description": "rrf score: [0], result not found in query at index [0]",
                             "details": []
                         },
@@ -756,18 +756,14 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                                                             "value": 1.4064829,
                                                             "description": "weight(text:information in 0) [PerFieldSimilarity], result of:",
                                                             "details": [
-                                                                {
-                                                                    ...
-                                                                }
+                                                                ***
                                                             ]
                                                         },
                                                         {
                                                             "value": 1.4064829,
                                                             "description": "weight(text:retrieval in 0) [PerFieldSimilarity], result of:",
                                                             "details": [
-                                                                {
-                                                                    ...
-                                                                }
+                                                                ***
                                                             ]
                                                         }
                                                     ]
@@ -783,7 +779,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
                                                     "description": "doc [0] with an original score of [1.0] is at rank [1] from the following source queries.",
                                                     "details": [
                                                         {
-                                                            "value": 1,
+                                                            "value": 1.0,
                                                             "description": "found vector with calculated similarity: 1.0",
                                                             "details": []
                                                         }
@@ -802,4 +798,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
     }
 }
 ----
-// NOTCONSOLE
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+// TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
+// TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
+// TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]

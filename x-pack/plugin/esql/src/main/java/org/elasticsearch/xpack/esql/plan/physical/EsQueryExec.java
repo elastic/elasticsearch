@@ -20,7 +20,6 @@ import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.NodeUtils;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -44,7 +43,6 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
     );
 
     public static final EsField DOC_ID_FIELD = new EsField("_doc", DataType.DOC_DATA_TYPE, Map.of(), false);
-    public static final EsField SCORE_FIELD = new EsField(MetadataAttribute.SCORE, DataType.DOUBLE, Map.of(), false);
     public static final List<Sort> NO_SORTS = List.of();  // only exists to mimic older serialization, but we no longer serialize sorts
 
     private final EsIndex index;

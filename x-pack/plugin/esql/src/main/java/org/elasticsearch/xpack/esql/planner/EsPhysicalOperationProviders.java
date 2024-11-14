@@ -48,7 +48,6 @@ import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -75,7 +74,6 @@ import java.util.function.IntFunction;
 import static org.elasticsearch.common.lucene.search.Queries.newNonNestedFilter;
 import static org.elasticsearch.compute.lucene.LuceneSourceOperator.NO_LIMIT;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.NONE;
-import static org.elasticsearch.xpack.esql.plan.physical.EsQueryExec.SCORE_FIELD;
 
 public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProviders {
     /**
@@ -168,10 +166,9 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
         assert esQueryExec.estimatedRowSize() != null : "estimated row size not initialized";
         int rowEstimatedSize = esQueryExec.estimatedRowSize();
         int limit = esQueryExec.limit() != null ? (Integer) esQueryExec.limit().fold() : NO_LIMIT;
-        boolean metadataScoreSet = esQueryExec.attrs()
+        boolean scoring = esQueryExec.attrs()
             .stream()
-            .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(SCORE_FIELD.getName()));
-        boolean scoring = EsqlCapabilities.Cap.METADATA_SCORE.isEnabled() && metadataScoreSet;
+            .anyMatch(a -> a instanceof MetadataAttribute && a.name().equals(MetadataAttribute.SCORE));
         if ((sorts != null && sorts.isEmpty() == false)) {
             List<SortBuilder<?>> sortBuilders = new ArrayList<>(sorts.size());
             for (Sort sort : sorts) {

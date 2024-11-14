@@ -492,7 +492,7 @@ public class SharedBlobCacheWarmingService {
          */
         private void addFile(String fileName, @Nullable LuceneFilesExtensions fileExtension, BlobLocation blobLocation) {
             if (isCancelled()) {
-                // skipping scheduling when store is closing
+                // stop warming if the shard is not recovering anymore
             } else if (fileExtension == LuceneFilesExtensions.CFE) {
                 SubscribableListener
                     // warm entire CFE file
@@ -550,32 +550,37 @@ public class SharedBlobCacheWarmingService {
             // the thread pools: GENERIC (recovery) -> FILL_VBCC_THREAD_POOL (if fetching from indexing node) -> GENERIC.
             // We expect no blocking here since `addCfe` gets called AFTER warming the region.
             cfeThrottledTaskRunner.enqueueTask(listeners.acquire().map(ref -> {
-                try (ref; var in = directory.openInput(fileName, IOContext.READONCE)) {
-                    var entries = Lucene90CompoundEntriesReader.readEntries(in);
-
-                    if (logger.isDebugEnabled()) {
-                        logger.debug("Detected {} entries in {}: {}", entries.size(), fileName, entries);
+                try (ref) {
+                    if (isCancelled()) {
+                        return null;
                     }
+                    try (var in = directory.openInput(fileName, IOContext.READONCE)) {
+                        var entries = Lucene90CompoundEntriesReader.readEntries(in);
 
-                    var cfs = fileName.replace(".cfe", ".cfs");
-                    var cfsLocation = filesToWarm.get(cfs);
-                    assert cfsLocation != null : cfs;
+                        if (logger.isDebugEnabled()) {
+                            logger.debug("Detected {} entries in {}: {}", entries.size(), fileName, entries);
+                        }
 
-                    entries.entrySet()
-                        .stream()
-                        .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
-                        .forEach(
-                            entry -> addFile(
-                                cfs,
-                                LuceneFilesExtensions.fromFile(entry.getKey()),
-                                new BlobLocation(
-                                    cfsLocation.blobFile(),
-                                    cfsLocation.offset() + entry.getValue().offset(),
-                                    entry.getValue().length()
+                        var cfs = fileName.replace(".cfe", ".cfs");
+                        var cfsLocation = filesToWarm.get(cfs);
+                        assert cfsLocation != null : cfs;
+
+                        entries.entrySet()
+                            .stream()
+                            .sorted(Map.Entry.comparingByKey(new IndexingShardRecoveryComparator()))
+                            .forEach(
+                                entry -> addFile(
+                                    cfs,
+                                    LuceneFilesExtensions.fromFile(entry.getKey()),
+                                    new BlobLocation(
+                                        cfsLocation.blobFile(),
+                                        cfsLocation.offset() + entry.getValue().offset(),
+                                        entry.getValue().length()
+                                    )
                                 )
-                            )
-                        );
-                    return null;
+                            );
+                        return null;
+                    }
                 }
             }));
         }

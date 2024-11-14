@@ -1,5 +1,0 @@
-pr: 116660
-summary: "ESQL: Add CATEGORIZE() check to avoid having multiple groupings"
-area: ES|QL
-type: enhancement
-issues: []

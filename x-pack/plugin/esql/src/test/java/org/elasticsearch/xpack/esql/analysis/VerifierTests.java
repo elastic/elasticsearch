@@ -1183,6 +1183,10 @@ public class VerifierTests extends ESTestCase {
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
+        assertEquals(
+            "1:47: [MATCH] function cannot be used after STATS",
+            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
+        );
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {

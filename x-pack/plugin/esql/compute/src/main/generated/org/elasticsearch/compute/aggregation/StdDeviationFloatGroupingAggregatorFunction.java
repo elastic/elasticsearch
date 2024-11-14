@@ -32,14 +32,14 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDeviationStates.GroupingStdDeviationState state;
+  private final StdDeviationStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StdDeviationFloatGroupingAggregatorFunction(List<Integer> channels,
-      StdDeviationStates.GroupingStdDeviationState state, DriverContext driverContext) {
+      StdDeviationStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -193,7 +193,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingStdDeviationState inState = ((StdDeviationFloatGroupingAggregatorFunction) input).state;
+    StdDeviationStates.GroupingState inState = ((StdDeviationFloatGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StdDeviationFloatAggregator.combineStates(state, groupId, inState, position);
   }

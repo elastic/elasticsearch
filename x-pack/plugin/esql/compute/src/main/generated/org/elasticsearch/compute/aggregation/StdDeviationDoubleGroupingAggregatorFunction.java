@@ -30,14 +30,14 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDeviationStates.GroupingStdDeviationState state;
+  private final StdDeviationStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StdDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
-      StdDeviationStates.GroupingStdDeviationState state, DriverContext driverContext) {
+      StdDeviationStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -191,7 +191,7 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingStdDeviationState inState = ((StdDeviationDoubleGroupingAggregatorFunction) input).state;
+    StdDeviationStates.GroupingState inState = ((StdDeviationDoubleGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StdDeviationDoubleAggregator.combineStates(state, groupId, inState, position);
   }

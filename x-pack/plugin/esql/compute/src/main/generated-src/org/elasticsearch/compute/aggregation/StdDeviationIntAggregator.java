@@ -29,19 +29,19 @@ import org.elasticsearch.compute.operator.DriverContext;
 @GroupingAggregator
 public class StdDeviationIntAggregator {
 
-    public static StdDeviationStates.StdDeviationState initSingle() {
-        return new StdDeviationStates.StdDeviationState();
+    public static StdDeviationStates.SingleState initSingle() {
+        return new StdDeviationStates.SingleState();
     }
 
-    public static void combine(StdDeviationStates.StdDeviationState state, int value) {
+    public static void combine(StdDeviationStates.SingleState state, int value) {
         state.add(value);
     }
 
-    public static void combineIntermediate(StdDeviationStates.StdDeviationState state, double mean, double m2, long count) {
+    public static void combineIntermediate(StdDeviationStates.SingleState state, double mean, double m2, long count) {
         state.combine(mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDeviationStates.StdDeviationState state, DriverContext driverContext) {
+    public static Block evaluateFinal(StdDeviationStates.SingleState state, DriverContext driverContext) {
         final long count = state.count();
         final double m2 = state.m2();
         if (count == 0 || Double.isFinite(m2) == false) {
@@ -50,34 +50,28 @@ public class StdDeviationIntAggregator {
         return driverContext.blockFactory().newConstantDoubleBlockWith(state.evaluateFinal(), 1);
     }
 
-    public static StdDeviationStates.GroupingStdDeviationState initGrouping(BigArrays bigArrays) {
-        return new StdDeviationStates.GroupingStdDeviationState(bigArrays);
+    public static StdDeviationStates.GroupingState initGrouping(BigArrays bigArrays) {
+        return new StdDeviationStates.GroupingState(bigArrays);
     }
 
-    public static void combine(StdDeviationStates.GroupingStdDeviationState current, int groupId, int value) {
+    public static void combine(StdDeviationStates.GroupingState current, int groupId, int value) {
         current.add(groupId, value);
     }
 
     public static void combineStates(
-        StdDeviationStates.GroupingStdDeviationState current,
+        StdDeviationStates.GroupingState current,
         int groupId,
-        StdDeviationStates.GroupingStdDeviationState state,
+        StdDeviationStates.GroupingState state,
         int statePosition
     ) {
         current.combine(groupId, state.getOrNull(statePosition));
     }
 
-    public static void combineIntermediate(
-        StdDeviationStates.GroupingStdDeviationState state,
-        int groupId,
-        double mean,
-        double m2,
-        long count
-    ) {
+    public static void combineIntermediate(StdDeviationStates.GroupingState state, int groupId, double mean, double m2, long count) {
         state.combine(groupId, mean, m2, count);
     }
 
-    public static Block evaluateFinal(StdDeviationStates.GroupingStdDeviationState state, IntVector selected, DriverContext driverContext) {
+    public static Block evaluateFinal(StdDeviationStates.GroupingState state, IntVector selected, DriverContext driverContext) {
         try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 final var groupId = selected.getInt(i);

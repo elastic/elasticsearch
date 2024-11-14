@@ -19,15 +19,15 @@ public final class StdDeviationStates {
 
     private StdDeviationStates() {}
 
-    static final class StdDeviationState implements AggregatorState {
+    static final class SingleState implements AggregatorState {
 
         private WelfordAlgorithm welfordAlgorithm;
 
-        StdDeviationState() {
+        SingleState() {
             this(0, 0, 0);
         }
 
-        StdDeviationState(double mean, double m2, long count) {
+        SingleState(double mean, double m2, long count) {
             this.welfordAlgorithm = new WelfordAlgorithm(mean, m2, count);
         }
 
@@ -76,17 +76,17 @@ public final class StdDeviationStates {
         }
     }
 
-    static final class GroupingStdDeviationState implements GroupingAggregatorState {
+    static final class GroupingState implements GroupingAggregatorState {
 
-        private ObjectArray<StdDeviationState> states;
+        private ObjectArray<SingleState> states;
         private final BigArrays bigArrays;
 
-        GroupingStdDeviationState(BigArrays bigArrays) {
+        GroupingState(BigArrays bigArrays) {
             this.states = bigArrays.newObjectArray(1);
             this.bigArrays = bigArrays;
         }
 
-        StdDeviationState getOrNull(int position) {
+        SingleState getOrNull(int position) {
             if (position < states.size()) {
                 return states.get(position);
             } else {
@@ -94,7 +94,7 @@ public final class StdDeviationStates {
             }
         }
 
-        public void combine(int groupId, StdDeviationState state) {
+        public void combine(int groupId, SingleState state) {
             if (state == null) {
                 return;
             }
@@ -105,18 +105,18 @@ public final class StdDeviationStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new StdDeviationState(meanValue, m2Value, countValue);
+                state = new SingleState(meanValue, m2Value, countValue);
                 states.set(groupId, state);
             } else {
                 state.combine(meanValue, m2Value, countValue);
             }
         }
 
-        public StdDeviationState getOrSet(int groupId) {
+        public SingleState getOrSet(int groupId) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new StdDeviationState();
+                state = new SingleState();
                 states.set(groupId, state);
             }
             return state;

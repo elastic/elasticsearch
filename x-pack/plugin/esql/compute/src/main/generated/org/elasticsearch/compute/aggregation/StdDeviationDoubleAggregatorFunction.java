@@ -31,12 +31,12 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
 
   private final DriverContext driverContext;
 
-  private final StdDeviationStates.StdDeviationState state;
+  private final StdDeviationStates.SingleState state;
 
   private final List<Integer> channels;
 
   public StdDeviationDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StdDeviationStates.StdDeviationState state) {
+      StdDeviationStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

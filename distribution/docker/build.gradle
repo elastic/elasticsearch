@@ -536,12 +536,11 @@ subprojects { Project subProject ->
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
-    final String extension = switch (base) {
-        case DockerBase.IRON_BANK -> 'ironbank.tar'
-        case DockerBase.CLOUD_ESS -> 'cloud-ess.tar'
-        case DockerBase.WOLFI -> 'wolfi.tar'
-        default -> 'docker.tar'
-    }
+    final String extension =
+      (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
+        (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
+          (base == DockerBase.WOLFI ? 'wolfi.tar' :
+            'docker.tar')))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

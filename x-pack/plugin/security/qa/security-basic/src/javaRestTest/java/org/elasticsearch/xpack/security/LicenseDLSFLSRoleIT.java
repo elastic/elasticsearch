@@ -132,7 +132,8 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
                     .build() };
             createRoleWithIndicesPrivileges(adminClient(), "role_with_FLS_and_DLS", indicesPrivileges);
         }
-        assertQuery(client(), "", 4, roles -> {
+        assertQuery(client(), """
+            {"query":{"bool":{"must_not":{"term":{"metadata._reserved":true}}}}}""", 4, roles -> {
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
             assertThat(roles, iterableWithSize(4));
             assertThat(roles.get(0).get("name"), equalTo("role_with_DLS"));
@@ -152,7 +153,8 @@ public final class LicenseDLSFLSRoleIT extends ESRestTestCase {
         assertTrue(((Boolean) responseMap.get("basic_was_started")));
         assertTrue(((Boolean) responseMap.get("acknowledged")));
         // now the same roles show up as disabled ("enabled" is "false")
-        assertQuery(client(), "", 4, roles -> {
+        assertQuery(client(), """
+            {"query":{"bool":{"must_not":{"term":{"metadata._reserved":true}}}}}""", 4, roles -> {
             roles.sort(Comparator.comparing(o -> ((String) o.get("name"))));
             assertThat(roles, iterableWithSize(4));
             assertThat(roles.get(0).get("name"), equalTo("role_with_DLS"));

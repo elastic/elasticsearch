@@ -1667,6 +1667,72 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testIntervalAsString() {
+        // DateTrunc
+        for (String interval : List.of("1 minu", "1 dy", "1.5 minutes", "0.5 days", "minutes 1", "day 5")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString("1:35: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString("1:67: Cannot convert string [" + interval + "] to [DATE_PERIOD or TIME_DURATION]")
+            );
+        }
+        for (String interval : List.of("1", "0.5", "invalid")) {
+            assertThat(
+                error("from types  | EVAL x = date_trunc(\"" + interval + "\", \"1991-06-26T00:00:00.000Z\")"),
+                containsString(
+                    "1:24: first argument of [date_trunc(\""
+                        + interval
+                        + "\", \"1991-06-26T00:00:00.000Z\")] must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+            assertThat(
+                error("from types  | EVAL x = \"1991-06-26T00:00:00.000Z\", y = date_trunc(\"" + interval + "\", x::datetime)"),
+                containsString(
+                    "1:56: first argument of [date_trunc(\""
+                        + interval
+                        + "\", x::datetime)] "
+                        + "must be [dateperiod or timeduration], found value [\""
+                        + interval
+                        + "\"] type [keyword]"
+                )
+            );
+        }
+
+        // Bucket
+        assertEquals(
+            "1:52: Cannot convert string [1 yar] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'yar']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 yar\")")
+        );
+        assertEquals(
+            "1:52: Cannot convert string [1 hur] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'hur']",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1 hur\")")
+        );
+        assertEquals(
+            "1:58: Cannot convert string [1 mu] to [DATE_PERIOD or TIME_DURATION], error [Unexpected temporal unit: 'mu']",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1 mu\") | sort max ")
+        );
+        assertEquals(
+            "1:34: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max(emp_no) by bucket(hire_date, \"1\")")
+        );
+        assertEquals(
+            "1:40: second argument of [bucket(hire_date, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | stats max = max(emp_no) by bucket(hire_date, \"1\") | sort max ")
+        );
+        assertEquals(
+            "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
+                + "found value [\"1\"] type [keyword]",
+            error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
+        );
+    }
+
     private void query(String query) {
         defaultAnalyzer.analyze(parser.createStatement(query));
     }

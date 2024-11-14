@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -19,10 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.combineAnd;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.inCommon;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.splitAnd;
-import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.subtract;
+import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.extractCommon;
 
 /**
  * Extract a per-function expression filter applied to all the aggs as a query {@link Filter}, when no groups are provided.
@@ -34,8 +30,8 @@ import static org.elasticsearch.xpack.esql.core.expression.predicate.Predicates.
  *         ... | WHERE b > 0 | STATS MIN(a), MIN(c) | ...
  *     </pre>
  */
-public final class ExtractStatsCommonFilter extends OptimizerRules.OptimizerRule<Aggregate> {
-    public ExtractStatsCommonFilter() {
+public final class ExtractAggregateCommonFilter extends OptimizerRules.OptimizerRule<Aggregate> {
+    public ExtractAggregateCommonFilter() {
         super(OptimizerRules.TransformDirection.UP);
     }
 
@@ -45,38 +41,35 @@ public final class ExtractStatsCommonFilter extends OptimizerRules.OptimizerRule
             return aggregate; // no optimization for grouped stats
         }
 
-        // extract predicates common in all the filters
-        List<Expression> commonFilters = null;
-        @SuppressWarnings({ "rawtypes", "unchecked" })
-        List<Expression>[] splitAnds = new List[aggregate.aggregates().size()];
-        int i = 0;
+        // collect all filters from the agg functions
+        List<Expression> filters = new ArrayList<>(aggregate.aggregates().size());
         for (NamedExpression ne : aggregate.aggregates()) {
             if (ne instanceof Alias alias && alias.child() instanceof AggregateFunction aggFunction && aggFunction.hasFilter()) {
-                var split = splitAnd(aggFunction.filter());
-                commonFilters = commonFilters == null ? split : inCommon(split, commonFilters);
-                if (commonFilters.isEmpty()) {
-                    return aggregate; // no common filter -- skip optimization
-                }
-                splitAnds[i++] = split;
+                filters.add(aggFunction.filter());
             } else {
                 return aggregate; // (at least one) agg function has no filter -- skip optimization
             }
         }
 
-        // remove common filters from the agg functions
+        // extract common filters
+        var common = extractCommon(filters);
+        if (common.v1() == null) { // no common filter
+            return aggregate;
+        }
+
+        // replace agg functions' filters with trimmed ones
+        var newFilters = common.v2();
         List<NamedExpression> newAggs = new ArrayList<>(aggregate.aggregates().size());
-        i = 0;
-        for (NamedExpression ne : aggregate.aggregates()) {
-            var alias = (Alias) ne;
-            List<Expression> diffed = subtract(splitAnds[i++], commonFilters);
-            Expression newFilter = diffed.isEmpty() ? Literal.TRUE : combineAnd(diffed);
-            newAggs.add(alias.replaceChild(((AggregateFunction) alias.child()).withFilter(newFilter)));
+        for (int i = 0; i < aggregate.aggregates().size(); i++) {
+            var alias = (Alias) aggregate.aggregates().get(i);
+            var newChild = ((AggregateFunction) alias.child()).withFilter(newFilters.get(i));
+            newAggs.add(alias.replaceChild(newChild));
         }
 
         // build the new agg on top of extracted filter
         return new Aggregate(
             aggregate.source(),
-            new Filter(aggregate.source(), aggregate.child(), combineAnd(commonFilters)),
+            new Filter(aggregate.source(), aggregate.child(), common.v1()),
             aggregate.aggregateType(),
             aggregate.groupings(),
             newAggs

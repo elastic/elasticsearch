@@ -30,11 +30,7 @@ import java.util.List;
 import static java.util.Collections.emptyList;
 
 public class StdDev extends AggregateFunction implements ToAggregator {
-    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
-        Expression.class,
-        "StdDev",
-        StdDev::new
-    );
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
 
     @FunctionInfo(
         returnType = "double",

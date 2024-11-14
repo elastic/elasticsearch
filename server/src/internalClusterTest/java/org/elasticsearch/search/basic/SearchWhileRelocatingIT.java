@@ -119,7 +119,7 @@ public class SearchWhileRelocatingIT extends ESIntegTestCase {
             for (int j = 0; j < threads.length; j++) {
                 threads[j].start();
             }
-            allowNodes("test", between(1, 3));
+            allowNodes("test", between(1, 2));
             ClusterRerouteUtils.reroute(client());
             stop.set(true);
             for (int j = 0; j < threads.length; j++) {

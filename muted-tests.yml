@@ -235,6 +235,8 @@ tests:
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
   method: testServerExceptionMidStream
   issue: https://github.com/elastic/elasticsearch/issues/116838
+- class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
+  issue: https://github.com/elastic/elasticsearch/issues/116851
 
 # Examples:
 #

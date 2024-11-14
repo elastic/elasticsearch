@@ -1688,17 +1688,21 @@ public class VerifierTests extends ESTestCase {
                 + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
         );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
     }
 
     public void testCategorizeNestedGrouping() {
         query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
         assertEquals(
-            "1:40: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within another function",
+            "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
             error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
         );
         assertEquals(
-            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within another function",
+            "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
             error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
         );
     }

@@ -303,21 +303,16 @@ public class Verifier {
             });
         }
 
-        // Forbid CATEGORIZE grouping function within other functions
+        // Forbid CATEGORIZE grouping functions not being top level groupings
         agg.groupings().forEach(g -> {
-            g.forEachDown(
-                Function.class,
-                function -> function.children()
+            // Check all CATEGORIZE but the top level one
+            Alias.unwrap(g)
+                .children()
                     .forEach(
                         child -> child.forEachDown(
                             Categorize.class,
-                            categorize -> failures.add(
-                                fail(
-                                    categorize,
-                                    "cannot use CATEGORIZE grouping function [{}] within another function",
-                                    categorize.sourceText()
-                                )
-                            )
+                        c -> failures.add(
+                            fail(c, "CATEGORIZE grouping function [{}] can't be used within other expressions", c.sourceText())
                         )
                     )
             );

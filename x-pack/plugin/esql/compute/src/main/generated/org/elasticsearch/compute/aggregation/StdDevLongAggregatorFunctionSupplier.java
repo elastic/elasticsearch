@@ -11,28 +11,28 @@ import java.util.List;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunctionSupplier} implementation for {@link StdDeviationIntAggregator}.
+ * {@link AggregatorFunctionSupplier} implementation for {@link StdDevLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class StdDeviationIntAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
+public final class StdDevLongAggregatorFunctionSupplier implements AggregatorFunctionSupplier {
   private final List<Integer> channels;
 
-  public StdDeviationIntAggregatorFunctionSupplier(List<Integer> channels) {
+  public StdDevLongAggregatorFunctionSupplier(List<Integer> channels) {
     this.channels = channels;
   }
 
   @Override
-  public StdDeviationIntAggregatorFunction aggregator(DriverContext driverContext) {
-    return StdDeviationIntAggregatorFunction.create(driverContext, channels);
+  public StdDevLongAggregatorFunction aggregator(DriverContext driverContext) {
+    return StdDevLongAggregatorFunction.create(driverContext, channels);
   }
 
   @Override
-  public StdDeviationIntGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
-    return StdDeviationIntGroupingAggregatorFunction.create(channels, driverContext);
+  public StdDevLongGroupingAggregatorFunction groupingAggregator(DriverContext driverContext) {
+    return StdDevLongGroupingAggregatorFunction.create(channels, driverContext);
   }
 
   @Override
   public String describe() {
-    return "std_deviation of ints";
+    return "std_dev of longs";
   }
 }

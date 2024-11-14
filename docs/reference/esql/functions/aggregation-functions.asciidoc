@@ -17,7 +17,7 @@ The <<esql-stats-by>> command supports these aggregate functions:
 * <<esql-min>>
 * <<esql-percentile>>
 * experimental:[] <<esql-st_centroid_agg>>
-* <<esql-std_deviation>>
+* <<esql-std_dev>>
 * <<esql-sum>>
 * <<esql-top>>
 * <<esql-values>>

@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * A standard deviation aggregation definition for int.
+ * A standard deviation aggregation definition for $type$.
  * This class is generated. Edit `X-StdDeviationAggregator.java.st` instead.
  */
 @Aggregator(
@@ -27,13 +27,13 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-public class StdDeviationIntAggregator {
+public class StdDev$Type$Aggregator {
 
     public static StdDeviationStates.SingleState initSingle() {
         return new StdDeviationStates.SingleState();
     }
 
-    public static void combine(StdDeviationStates.SingleState state, int value) {
+    public static void combine(StdDeviationStates.SingleState state, $type$ value) {
         state.add(value);
     }
 
@@ -54,7 +54,7 @@ public class StdDeviationIntAggregator {
         return new StdDeviationStates.GroupingState(bigArrays);
     }
 
-    public static void combine(StdDeviationStates.GroupingState current, int groupId, int value) {
+    public static void combine(StdDeviationStates.GroupingState current, int groupId, $type$ value) {
         current.add(groupId, value);
     }
 

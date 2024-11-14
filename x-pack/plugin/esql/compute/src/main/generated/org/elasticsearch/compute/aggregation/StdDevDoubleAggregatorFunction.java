@@ -20,10 +20,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link StdDeviationDoubleAggregator}.
+ * {@link AggregatorFunction} implementation for {@link StdDevDoubleAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class StdDeviationDoubleAggregatorFunction implements AggregatorFunction {
+public final class StdDevDoubleAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -35,16 +35,16 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
 
   private final List<Integer> channels;
 
-  public StdDeviationDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
+  public StdDevDoubleAggregatorFunction(DriverContext driverContext, List<Integer> channels,
       StdDeviationStates.SingleState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static StdDeviationDoubleAggregatorFunction create(DriverContext driverContext,
+  public static StdDevDoubleAggregatorFunction create(DriverContext driverContext,
       List<Integer> channels) {
-    return new StdDeviationDoubleAggregatorFunction(driverContext, channels, StdDeviationDoubleAggregator.initSingle());
+    return new StdDevDoubleAggregatorFunction(driverContext, channels, StdDevDoubleAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -85,7 +85,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
 
   private void addRawVector(DoubleVector vector) {
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      StdDeviationDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
@@ -94,7 +94,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      StdDeviationDoubleAggregator.combine(state, vector.getDouble(i));
+      StdDevDoubleAggregator.combine(state, vector.getDouble(i));
     }
   }
 
@@ -106,7 +106,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDeviationDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
@@ -122,7 +122,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        StdDeviationDoubleAggregator.combine(state, block.getDouble(i));
+        StdDevDoubleAggregator.combine(state, block.getDouble(i));
       }
     }
   }
@@ -149,7 +149,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
     }
     LongVector count = ((LongBlock) countUncast).asVector();
     assert count.getPositionCount() == 1;
-    StdDeviationDoubleAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
+    StdDevDoubleAggregator.combineIntermediate(state, mean.getDouble(0), m2.getDouble(0), count.getLong(0));
   }
 
   @Override
@@ -159,7 +159,7 @@ public final class StdDeviationDoubleAggregatorFunction implements AggregatorFun
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = StdDeviationDoubleAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = StdDevDoubleAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -431,9 +431,9 @@ public class EsqlCapabilities {
         PER_AGG_FILTERING_ORDS,
 
         /**
-         * Support for {@code STD_DEVIATION} aggregation.
+         * Support for {@code STD_DEV} aggregation.
          */
-        STD_DEVIATION,
+        STD_DEV,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714

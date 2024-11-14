@@ -17,7 +17,7 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * A standard deviation aggregation definition for $type$.
+ * A standard deviation aggregation definition for double.
  * This class is generated. Edit `X-StdDeviationAggregator.java.st` instead.
  */
 @Aggregator(
@@ -27,13 +27,13 @@ import org.elasticsearch.compute.operator.DriverContext;
         @IntermediateState(name = "count", type = "LONG") }
 )
 @GroupingAggregator
-public class StdDeviation$Type$Aggregator {
+public class StdDevDoubleAggregator {
 
     public static StdDeviationStates.SingleState initSingle() {
         return new StdDeviationStates.SingleState();
     }
 
-    public static void combine(StdDeviationStates.SingleState state, $type$ value) {
+    public static void combine(StdDeviationStates.SingleState state, double value) {
         state.add(value);
     }
 
@@ -54,7 +54,7 @@ public class StdDeviation$Type$Aggregator {
         return new StdDeviationStates.GroupingState(bigArrays);
     }
 
-    public static void combine(StdDeviationStates.GroupingState current, int groupId, $type$ value) {
+    public static void combine(StdDeviationStates.GroupingState current, int groupId, double value) {
         current.add(groupId, value);
     }
 

@@ -27,8 +27,8 @@ import java.util.stream.Stream;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
-public class StdDeviationTests extends AbstractAggregationTestCase {
-    public StdDeviationTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+public class StdDevTests extends AbstractAggregationTestCase {
+    public StdDevTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
@@ -40,7 +40,7 @@ public class StdDeviationTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.intCases(1, 1000, Integer.MIN_VALUE, Integer.MAX_VALUE, true),
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
-        ).flatMap(List::stream).map(StdDeviationTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
+        ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
         // No rows
         for (var dataType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE)) {
@@ -50,7 +50,7 @@ public class StdDeviationTests extends AbstractAggregationTestCase {
                     List.of(dataType),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "StdDeviation[field=Attribute[channel=0]]",
+                        "StdDev[field=Attribute[channel=0]]",
                         DataType.DOUBLE,
                         nullValue()
                     )
@@ -62,7 +62,7 @@ public class StdDeviationTests extends AbstractAggregationTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new StdDeviation(source, args.get(0));
+        return new StdDev(source, args.get(0));
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
@@ -80,7 +80,7 @@ public class StdDeviationTests extends AbstractAggregationTestCase {
             var expected = Double.isInfinite(result) ? null : result;
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
-                "StdDeviation[field=Attribute[channel=0]]",
+                "StdDev[field=Attribute[channel=0]]",
                 DataType.DOUBLE,
                 equalTo(expected)
             );

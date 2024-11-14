@@ -42,7 +42,7 @@ public abstract class AggregateFunction extends Function {
             Percentile.ENTRY,
             Rate.ENTRY,
             SpatialCentroid.ENTRY,
-            StdDeviation.ENTRY,
+            StdDev.ENTRY,
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,

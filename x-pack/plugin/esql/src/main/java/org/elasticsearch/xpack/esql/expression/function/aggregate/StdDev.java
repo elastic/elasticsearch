@@ -10,9 +10,9 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDeviationDoubleAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDeviationIntAggregatorFunctionSupplier;
-import org.elasticsearch.compute.aggregation.StdDeviationLongAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.StdDevDoubleAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.StdDevIntAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.StdDevLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
@@ -29,11 +29,11 @@ import java.util.List;
 
 import static java.util.Collections.emptyList;
 
-public class StdDeviation extends AggregateFunction implements ToAggregator {
+public class StdDev extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
-        "StdDeviation",
-        StdDeviation::new
+        "StdDev",
+        StdDev::new
     );
 
     @FunctionInfo(
@@ -45,20 +45,20 @@ public class StdDeviation extends AggregateFunction implements ToAggregator {
             @Example(
                 description = "The expression can use inline functions. For example, to calculate the standard "
                     + "deviation of each employee's maximum salary changes, first use `MV_MAX` on each row, "
-                    + "and then use `StdDeviation` on the result",
+                    + "and then use `STD_DEV` on the result",
                 file = "stats",
-                tag = "docsStatsStdDeviationNestedExpression"
+                tag = "docsStatsStdDevNestedExpression"
             ) }
     )
-    public StdDeviation(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
+    public StdDev(Source source, @Param(name = "number", type = { "double", "integer", "long" }) Expression field) {
         this(source, field, Literal.TRUE);
     }
 
-    public StdDeviation(Source source, Expression field, Expression filter) {
+    public StdDev(Source source, Expression field, Expression filter) {
         super(source, field, filter, emptyList());
     }
 
-    private StdDeviation(StreamInput in) throws IOException {
+    private StdDev(StreamInput in) throws IOException {
         super(in);
     }
 
@@ -73,30 +73,30 @@ public class StdDeviation extends AggregateFunction implements ToAggregator {
     }
 
     @Override
-    protected NodeInfo<StdDeviation> info() {
-        return NodeInfo.create(this, StdDeviation::new, field(), filter());
+    protected NodeInfo<StdDev> info() {
+        return NodeInfo.create(this, StdDev::new, field(), filter());
     }
 
     @Override
-    public StdDeviation replaceChildren(List<Expression> newChildren) {
-        return new StdDeviation(source(), newChildren.get(0), newChildren.get(1));
+    public StdDev replaceChildren(List<Expression> newChildren) {
+        return new StdDev(source(), newChildren.get(0), newChildren.get(1));
     }
 
-    public StdDeviation withFilter(Expression filter) {
-        return new StdDeviation(source(), field(), filter);
+    public StdDev withFilter(Expression filter) {
+        return new StdDev(source(), field(), filter);
     }
 
     @Override
     public final AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
         if (type == DataType.LONG) {
-            return new StdDeviationLongAggregatorFunctionSupplier(inputChannels);
+            return new StdDevLongAggregatorFunctionSupplier(inputChannels);
         }
         if (type == DataType.INTEGER) {
-            return new StdDeviationIntAggregatorFunctionSupplier(inputChannels);
+            return new StdDevIntAggregatorFunctionSupplier(inputChannels);
         }
         if (type == DataType.DOUBLE) {
-            return new StdDeviationDoubleAggregatorFunctionSupplier(inputChannels);
+            return new StdDevDoubleAggregatorFunctionSupplier(inputChannels);
         }
         throw EsqlIllegalArgumentException.illegalDataType(type);
     }

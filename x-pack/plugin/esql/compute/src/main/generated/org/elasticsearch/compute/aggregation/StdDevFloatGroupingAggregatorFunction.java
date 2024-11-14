@@ -23,10 +23,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link StdDeviationFloatAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link StdDevFloatAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class StdDeviationFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -38,16 +38,16 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
 
   private final DriverContext driverContext;
 
-  public StdDeviationFloatGroupingAggregatorFunction(List<Integer> channels,
+  public StdDevFloatGroupingAggregatorFunction(List<Integer> channels,
       StdDeviationStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static StdDeviationFloatGroupingAggregatorFunction create(List<Integer> channels,
+  public static StdDevFloatGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new StdDeviationFloatGroupingAggregatorFunction(channels, StdDeviationFloatAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new StdDevFloatGroupingAggregatorFunction(channels, StdDevFloatAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -110,7 +110,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        StdDeviationFloatAggregator.combine(state, groupId, values.getFloat(v));
+        StdDevFloatAggregator.combine(state, groupId, values.getFloat(v));
       }
     }
   }
@@ -118,7 +118,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
   private void addRawInput(int positionOffset, IntVector groups, FloatVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StdDeviationFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
+      StdDevFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
     }
   }
 
@@ -137,7 +137,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          StdDeviationFloatAggregator.combine(state, groupId, values.getFloat(v));
+          StdDevFloatAggregator.combine(state, groupId, values.getFloat(v));
         }
       }
     }
@@ -152,7 +152,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDeviationFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
+        StdDevFloatAggregator.combine(state, groupId, values.getFloat(groupPosition + positionOffset));
       }
     }
   }
@@ -184,7 +184,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
     assert mean.getPositionCount() == m2.getPositionCount() && mean.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StdDeviationFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      StdDevFloatAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -193,9 +193,9 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingState inState = ((StdDeviationFloatGroupingAggregatorFunction) input).state;
+    StdDeviationStates.GroupingState inState = ((StdDevFloatGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    StdDeviationFloatAggregator.combineStates(state, groupId, inState, position);
+    StdDevFloatAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -206,7 +206,7 @@ public final class StdDeviationFloatGroupingAggregatorFunction implements Groupi
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = StdDeviationFloatAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = StdDevFloatAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

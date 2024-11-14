@@ -21,10 +21,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link GroupingAggregatorFunction} implementation for {@link StdDeviationDoubleAggregator}.
+ * {@link GroupingAggregatorFunction} implementation for {@link StdDevLongAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class StdDeviationDoubleGroupingAggregatorFunction implements GroupingAggregatorFunction {
+public final class StdDevLongGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("mean", ElementType.DOUBLE),
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
@@ -36,16 +36,16 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
 
   private final DriverContext driverContext;
 
-  public StdDeviationDoubleGroupingAggregatorFunction(List<Integer> channels,
+  public StdDevLongGroupingAggregatorFunction(List<Integer> channels,
       StdDeviationStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
   }
 
-  public static StdDeviationDoubleGroupingAggregatorFunction create(List<Integer> channels,
+  public static StdDevLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new StdDeviationDoubleGroupingAggregatorFunction(channels, StdDeviationDoubleAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new StdDevLongGroupingAggregatorFunction(channels, StdDevLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -60,8 +60,8 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
   @Override
   public GroupingAggregatorFunction.AddInput prepareProcessPage(SeenGroupIds seenGroupIds,
       Page page) {
-    DoubleBlock valuesBlock = page.getBlock(channels.get(0));
-    DoubleVector valuesVector = valuesBlock.asVector();
+    LongBlock valuesBlock = page.getBlock(channels.get(0));
+    LongVector valuesVector = valuesBlock.asVector();
     if (valuesVector == null) {
       if (valuesBlock.mayHaveNulls()) {
         state.enableGroupIdTracking(seenGroupIds);
@@ -99,7 +99,7 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
     };
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
@@ -108,19 +108,19 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
       int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
       int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
       for (int v = valuesStart; v < valuesEnd; v++) {
-        StdDeviationDoubleAggregator.combine(state, groupId, values.getDouble(v));
+        StdDevLongAggregator.combine(state, groupId, values.getLong(v));
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntVector groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntVector groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StdDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+      StdDevLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleBlock values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -135,13 +135,13 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
         int valuesStart = values.getFirstValueIndex(groupPosition + positionOffset);
         int valuesEnd = valuesStart + values.getValueCount(groupPosition + positionOffset);
         for (int v = valuesStart; v < valuesEnd; v++) {
-          StdDeviationDoubleAggregator.combine(state, groupId, values.getDouble(v));
+          StdDevLongAggregator.combine(state, groupId, values.getLong(v));
         }
       }
     }
   }
 
-  private void addRawInput(int positionOffset, IntBlock groups, DoubleVector values) {
+  private void addRawInput(int positionOffset, IntBlock groups, LongVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       if (groups.isNull(groupPosition)) {
         continue;
@@ -150,7 +150,7 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
         int groupId = groups.getInt(g);
-        StdDeviationDoubleAggregator.combine(state, groupId, values.getDouble(groupPosition + positionOffset));
+        StdDevLongAggregator.combine(state, groupId, values.getLong(groupPosition + positionOffset));
       }
     }
   }
@@ -182,7 +182,7 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
     assert mean.getPositionCount() == m2.getPositionCount() && mean.getPositionCount() == count.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StdDeviationDoubleAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
+      StdDevLongAggregator.combineIntermediate(state, groupId, mean.getDouble(groupPosition + positionOffset), m2.getDouble(groupPosition + positionOffset), count.getLong(groupPosition + positionOffset));
     }
   }
 
@@ -191,9 +191,9 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingState inState = ((StdDeviationDoubleGroupingAggregatorFunction) input).state;
+    StdDeviationStates.GroupingState inState = ((StdDevLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
-    StdDeviationDoubleAggregator.combineStates(state, groupId, inState, position);
+    StdDevLongAggregator.combineStates(state, groupId, inState, position);
   }
 
   @Override
@@ -204,7 +204,7 @@ public final class StdDeviationDoubleGroupingAggregatorFunction implements Group
   @Override
   public void evaluateFinal(Block[] blocks, int offset, IntVector selected,
       DriverContext driverContext) {
-    blocks[offset] = StdDeviationDoubleAggregator.evaluateFinal(state, selected, driverContext);
+    blocks[offset] = StdDevLongAggregator.evaluateFinal(state, selected, driverContext);
   }
 
   @Override

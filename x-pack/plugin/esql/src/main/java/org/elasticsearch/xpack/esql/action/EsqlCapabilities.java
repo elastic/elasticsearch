@@ -475,7 +475,12 @@ public class EsqlCapabilities {
          * - Introduce BinaryPlan and co
          * - Refactor INLINESTATS and LOOKUP as a JOIN block
          */
-        JOIN_PLANNING_V1(Build.current().isSnapshot());
+        JOIN_PLANNING_V1(Build.current().isSnapshot()),
+
+        /**
+         * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
 
         private final boolean enabled;
 

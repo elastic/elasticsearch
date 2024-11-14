@@ -136,7 +136,7 @@ public class DesiredBalanceMetrics {
             "threads",
             this::getCurrentNodeWriteLoadMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerLongsGauge(
             CURRENT_NODE_DISK_USAGE_METRIC_NAME,
             "The current disk usage of nodes",
             "bytes",
@@ -148,7 +148,7 @@ public class DesiredBalanceMetrics {
             "unit",
             this::getCurrentNodeShardCountMetrics
         );
-        meterRegistry.registerDoublesGauge(
+        meterRegistry.registerLongsGauge(
             CURRENT_NODE_FORECASTED_DISK_USAGE_METRIC_NAME,
             "The current forecasted disk usage of nodes",
             "bytes",
@@ -231,16 +231,16 @@ public class DesiredBalanceMetrics {
         return values;
     }
 
-    private List<DoubleWithAttributes> getCurrentNodeDiskUsageMetrics() {
+    private List<LongWithAttributes> getCurrentNodeDiskUsageMetrics() {
         if (nodeIsMaster == false) {
             return List.of();
         }
         var stats = allocationStatsPerNodeRef.get();
-        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        List<LongWithAttributes> values = new ArrayList<>(stats.size());
         for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).currentDiskUsage(), getNodeAttributes(node)));
+            values.add(new LongWithAttributes(stats.get(node).currentDiskUsage(), getNodeAttributes(node)));
         }
-        return doubles;
+        return values;
     }
 
     private List<DoubleWithAttributes> getCurrentNodeWriteLoadMetrics() {
@@ -267,16 +267,16 @@ public class DesiredBalanceMetrics {
         return values;
     }
 
-    private List<DoubleWithAttributes> getCurrentNodeForecastedDiskUsageMetrics() {
+    private List<LongWithAttributes> getCurrentNodeForecastedDiskUsageMetrics() {
         if (nodeIsMaster == false) {
             return List.of();
         }
         var stats = allocationStatsPerNodeRef.get();
-        List<DoubleWithAttributes> doubles = new ArrayList<>(stats.size());
+        List<LongWithAttributes> values = new ArrayList<>(stats.size());
         for (var node : stats.keySet()) {
-            doubles.add(new DoubleWithAttributes(stats.get(node).forecastedDiskUsage(), getNodeAttributes(node)));
+            values.add(new LongWithAttributes(stats.get(node).forecastedDiskUsage(), getNodeAttributes(node)));
         }
-        return doubles;
+        return values;
     }
 
     private List<LongWithAttributes> getCurrentNodeUndesiredShardCountMetrics() {

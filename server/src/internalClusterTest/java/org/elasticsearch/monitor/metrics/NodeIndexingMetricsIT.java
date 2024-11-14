@@ -476,6 +476,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
                 .build()
         );
+        ensureStableCluster(1);
 
         String index = "test";
         createIndex(index);
@@ -552,6 +553,7 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
                 .put(IndexingPressure.SPLIT_BULK_HIGH_WATERMARK_SIZE.getKey(), "1024B")
                 .build()
         );
+        ensureStableCluster(1);
 
         String index = "test";
         createIndex(index);

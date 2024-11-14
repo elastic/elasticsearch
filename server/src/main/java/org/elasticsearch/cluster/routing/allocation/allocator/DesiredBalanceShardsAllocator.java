@@ -206,6 +206,11 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         assert allocation.ignoreDisable() == false;
 
+        if (allocation.routingTable().indicesRouting().isEmpty()) {
+            logger.debug("No allocation needed for empty routing table");
+            return;
+        }
+
         computationsSubmitted.inc();
 
         var index = indexGenerator.incrementAndGet();

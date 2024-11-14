@@ -133,7 +133,7 @@ public class NettyAllocator {
             allocator = new NoDirectBuffers(delegate);
         }
         if (Assertions.ENABLED) {
-            ALLOCATOR = new ThrashingByteBufAllocator(allocator);
+            ALLOCATOR = new TrashingByteBufAllocator(allocator);
         } else {
             ALLOCATOR = allocator;
         }
@@ -362,18 +362,18 @@ public class NettyAllocator {
         }
     }
 
-    static class ThrashingByteBuf extends WrappedByteBuf {
+    static class TrashingByteBuf extends WrappedByteBuf {
 
-        private volatile boolean thrashed = false;
+        private volatile boolean trashed = false;
 
-        protected ThrashingByteBuf(ByteBuf buf) {
+        protected TrashingByteBuf(ByteBuf buf) {
             super(buf);
         }
 
         @Override
         public boolean release() {
             if (refCnt() == 1) {
-                thrashContent();
+                trashContent();
             }
             return super.release();
         }
@@ -381,14 +381,14 @@ public class NettyAllocator {
         @Override
         public boolean release(int decrement) {
             if (refCnt() == decrement) {
-                thrashContent();
+                trashContent();
             }
             return super.release(decrement);
         }
 
-        private void thrashContent() {
-            if (thrashed == false) {
-                thrashed = true;
+        private void trashContent() {
+            if (trashed == false) {
+                trashed = true;
                 for (var nioBuf : buf.nioBuffers()) {
                     assert nioBuf.hasArray();
                     var from = nioBuf.arrayOffset() + nioBuf.position();
@@ -399,25 +399,25 @@ public class NettyAllocator {
         }
     }
 
-    static class ThrashingByteBufAllocator extends NoDirectBuffers {
+    static class TrashingByteBufAllocator extends NoDirectBuffers {
 
-        ThrashingByteBufAllocator(ByteBufAllocator delegate) {
+        TrashingByteBufAllocator(ByteBufAllocator delegate) {
             super(delegate);
         }
 
         @Override
         public ByteBuf heapBuffer() {
-            return new ThrashingByteBuf(super.heapBuffer());
+            return new TrashingByteBuf(super.heapBuffer());
         }
 
         @Override
         public ByteBuf heapBuffer(int initialCapacity) {
-            return new ThrashingByteBuf(super.heapBuffer(initialCapacity));
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity));
         }
 
         @Override
         public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
-            return new ThrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
         }
     }
 }

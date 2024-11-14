@@ -24,7 +24,7 @@ public class NettyAllocatorTests extends ESTestCase {
     public void testArrayThrashingByteBuf() {
         var arr = randomByteArrayOfLength(between(1024, 2048));
         var buf = Unpooled.wrappedBuffer(arr);
-        var tBuf = new NettyAllocator.ThrashingByteBuf(buf);
+        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
         tBuf.release();
         var emptyArr = new byte[arr.length];
         assertArrayEquals(emptyArr, arr);
@@ -39,7 +39,7 @@ public class NettyAllocatorTests extends ESTestCase {
             byteBufs[i] = ByteBuffer.wrap(byteArrs[i]);
         }
         var buf = Unpooled.wrappedBuffer(byteBufs);
-        var tBuf = new NettyAllocator.ThrashingByteBuf(buf);
+        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
         tBuf.release();
         for (int i = 0; i < arrCnt; i++) {
             for (int j = 0; j < byteArrs[i].length; j++) {
@@ -55,7 +55,7 @@ public class NettyAllocatorTests extends ESTestCase {
         arr[0] = 1;
         arr[arr.length - 1] = 1;
         var buf = Unpooled.wrappedBuffer(arr, off, len);
-        var tBuf = new NettyAllocator.ThrashingByteBuf(buf);
+        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
         tBuf.release();
         assertEquals(1, arr[0]);
         assertEquals(1, arr[arr.length - 1]);
@@ -65,7 +65,7 @@ public class NettyAllocatorTests extends ESTestCase {
     }
 
     public void testThrashingByteBufAllocator() throws IOException {
-        var alloc = new NettyAllocator.ThrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var alloc = new NettyAllocator.TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var size = between(1024 * 1024, 10 * 1024 * 1024);
 
         // use 3 different heap allocation methods

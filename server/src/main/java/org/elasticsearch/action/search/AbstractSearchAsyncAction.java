@@ -251,7 +251,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
-                if (pendingExecutions.released.compareAndSet(false, true) == false) {
+                if (pendingExecutions.released.compareAndSet(false, true)) {
                     pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
                     pendingExecutions.flushQueue();
                 }
@@ -820,7 +820,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 executeAndRelease(task);
             } else {
                 queue.add(task);
-                if (queuedItems.incrementAndGet() >= permits && released.compareAndSet(false, true) == false) {
+                if (queuedItems.incrementAndGet() >= permits && released.compareAndSet(false, true)) {
                     semaphore.release(permits);
                 }
                 flushQueue();

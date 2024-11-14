@@ -35,13 +35,8 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
             new ShardId(randomIdentifier(), UUIDs.randomBase64UUID(), randomIntBetween(0, 99)),
             newDiscoveryNode(),
             UUIDs.randomBase64UUID(),
-            randomNonNegativeLong(),
-            randomNotifiedSearchNodeIds()
+            randomNonNegativeLong()
         );
-    }
-
-    private static Set<String> randomNotifiedSearchNodeIds() {
-        return randomSet(1, 8, () -> randomIdentifier());
     }
 
     private static DiscoveryNode newDiscoveryNode() {
@@ -51,54 +46,48 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
     @Override
     protected StatelessPrimaryRelocationAction.Request mutateInstance(StatelessPrimaryRelocationAction.Request instance)
         throws IOException {
-        return switch (between(1, 6)) {
+        return switch (between(1, 5)) {
             case 1 -> new StatelessPrimaryRelocationAction.Request(
                 randomValueOtherThan(instance.recoveryId(), ESTestCase::randomNonNegativeLong),
                 instance.shardId(),
                 instance.targetNode(),
                 instance.targetAllocationId(),
-                instance.clusterStateVersion(),
-                instance.getNotifiedSearchNodeIds()
+                instance.clusterStateVersion()
             );
             case 2 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 ShardIdTests.mutate(instance.shardId()),
                 instance.targetNode(),
                 instance.targetAllocationId(),
-                instance.clusterStateVersion(),
-                instance.getNotifiedSearchNodeIds()
+                instance.clusterStateVersion()
             );
             case 3 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 randomValueOtherThan(instance.targetNode(), StatelessPrimaryRelocationActionTests::newDiscoveryNode),
                 instance.targetAllocationId(),
-                instance.clusterStateVersion(),
-                instance.getNotifiedSearchNodeIds()
+                instance.clusterStateVersion()
             );
             case 4 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 instance.targetNode(),
                 randomValueOtherThan(instance.targetAllocationId(), UUIDs::randomBase64UUID),
-                instance.clusterStateVersion(),
-                instance.getNotifiedSearchNodeIds()
+                instance.clusterStateVersion()
             );
             case 5 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 instance.targetNode(),
                 instance.targetAllocationId(),
-                randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong),
-                instance.getNotifiedSearchNodeIds()
+                randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong)
             );
             case 6 -> new StatelessPrimaryRelocationAction.Request(
                 instance.recoveryId(),
                 instance.shardId(),
                 instance.targetNode(),
                 instance.targetAllocationId(),
-                instance.clusterStateVersion(),
-                randomValueOtherThan(instance.getNotifiedSearchNodeIds(), () -> randomNotifiedSearchNodeIds())
+                instance.clusterStateVersion()
             );
             default -> throw new AssertionError("impossible");
         };

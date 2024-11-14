@@ -322,7 +322,6 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
             try (onCompletion) {
-                Set<String> notifiedSearchNodeIds = indexShard.getNotifiedSearchNodeIds(indexShard.shardId());
                 client.execute(
                     StatelessPrimaryRelocationAction.TYPE,
                     new StatelessPrimaryRelocationAction.Request(
@@ -330,8 +329,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
                         indexShard.shardId(),
                         transportService.getLocalNode(),
                         indexShard.routingEntry().allocationId().getId(),
-                        recoveryTarget.clusterStateVersion(),
-                        notifiedSearchNodeIds
+                        recoveryTarget.clusterStateVersion()
                     ),
                     new ActionListener<>() {
                         @Override

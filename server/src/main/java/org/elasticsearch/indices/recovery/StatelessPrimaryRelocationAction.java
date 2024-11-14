@@ -35,22 +35,13 @@ public class StatelessPrimaryRelocationAction {
         private final DiscoveryNode targetNode;
         private final String targetAllocationId;
         private final long clusterStateVersion;
-        private final Set<String> notifiedSearchNodeIds;
 
-        public Request(
-            long recoveryId,
-            ShardId shardId,
-            DiscoveryNode targetNode,
-            String targetAllocationId,
-            long clusterStateVersion,
-            Set<String> notifiedSearchNodeIds
-        ) {
+        public Request(long recoveryId, ShardId shardId, DiscoveryNode targetNode, String targetAllocationId, long clusterStateVersion) {
             this.recoveryId = recoveryId;
             this.shardId = shardId;
             this.targetNode = targetNode;
             this.targetAllocationId = targetAllocationId;
             this.clusterStateVersion = clusterStateVersion;
-            this.notifiedSearchNodeIds = notifiedSearchNodeIds;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -60,11 +51,6 @@ public class StatelessPrimaryRelocationAction {
             targetNode = new DiscoveryNode(in);
             targetAllocationId = in.readString();
             clusterStateVersion = in.readVLong();
-            notifiedSearchNodeIds = in.readCollectionAsSet(StreamInput::readString);
-        }
-
-        public Set<String> getNotifiedSearchNodeIds() {
-            return notifiedSearchNodeIds;
         }
 
         @Override
@@ -80,7 +66,6 @@ public class StatelessPrimaryRelocationAction {
             targetNode.writeTo(out);
             out.writeString(targetAllocationId);
             out.writeVLong(clusterStateVersion);
-            out.writeCollection(notifiedSearchNodeIds, StreamOutput::writeString);
         }
 
         public long recoveryId() {
@@ -112,13 +97,12 @@ public class StatelessPrimaryRelocationAction {
                 && shardId.equals(request.shardId)
                 && targetNode.equals(request.targetNode)
                 && targetAllocationId.equals(request.targetAllocationId)
-                && clusterStateVersion == request.clusterStateVersion
-                && notifiedSearchNodeIds.equals(request.notifiedSearchNodeIds);
+                && clusterStateVersion == request.clusterStateVersion;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion, notifiedSearchNodeIds);
+            return Objects.hash(recoveryId, shardId, targetNode, targetAllocationId, clusterStateVersion);
         }
 
         @Override
@@ -133,10 +117,7 @@ public class StatelessPrimaryRelocationAction {
                 + ", targetAllocationId='"
                 + targetAllocationId
                 + "', clusterStateVersion="
-                + clusterStateVersion
-                + "', notifiedSearchNodeIds="
-                + notifiedSearchNodeIds
-                + '}';
+                + clusterStateVersion;
         }
     }
 }

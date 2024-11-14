@@ -4446,7 +4446,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
-    public Set<String> getNotifiedSearchNodeIds(ShardId shardId) {
+    public Set<String> getNotifiedSearchNodeIds() {
         return notifiedSearchNodeIdsSupplier.apply(shardId);
     }
 }

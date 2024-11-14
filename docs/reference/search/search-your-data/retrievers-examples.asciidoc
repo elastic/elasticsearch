@@ -641,7 +641,7 @@ To demonstrate the full functionality of retrievers, the following examples also
 
 Let's setup a reranking service and use it through the `text_similarity_reranker` retriever to rerank our top results.
 
-[source,console]
+[source,js]
 ----
 PUT _inference/rerank/my-rerank-model
 {
@@ -656,7 +656,7 @@ PUT _inference/rerank/my-rerank-model
 
 Let's start by reranking the results of the `rrf` retriever in our previous example.
 
-[source,console]
+[source,js]
 ----
 GET retrievers_example/_search
 {

@@ -61,7 +61,7 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
     public static final Setting<Boolean> MERGE_THREAD_POOL_SCHEDULER = Setting.boolSetting(
         "stateless.merge.use_thread_pool_scheduler",
-        false,
+        true,
         Setting.Property.NodeScope
     );
 

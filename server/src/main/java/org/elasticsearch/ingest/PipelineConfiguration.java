@@ -24,6 +24,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.util.Map;
 import java.util.Objects;
 
@@ -155,5 +156,37 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         int result = id.hashCode();
         result = 31 * result + getConfigAsMap().hashCode();
         return result;
+    }
+
+    /**
+     * Returns a copy of this object with processor upgrades applied, if necessary. Otherwise, returns this object.
+     *
+     * <p>The given upgrader is applied to the config map for any processor of the given type.
+     */
+    PipelineConfiguration maybeUpgradeProcessors(String type, IngestMetadata.ProcessorConfigUpgrader upgrader) {
+        Map<String, Object> mutableConfigMap = getConfigAsMap();
+        boolean changed = false;
+        // This should be a List of Maps, where the keys are processor types and the values are config maps.
+        // But we'll skip upgrading rather than fail if not.
+        if (mutableConfigMap.get(Pipeline.PROCESSORS_KEY) instanceof Iterable<?> processors) {
+            for (Object processor : processors) {
+                if (processor instanceof Map<?, ?> processorMap && processorMap.get(type) instanceof Map<?, ?> targetProcessor) {
+                    @SuppressWarnings("unchecked") // All XContent maps will be <String, Object>
+                    Map<String, Object> processorConfigMap = (Map<String, Object>) targetProcessor;
+                    if (upgrader.maybeUpgrade(processorConfigMap)) {
+                        changed = true;
+                    }
+                }
+            }
+        }
+        if (changed) {
+            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+                return new PipelineConfiguration(id, BytesReference.bytes(builder.map(mutableConfigMap)), xContentType);
+            } catch (IOException e) {
+                throw new UncheckedIOException(e);
+            }
+        } else {
+            return this;
+        }
     }
 }

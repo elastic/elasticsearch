@@ -7,7 +7,8 @@ Returns the character length of a string.
 
 ```
 FROM airports
+| WHERE country == "India"
 | KEEP city
-| EVAL fn_length = LENGTH(first_name)
+| EVAL fn_length = LENGTH(city)
 ```
 Note: All strings are in UTF-8, so a single character can use multiple bytes.

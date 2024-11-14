@@ -224,6 +224,7 @@ public class TransportVersions {
      * </ul>
      */
     public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_15 = def(8_702_00_4);
 
     /*
      * STOP! READ THIS FIRST! No, really,

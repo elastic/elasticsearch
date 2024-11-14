@@ -12,10 +12,18 @@ import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xpack.application.analytics.AnalyticsTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
+import org.elasticsearch.xpack.application.rules.action.ListQueryRulesetsAction;
 
 import java.util.Map;
+import java.util.Set;
 
 public class EnterpriseSearchFeatures implements FeatureSpecification {
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(ListQueryRulesetsAction.QUERY_RULE_LIST_TYPES);
+    }
+
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(

@@ -1,0 +1,5 @@
+pr: 116841
+summary: Always Enable Default ELSER Endpoint For Semantic Text
+area: "Vector Search, Relevance"
+type: enhancement
+issues: []

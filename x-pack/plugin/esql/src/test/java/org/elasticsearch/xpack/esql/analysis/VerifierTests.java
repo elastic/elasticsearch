@@ -1183,6 +1183,10 @@ public class VerifierTests extends ESTestCase {
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
         );
+        assertEquals(
+            "1:47: [MATCH] function cannot be used after STATS",
+            error("from test | STATS c = AVG(salary) BY gender | where match(gender, \"F\")")
+        );
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
@@ -1730,6 +1734,68 @@ public class VerifierTests extends ESTestCase {
             "1:68: second argument of [bucket(y, \"1\")] must be [integral, date_period or time_duration], "
                 + "found value [\"1\"] type [keyword]",
             error("from test | eval x = emp_no, y = hire_date | stats max = max(x) by bucket(y, \"1\") | sort max ")
+        );
+    }
+
+    public void testCategorizeSingleGrouping() {
+        query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("from test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no")
+        );
+        assertEquals(
+            "1:39: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:35: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings\n"
+                + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testCategorizeNestedGrouping() {
+        query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
+
+        assertEquals(
+            "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
+        );
+        assertEquals(
+            "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
+        );
+    }
+
+    public void testCategorizeWithinAggregations() {
+        query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
+            error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
+            error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
         );
     }
 

@@ -22,6 +22,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 import co.elastic.elasticsearch.stateless.action.NewCommitNotificationRequest;
 import co.elastic.elasticsearch.stateless.action.TransportNewCommitNotificationAction;
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.RefreshThrottler;
@@ -93,6 +94,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
             SharedBlobCacheWarmingService cacheWarmingService,
             TelemetryProvider telemetryProvider
         ) {
@@ -102,6 +104,7 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
                 clusterService,
                 client,
                 commitCleaner,
+                cacheService,
                 cacheWarmingService,
                 telemetryProvider
             );
@@ -153,10 +156,20 @@ public class StatelessCommitNotificationsIT extends AbstractStatelessIntegTestCa
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
             SharedBlobCacheWarmingService cacheWarmingService,
             TelemetryProvider telemetryProvider
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
+            super(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
 
         @Override

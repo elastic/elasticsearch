@@ -197,6 +197,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
             SharedBlobCacheWarmingService cacheWarmingService,
             TelemetryProvider telemetryProvider
         ) {
@@ -206,6 +207,7 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
                 clusterService,
                 client,
                 commitCleaner,
+                cacheService,
                 cacheWarmingService,
                 telemetryProvider
             );
@@ -232,10 +234,20 @@ public class VirtualBatchedCompoundCommitsIT extends AbstractStatelessIntegTestC
             ClusterService clusterService,
             Client client,
             StatelessCommitCleaner commitCleaner,
+            StatelessSharedBlobCacheService cacheService,
             SharedBlobCacheWarmingService cacheWarmingService,
             TelemetryProvider telemetryProvider
         ) {
-            super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
+            super(
+                settings,
+                objectStoreService,
+                clusterService,
+                client,
+                commitCleaner,
+                cacheService,
+                cacheWarmingService,
+                telemetryProvider
+            );
         }
 
         @Override

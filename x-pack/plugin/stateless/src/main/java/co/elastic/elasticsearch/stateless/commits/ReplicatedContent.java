@@ -39,6 +39,7 @@ import java.util.Collections;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.LongPredicate;
 
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
@@ -54,15 +55,20 @@ class ReplicatedContent {
 
     private static final Logger logger = LogManager.getLogger(ReplicatedContent.class);
 
-    private static final ReplicatedContent EMPTY = new ReplicatedContent();
+    static final ReplicatedContent EMPTY = new ReplicatedContent();
+
+    static final LongPredicate ALWAYS_REPLICATE = (ignored) -> true;
 
     private final List<InternalFileReplicatedRange> ranges = new ArrayList<>();
     private final List<InternalFileRangeReader> readers = new ArrayList<>();
 
+    private ReplicatedContent() {}
+
     public static ReplicatedContent create(
         boolean useInternalFilesReplicatedContent,
         Collection<InternalFile> internalFiles,
-        Directory directory
+        Directory directory,
+        LongPredicate shouldReplicate
     ) {
         if (useInternalFilesReplicatedContent == false) {
             return EMPTY;
@@ -73,60 +79,63 @@ class ReplicatedContent {
         long targetContentOffset = 0;
         var content = new ReplicatedContent();
         for (var internalFile : internalFiles) {
-            if (internalFile.length() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
-                content.append(internalFile.name(), directory, targetContentOffset, 0, (short) internalFile.length(), false);
-            } else {
-                boolean isCompoundSegmentsFile = LuceneFilesExtensions.fromFile(internalFile.name()) == LuceneFilesExtensions.CFS;
-                content.append(
-                    internalFile.name(),
-                    directory,
-                    targetContentOffset,
-                    0,
-                    REPLICATED_CONTENT_HEADER_SIZE,
-                    isCompoundSegmentsFile
-                );
-                if (isCompoundSegmentsFile) {
-                    var entries = readSortedCompoundEntries(directory, correspondingCfeFilename(internalFile.name()));
-                    for (var entry : entries) {
-                        if (entry.length() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
-                            content.append(
-                                internalFile.name(),
-                                directory,
-                                targetContentOffset,
-                                entry.offset(),
-                                (short) entry.length(),
-                                false
-                            );
-                        } else {
-                            content.append(
-                                internalFile.name(),
-                                directory,
-                                targetContentOffset,
-                                entry.offset(),
-                                REPLICATED_CONTENT_HEADER_SIZE,
-                                false
-                            );
-                            content.append(
-                                internalFile.name(),
-                                directory,
-                                targetContentOffset,
-                                entry.offset() + entry.length() - REPLICATED_CONTENT_FOOTER_SIZE,
-                                REPLICATED_CONTENT_FOOTER_SIZE,
-                                false
-                            );
+            long nextContentOffset = targetContentOffset + internalFile.length();
+            if (shouldReplicate.test(nextContentOffset)) {
+                if (internalFile.length() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
+                    content.append(internalFile.name(), directory, targetContentOffset, 0, (short) internalFile.length(), false);
+                } else {
+                    boolean isCompoundSegmentsFile = LuceneFilesExtensions.fromFile(internalFile.name()) == LuceneFilesExtensions.CFS;
+                    content.append(
+                        internalFile.name(),
+                        directory,
+                        targetContentOffset,
+                        0,
+                        REPLICATED_CONTENT_HEADER_SIZE,
+                        isCompoundSegmentsFile
+                    );
+                    if (isCompoundSegmentsFile) {
+                        var entries = readSortedCompoundEntries(directory, correspondingCfeFilename(internalFile.name()));
+                        for (var entry : entries) {
+                            if (entry.length() <= REPLICATED_CONTENT_MAX_SINGLE_FILE_SIZE) {
+                                content.append(
+                                    internalFile.name(),
+                                    directory,
+                                    targetContentOffset,
+                                    entry.offset(),
+                                    (short) entry.length(),
+                                    false
+                                );
+                            } else {
+                                content.append(
+                                    internalFile.name(),
+                                    directory,
+                                    targetContentOffset,
+                                    entry.offset(),
+                                    REPLICATED_CONTENT_HEADER_SIZE,
+                                    false
+                                );
+                                content.append(
+                                    internalFile.name(),
+                                    directory,
+                                    targetContentOffset,
+                                    entry.offset() + entry.length() - REPLICATED_CONTENT_FOOTER_SIZE,
+                                    REPLICATED_CONTENT_FOOTER_SIZE,
+                                    false
+                                );
+                            }
                         }
                     }
+                    content.append(
+                        internalFile.name(),
+                        directory,
+                        targetContentOffset,
+                        internalFile.length() - REPLICATED_CONTENT_FOOTER_SIZE,
+                        REPLICATED_CONTENT_FOOTER_SIZE,
+                        false
+                    );
                 }
-                content.append(
-                    internalFile.name(),
-                    directory,
-                    targetContentOffset,
-                    internalFile.length() - REPLICATED_CONTENT_FOOTER_SIZE,
-                    REPLICATED_CONTENT_FOOTER_SIZE,
-                    false
-                );
             }
-            targetContentOffset += internalFile.length();
+            targetContentOffset = nextContentOffset;
         }
 
         assert content.assertContentLength();

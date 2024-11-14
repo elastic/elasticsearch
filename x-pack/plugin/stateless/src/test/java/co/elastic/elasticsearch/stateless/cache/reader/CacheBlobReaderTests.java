@@ -151,7 +151,9 @@ public class CacheBlobReaderTests extends ESTestCase {
                 (fileName) -> {
                     throw new AssertionError("Unexpected call");
                 },
-                ESTestCase::randomNonNegativeLong
+                ESTestCase::randomNonNegativeLong,
+                sharedCacheService.getRegionSize(),
+                randomDoubleBetween(0.0d, 1.0d, true)
             );
             appendCommitsToVbcc(commits, useInternalFilesReplicatedContent);
 

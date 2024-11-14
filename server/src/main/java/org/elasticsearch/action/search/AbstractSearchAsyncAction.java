@@ -807,13 +807,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private static final class PendingExecutions {
         private final Semaphore semaphore;
         private final AtomicInteger queuedItems;
+        private final AtomicBoolean released;
         private final int permits;
         private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
 
         PendingExecutions(int permits) {
-            semaphore = new Semaphore(0);
             this.permits = permits;
+            semaphore = new Semaphore(0);
             queuedItems = new AtomicInteger();
+            released = new AtomicBoolean(false);
         }
 
         void submit(Consumer<Releasable> task) {
@@ -821,8 +823,9 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 executeAndRelease(task);
             } else {
                 queue.add(task);
-                if (queuedItems.incrementAndGet() == permits) {
+                if (queuedItems.incrementAndGet() >= permits && released.get() == false) {
                     semaphore.release(permits);
+                    released.set(true);
                 }
                 flushQueue();
             }

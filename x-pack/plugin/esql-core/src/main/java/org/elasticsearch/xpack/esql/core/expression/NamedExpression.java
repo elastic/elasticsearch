@@ -20,14 +20,6 @@ import java.util.Objects;
  * (by converting to an attribute).
  */
 public abstract class NamedExpression extends Expression implements NamedWriteable {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
-        for (NamedWriteableRegistry.Entry e : Attribute.getNamedWriteables()) {
-            entries.add(new NamedWriteableRegistry.Entry(NamedExpression.class, e.name, in -> (NamedExpression) e.reader.read(in)));
-        }
-        entries.add(Alias.ENTRY);
-        return entries;
-    }
 
     private final String name;
     private final NameId id;

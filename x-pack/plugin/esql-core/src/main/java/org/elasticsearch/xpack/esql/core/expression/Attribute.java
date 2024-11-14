@@ -34,11 +34,6 @@ public abstract class Attribute extends NamedExpression {
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
 
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // TODO add UnsupportedAttribute when these are moved to the same project
-        return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
-    }
-
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;
 

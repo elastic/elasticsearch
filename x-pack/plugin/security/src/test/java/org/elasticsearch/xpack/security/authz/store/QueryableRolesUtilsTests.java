@@ -20,7 +20,6 @@ public class QueryableRolesUtilsTests extends ESTestCase {
         new ReservedRolesStore();
     }
 
-
     public void testCalculateHash() {
         assertThat(
             QueryableRolesUtils.calculateHash(ReservedRolesStore.roleDescriptors()),

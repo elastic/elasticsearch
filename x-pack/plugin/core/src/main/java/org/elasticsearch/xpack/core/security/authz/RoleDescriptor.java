@@ -192,7 +192,7 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
         this.metadata = metadata != null ? Collections.unmodifiableMap(new TreeMap<>(metadata)) : Collections.emptyMap();
         this.transientMetadata = transientMetadata != null
-            ? Collections.unmodifiableMap(transientMetadata)
+            ? Collections.unmodifiableMap(new TreeMap<>(transientMetadata))
             : Collections.singletonMap("enabled", true);
         this.remoteIndicesPrivileges = remoteIndicesPrivileges != null ? remoteIndicesPrivileges : RemoteIndicesPrivileges.NONE;
         this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasAnyPrivileges()

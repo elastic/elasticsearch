@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.compute.operator.FailureCollector;
@@ -28,6 +27,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+
+import static org.elasticsearch.xpack.esql.session.EsqlSessionCCSUtils.emptyClusterState;
 
 /**
  * A variant of {@link RefCountingListener} with the following differences:
@@ -189,6 +190,9 @@ final class ComputeListener implements Releasable {
         });
     }
 
+    /**
+     * Should we ignore a failure from the remote cluster due to skip_unavailable=true setting?
+     */
     boolean shouldIgnoreRemoteErrors(@Nullable String computeClusterAlias) {
         return computeClusterAlias != null
             && esqlExecutionInfo.isCrossClusterSearch()
@@ -197,27 +201,31 @@ final class ComputeListener implements Releasable {
             && esqlExecutionInfo.isSkipUnavailable(computeClusterAlias);
     }
 
+    /**
+     * Marks the cluster as PARTIAL and adds the exception to the cluster's failures record.
+     * Currently, additional failures are not recorded, TODO: check if this should be the case.
+     */
     void markAsPartial(String computeClusterAlias, Exception e) {
         // We use PARTIAL here because we can not know whether the cluster have already sent any data.
         esqlExecutionInfo.swapCluster(computeClusterAlias, (k, v) -> {
             assert v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED
                 : "We shouldn't be running compute on a cluster that's already marked as skipped";
+            LOGGER.debug("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
             if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.PARTIAL) {
                 return v;
             }
-            return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.PARTIAL)
-                .setFailures(List.of(new ShardSearchFailure(e)))
-                .build();
+            return emptyClusterState(v, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);
         });
     }
 
+    /**
+     * Acquire a listener that respects skip_unavailable setting for this cluster.
+     */
     ActionListener<Void> acquireSkipUnavailable(@Nullable String computeClusterAlias) {
         if (shouldIgnoreRemoteErrors(computeClusterAlias) == false) {
             return acquireAvoid();
         }
         return refs.acquire().delegateResponse((l, e) -> {
-            // TODO: drop this in final patch
-            LOGGER.error("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
             markAsPartial(computeClusterAlias, e);
             l.onResponse(null);
         });

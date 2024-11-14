@@ -408,8 +408,6 @@ public class ComputeService {
                         );
                     }, e -> {
                         if (suppressRemoteFailure) {
-                            // TODO: drop this in final patch
-                            LOGGER.error("Marking failed cluster {} as partial: {}", clusterAlias, e);
                             computeListener.markAsPartial(clusterAlias, e);
                             exchangeListener.onResponse(null);
                         } else {

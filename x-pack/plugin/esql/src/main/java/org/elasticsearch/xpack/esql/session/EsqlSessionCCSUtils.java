@@ -13,12 +13,14 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo.Cluster;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -30,7 +32,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 
-class EsqlSessionCCSUtils {
+public class EsqlSessionCCSUtils {
 
     private EsqlSessionCCSUtils() {}
 
@@ -112,16 +114,16 @@ class EsqlSessionCCSUtils {
         }
         for (String clusterAlias : executionInfo.clusterAliases()) {
             executionInfo.swapCluster(clusterAlias, (k, v) -> {
-                EsqlExecutionInfo.Cluster.Builder builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(executionInfo.overallTook())
+                Cluster.Builder builder = new Cluster.Builder(v).setTook(executionInfo.overallTook())
                     .setTotalShards(0)
                     .setSuccessfulShards(0)
                     .setSkippedShards(0)
                     .setFailedShards(0);
                 if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(clusterAlias)) {
                     // never mark local cluster as skipped
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    builder.setStatus(Cluster.Status.SUCCESSFUL);
                 } else {
-                    builder.setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED);
+                    builder.setStatus(Cluster.Status.SKIPPED);
                     // add this exception to the failures list only if there is no failure already recorded there
                     if (v.getFailures() == null || v.getFailures().size() == 0) {
                         builder.setFailures(List.of(new ShardSearchFailure(exceptionForResponse)));
@@ -135,8 +137,8 @@ class EsqlSessionCCSUtils {
     static String createIndexExpressionFromAvailableClusters(EsqlExecutionInfo executionInfo) {
         StringBuilder sb = new StringBuilder();
         for (String clusterAlias : executionInfo.clusterAliases()) {
-            EsqlExecutionInfo.Cluster cluster = executionInfo.getCluster(clusterAlias);
-            if (cluster.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            Cluster cluster = executionInfo.getCluster(clusterAlias);
+            if (cluster.getStatus() != Cluster.Status.SKIPPED) {
                 if (cluster.getClusterAlias().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
                     sb.append(executionInfo.getCluster(clusterAlias).getIndexExpression()).append(',');
                 } else {
@@ -164,16 +166,7 @@ class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                execInfo.swapCluster(
-                    clusterAlias,
-                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SKIPPED)
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0)
-                        .setFailures(List.of(new ShardSearchFailure(e)))
-                        .build()
-                );
+                execInfo.swapCluster(clusterAlias, (k, v) -> emptyClusterState(v, Cluster.Status.SKIPPED, e));
             } else {
                 throw e;
             }
@@ -217,32 +210,38 @@ class EsqlSessionCCSUtils {
                 }
             } else {
                 // handles local cluster (when no concrete indices requested) and skip_unavailable=true clusters
-                EsqlExecutionInfo.Cluster.Status status;
+                Cluster.Status status;
                 ShardSearchFailure failure;
+                Exception failureException;
                 if (c.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
-                    status = EsqlExecutionInfo.Cluster.Status.SUCCESSFUL;
-                    failure = null;
+                    status = Cluster.Status.SUCCESSFUL;
+                    failureException = null;
                 } else {
-                    status = EsqlExecutionInfo.Cluster.Status.SKIPPED;
-                    failure = new ShardSearchFailure(new VerificationException("Unknown index [" + indexExpression + "]"));
+                    status = Cluster.Status.SKIPPED;
+                    failureException = new VerificationException("Unknown index [" + indexExpression + "]");
                 }
-                executionInfo.swapCluster(c, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setStatus(status)
-                        .setTook(new TimeValue(0))
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
-                    if (failure != null) {
-                        builder.setFailures(List.of(failure));
-                    }
-                    return builder.build();
-                });
+                executionInfo.swapCluster(c, (k, v) -> emptyClusterState(v, status, failureException));
             }
         }
         if (fatalErrorMessage != null) {
             throw new VerificationException(fatalErrorMessage);
         }
+    }
+
+    /**
+     * Create an empty cluster state with the given status and potentially failure from exception.
+     */
+    public static Cluster emptyClusterState(Cluster prev, Cluster.Status status, @Nullable Exception ex) {
+        var builder = new Cluster.Builder(prev).setStatus(status)
+            .setTook(new TimeValue(0))
+            .setTotalShards(0)
+            .setSuccessfulShards(0)
+            .setSkippedShards(0)
+            .setFailedShards(0);
+        if (ex != null) {
+            builder.setFailures(List.of(new ShardSearchFailure(ex)));
+        }
+        return builder.build();
     }
 
     // visible for testing
@@ -273,11 +272,11 @@ class EsqlSessionCCSUtils {
         if (execInfo.isCrossClusterSearch()) {
             execInfo.markEndPlanning();
             for (String clusterAlias : execInfo.clusterAliases()) {
-                EsqlExecutionInfo.Cluster cluster = execInfo.getCluster(clusterAlias);
-                if (cluster.getStatus() == EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+                Cluster cluster = execInfo.getCluster(clusterAlias);
+                if (cluster.getStatus() == Cluster.Status.SKIPPED) {
                     execInfo.swapCluster(
                         clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.planningTookTime())
+                        (k, v) -> new Cluster.Builder(v).setTook(execInfo.planningTookTime())
                             .setTotalShards(0)
                             .setSuccessfulShards(0)
                             .setSkippedShards(0)

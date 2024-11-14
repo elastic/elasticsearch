@@ -67,9 +67,11 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
+import java.util.function.LongPredicate;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static co.elastic.elasticsearch.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCommitService.isGenerationalFile;
 import static co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit.CURRENT_VERSION;
 import static java.util.stream.Collectors.groupingBy;
@@ -121,13 +123,23 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
     // So tracking begins here before a BlobReference is created.
     private final Set<String> notifiedSearchNodeIds;
 
+    // Size of a region in cache
+    private final int cacheRegionSizeInBytes;
+
+    // An estimate of the maximum size of a header in a cache region.
+    // This is used to avoid adding replicated content for files that are already included in the first region.
+    private final int estimatedMaxHeaderSizeInBytes;
+
     public VirtualBatchedCompoundCommit(
         ShardId shardId,
         String nodeEphemeralId,
         long primaryTerm,
         long generation,
         Function<String, BlobLocation> uploadedBlobLocationsSupplier,
-        LongSupplier timeInMillisSupplier
+        LongSupplier timeInMillisSupplier,
+        int cacheRegionSize,
+        double estimatedMaxHeaderSizeRatio
+
     ) {
         this.shardId = shardId;
         this.nodeEphemeralId = nodeEphemeralId;
@@ -136,7 +148,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.primaryTermAndGeneration = new PrimaryTermAndGeneration(primaryTerm, generation);
         this.blobFile = new BlobFile(StatelessCompoundCommit.blobNameFromGeneration(generation), primaryTermAndGeneration);
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
-        notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
+        this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
+        this.cacheRegionSizeInBytes = cacheRegionSize;
+        if (estimatedMaxHeaderSizeRatio < 0.0 || 1.0 < estimatedMaxHeaderSizeRatio) {
+            throw new IllegalArgumentException("Must be 0.0 to 1.0 inclusive but got " + estimatedMaxHeaderSizeRatio);
+        }
+        this.estimatedMaxHeaderSizeInBytes = (int) (estimatedMaxHeaderSizeRatio * cacheRegionSize);
     }
 
     public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {
@@ -233,7 +250,9 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             }
         }
 
-        var replicatedContent = ReplicatedContent.create(useInternalFilesReplicatedContent, internalFiles, reference.getDirectory());
+        var replicatedContent = useInternalFilesReplicatedContent
+            ? getReplicatedContent(ccTermAndGen, currentOffset.get(), internalFiles, internalFilesSize, reference.getDirectory())
+            : ReplicatedContent.EMPTY;
         var replicatedContentHeader = replicatedContent.header();
 
         var header = materializeCompoundCommitHeader(
@@ -401,6 +420,48 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         return true;
     }
 
+    private ReplicatedContent getReplicatedContent(
+        PrimaryTermAndGeneration commitTermAndGen,
+        long currentOffset,
+        TreeSet<InternalFile> internalFiles,
+        long internalFilesSize,
+        Directory directory
+    ) {
+        // Current position of the start of the commit (relative to the start of the region)
+        int currentPositionInRegion = (int) (currentOffset % cacheRegionSizeInBytes);
+
+        // Approximate position of the end of the header + replicated content (using the estimated max. header size as a hint)
+        int estimatedHeaderEnd = Math.addExact(currentPositionInRegion, estimatedMaxHeaderSizeInBytes);
+
+        // Approximate position of the end of the commit
+        var estimatedCommitEnd = Math.addExact(estimatedHeaderEnd, internalFilesSize);
+
+        // Check if the header and internal files completely fit into the same region, in which case there is no need for replicated content
+        if (estimatedCommitEnd < cacheRegionSizeInBytes) {
+            logger.trace(
+                "{} skipping content replication: commit {} at offset [{}][{}] with [{}] bytes of internal files "
+                    + "would fit within the cache region of [{}] bytes assuming an approximate header size of [{}] bytes",
+                shardId,
+                commitTermAndGen,
+                currentOffset,
+                currentPositionInRegion,
+                internalFilesSize,
+                cacheRegionSizeInBytes,
+                estimatedMaxHeaderSizeInBytes
+            );
+            return ReplicatedContent.EMPTY;
+        }
+
+        LongPredicate shouldReplicate;
+        if (estimatedMaxHeaderSizeInBytes != 0) {
+            // Replicate content for internal files that are not in the same region as the header
+            shouldReplicate = (offset) -> cacheRegionSizeInBytes <= (estimatedHeaderEnd + offset);
+        } else {
+            shouldReplicate = ALWAYS_REPLICATE; // Keep previous behavior
+        }
+        return ReplicatedContent.create(true, internalFiles, directory, shouldReplicate);
+    }
+
     public BatchedCompoundCommit getFrozenBatchedCompoundCommit() {
         assert isFrozen() : "Cannot serialize before freeze";
         assert assertInternalConsistency();
@@ -495,7 +556,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         IOUtils.closeWhileHandlingException(pendingCompoundCommits);
     }
 
-    List<PendingCompoundCommit> getPendingCompoundCommits() {
+    public List<PendingCompoundCommit> getPendingCompoundCommits() {
         return List.copyOf(pendingCompoundCommits);
     }
 
@@ -664,7 +725,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
             assert padding >= 0 : "padding " + padding + " is negative";
         }
 
-        long getGeneration() {
+        public long getGeneration() {
             return reference.getGeneration();
         }
 

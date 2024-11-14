@@ -18,6 +18,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
 import org.elasticsearch.action.ActionListener;
@@ -39,10 +40,11 @@ public class TestStatelessCommitService extends StatelessCommitService {
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
+        StatelessSharedBlobCacheService cacheService,
         SharedBlobCacheWarmingService cacheWarmingService,
         TelemetryProvider telemetryProvider
     ) {
-        super(settings, objectStoreService, clusterService, client, commitCleaner, cacheWarmingService, telemetryProvider);
+        super(settings, objectStoreService, clusterService, client, commitCleaner, cacheService, cacheWarmingService, telemetryProvider);
     }
 
     public Strategy getStrategy() {

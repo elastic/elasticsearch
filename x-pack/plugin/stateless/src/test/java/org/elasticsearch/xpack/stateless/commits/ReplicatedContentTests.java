@@ -49,6 +49,7 @@ import java.util.stream.Stream;
 
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_FOOTER_SIZE;
 import static co.elastic.elasticsearch.stateless.commits.InternalFilesReplicatedRanges.REPLICATED_CONTENT_HEADER_SIZE;
+import static co.elastic.elasticsearch.stateless.commits.ReplicatedContent.ALWAYS_REPLICATE;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.contains;
@@ -72,7 +73,7 @@ public class ReplicatedContentTests extends ESTestCase {
                 "big-file",
                 randomLongBetween(REPLICATED_CONTENT_HEADER_SIZE + REPLICATED_CONTENT_FOOTER_SIZE + 1, Long.MAX_VALUE)
             );
-            var content = ReplicatedContent.create(true, List.of(smallFile, bigFile), directory);
+            var content = ReplicatedContent.create(true, List.of(smallFile, bigFile), directory, ALWAYS_REPLICATE);
 
             assertThat(
                 content.header(),
@@ -117,7 +118,7 @@ public class ReplicatedContentTests extends ESTestCase {
 
             assertThat(List.of(directory.listAll()), not(hasItems("_0.cfe", "_0.cfs")));
             var internalFiles = createInternalFilesFrom(directory);
-            var content = ReplicatedContent.create(true, internalFiles, directory);
+            var content = ReplicatedContent.create(true, internalFiles, directory, ALWAYS_REPLICATE);
 
             var smallFilesCount = internalFiles.stream()
                 .filter(file -> file.length() <= REPLICATED_CONTENT_HEADER_SIZE + REPLICATED_CONTENT_FOOTER_SIZE)
@@ -147,7 +148,7 @@ public class ReplicatedContentTests extends ESTestCase {
             assertThat(directory.fileLength("_0.cfs"), greaterThan(1024L + 16L));
             var internalFiles = createInternalFilesFrom(directory);
             var compoundSegmentsFileOffset = fileOffsetIn(internalFiles, "_0.cfs");
-            var content = ReplicatedContent.create(true, internalFiles, directory);
+            var content = ReplicatedContent.create(true, internalFiles, directory, ALWAYS_REPLICATE);
             var compoundEntries = Lucene90CompoundEntriesReader.readEntries(directory, "_0.cfe").values();
 
             // max number of ranges that should be replicated
@@ -221,7 +222,7 @@ public class ReplicatedContentTests extends ESTestCase {
                 }
             }
             var internalFiles = createInternalFilesFrom(directory);
-            var content = ReplicatedContent.create(true, internalFiles, directory);
+            var content = ReplicatedContent.create(true, internalFiles, directory, ALWAYS_REPLICATE);
 
             var totalSmallFilesSize = internalFiles.stream()
                 .filter(file -> file.length() <= REPLICATED_CONTENT_HEADER_SIZE + REPLICATED_CONTENT_FOOTER_SIZE)

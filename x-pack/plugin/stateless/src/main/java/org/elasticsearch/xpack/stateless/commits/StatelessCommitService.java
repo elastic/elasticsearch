@@ -20,6 +20,7 @@
 package co.elastic.elasticsearch.stateless.commits;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
+import co.elastic.elasticsearch.stateless.cache.StatelessSharedBlobCacheService;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
@@ -36,6 +37,7 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.NoShardAvailableActionException;
 import org.elasticsearch.action.UnavailableShardsException;
 import org.elasticsearch.action.support.ContextPreservingActionListener;
+import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
@@ -183,6 +185,22 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         Setting.Property.NodeScope
     );
 
+    /**
+     * Ratio used to compute an estimate of the size of the header and the replicated content. Default value of {@code 6%}.
+     *
+     * This ratio is applied to the cache region size (defined in {@link SharedBlobCacheService#SHARED_CACHE_REGION_SIZE_SETTING}) and
+     * provides a hint of the maximum size in bytes that the header and replicated are likely to fill in a region. Then, when a commit is
+     * appended to a virtual batched compound commit this size is used to determine if an internal file is contained within the same region
+     * as the header and replicated content, in which case there is no need to replicate content for the internal file.
+     */
+    public static final Setting<Double> STATELESS_COMMIT_HEADER_SIZE_RATIO = Setting.doubleSetting(
+        "stateless.commit.header_size.ratio",
+        0.06d, // default to 6%
+        0.0d, // min is 0% (equivalent to add replicated content for all internal files)
+        1.0d,
+        Setting.Property.NodeScope
+    );
+
     public static final String BCC_TOTAL_SIZE_HISTOGRAM_METRIC = "es.bcc.total_size_in_megabytes.histogram";
     public static final String BCC_NUMBER_COMMITS_HISTOGRAM_METRIC = "es.bcc.number_of_commits.histogram";
     public static final String BCC_ELAPSED_TIME_BEFORE_FREEZE_HISTOGRAM_METRIC = "es.bcc.elapsed_time_before_freeze.histogram";
@@ -212,6 +230,8 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
     private final int bccMaxAmountOfCommits;
     private final long bccUploadMaxSizeInBytes;
     private final boolean useInternalFilesReplicatedContent;
+    private final int cacheRegionSizeInBytes;
+    private final double estimatedMaxHeaderSizeRatio;
     private final LongHistogram bccSizeInMegabytesHistogram;
     private final LongHistogram bccNumberCommitsHistogram;
     private final LongHistogram bccAgeHistogram;
@@ -222,6 +242,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ClusterService clusterService,
         Client client,
         StatelessCommitCleaner commitCleaner,
+        StatelessSharedBlobCacheService cacheService,
         SharedBlobCacheWarmingService cacheWarmingService,
         TelemetryProvider telemetryProvider
     ) {
@@ -234,6 +255,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             clusterService.threadPool(),
             client,
             commitCleaner,
+            cacheService,
             cacheWarmingService,
             telemetryProvider
         );
@@ -248,6 +270,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         ThreadPool threadPool,
         Client client,
         StatelessCommitCleaner commitCleaner,
+        StatelessSharedBlobCacheService cacheService,
         SharedBlobCacheWarmingService cacheWarmingService,
         TelemetryProvider telemetryProvider
     ) {
@@ -272,7 +295,13 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         this.bccMaxAmountOfCommits = STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.get(settings);
         this.bccUploadMaxSizeInBytes = STATELESS_UPLOAD_MAX_SIZE.get(settings).getBytes();
         this.useInternalFilesReplicatedContent = STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.get(settings);
-        logger.info("Lucene files headers/footers replication feature is {}", useInternalFilesReplicatedContent ? "enabled" : "disabled");
+        this.cacheRegionSizeInBytes = cacheService.getRegionSize();
+        this.estimatedMaxHeaderSizeRatio = STATELESS_COMMIT_HEADER_SIZE_RATIO.get(settings);
+        logger.info(
+            "Lucene files headers/footers replication feature is {} with max. header size ratio [{}]",
+            useInternalFilesReplicatedContent ? "enabled" : "disabled",
+            estimatedMaxHeaderSizeRatio
+        );
         this.bccSizeInMegabytesHistogram = telemetryProvider.getMeterRegistry()
             .registerLongHistogram(
                 BCC_TOTAL_SIZE_HISTOGRAM_METRIC,
@@ -1214,7 +1243,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                     reference.getPrimaryTerm(),
                     reference.getGeneration(),
                     fileName -> getBlobLocation(shardId, fileName),
-                    threadPool::relativeTimeInMillis
+                    threadPool::relativeTimeInMillis,
+                    cacheRegionSizeInBytes,
+                    estimatedMaxHeaderSizeRatio
                 );
                 final boolean appended = newVirtualBcc.appendCommit(reference, useInternalFilesReplicatedContent);
                 assert appended : "append must be successful since the VBCC is new and empty";

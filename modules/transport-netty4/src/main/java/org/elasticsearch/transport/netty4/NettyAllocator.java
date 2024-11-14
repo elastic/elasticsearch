@@ -24,9 +24,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NettyAllocator {
@@ -44,8 +46,9 @@ public class NettyAllocator {
     private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_and_page_size";
 
     static {
+        ByteBufAllocator allocator;
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
-            ALLOCATOR = ByteBufAllocator.DEFAULT;
+            allocator = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
             DESCRIPTION = "[name=netty_default, suggested_max_allocation_size="
                 + ByteSizeValue.ofBytes(SUGGESTED_MAX_ALLOCATION_SIZE)
@@ -127,7 +130,12 @@ public class NettyAllocator {
                     + g1gcRegionSize
                     + "}]";
             }
-            ALLOCATOR = new NoDirectBuffers(delegate);
+            allocator = new NoDirectBuffers(delegate);
+        }
+        if (Assertions.ENABLED) {
+            ALLOCATOR = new ThrashingByteBufAllocator(allocator);
+        } else {
+            ALLOCATOR = allocator;
         }
 
         RECYCLER = new Recycler<>() {
@@ -351,6 +359,65 @@ public class NettyAllocator {
 
         public ByteBufAllocator getDelegate() {
             return delegate;
+        }
+    }
+
+    static class ThrashingByteBuf extends WrappedByteBuf {
+
+        private volatile boolean thrashed = false;
+
+        protected ThrashingByteBuf(ByteBuf buf) {
+            super(buf);
+        }
+
+        @Override
+        public boolean release() {
+            if (refCnt() == 1) {
+                thrashContent();
+            }
+            return super.release();
+        }
+
+        @Override
+        public boolean release(int decrement) {
+            if (refCnt() == decrement) {
+                thrashContent();
+            }
+            return super.release(decrement);
+        }
+
+        private void thrashContent() {
+            if (thrashed == false) {
+                thrashed = true;
+                for (var nioBuf : buf.nioBuffers()) {
+                    assert nioBuf.hasArray();
+                    var from = nioBuf.arrayOffset() + nioBuf.position();
+                    var to = from + nioBuf.remaining();
+                    Arrays.fill(nioBuf.array(), from, to, (byte) 0);
+                }
+            }
+        }
+    }
+
+    static class ThrashingByteBufAllocator extends NoDirectBuffers {
+
+        ThrashingByteBufAllocator(ByteBufAllocator delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public ByteBuf heapBuffer() {
+            return new ThrashingByteBuf(super.heapBuffer());
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity) {
+            return new ThrashingByteBuf(super.heapBuffer(initialCapacity));
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
+            return new ThrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
         }
     }
 }

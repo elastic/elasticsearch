@@ -97,7 +97,7 @@ public class RailRoadDiagram {
         List<Expression> expressions = new ArrayList<>();
         expressions.add(new Literal("field"));
         expressions.add(new Syntax(operator));
-        expressions.add(new Literal("value"));
+        expressions.add(new Literal("query"));
         return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
     }
 

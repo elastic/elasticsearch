@@ -105,23 +105,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
         assertNotSame(deserializedRequest, searchRequest);
     }
 
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)  // this can be removed when the affected transport version constants are collapsed
-    public void testSerializationConstants() throws Exception {
-        SearchRequest searchRequest = createSearchRequest();
-
-        // something serialized with previous version to remove, should read correctly with the reversion
-        try (BytesStreamOutput output = new BytesStreamOutput()) {
-            output.setTransportVersion(TransportVersionUtils.getPreviousVersion(TransportVersions.REMOVE_MIN_COMPATIBLE_SHARD_NODE));
-            searchRequest.writeTo(output);
-            try (StreamInput in = new NamedWriteableAwareStreamInput(output.bytes().streamInput(), namedWriteableRegistry)) {
-                in.setTransportVersion(TransportVersions.REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE);
-                SearchRequest copiedRequest = new SearchRequest(in);
-                assertEquals(copiedRequest, searchRequest);
-                assertEquals(copiedRequest.hashCode(), searchRequest.hashCode());
-            }
-        }
-    }
-
     public void testSerializationMultiKNN() throws Exception {
         SearchRequest searchRequest = createSearchRequest();
         if (searchRequest.source() == null) {

@@ -29,7 +29,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
 import java.util.List;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.analyzerDefaultMapping;
 import static org.elasticsearch.xpack.esql.analysis.AnalyzerTestUtils.defaultEnrichResolution;
@@ -102,11 +101,11 @@ public class CheckLicenseTests extends ESTestCase {
         }
 
         @Override
-        public Predicate<XPackLicenseState> getLicenseChecker() {
+        public boolean checkLicense(XPackLicenseState state) {
             if (licensedFeature instanceof LicensedFeature.Momentary momentary) {
-                return momentary::check;
+                return momentary.check(state);
             } else {
-                return licensedFeature::checkWithoutTracking;
+                return licensedFeature.checkWithoutTracking(state);
             }
         }
 

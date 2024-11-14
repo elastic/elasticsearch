@@ -555,7 +555,7 @@ public class Verifier {
 
     private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
         plan.forEachExpressionDown(Function.class, p -> {
-            if (p.getLicenseChecker().test(licenseState) == false) {
+            if (p.checkLicense(licenseState) == false) {
                 failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));
             }
         });

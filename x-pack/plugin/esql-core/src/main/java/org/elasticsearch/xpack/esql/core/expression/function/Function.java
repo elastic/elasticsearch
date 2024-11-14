@@ -16,7 +16,6 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.StringJoiner;
-import java.util.function.Predicate;
 
 /**
  * Any SQL expression with parentheses, like {@code MAX()}, or {@code ABS()}. A
@@ -45,8 +44,8 @@ public abstract class Function extends Expression {
     }
 
     /** Return a predicate that checks if this function can be used by a provided {@link XPackLicenseState}.*/
-    public Predicate<XPackLicenseState> getLicenseChecker() {
-        return license -> true;
+    public boolean checkLicense(XPackLicenseState state) {
+        return true;
     }
 
     @Override

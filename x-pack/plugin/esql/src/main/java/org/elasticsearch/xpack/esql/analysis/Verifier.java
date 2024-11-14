@@ -661,7 +661,7 @@ public class Verifier {
             checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
             checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
         });
-                }
+    }
 
     /**
      * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
@@ -679,9 +679,9 @@ public class Verifier {
         parentExpression.forEachDown(FullTextFunction.class, ftp -> {
             failures.add(
                 fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
-                    );
-            });
-            }
+            );
+        });
+    }
 
     /**
      * Checks full text query functions for invalid usage.

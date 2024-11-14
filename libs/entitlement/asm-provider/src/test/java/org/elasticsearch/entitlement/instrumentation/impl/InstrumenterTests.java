@@ -236,11 +236,9 @@ public class InstrumenterTests extends ESTestCase {
     }
 
     public static class TestClassToInstrumentWithOverloads implements Testable {
-        public static void someMethod(int arg) {
-        }
+        public static void someMethod(int arg) {}
 
-        public static void someMethod(int arg, String anotherArg) {
-        }
+        public static void someMethod(int arg, String anotherArg) {}
     }
 
     public void testInstrumenterWorksWithOverloads() throws Exception {

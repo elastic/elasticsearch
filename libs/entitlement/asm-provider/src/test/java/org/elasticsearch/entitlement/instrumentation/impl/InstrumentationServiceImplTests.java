@@ -28,7 +28,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
 
     final InstrumentationService instrumentationService = new InstrumentationServiceImpl();
 
-    interface TestEntitlementChecker {
+    interface TestChecker {
         @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "staticMethod", isStatic = true)
         void checkStaticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
 
@@ -39,12 +39,18 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void checkInstanceMethodWithArgs(Class<?> clazz, int x, int y);
     }
 
-    public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
+    interface TestCheckerOverloads {
+        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod")
+        void checkInstanceMethodWithOverload(Class<?> clazz, int x, int y);
 
-        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestEntitlementChecker.class.getName());
+        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod")
+        void checkInstanceMethodWithOverload(Class<?> clazz, int x, String y);
+    }
+
+    public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
+        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestChecker.class.getName());
 
         assertThat(methodsMap, aMapWithSize(3));
-
         assertThat(
             methodsMap,
             hasEntry(
@@ -53,36 +59,66 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 ),
                 equalTo(
                     new CheckerMethod(
-                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestEntitlementChecker",
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "checkStaticMethod",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
                     )
                 )
             )
         );
-
         assertThat(
             methodsMap,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass", "someMethod", List.of(), false)),
                 equalTo(
                     new CheckerMethod(
-                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestEntitlementChecker",
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "checkInstanceMethodNoArgs",
                         List.of("Ljava/lang/Class;")
                     )
                 )
             )
         );
-
         assertThat(
             methodsMap,
             hasEntry(
                 equalTo(new MethodKey("org/example/TestTargetClass2", "someMethod2", List.of("I", "I"), false)),
                 equalTo(
                     new CheckerMethod(
-                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestEntitlementChecker",
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
                         "checkInstanceMethodWithArgs",
+                        List.of("Ljava/lang/Class;", "I", "I")
+                    )
+                )
+            )
+        );
+    }
+
+    public void testInstrumentationTargetLookupWithOverloads() throws IOException, ClassNotFoundException {
+        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestCheckerOverloads.class.getName());
+
+        assertThat(methodsMap, aMapWithSize(2));
+        assertThat(
+            methodsMap,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "java/lang/String"), false)),
+                equalTo(
+                    new CheckerMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
+                        "checkInstanceMethodWithOverload",
+                        List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
+                    )
+                )
+            )
+        );
+        assertThat(
+            methodsMap,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "I"), false)),
+                equalTo(
+                    new CheckerMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
+                        "checkInstanceMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "I")
                     )
                 )

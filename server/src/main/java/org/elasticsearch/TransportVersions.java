@@ -176,6 +176,7 @@ public class TransportVersions {
      * with only one TransportVersion entry
      */
     public static final TransportVersion ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15 = def(8_702_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_15 = def(8_702_00_4);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -249,6 +250,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16 = def(8_772_00_1);
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_00_2);
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_00_4);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

@@ -308,14 +308,14 @@ public class Verifier {
             // Check all CATEGORIZE but the top level one
             Alias.unwrap(g)
                 .children()
-                    .forEach(
-                        child -> child.forEachDown(
-                            Categorize.class,
+                .forEach(
+                    child -> child.forEachDown(
+                        Categorize.class,
                         c -> failures.add(
                             fail(c, "CATEGORIZE grouping function [{}] can't be used within other expressions", c.sourceText())
                         )
                     )
-            );
+                );
         });
 
         // Forbid CATEGORIZE being used in the aggregations
@@ -761,7 +761,7 @@ public class Verifier {
                 plan,
                 condition,
                 Match.class,
-                lp -> (lp instanceof Limit == false),
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
                 m -> "[" + m.functionName() + "] " + m.functionType(),
                 failures
             );

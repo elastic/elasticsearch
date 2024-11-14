@@ -244,18 +244,16 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
 
     private static boolean isAndQuery(ParserRuleContext ctx) {
         return switch (ctx) {
-            case KqlBaseParser.BooleanQueryContext booleanQueryContext -> booleanQueryContext.operator.getType() == KqlBaseParser.AND;
-            case KqlBaseParser.BooleanNestedQueryContext booleanNestedQueryContext -> booleanNestedQueryContext.operator
-                .getType() == KqlBaseParser.AND;
+            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.AND;
+            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.AND;
             default -> false;
         };
     }
 
     private static boolean isOrQuery(ParserRuleContext ctx) {
         return switch (ctx) {
-            case KqlBaseParser.BooleanQueryContext booleanQueryContext -> booleanQueryContext.operator.getType() == KqlBaseParser.OR;
-            case KqlBaseParser.BooleanNestedQueryContext booleanNestedQueryContext -> booleanNestedQueryContext.operator
-                .getType() == KqlBaseParser.OR;
+            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.OR;
+            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.OR;
             default -> false;
         };
     }

@@ -83,7 +83,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
     }
 
     @Override
-    public void start(Model model, ActionListener<Boolean> finalListener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Boolean> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
@@ -107,7 +107,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     }
                 })
                 .<Boolean>andThen((l2, modelDidPut) -> {
-                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
+                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
                     var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
                     client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
                 })
@@ -149,8 +149,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    @Override
-    public void putModel(Model model, ActionListener<Boolean> listener) {
+    protected void putModel(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElasticsearchInternalModel == false) {
             listener.onFailure(notElasticsearchModelException(model));
             return;
@@ -303,10 +302,9 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         }
 
         if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-            this.start(
-                model,
-                listener.delegateFailureAndWrap((l, started) -> { client.execute(InferModelAction.INSTANCE, request, listener); })
-            );
+            this.start(model, request.getInferenceTimeout(), listener.delegateFailureAndWrap((l, started) -> {
+                client.execute(InferModelAction.INSTANCE, request, listener);
+            }));
         } else {
             listener.onFailure(e);
         }

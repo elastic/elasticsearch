@@ -251,19 +251,17 @@ public class ComputeService {
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
-                // took time and shard counts for SKIPPED clusters were added at end of planning, so only update other cases here
-                if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                    execInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
-                            .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                            .setTotalShards(0)
-                            .setSuccessfulShards(0)
-                            .setSkippedShards(0)
-                            .setFailedShards(0)
-                            .build()
-                    );
-                }
+                execInfo.swapCluster(clusterAlias, (k, v) -> {
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0);
+                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    }
+                    return builder.build();
+                });
             }
         }
     }
@@ -309,11 +307,7 @@ public class ComputeService {
                 return reductionNode == null ? f : f.withReducer(reductionNode);
             });
 
-        // The lambda is to say if a TEXT field has an identical exact subfield
-        // We cannot use SearchContext because we don't have it yet.
-        // Since it's used only for @timestamp, it is relatively safe to assume it's not needed
-        // but it would be better to have a proper impl.
-        QueryBuilder requestFilter = PlannerUtils.requestFilter(planWithReducer, x -> true);
+        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(planWithReducer);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {

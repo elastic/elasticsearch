@@ -302,6 +302,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     // the translog keeps track of the GCP, but unpromotable shards have no translog so we need to track the GCP here instead
     private volatile long globalCheckPointIfUnpromotable;
 
+    private Function<ShardId, Set<String>> notifiedSearchNodeIdsSupplier;
+
     @SuppressWarnings("this-escape")
     public IndexShard(
         final ShardRouting shardRouting,
@@ -326,7 +328,8 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final IndexStorePlugin.SnapshotCommitSupplier snapshotCommitSupplier,
         final LongSupplier relativeTimeInNanosSupplier,
         final Engine.IndexCommitListener indexCommitListener,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final Function<ShardId, Set<String>> notifiedSearchNodeIdsSupplier
     ) throws IOException {
         super(shardRouting.shardId(), indexSettings);
         assert shardRouting.initializing();
@@ -413,6 +416,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         this.relativeTimeInNanosSupplier = relativeTimeInNanosSupplier;
         this.indexCommitListener = indexCommitListener;
         this.fieldInfos = FieldInfos.EMPTY;
+        this.notifiedSearchNodeIdsSupplier = notifiedSearchNodeIdsSupplier;
     }
 
     public ThreadPool getThreadPool() {
@@ -4442,4 +4446,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         );
     }
 
+    public Set<String> getNotifiedSearchNodeIds(ShardId shardId) {
+        return notifiedSearchNodeIdsSupplier.apply(shardId);
+    }
 }

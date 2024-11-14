@@ -50,6 +50,7 @@ import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.shard.IndexEventListener;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.SearchOperationListener;
+import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardPath;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.index.store.FsDirectoryFactory;
@@ -174,6 +175,7 @@ public final class IndexModule {
     private final BooleanSupplier allowExpensiveQueries;
     private final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories;
     private final SetOnce<Engine.IndexCommitListener> indexCommitListener = new SetOnce<>();
+    private final SetOnce<Function<ShardId, Set<String>>> notifiedSearchNodeIdsSupplier = new SetOnce<>();
     private final MapperMetrics mapperMetrics;
 
     /**
@@ -391,6 +393,11 @@ public final class IndexModule {
         this.indexCommitListener.set(Objects.requireNonNull(listener));
     }
 
+    public void setNotifiedSearchNodeIdsSupplier(Function<ShardId, Set<String>> notifiedSearchNodeIdsSupplier) {
+        ensureNotFrozen();
+        this.notifiedSearchNodeIdsSupplier.set(notifiedSearchNodeIdsSupplier);
+    }
+
     IndexEventListener freeze() { // pkg private for testing
         if (this.frozen.compareAndSet(false, true)) {
             return new CompositeIndexEventListener(indexSettings, indexEventListeners);
@@ -540,7 +547,8 @@ public final class IndexModule {
                 indexFoldersDeletionListener,
                 snapshotCommitSupplier,
                 indexCommitListener.get(),
-                mapperMetrics
+                mapperMetrics,
+                notifiedSearchNodeIdsSupplier.get()
             );
             success = true;
             return indexService;

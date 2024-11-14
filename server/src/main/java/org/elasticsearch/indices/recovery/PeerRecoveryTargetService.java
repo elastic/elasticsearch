@@ -39,7 +39,6 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
-import org.elasticsearch.index.engine.InternalEngine;
 import org.elasticsearch.index.engine.RecoveryEngineException;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -323,8 +322,7 @@ public class PeerRecoveryTargetService implements IndexEventListener {
             assert preExistingRequest == null;
             assert indexShard.indexSettings().getIndexMetadata().isSearchableSnapshot() == false;
             try (onCompletion) {
-                var engine = (InternalEngine) indexShard.getEngineOrNull();
-                Set<String> notifiedSearchNodeIds = engine.getNotifiedSearchNodeIds(indexShard.shardId());
+                Set<String> notifiedSearchNodeIds = indexShard.getNotifiedSearchNodeIds(indexShard.shardId());
                 client.execute(
                     StatelessPrimaryRelocationAction.TYPE,
                     new StatelessPrimaryRelocationAction.Request(

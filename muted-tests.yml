@@ -230,9 +230,6 @@ tests:
 - class: org.elasticsearch.snapshots.SnapshotShutdownIT
   method: testRestartNodeDuringSnapshot
   issue: https://github.com/elastic/elasticsearch/issues/116730
-- class: org.elasticsearch.action.search.SearchRequestTests
-  method: testSerializationConstants
-  issue: https://github.com/elastic/elasticsearch/issues/116752
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116182
 - class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT

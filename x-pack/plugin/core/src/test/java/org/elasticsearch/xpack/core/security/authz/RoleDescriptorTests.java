@@ -31,9 +31,12 @@ import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.XPackClientPlugin;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor.ApplicationResourcePrivileges;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsCache;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
 import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
+import org.elasticsearch.xpack.core.security.authz.restriction.Workflow;
+import org.elasticsearch.xpack.core.security.authz.restriction.WorkflowResolver;
 import org.hamcrest.Matchers;
 
 import java.io.IOException;
@@ -43,6 +46,7 @@ import java.util.HashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
@@ -61,6 +65,7 @@ import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.core.Is.is;
+import static org.mockito.Mockito.mock;
 
 public class RoleDescriptorTests extends ESTestCase {
 
@@ -1338,12 +1343,13 @@ public class RoleDescriptorTests extends ESTestCase {
         }
     }
 
-    public void testHasPrivilegesOtherThanIndex() {
+    public void testHasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster() {
+        // any index and some cluster privileges are allowed
         assertThat(
             new RoleDescriptor(
                 "name",
-                null,
-                randomBoolean() ? null : randomIndicesPrivileges(1, 5),
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]), //all of these are allowed
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
                 null,
                 null,
                 null,
@@ -1356,20 +1362,165 @@ public class RoleDescriptorTests extends ESTestCase {
             ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
             is(false)
         );
-        final RoleDescriptor roleDescriptor = RoleDescriptorTestHelper.builder()
-            .allowReservedMetadata(true)
-            .allowRemoteIndices(true)
-            .allowRestriction(true)
-            .allowDescription(true)
-            .allowRemoteClusters(true)
-            .build();
-        final boolean expected = roleDescriptor.hasClusterPrivileges()
-            || roleDescriptor.hasConfigurableClusterPrivileges()
-            || roleDescriptor.hasApplicationPrivileges()
-            || roleDescriptor.hasRunAs()
-            || roleDescriptor.hasRemoteIndicesPrivileges()
-            || roleDescriptor.hasWorkflowsRestriction();
-        assertThat(roleDescriptor.hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(), equalTo(expected));
+        // any index and some cluster privileges are allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                new String[]{"manage_security"}, // unlikely we will ever support allowing manage security across clusters
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // application privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                new ApplicationResourcePrivileges[] {
+                    ApplicationResourcePrivileges.builder().application("app").privileges("foo").resources("res").build() },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // configurable cluster privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                new ConfigurableClusterPrivilege[] {
+                    new ConfigurableClusterPrivileges.ManageApplicationPrivileges(Collections.singleton("foo"))
+                },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // run as is not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                new String[] { "foo" },
+                null,
+                null,
+                null,
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // workflows restriction is not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.Restriction(WorkflowResolver.allWorkflows().stream().map(Workflow::name).toArray(String[]::new)),
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+        //remote indices privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RoleDescriptor.RemoteIndicesPrivileges[] {
+                    RoleDescriptor.RemoteIndicesPrivileges.builder("rmt").indices("idx").privileges("foo").build()
+                },
+                null,
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+        //remote cluster privileges are not allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                null,
+                null,
+                null,
+                null,
+                new RemoteClusterPermissions().addGroup(
+                    new RemoteClusterPermissionGroup(
+                        RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                        new String[]{"rmt"}
+                    )
+                ),
+                null,
+                null
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(true)
+        );
+
+        // metadata, transient metadata and description are allowed
+        assertThat(
+            new RoleDescriptor(
+                "name",
+                RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]),
+                new RoleDescriptor.IndicesPrivileges[]{RoleDescriptor.IndicesPrivileges.builder().indices("idx").privileges("foo").build()},
+                null,
+                null,
+                null,
+                Collections.singletonMap("foo", "bar"),
+                Collections.singletonMap("foo", "bar"),
+                null,
+                null,
+                null,
+                "description"
+            ).hasUnsupportedPrivilegesInsideAPIKeyConnectedRemoteCluster(),
+            is(false)
+        );
     }
 
     private static void resetFieldPermssionsCache() {

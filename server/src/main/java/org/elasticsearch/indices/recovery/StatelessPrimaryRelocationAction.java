@@ -20,7 +20,6 @@ import org.elasticsearch.index.shard.ShardId;
 
 import java.io.IOException;
 import java.util.Objects;
-import java.util.Set;
 
 public class StatelessPrimaryRelocationAction {
 
@@ -117,7 +116,8 @@ public class StatelessPrimaryRelocationAction {
                 + ", targetAllocationId='"
                 + targetAllocationId
                 + "', clusterStateVersion="
-                + clusterStateVersion;
+                + clusterStateVersion
+                + '}';
         }
     }
 }

@@ -19,7 +19,6 @@ import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
-import java.util.Set;
 
 public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializingTestCase<StatelessPrimaryRelocationAction.Request> {
 
@@ -81,13 +80,6 @@ public class StatelessPrimaryRelocationActionTests extends AbstractWireSerializi
                 instance.targetNode(),
                 instance.targetAllocationId(),
                 randomValueOtherThan(instance.clusterStateVersion(), ESTestCase::randomNonNegativeLong)
-            );
-            case 6 -> new StatelessPrimaryRelocationAction.Request(
-                instance.recoveryId(),
-                instance.shardId(),
-                instance.targetNode(),
-                instance.targetAllocationId(),
-                instance.clusterStateVersion()
             );
             default -> throw new AssertionError("impossible");
         };

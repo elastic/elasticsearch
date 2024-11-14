@@ -99,7 +99,7 @@ import static org.junit.Assume.assumeTrue;
  *     <li>The default image UBI-based image</li>
  *     <li>Another UBI image for Iron Bank</li>
  *     <li>A WOLFI-based image</li>
- *     <li>Image for Cloud ESS</li>
+ *     <li>Image for Cloud</li>
  * </ul>
  */
 @ThreadLeakFilters(defaultFilters = true, filters = { HttpClientThreadsFilter.class })

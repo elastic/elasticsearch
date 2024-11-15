@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.SetBackedScalingCuckooFilter;
 import org.elasticsearch.core.Releasables;
@@ -118,49 +119,50 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
          */
-        LongRareTerms.Bucket[][] rarestPerOrd = new LongRareTerms.Bucket[owningBucketOrds.length][];
-        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[owningBucketOrds.length];
+        LongRareTerms.Bucket[][] rarestPerOrd = new LongRareTerms.Bucket[Math.toIntExact(owningBucketOrds.size())][];
+        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[rarestPerOrd.length];
         long keepCount = 0;
-        long[] mergeMap = new long[(int) bucketOrds.size()];
-        Arrays.fill(mergeMap, -1);
-        long offset = 0;
-        for (int owningOrdIdx = 0; owningOrdIdx < owningBucketOrds.length; owningOrdIdx++) {
-            try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, bigArrays())) {
-                filters[owningOrdIdx] = newFilter();
-                List<LongRareTerms.Bucket> builtBuckets = new ArrayList<>();
-                LongKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds[owningOrdIdx]);
-                while (collectedBuckets.next()) {
-                    long docCount = bucketDocCount(collectedBuckets.ord());
-                    // if the key is below threshold, reinsert into the new ords
-                    if (docCount <= maxDocCount) {
-                        LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(collectedBuckets.value(), docCount, null, format);
-                        bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(collectedBuckets.value());
-                        mergeMap[(int) collectedBuckets.ord()] = bucket.bucketOrd;
-                        builtBuckets.add(bucket);
-                        keepCount++;
-                    } else {
-                        filters[owningOrdIdx].add(collectedBuckets.value());
+        try (LongArray mergeMap = bigArrays().newLongArray(bucketOrds.size())) {
+            mergeMap.fill(0, mergeMap.size(), -1);
+            long offset = 0;
+            for (int owningOrdIdx = 0; owningOrdIdx < rarestPerOrd.length; owningOrdIdx++) {
+                try (LongHash bucketsInThisOwningBucketToCollect = new LongHash(1, bigArrays())) {
+                    filters[owningOrdIdx] = newFilter();
+                    List<LongRareTerms.Bucket> builtBuckets = new ArrayList<>();
+                    LongKeyedBucketOrds.BucketOrdsEnum collectedBuckets = bucketOrds.ordsEnum(owningBucketOrds.get(owningOrdIdx));
+                    while (collectedBuckets.next()) {
+                        long docCount = bucketDocCount(collectedBuckets.ord());
+                        // if the key is below threshold, reinsert into the new ords
+                        if (docCount <= maxDocCount) {
+                            LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(collectedBuckets.value(), docCount, null, format);
+                            bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(collectedBuckets.value());
+                            mergeMap.set(collectedBuckets.ord(), bucket.bucketOrd);
+                            builtBuckets.add(bucket);
+                            keepCount++;
+                        } else {
+                            filters[owningOrdIdx].add(collectedBuckets.value());
+                        }
                     }
+                    rarestPerOrd[owningOrdIdx] = builtBuckets.toArray(LongRareTerms.Bucket[]::new);
+                    offset += bucketsInThisOwningBucketToCollect.size();
                 }
-                rarestPerOrd[owningOrdIdx] = builtBuckets.toArray(LongRareTerms.Bucket[]::new);
-                offset += bucketsInThisOwningBucketToCollect.size();
             }
-        }
 
-        /*
-         * Only merge/delete the ordinals if we have actually deleted one,
-         * to save on some redundant work.
-         */
-        if (keepCount != mergeMap.length) {
-            LongUnaryOperator howToMerge = b -> mergeMap[(int) b];
-            rewriteBuckets(offset, howToMerge);
-            if (deferringCollector() != null) {
-                ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
+            /*
+             * Only merge/delete the ordinals if we have actually deleted one,
+             * to save on some redundant work.
+             */
+            if (keepCount != mergeMap.size()) {
+                LongUnaryOperator howToMerge = mergeMap::get;
+                rewriteBuckets(offset, howToMerge);
+                if (deferringCollector() != null) {
+                    ((BestBucketsDeferringCollector) deferringCollector()).rewriteBuckets(howToMerge);
+                }
             }
         }
 
@@ -168,8 +170,8 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
          * Now build the results!
          */
         buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+        InternalAggregation[] result = new InternalAggregation[rarestPerOrd.length];
+        for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
             Arrays.sort(rarestPerOrd[ordIdx], ORDER.comparator());
             result[ordIdx] = new LongRareTerms(
                 name,

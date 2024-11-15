@@ -191,7 +191,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -696,61 +696,63 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         B extends InternalMultiBucketAggregation.InternalBucket,
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+
             if (valueCount == 0) { // no context in this reader
-                InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    results[ordIdx] = buildNoValuesResult(owningBucketOrds[ordIdx]);
+                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                    results[ordIdx] = buildNoValuesResult(owningBucketOrds.get(ordIdx));
                 }
                 return results;
             }
+            try (LongArray otherDocCount = bigArrays().newLongArray(owningBucketOrds.size(), true)) {
+                B[][] topBucketsPreOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()));
+                GlobalOrdLookupFunction lookupGlobalOrd = valuesSupplier.get()::lookupOrd;
+                for (int ordIdx = 0; ordIdx < topBucketsPreOrd.length; ordIdx++) {
+                    final int size;
+                    if (bucketCountThresholds.getMinDocCount() == 0) {
+                        // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
+                        size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
+                    } else {
+                        size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
+                    }
+                    try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
+                        final int finalOrdIdx = ordIdx;
+                        final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                        BucketUpdater<TB> updater = bucketUpdater(owningBucketOrd, lookupGlobalOrd);
+                        collectionStrategy.forEach(owningBucketOrd, new BucketInfoConsumer() {
+                            TB spare = null;
 
-            B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCount = new long[owningBucketOrds.length];
-            GlobalOrdLookupFunction lookupGlobalOrd = valuesSupplier.get()::lookupOrd;
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                final int size;
-                if (bucketCountThresholds.getMinDocCount() == 0) {
-                    // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
-                } else {
-                    size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
-                }
-                try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
-                    final int finalOrdIdx = ordIdx;
-                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx], lookupGlobalOrd);
-                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                        TB spare = null;
-
-                        @Override
-                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                            otherDocCount[finalOrdIdx] += docCount;
-                            if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
-                                if (spare == null) {
-                                    spare = buildEmptyTemporaryBucket();
+                            @Override
+                            public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                                otherDocCount.increment(finalOrdIdx, docCount);
+                                if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                                    if (spare == null) {
+                                        spare = buildEmptyTemporaryBucket();
+                                    }
+                                    updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                    spare = ordered.insertWithOverflow(spare);
                                 }
-                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                                spare = ordered.insertWithOverflow(spare);
                             }
-                        }
-                    });
+                        });
 
-                    // Get the top buckets
-                    topBucketsPreOrd[ordIdx] = buildBuckets((int) ordered.size());
-                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
-                        otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                        // Get the top buckets
+                        topBucketsPreOrd[ordIdx] = buildBuckets((int) ordered.size());
+                        for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
+                            otherDocCount.increment(ordIdx, -topBucketsPreOrd[ordIdx][i].getDocCount());
+                        }
                     }
                 }
-            }
 
-            buildSubAggs(topBucketsPreOrd);
+                buildSubAggs(topBucketsPreOrd);
 
-            InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                results[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPreOrd[ordIdx]);
+                InternalAggregation[] results = new InternalAggregation[topBucketsPreOrd.length];
+                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                    results[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd[ordIdx]);
+                }
+                return results;
             }
-            return results;
         }
 
         /**

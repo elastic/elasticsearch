@@ -12,6 +12,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -132,14 +133,14 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalGeoGridBucket[][] topBucketsPerOrd = new InternalGeoGridBucket[owningBucketOrds.length][];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]), shardSize);
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        InternalGeoGridBucket[][] topBucketsPerOrd = new InternalGeoGridBucket[Math.toIntExact(owningBucketOrds.size())][];
+        for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+            int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), shardSize);
 
             try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, bigArrays())) {
                 InternalGeoGridBucket spare = null;
-                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
                 while (ordsEnum.next()) {
                     if (spare == null) {
                         spare = newEmptyBucket();
@@ -160,8 +161,8 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
             }
         }
         buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+        InternalAggregation[] results = new InternalAggregation[topBucketsPerOrd.length];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
             results[ordIdx] = buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd[ordIdx]), metadata());
         }
         return results;

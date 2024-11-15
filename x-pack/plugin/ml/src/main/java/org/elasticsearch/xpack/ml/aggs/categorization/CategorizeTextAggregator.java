@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Releasables;
@@ -110,10 +111,10 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
-        Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final long ord = ordsToCollect[ordIdx];
+    public InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException {
+        Bucket[][] topBucketsPerOrd = new Bucket[Math.toIntExact(ordsToCollect.size())][];
+        for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+            final long ord = ordsToCollect.get(ordIdx);
             final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
             if (categorizer == null) {
                 topBucketsPerOrd[ordIdx] = new Bucket[0];
@@ -123,8 +124,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
             topBucketsPerOrd[ordIdx] = categorizer.toOrderedBuckets(size);
         }
         buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-        InternalAggregation[] results = new InternalAggregation[ordsToCollect.length];
-        for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
+        InternalAggregation[] results = new InternalAggregation[topBucketsPerOrd.length];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
             results[ordIdx] = new InternalCategorizationAggregation(
                 name,
                 bucketCountThresholds.getRequiredSize(),

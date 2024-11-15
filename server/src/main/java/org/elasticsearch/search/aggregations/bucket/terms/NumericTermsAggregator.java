@@ -136,7 +136,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -163,48 +163,50 @@ public final class NumericTermsAggregator extends TermsAggregator {
     abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         implements
             Releasable {
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCounts = new long[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx], excludeDeletedDocs);
-                long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]);
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+            try (LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true)) {
+                B[][] topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()));
+                for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+                    final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                    collectZeroDocEntriesIfNeeded(owningBucketOrd, excludeDeletedDocs);
+                    long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
 
-                int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
-                try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
-                    B spare = null;
-                    BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                    Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts[ordIdx] += docCount;
-                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                            continue;
+                    int size = (int) Math.min(bucketsInOrd, bucketCountThresholds.getShardSize());
+                    try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
+                        B spare = null;
+                        BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrd);
+                        while (ordsEnum.next()) {
+                            long docCount = bucketDocCount(ordsEnum.ord());
+                            otherDocCounts.increment(ordIdx, docCount);
+                            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                                continue;
+                            }
+                            if (spare == null) {
+                                spare = emptyBucketBuilder.get();
+                            }
+                            updateBucket(spare, ordsEnum, docCount);
+                            spare = ordered.insertWithOverflow(spare);
                         }
-                        if (spare == null) {
-                            spare = emptyBucketBuilder.get();
-                        }
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                    }
 
-                    // Get the top buckets
-                    B[] bucketsForOrd = buildBuckets((int) ordered.size());
-                    topBucketsPerOrd[ordIdx] = bucketsForOrd;
-                    for (int b = (int) ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][b].getDocCount();
+                        // Get the top buckets
+                        B[] bucketsForOrd = buildBuckets((int) ordered.size());
+                        topBucketsPerOrd[ordIdx] = bucketsForOrd;
+                        for (int b = (int) ordered.size() - 1; b >= 0; --b) {
+                            topBucketsPerOrd[ordIdx][b] = ordered.pop();
+                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd[ordIdx][b].getDocCount());
+                        }
                     }
                 }
-            }
 
-            buildSubAggs(topBucketsPerOrd);
+                buildSubAggs(topBucketsPerOrd);
 
-            InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+                InternalAggregation[] result = new InternalAggregation[topBucketsPerOrd.length];
+                for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd[ordIdx]);
+                }
+                return result;
             }
-            return result;
         }
 
         /**

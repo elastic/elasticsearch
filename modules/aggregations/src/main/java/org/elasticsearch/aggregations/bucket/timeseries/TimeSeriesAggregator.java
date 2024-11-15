@@ -11,6 +11,7 @@ package org.elasticsearch.aggregations.bucket.timeseries;
 
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.index.mapper.RoutingPathFields;
@@ -67,11 +68,13 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         BytesRef spare = new BytesRef();
-        InternalTimeSeries.InternalBucket[][] allBucketsPerOrd = new InternalTimeSeries.InternalBucket[owningBucketOrds.length][];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
+        InternalTimeSeries.InternalBucket[][] allBucketsPerOrd = new InternalTimeSeries.InternalBucket[Math.toIntExact(
+            owningBucketOrds.size()
+        )][];
+        for (int ordIdx = 0; ordIdx < allBucketsPerOrd.length; ordIdx++) {
+            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
             List<InternalTimeSeries.InternalBucket> buckets = new ArrayList<>();
             while (ordsEnum.next()) {
                 long docCount = bucketDocCount(ordsEnum.ord());
@@ -98,8 +101,8 @@ public class TimeSeriesAggregator extends BucketsAggregator {
         }
         buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
-        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+        InternalAggregation[] result = new InternalAggregation[allBucketsPerOrd.length];
+        for (int ordIdx = 0; ordIdx < allBucketsPerOrd.length; ordIdx++) {
             result[ordIdx] = buildResult(allBucketsPerOrd[ordIdx]);
         }
         return result;

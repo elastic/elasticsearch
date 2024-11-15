@@ -5,16 +5,16 @@
 <titleabbrev>Time spans</titleabbrev>
 ++++
 
-Time spans provide a way of describing a specific period of time that separates two datetime values. There are currently two supported types of time spans, `DATE_PERIOD` specifies intervals in years, quarters, months, weeks and days, and `TIME_DURATION` specifies intervals in hours, minutes, seconds and milliseconds.
+Time spans provide a way of describing a specific period of time that separates two datetime values. There are currently two supported types of time spans, `DATE_PERIOD` specifying intervals in years, quarters, months, weeks and days, and `TIME_DURATION` specifying intervals in hours, minutes, seconds and milliseconds.
 
-The time span contains two elements, an integer value and a temporal unit, both of them are required when specifying a time span.
+The time span contains two elements, an integer value and a temporal unit, both are required when specifying a time span.
 
-Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like `+` and `-`. There are conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>>, <<esql-to_timeduration, TO_TIMEDURATION>> and their corresponding cast operators `::DATE_PERIOD` and `::TIME_DURATION`.
+Time spans are often used in datetime related grouping functions like <<esql-bucket, BUCKET>>, scalar functions like <<esql-date_trunc, DATE_TRUNC>> and arithmetic operators like <<esql-add, `+`>> and <<esql-subtract, `-`>>. There are conversions functions that can convert string literals to time spans, <<esql-to_dateperiod, TO_DATEPERIOD>>, <<esql-to_timeduration, TO_TIMEDURATION>> and their corresponding <<esql-cast-operator, cast operators>> `::DATE_PERIOD` and `::TIME_DURATION`.
 
 ==== Examples of using time spans in {esql}
 
 
-With `BUCKET`
+With `BUCKET`:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan]
@@ -25,7 +25,7 @@ include::{esql-specs}/bucket.csv-spec[tag=docsBucketWeeklyHistogramWithSpan-resu
 |===
 
 
-With `DATE_TRUNC`
+With `DATE_TRUNC`:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=docsDateTrunc]
@@ -36,7 +36,7 @@ include::{esql-specs}/date.csv-spec[tag=docsDateTrunc-result]
 |===
 
 
-With `+` and/or `-`
+With `+` and/or `-`:
 [source.merge.styled,esql]
 ----
 include::{esql-specs}/date.csv-spec[tag=docsNowWhere]
@@ -47,7 +47,7 @@ include::{esql-specs}/date.csv-spec[tag=docsNowWhere-result]
 |===
 
 
-When a time span is provided as a name parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value in arithmetic operations like `+` and/or `-`.
+When a time span is provided as a named parameter in string format, `TO_DATEPERIOD`, `::DATE_PERIOD`, `TO_TIMEDURATION` or `::TIME_DURATION` can be used to convert it to its corresponding time span value in arithmetic operations like `+` and/or `-`.
 [source, esql]
 ----
 POST /_query
@@ -60,7 +60,7 @@ POST /_query
 }
 ----
 
-When a time span is provided as a name parameter in string format, it can be converted automatically to its corresponding time span value in grouping functions and scalar functions, like `BUCKET` and `DATE_TRUNC`.
+When a time span is provided as a named parameter in string format, it can be converted automatically to its corresponding time span value in grouping functions and scalar functions, like `BUCKET` and `DATE_TRUNC`.
 [source, esql]
 ----
 POST /_query

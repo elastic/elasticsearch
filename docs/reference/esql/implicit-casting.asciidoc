@@ -39,7 +39,7 @@ The following table details which {esql} operations support implicit casting for
 
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
-|ScalarFunction*|Operator*|<<esql-group-functions, GroupingFunction>>|<<esql-agg-functions, AggregateFunction>>
+|ScalarFunctions|Operators|<<esql-group-functions, GroupingFunctions>>|<<esql-agg-functions, AggregateFunctions>>
 DATE|Y|Y|Y|N
 DATE_PERIOD/TIME_DURATION|Y|N|Y|N
 IP|Y|Y|Y|N
@@ -47,7 +47,7 @@ VERSION|Y|Y|Y|N
 BOOLEAN|Y|Y|Y|N
 |===
 
-ScalarFunction* includes:
+ScalarFunctions includes:
 
 * <<esql-conditional-functions-and-expressions, Conditional Functions and Expressions>>
 
@@ -56,7 +56,7 @@ ScalarFunction* includes:
 * <<esql-ip-functions, IP Functions>>
 
 
-Operator* includes:
+Operators includes:
 
 * <<esql-binary-operators, Binary Operators>>
 

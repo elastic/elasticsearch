@@ -4,7 +4,7 @@
       "url":"https://www.elastic.co/guide/en/elasticsearch/reference/master/post-stream-inference-api.html",
       "description":"Perform streaming inference"
     },
-    "stability":"experimental",
+    "stability":"stable",
     "visibility":"public",
     "headers":{
       "accept": [ "text/event-stream"],

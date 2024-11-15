@@ -12,6 +12,7 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  */
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -47,6 +48,10 @@ dependencies {
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
+
+  javaRestTestImplementation project(":test:framework")
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':modules:repository-s3')
 
   yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"

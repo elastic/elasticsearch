@@ -17,11 +17,11 @@ dependencies {
   newJar project(":libs:${project.name}")
 }
 
-BuildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
+buildParams.bwcVersions.withIndexCompatible({ it.onOrAfter(Version.fromString(ext.stableApiSince))
   && it != VersionProperties.elasticsearchVersion
 }) { bwcVersion, baseName ->
 
-  BwcVersions.UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+  BwcVersions.UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
 
   configurations {
     "oldJar${baseName}" {

@@ -41,7 +41,7 @@ def runTaskCluster = testClusters.register('runTask') {
 
 tasks.named('javaRestTest').configure {
   onlyIf("FIPS mode disabled and service accoutn file available") {
-      serviceAccountFile && BuildParams.inFipsJvm == false
+      serviceAccountFile && buildParams.inFipsJvm == false
   }
 
   testLogging {

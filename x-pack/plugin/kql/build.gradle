@@ -24,7 +24,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named('yamlRestTest') {
+tasks.named('yamlRestTest').configure {
   usesDefaultDistribution()
 }
 

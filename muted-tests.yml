@@ -41,6 +41,7 @@ tests:
 - class: org.elasticsearch.xpack.restart.FullClusterRestartIT
   method: testDataStreams {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111448
+<<<<<<< HEAD
 - class: org.elasticsearch.search.SearchServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/111529
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
@@ -52,6 +53,8 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.MlJobIT
   method: testDeleteJobAfterMissingIndex
   issue: https://github.com/elastic/elasticsearch/issues/112088
+=======
+>>>>>>> a7878a9e76f ([Test] Move archived setting test into its own test class (#116460))
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
@@ -248,9 +251,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116126
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   issue: https://github.com/elastic/elasticsearch/issues/111319
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111777
 - class: org.elasticsearch.xpack.ml.integration.DatafeedJobsRestIT
   method: testLookbackWithIndicesOptions
   issue: https://github.com/elastic/elasticsearch/issues/116127

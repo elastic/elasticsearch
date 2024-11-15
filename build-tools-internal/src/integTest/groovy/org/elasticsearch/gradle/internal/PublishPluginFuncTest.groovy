@@ -117,7 +117,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             }
             version = "1.0"
             group = 'org.acme'
-            description = 'some description'
+            description = 'shadowed project'
         """
 
         when:
@@ -137,7 +137,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>some description</description>
+              <description>shadowed project</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -206,7 +206,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 group = 'org.acme'
             }
 
-            description = 'some description'
+            description = 'with shadowed dependencies'
         """
 
         when:
@@ -226,7 +226,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>some description</description>
+              <description>with shadowed dependencies</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -283,7 +283,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             esplugin {
                 name = 'hello-world-plugin'
                 classname 'org.acme.HelloWorldPlugin'
-                description = "custom project description"
+                description = "shadowed es plugin"
             }
 
             publishing {
@@ -324,7 +324,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world-plugin</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>custom project description</description>
+              <description>shadowed es plugin</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -353,7 +353,6 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <url>https://www.elastic.co</url>
                 </developer>
               </developers>
-              <dependencies/>
             </project>"""
         )
     }

@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression.predicate.fulltext;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;

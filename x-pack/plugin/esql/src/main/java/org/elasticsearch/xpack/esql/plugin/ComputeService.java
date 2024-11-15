@@ -255,19 +255,17 @@ public class ComputeService {
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
-                // took time and shard counts for SKIPPED clusters were added at end of planning, so only update other cases here
-                if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                    execInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
-                            .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                            .setTotalShards(0)
-                            .setSuccessfulShards(0)
-                            .setSkippedShards(0)
-                            .setFailedShards(0)
-                            .build()
-                    );
-                }
+                execInfo.swapCluster(clusterAlias, (k, v) -> {
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0);
+                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    }
+                    return builder.build();
+                });
             }
         }
     }

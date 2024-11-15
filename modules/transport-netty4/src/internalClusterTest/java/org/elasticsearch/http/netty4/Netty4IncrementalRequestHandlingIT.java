@@ -210,7 +210,9 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
             // terminate connection on server and wait resources are released
             handler.channel.request().getHttpChannel().close();
             assertBusy(() -> {
-                assertNull(handler.stream.buf());
+                // Cannot be simplified to assertNull.
+                // assertNull requires object to not fail on toString() method, but closing buffer can
+                assertTrue(handler.stream.buf() == null);
                 assertTrue(handler.streamClosed);
             });
         }

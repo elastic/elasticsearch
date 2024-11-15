@@ -9,17 +9,19 @@
 
 package org.elasticsearch.action.admin.indices.template.get;
 
-import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.admin.indices.rollover.RolloverConfiguration;
-import org.elasticsearch.action.support.master.MasterNodeReadRequest;
+import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetention;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.tasks.CancellableTask;
+import org.elasticsearch.tasks.Task;
+import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -43,44 +45,30 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
     /**
      * Request that to retrieve one or more component templates
      */
-    public static class Request extends MasterNodeReadRequest<Request> {
+    public static class Request extends ActionRequest {
 
         @Nullable
         private String name;
         private boolean includeDefaults;
 
-        public Request() {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
-        }
-
         public Request(String name) {
-            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.name = name;
             this.includeDefaults = false;
         }
 
-        public Request(StreamInput in) throws IOException {
-            super(in);
-            name = in.readOptionalString();
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                includeDefaults = in.readBoolean();
-            } else {
-                includeDefaults = false;
-            }
-        }
-
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            super.writeTo(out);
-            out.writeOptionalString(name);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeBoolean(includeDefaults);
-            }
+            TransportAction.localOnly();
         }
 
         @Override
         public ActionRequestValidationException validate() {
             return null;
+        }
+
+        @Override
+        public Task createTask(long id, String type, String action, TaskId parentTaskId, Map<String, String> headers) {
+            return new CancellableTask(id, type, action, "", parentTaskId, headers);
         }
 
         /**
@@ -122,20 +110,6 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
         private final Map<String, ComponentTemplate> componentTemplates;
         @Nullable
         private final RolloverConfiguration rolloverConfiguration;
-
-        public Response(StreamInput in) throws IOException {
-            super(in);
-            componentTemplates = in.readMap(ComponentTemplate::new);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                rolloverConfiguration = in.readOptionalWriteable(RolloverConfiguration::new);
-            } else {
-                rolloverConfiguration = null;
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                && in.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
-                in.readOptionalWriteable(DataStreamGlobalRetention::read);
-            }
-        }
 
         /**
          * Please use {@link GetComponentTemplateAction.Response#Response(Map)}
@@ -186,14 +160,7 @@ public class GetComponentTemplateAction extends ActionType<GetComponentTemplateA
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeMap(componentTemplates, StreamOutput::writeWriteable);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
-                out.writeOptionalWriteable(rolloverConfiguration);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)
-                && out.getTransportVersion().before(TransportVersions.REMOVE_GLOBAL_RETENTION_FROM_TEMPLATES)) {
-                out.writeOptionalWriteable(null);
-            }
+            TransportAction.localOnly();
         }
 
         @Override

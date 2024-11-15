@@ -16,9 +16,13 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
+import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.concurrent.Executor;
 
@@ -61,4 +65,33 @@ public abstract class TransportLocalClusterStateAction<Request extends ActionReq
 
     protected abstract void localClusterStateOperation(Task task, Request request, ClusterState state, ActionListener<Response> listener)
         throws Exception;
+
+    // Remove the BWC support for the deprecated ?master_timeout parameter.
+    // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    public static void consumeDeprecatedMasterTimeoutParameter(ToXContent.Params params) {
+        if (params.paramAsBoolean("master_timeout", false)) {
+            DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
+                .critical(
+                    DeprecationCategory.API,
+                    "TransportLocalClusterStateAction-master-timeout-parameter",
+                    "the [?master_timeout] query parameter to this API has no effect, is now deprecated, " +
+                        "and will be removed in a future version"
+                );
+        }
+    }
+
+    // Remove the BWC support for the deprecated ?local parameter.
+    // NOTE: ensure each usage of this method has been deprecated for long enough to remove it.
+    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION)
+    public static void consumeDeprecatedLocalParameter(ToXContent.Params params) {
+        if (params.paramAsBoolean("local", false)) {
+            DeprecationLogger.getLogger(TransportLocalClusterStateAction.class)
+                .critical(
+                    DeprecationCategory.API,
+                    "TransportLocalClusterStateAction-local-parameter",
+                    "the [?local] query parameter to this API has no effect, is now deprecated, and will be removed in a future version"
+                );
+        }
+    }
 }

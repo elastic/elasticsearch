@@ -58,12 +58,7 @@ public class StdDevFloatAggregator {
         current.add(groupId, value);
     }
 
-    public static void combineStates(
-        StdDevStates.GroupingState current,
-        int groupId,
-        StdDevStates.GroupingState state,
-        int statePosition
-    ) {
+    public static void combineStates(StdDevStates.GroupingState current, int groupId, StdDevStates.GroupingState state, int statePosition) {
         current.combine(groupId, state.getOrNull(statePosition));
     }
 

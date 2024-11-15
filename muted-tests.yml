@@ -252,6 +252,9 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests
   method: testFloatGetVectorValueAndGetMagnitude
   issue: https://github.com/elastic/elasticsearch/issues/116863
+- class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconcilerMetricsIT
+  method: testDesiredBalanceMetrics
+  issue: https://github.com/elastic/elasticsearch/issues/116870
 
 # Examples:
 #

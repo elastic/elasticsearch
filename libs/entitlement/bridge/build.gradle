@@ -25,6 +25,6 @@ artifacts {
   bridgeJar(jar)
 }
 
-tasks.named('forbiddenApisMain').configure {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

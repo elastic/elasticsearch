@@ -119,7 +119,7 @@ java.time.zone.ZoneRules#getStandardOffset(java.time.Instant)
 java.time.zone.ZoneRules#getDaylightSavings(java.time.Instant)
 java.time.zone.ZoneRules#isDaylightSavings(java.time.Instant)
 
-@defaultMessage Use logger methods with non-Object parameter
+@defaultMessage The first parameter to a log4j log statement should be a String, a log4j Supplier (not java.util.function.Supplier), or another object that log4j supports.
 org.apache.logging.log4j.Logger#trace(java.lang.Object)
 org.apache.logging.log4j.Logger#trace(java.lang.Object, java.lang.Throwable)
 org.apache.logging.log4j.Logger#debug(java.lang.Object)

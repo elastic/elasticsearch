@@ -9,11 +9,13 @@ required_capability: join_lookup
 FROM employees
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
-| WHERE emp_no < 1
+| WHERE emp_no > 10090
 | KEEP emp_no, language_name
+| SORT emp_no
 | LIMIT 1;
 
 emp_no:integer | language_name:keyword
+10091          | Spanish
 ;
 
 basicRow-Ignore

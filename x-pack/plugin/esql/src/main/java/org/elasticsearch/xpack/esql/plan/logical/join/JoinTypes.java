@@ -8,11 +8,13 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.Objects;
 
 /**
@@ -27,6 +29,16 @@ public class JoinTypes {
     public static JoinType RIGHT = CoreJoinType.RIGHT;
     public static JoinType FULL = CoreJoinType.FULL;
     public static JoinType CROSS = CoreJoinType.CROSS;
+
+    private static Map<Byte, JoinType> JOIN_TYPES;
+
+    static {
+        CoreJoinType[] types = CoreJoinType.values();
+        JOIN_TYPES = Maps.newMapWithExpectedSize(types.length);
+        for (CoreJoinType type : types) {
+            JOIN_TYPES.put(type.id, type);
+        }
+    }
 
     /**
      * The predefined core join types. Implements as enum for easy comparison and serialization.
@@ -133,13 +145,11 @@ public class JoinTypes {
 
     public static JoinType readFrom(StreamInput in) throws IOException {
         byte id = in.readByte();
-        return switch (id) {
-            case 1 -> INNER;
-            case 2 -> LEFT;
-            case 3 -> RIGHT;
-            case 4 -> FULL;
-            case 5 -> CROSS;
-            default -> throw new IllegalArgumentException("unsupported join [" + id + "]");
-        };
+        JoinType type = JOIN_TYPES.get(id);
+        if (type == null) {
+            throw new IllegalArgumentException("unsupported join [" + id + "]");
+        }
+        ;
+        return type;
     }
 }

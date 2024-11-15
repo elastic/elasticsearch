@@ -1909,11 +1909,11 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP_🐔_ int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔_' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         LogicalPlan plan = analyze(query);
@@ -1965,11 +1965,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testLookupMissingField() {
         String query = """
               FROM test
-            | LOOKUP_🐔_ int_number_names ON garbage
+            | LOOKUP_🐔 int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1979,11 +1979,11 @@ public class AnalyzerTests extends ESTestCase {
     public void testLookupMissingTable() {
         String query = """
               FROM test
-            | LOOKUP_🐔_ garbage ON a
+            | LOOKUP_🐔 garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 2:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));
@@ -1994,11 +1994,11 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME last_name AS int
-            | LOOKUP_🐔_ int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var e = expectThrows(VerificationException.class, () -> analyze(query));

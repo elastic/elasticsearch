@@ -25,7 +25,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
@@ -107,6 +106,7 @@ public class Join extends BinaryPlan {
     public static List<Attribute> computeOutput(List<Attribute> leftOutput, List<Attribute> rightOutput, JoinConfig config) {
         JoinType joinType = config.type();
         List<Attribute> output;
+        // TODO: make the other side nullable
         if (LEFT.equals(joinType)) {
             // right side becomes nullable and overrides left
             // output = merge(leftOutput, makeNullable(rightOutput));
@@ -123,7 +123,6 @@ public class Join extends BinaryPlan {
 
     /**
      * Merge the two lists of attributes into one and preserves order.
-     * In case of conflicts, specify the existing entry is overridden (in place) or not.
      */
     private static List<Attribute> merge(List<Attribute> left, List<Attribute> right) {
         // use linked hash map to preserve order
@@ -137,17 +136,6 @@ public class Join extends BinaryPlan {
         }
 
         return new ArrayList<>(nameToAttribute.values());
-    }
-
-    private static List<Attribute> removeDuplicateNames(List<Attribute> attributes, Set<String> sideNames, Set<String> matchFieldNames) {
-        List<Attribute> result = new ArrayList<>(attributes.size());
-        for (Attribute attr : attributes) {
-            String name = attr.name();
-            if ((sideNames.contains(name) || matchFieldNames.contains(name)) == false) {
-                result.add(attr);
-            }
-        }
-        return result;
     }
 
     /**

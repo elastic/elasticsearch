@@ -30,14 +30,14 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDeviationStates.GroupingState state;
+  private final StdDevStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StdDevLongGroupingAggregatorFunction(List<Integer> channels,
-      StdDeviationStates.GroupingState state, DriverContext driverContext) {
+      StdDevStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -191,7 +191,7 @@ public final class StdDevLongGroupingAggregatorFunction implements GroupingAggre
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingState inState = ((StdDevLongGroupingAggregatorFunction) input).state;
+    StdDevStates.GroupingState inState = ((StdDevLongGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StdDevLongAggregator.combineStates(state, groupId, inState, position);
   }

@@ -15,9 +15,9 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
 
-public final class StdDeviationStates {
+public final class StdDevStates {
 
-    private StdDeviationStates() {}
+    private StdDevStates() {}
 
     static final class SingleState implements AggregatorState {
 

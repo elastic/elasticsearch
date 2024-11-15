@@ -32,14 +32,14 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
       new IntermediateStateDesc("m2", ElementType.DOUBLE),
       new IntermediateStateDesc("count", ElementType.LONG)  );
 
-  private final StdDeviationStates.GroupingState state;
+  private final StdDevStates.GroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StdDevFloatGroupingAggregatorFunction(List<Integer> channels,
-      StdDeviationStates.GroupingState state, DriverContext driverContext) {
+      StdDevStates.GroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -193,7 +193,7 @@ public final class StdDevFloatGroupingAggregatorFunction implements GroupingAggr
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StdDeviationStates.GroupingState inState = ((StdDevFloatGroupingAggregatorFunction) input).state;
+    StdDevStates.GroupingState inState = ((StdDevFloatGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StdDevFloatAggregator.combineStates(state, groupId, inState, position);
   }

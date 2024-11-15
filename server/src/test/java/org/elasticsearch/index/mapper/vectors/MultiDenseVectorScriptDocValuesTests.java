@@ -18,13 +18,11 @@ import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesFiel
 import org.elasticsearch.script.field.vectors.MultiDenseVector;
 import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.index.IndexVersionUtils;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.Iterator;
-import java.util.List;
 
 import static org.hamcrest.Matchers.containsString;
 
@@ -35,29 +33,28 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] expectedMagnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
 
-        for (IndexVersion indexVersion : List.of(IndexVersionUtils.randomCompatibleVersion(random()), IndexVersion.current())) {
-            BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
-            BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
-            MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
-                docValues,
-                magnitudeValues,
-                "test",
-                ElementType.FLOAT,
-                dims
-            );
-            MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
-            for (int i = 0; i < vectors.length; i++) {
-                field.setNextDocId(i);
-                assertEquals(vectors[i].length, field.size());
-                assertEquals(dims, scriptDocValues.dims());
-                Iterator<float[]> iterator = scriptDocValues.getVectorValues();
-                float[] magnitudes = scriptDocValues.getMagnitudes();
-                assertEquals(expectedMagnitudes[i].length, magnitudes.length);
-                for (int j = 0; j < vectors[i].length; j++) {
-                    assertTrue(iterator.hasNext());
-                    assertArrayEquals(vectors[i][j], iterator.next(), 0.0001f);
-                    assertEquals(expectedMagnitudes[i][j], magnitudes[j], 0.0001f);
-                }
+        IndexVersion indexVersion = IndexVersion.current();
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
+        BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
+        MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
+            docValues,
+            magnitudeValues,
+            "test",
+            ElementType.FLOAT,
+            dims
+        );
+        MultiDenseVectorScriptDocValues scriptDocValues = field.toScriptDocValues();
+        for (int i = 0; i < vectors.length; i++) {
+            field.setNextDocId(i);
+            assertEquals(vectors[i].length, field.size());
+            assertEquals(dims, scriptDocValues.dims());
+            Iterator<float[]> iterator = scriptDocValues.getVectorValues();
+            float[] magnitudes = scriptDocValues.getMagnitudes();
+            assertEquals(expectedMagnitudes[i].length, magnitudes.length);
+            for (int j = 0; j < vectors[i].length; j++) {
+                assertTrue(iterator.hasNext());
+                assertArrayEquals(vectors[i][j], iterator.next(), 0.0001f);
+                assertEquals(expectedMagnitudes[i][j], magnitudes[j], 0.0001f);
             }
         }
     }

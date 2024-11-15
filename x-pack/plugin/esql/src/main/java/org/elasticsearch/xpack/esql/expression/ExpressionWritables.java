@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNotNull;
 import org.elasticsearch.xpack.esql.core.expression.predicate.nulls.IsNull;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateWritables;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextWritables;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ScalarFunctionWritables;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
@@ -249,6 +250,6 @@ public class ExpressionWritables {
     }
 
     private static List<NamedWriteableRegistry.Entry> fullText() {
-        return List.of(MatchQueryPredicate.ENTRY, MultiMatchQueryPredicate.ENTRY, StringQueryPredicate.ENTRY);
+        return FullTextWritables.getNamedWriteables();
     }
 }

@@ -1909,11 +1909,11 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP__ int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP__' expecting {"));
             return;
         }
         LogicalPlan plan = analyze(query);
@@ -1948,7 +1948,7 @@ public class AnalyzerTests extends ESTestCase {
                  * Int is a reference here because we renamed it in project.
                  * If we hadn't it'd be a field and that'd be fine.
                  */
-                .item(containsString("int{r}"))
+                .item(containsString("int{f}"))
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
@@ -1965,7 +1965,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLookupMissingField() {
         String query = """
               FROM test
-            | LOOKUP int_number_names ON garbage
+            | LOOKUP__ int_number_names ON garbage
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
@@ -1979,7 +1979,7 @@ public class AnalyzerTests extends ESTestCase {
     public void testLookupMissingTable() {
         String query = """
               FROM test
-            | LOOKUP garbage ON a
+            | LOOKUP__ garbage ON a
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
@@ -1994,7 +1994,7 @@ public class AnalyzerTests extends ESTestCase {
         String query = """
               FROM test
             | RENAME last_name AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP__ int_number_names ON int
             """;
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));

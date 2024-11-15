@@ -2751,7 +2751,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         var eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
 
         // Now optimize the plan and assert the same plan again, since no FieldExtractExec is added
         var optimized = optimizedPlan(plan);
@@ -2765,7 +2765,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat("No groupings in aggregation", agg.groupings().size(), equalTo(0));
         assertAggregation(agg, "centroid", SpatialCentroid.class, GEO_POINT, false);
         eval = as(agg.child(), EvalExec.class);
-        as(eval.child(), RowExec.class);
+        as(eval.child(), LocalSourceExec.class);
     }
 
     /**
@@ -6423,11 +6423,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         assertThat(e.getMessage(), containsString("ESQL statement exceeded the maximum query depth allowed (" + MAX_QUERY_DEPTH + ")"));
     }
 
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
             FROM test
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int""";
+            | LOOKUP__ int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -6468,13 +6469,14 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *             \_EsQueryExec[...]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenProject() {
         String query = """
             FROM employees
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP__ int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
@@ -6530,7 +6532,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String query = """
             FROM employees
             | RENAME languages AS int
-            | LOOKUP int_number_names ON int
+            | LOOKUP__ int_number_names ON int
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";

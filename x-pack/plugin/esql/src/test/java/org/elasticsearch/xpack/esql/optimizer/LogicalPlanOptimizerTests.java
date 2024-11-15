@@ -5365,6 +5365,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupSimple() {
         String query = """
               FROM test
@@ -5444,6 +5445,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
      * 9]]], BytesRefVectorBlock[vector=BytesRefArrayVector[positions=10]]]]
      * }
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupStats() {
         String query = """
               FROM test

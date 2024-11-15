@@ -121,18 +121,17 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        int len = Math.toIntExact(owningBucketOrds.size());
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
          */
-        StringRareTerms.Bucket[][] rarestPerOrd = new StringRareTerms.Bucket[len][];
-        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[len];
+        StringRareTerms.Bucket[][] rarestPerOrd = new StringRareTerms.Bucket[Math.toIntExact(owningBucketOrds.size())][];
+        SetBackedScalingCuckooFilter[] filters = new SetBackedScalingCuckooFilter[rarestPerOrd.length];
         long keepCount = 0;
         try (LongArray mergeMap = bigArrays().newLongArray(bucketOrds.size())) {
             mergeMap.fill(0, mergeMap.size(), -1);
             long offset = 0;
-            for (int owningOrdIdx = 0; owningOrdIdx < len; owningOrdIdx++) {
+            for (int owningOrdIdx = 0; owningOrdIdx < rarestPerOrd.length; owningOrdIdx++) {
                 try (BytesRefHash bucketsInThisOwningBucketToCollect = new BytesRefHash(1, bigArrays())) {
                     filters[owningOrdIdx] = newFilter();
                     List<StringRareTerms.Bucket> builtBuckets = new ArrayList<>();
@@ -179,8 +178,8 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
          * Now build the results!
          */
         buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] result = new InternalAggregation[len];
-        for (int ordIdx = 0; ordIdx < len; ordIdx++) {
+        InternalAggregation[] result = new InternalAggregation[rarestPerOrd.length];
+        for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
             Arrays.sort(rarestPerOrd[ordIdx], ORDER.comparator());
             result[ordIdx] = new StringRareTerms(
                 name,

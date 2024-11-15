@@ -249,6 +249,9 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/114824
+- class: org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests
+  method: testFloatGetVectorValueAndGetMagnitude
+  issue: https://github.com/elastic/elasticsearch/issues/116863
 
 # Examples:
 #

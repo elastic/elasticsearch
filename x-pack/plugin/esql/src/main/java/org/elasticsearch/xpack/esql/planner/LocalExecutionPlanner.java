@@ -575,7 +575,7 @@ public class LocalExecutionPlanner {
         }
         Layout layout = layoutBuilder.build();
 
-        // NOCOMMIT this works when the join happens on the coordinator
+        // TODO: this works when the join happens on the coordinator
         /*
          * But when it happens on the data node we get a
          * \_FieldExtractExec[language_code{f}#15, language_name{f}#16]<[]>

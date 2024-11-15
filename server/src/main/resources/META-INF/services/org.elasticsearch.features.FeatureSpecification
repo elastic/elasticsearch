@@ -7,7 +7,6 @@
  # License v3.0 only", or the "Server Side Public License, v 1".
 #
 
-org.elasticsearch.action.admin.indices.stats.IndicesStatsFeatures
 org.elasticsearch.action.bulk.BulkFeatures
 org.elasticsearch.features.FeatureInfrastructureFeatures
 org.elasticsearch.health.HealthFeatures

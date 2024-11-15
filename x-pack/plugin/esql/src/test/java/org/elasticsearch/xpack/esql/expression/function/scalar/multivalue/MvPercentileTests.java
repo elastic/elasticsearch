@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.multivalue;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -327,6 +328,13 @@ public class MvPercentileTests extends AbstractScalarFunctionTestCase {
                             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
                                 .withWarning(
                                     "Line -1:-1: java.lang.IllegalArgumentException: Percentile parameter must be "
+                                        + "a number between 0 and 100, found ["
+                                        + percentile.doubleValue()
+                                        + "]"
+                                )
+                                .withFoldingException(
+                                    VerificationException.class,
+                                    "java.lang.IllegalArgumentException: Percentile parameter must be "
                                         + "a number between 0 and 100, found ["
                                         + percentile.doubleValue()
                                         + "]"

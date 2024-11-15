@@ -15,6 +15,8 @@ import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.planner.Layout;
 
+import java.util.List;
+
 import static org.elasticsearch.compute.data.BlockUtils.fromArrayRow;
 import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
 
@@ -62,7 +64,8 @@ public interface EvaluatorMapper {
      * good enough.
      */
     default Object fold() {
-        ExpressionEvaluator eval = toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
+        DriverContext ctx = DriverContext.getLocalDriver();
+        Block result = toEvaluator(e -> driverContext -> new ExpressionEvaluator() {
             @Override
             public Block eval(Page page) {
                 Block[] result = fromArrayRow(driverContext.blockFactory(), e.fold());
@@ -71,14 +74,13 @@ public interface EvaluatorMapper {
 
             @Override
             public void close() {}
-        }).get(DriverContext.getLocalDriver());
+        }).get(ctx).eval(new Page(1));
 
-        Block result = eval.eval(new Page(1));
+        List<Exception> warnings = ctx.warnings();
 
-        Exception e = eval.exception();
-
-        if (e != null) {
-            throw new VerificationException(e.getClass().getName() + ": " + e.getMessage());
+        if (warnings != null && warnings.isEmpty() == false) {
+            Exception first = warnings.get(0); // there should be only one exception
+            throw new VerificationException(first.getClass().getName() + ": " + first.getMessage());
         }
 
         return toJavaObject(result, 0);

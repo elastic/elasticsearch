@@ -34,7 +34,6 @@ import static org.elasticsearch.compute.gen.Types.ABSTRACT_NULLABLE_MULTIVALUE_F
 import static org.elasticsearch.compute.gen.Types.BLOCK;
 import static org.elasticsearch.compute.gen.Types.BYTES_REF;
 import static org.elasticsearch.compute.gen.Types.DRIVER_CONTEXT;
-import static org.elasticsearch.compute.gen.Types.EXCEPTION;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR;
 import static org.elasticsearch.compute.gen.Types.EXPRESSION_EVALUATOR_FACTORY;
 import static org.elasticsearch.compute.gen.Types.SOURCE;
@@ -137,7 +136,6 @@ public class MvEvaluatorImplementer {
             builder.superclass(ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR);
             builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
             builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
-            builder.addField(EXCEPTION, "exception", Modifier.PRIVATE);
         }
 
         builder.addMethod(ctor());
@@ -160,7 +158,6 @@ public class MvEvaluatorImplementer {
         builder.addType(factory());
         if (warnExceptions.isEmpty() == false) {
             builder.addMethod(EvaluatorImplementer.warnings());
-            builder.addMethod(EvaluatorImplementer.exception());
             builder.addMethod(EvaluatorImplementer.registerException());
         }
         return builder.build();

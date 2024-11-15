@@ -7,8 +7,11 @@
 
 package org.elasticsearch.xpack.esql.optimizer.rules.logical;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+
+import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 
 public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRule<Expression> {
 
@@ -18,6 +21,11 @@ public final class ConstantFolding extends OptimizerRules.OptimizerExpressionRul
 
     @Override
     public Expression rule(Expression e) {
-        return e.foldable() ? Literal.of(e) : e;
+        try {
+            return e.foldable() ? Literal.of(e) : e;
+        } catch (VerificationException ve) {
+            String location = format("Line {}:{}: ", e.source().source().getLineNumber(), e.source().source().getColumnNumber());
+            throw new VerificationException(location + ve.getMessage());
+        }
     }
 }

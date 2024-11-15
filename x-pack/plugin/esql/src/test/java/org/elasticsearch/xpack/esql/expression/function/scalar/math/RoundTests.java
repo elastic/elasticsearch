@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.math.Maths;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -78,7 +79,11 @@ public class RoundTests extends AbstractScalarFunctionTestCase {
                 DataType.DOUBLE,
                 is(nullValue())
             ).withWarning("Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.")
-                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value");
+                .withWarning("Line -1:-1: java.lang.IllegalArgumentException: single-value function encountered multi-value")
+                .withFoldingException(
+                    VerificationException.class,
+                    "java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                );
         }));
 
         // Integer or Long without a decimals parameter is a noop

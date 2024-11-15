@@ -597,19 +597,6 @@ ROW long = TO_LONG(100), double = 99., int = 100
 99.0           |0.0            |99.0
 ;
 
-
-zeroBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-ROW a = 1
-| STATS max = max(a) BY b = BUCKET(a, 0, 0, 0)
-;
-warningRegex:evaluation of \[BUCKET\(a, 0, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
-
-max:integer | b:double
-1          | null
-;
-
-
 zeroBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 0, 0, 0)
@@ -620,7 +607,6 @@ warningRegex:java.lang.ArithmeticException: / by zero
 max:integer | b:double
 74999       | null
 ;
-
 
 zeroBucketsDouble#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
@@ -633,18 +619,6 @@ max:integer | b:double
 74999       | null
 ;
 
-minusOneBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-ROW a = 1
-| STATS max = max(a) BY b = BUCKET(a, -1, 0, 0)
-;
-warningRegex:evaluation of \[BUCKET\(a, -1, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
-
-max:integer | b:double
-1          | null
-;
-
-
 minusOneBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, -1, 0, 0)
@@ -656,19 +630,6 @@ max:integer | b:double
 74999       | null
 ;
 
-
-tooManyBucketsRow#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
-ROW a = 1
-| STATS max = max(a) BY b = BUCKET(a, 100000000000, 0, 0)
-;
-warningRegex:evaluation of \[BUCKET\(a, 100000000000, 0, 0\)\] failed, treating result as null. Only first 20 failures recorded
-warningRegex:java.lang.ArithmeticException: / by zero
-
-max:integer | b:double
-1          | null
-;
-
-
 tooManyBuckets#[skip:-8.13.99, reason:BUCKET renamed in 8.14]
 FROM employees
 | STATS max = max(salary) BY b = BUCKET(salary, 100000000000, 0, 0)
@@ -679,7 +640,6 @@ warningRegex:java.lang.ArithmeticException: / by zero
 max:integer | b:double
 74999       | null
 ;
-
 
 foldableBuckets
 required_capability: casting_operator

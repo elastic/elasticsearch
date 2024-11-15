@@ -2130,18 +2130,6 @@ w_avg_1:double |w_avg_2:double |avg:double
 2.0            | 2.0           | 2.0
 ;
 
-weightedAvgBothConstantsMvWarning
-required_capability: agg_weighted_avg
-row v = [1, 2, 3], w = [1, 2, 3]
-| stats w_avg = weighted_avg(v, w)
-;
-warning:Line 2:17: evaluation of [weighted_avg(v, w)] failed, treating result as null. Only first 20 failures recorded.
-warning:Line 2:17: java.lang.IllegalArgumentException: single-value function encountered multi-value
-
-w_avg:double
-null
-;
-
 weightedAvgWeightConstantMvWarning
 required_capability: agg_weighted_avg
 from employees

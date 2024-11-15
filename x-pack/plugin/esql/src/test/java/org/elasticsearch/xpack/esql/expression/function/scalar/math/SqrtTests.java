@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -83,7 +84,9 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Square root of negative"
         );
         TestCaseSupplier.forUnaryLong(
             suppliers,
@@ -95,7 +98,9 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Square root of negative"
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
@@ -107,7 +112,9 @@ public class SqrtTests extends AbstractScalarFunctionTestCase {
             List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.ArithmeticException: Square root of negative"
-            )
+            ),
+            VerificationException.class,
+            "java.lang.ArithmeticException: Square root of negative"
         );
         return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }

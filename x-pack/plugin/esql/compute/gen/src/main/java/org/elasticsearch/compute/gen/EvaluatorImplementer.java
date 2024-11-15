@@ -103,7 +103,6 @@ public class EvaluatorImplementer {
         builder.addField(DRIVER_CONTEXT, "driverContext", Modifier.PRIVATE, Modifier.FINAL);
 
         builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
-        builder.addField(EXCEPTION, "exception", Modifier.PRIVATE);
 
         builder.addMethod(ctor());
         builder.addMethod(eval());
@@ -121,7 +120,6 @@ public class EvaluatorImplementer {
         builder.addMethod(toStringMethod());
         builder.addMethod(close());
         builder.addMethod(warnings());
-        builder.addMethod(exception());
         builder.addMethod(registerException());
         return builder.build();
     }
@@ -327,8 +325,7 @@ public class EvaluatorImplementer {
         builder.addModifiers(Modifier.PRIVATE).returns(WARNINGS);
         builder.beginControlFlow("if (warnings == null)");
         builder.addStatement("""
-            this.warnings = Warnings.createWarnings(
-                driverContext.warningsMode(),
+            this.warnings = driverContext.createWarnings(
                 source.source().getLineNumber(),
                 source.source().getColumnNumber(),
                 source.text()
@@ -338,20 +335,10 @@ public class EvaluatorImplementer {
         return builder.build();
     }
 
-    static MethodSpec exception() {
-        MethodSpec.Builder builder = MethodSpec.methodBuilder("exception").addAnnotation(Override.class);
-        builder.addModifiers(Modifier.PUBLIC).returns(EXCEPTION);
-        builder.addStatement("return exception");
-        return builder.build();
-    }
-
     static MethodSpec registerException() {
         MethodSpec.Builder builder = MethodSpec.methodBuilder("registerException");
         builder.addModifiers(Modifier.PRIVATE).addParameter(EXCEPTION, "exception");
-        builder.addStatement("warnings().registerException(exception)");
-        builder.beginControlFlow("if (this.exception == null)");
-        builder.addStatement("this.exception = exception");
-        builder.endControlFlow();
+        builder.addStatement("driverContext.registerException(warnings(), exception)");
         return builder.build();
     }
 

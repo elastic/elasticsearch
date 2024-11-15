@@ -322,7 +322,6 @@ public class EsqlSession {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
                         // Exception to let the LogicalPlanActionListener decide how to proceed
                         finalListener.onFailure(new NoClustersToSearchException());
-                        // return;
                     }
 
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
@@ -339,70 +338,82 @@ public class EsqlSession {
                             unresolvedPolicies,
                             new IndexResolutionWrappingListener(l, indexResolution)
                         );
-                        // return;
                     }
                 }
-                if (requestFilter == null) {
-                    // we are not interested in any kind of failures if the request doesn't have a filter, because:
-                    // 1. either this is the second attempt to make Analysis work by excluding any potential filter
-                    // 2. the ES|QL query didn't have a filter in the first place and there was no second try
-                    var plan = analyzeAction.apply(tuple.v2(), tuple.v1());
-                    LOGGER.debug("Analyzed plan (no request filter):\n{}", plan);
-                    finalListener.onResponse(plan);
-                } else {
-                    // don't stop and pass the tuple to the next listener that runs "action" one more time
-                    l.onResponse(tuple);
-                }
+                // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step
+                l.onResponse(tuple);
             })
             .<Tuple<EnrichResolution, IndexResolution>>andThen((l, tuple) -> {
                 var indexResolution = tuple.v2();
                 var enrichResolution = tuple.v1();
                 LogicalPlan plan = null;
-                LOGGER.debug("Analyzing the plan (first attempt, with filter)");
+
+                var filterPresentMessage = requestFilter == null ? "without" : "with";
+                var attemptMessage = requestFilter == null ? "the only" : "first";
+                LOGGER.debug("Analyzing the plan ({} attempt, {} filter)", attemptMessage, filterPresentMessage);
                 try {
                     plan = analyzeAction.apply(indexResolution, enrichResolution);
-                } catch (VerificationException ve) {
-                    LOGGER.debug("Analyzing the plan (first attempt, with filter) failed with {}", ve.getDetailedMessage());
-                    // interested only in a VerificationException, but this time we are taking out the index filter
-                    // to try and make the index resolution work without any index filtering. In the next step... to be continued
-                    l.onResponse(tuple);
+                } catch (Exception e) {
+                    if (e instanceof VerificationException ve) {
+                        LOGGER.debug(
+                            "Analyzing the plan ({} attempt, {} filter) failed with {}",
+                            attemptMessage,
+                            filterPresentMessage,
+                            ve.getDetailedMessage()
+                        );
+                        if (requestFilter == null) {
+                            // if the initial request didn't have a filter, then just pass the exception back to the user
+                            finalListener.onFailure(ve);
+                            return;
+                        } else {
+                            // interested only in a VerificationException, but this time we are taking out the index filter
+                            // to try and make the index resolution work without any index filtering. In the next step... to be continued
+                            l.onResponse(tuple);
+                        }
+                    } else {
+                        // if the query failed with any other type of exception, then just pass the exception back to the user
+                        finalListener.onFailure(e);
+                        return;
+                    }
                 }
-                LOGGER.debug("Analyzed plan (first attempt, with filter):\n{}", plan);
+                LOGGER.debug("Analyzed plan ({} attempt, {} filter):\n{}", attemptMessage, filterPresentMessage, plan);
+                // the analysis succeeded from the first attempt, irrespective if it had a filter or not, just continue with the planning
                 finalListener.onResponse(plan);
             })
             .<Tuple<EnrichResolution, IndexResolution>>andThen((l, tuple) -> {
-                if (requestFilter != null) {
-                    var enrichResolution = tuple.v1();
-                    // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
-                    var matchFields = enrichResolution.resolvedEnrichPolicies()
-                        .stream()
-                        .map(ResolvedEnrichPolicy::matchField)
-                        .collect(Collectors.toSet());
-                    Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
+                assert requestFilter != null : "The second pre-analysis shouldn't take place when there is no index filter in the request";
+                // extracting the matchFields again (same operation)
+                // TODO: need to find a way of reusing the matchFields from the first async step
+                var enrichResolution = tuple.v1();
+                // we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
+                var matchFields = enrichResolution.resolvedEnrichPolicies()
+                    .stream()
+                    .map(ResolvedEnrichPolicy::matchField)
+                    .collect(Collectors.toSet());
+                Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
 
-                    // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
-                    // resolving one more time
-                    for (String clusterAlias : executionInfo.clusterAliases()) {
-                        executionInfo.swapCluster(clusterAlias, (k, v) -> null);
-                    }
+                // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
+                // resolving one more time (the first attempt failed and the query had a filter)
+                for (String clusterAlias : executionInfo.clusterAliases()) {
+                    executionInfo.swapCluster(clusterAlias, (k, v) -> null);
+                }
 
-                    // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-                    preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l, matchFields, null, enrichResolution);
-                } else {
-                    l.onResponse(tuple);
-                }
+                // here the requestFilter is set to null, performing the pre-analysis after the first step failed
+                preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l, matchFields, null, enrichResolution);
             })
-            .<Tuple<EnrichResolution, IndexResolution>>andThen((l, tuple) -> {
-                if (requestFilter != null) {
-                    LOGGER.debug("Analyzing the plan (second attempt, without filter)");
-                    var plan = analyzeAction.apply(tuple.v2(), tuple.v1());
-                    LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-                    finalListener.onResponse(plan);
-                } else {
-                    l.onResponse(tuple);
+            .andThenAccept(tuple -> {
+                assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
+                LOGGER.debug("Analyzing the plan (second attempt, without filter)");
+                LogicalPlan plan;
+                try {
+                    plan = analyzeAction.apply(tuple.v2(), tuple.v1());
+                } catch (Exception e) {
+                    finalListener.onFailure(e);
+                    return;
                 }
-            })
-            .andThenAccept(tuple -> LOGGER.debug("shouldn't have reached this point"));
+                LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
+                finalListener.onResponse(plan);
+            });
     }
 
     private void preAnalyzeIndices(

@@ -144,9 +144,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/115728
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=cat.shards/10_basic/Help}
-  issue: https://github.com/elastic/elasticsearch/issues/116110
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799

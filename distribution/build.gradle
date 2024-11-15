@@ -14,7 +14,6 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
 
 import java.nio.file.Files
@@ -208,7 +207,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -370,7 +369,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {

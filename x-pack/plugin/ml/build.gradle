@@ -94,7 +94,7 @@ dependencies {
 }
 
 def mlCppVersion(){
-  return (project.gradle.parent != null && BuildParams.isSnapshotBuild() == false) ?
+  return (project.gradle.parent != null && buildParams.isSnapshotBuild() == false) ?
       (project.version + "-SNAPSHOT") : project.version;
 }
 

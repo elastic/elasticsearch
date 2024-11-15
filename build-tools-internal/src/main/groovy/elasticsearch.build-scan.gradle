@@ -12,6 +12,7 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
@@ -46,7 +47,6 @@ develocity {
       }
 
       if (onCI) { //Buildkite-specific build scan metadata
-        def safeName = { String s -> s.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_') }
         String buildKiteUrl = System.getenv('BUILDKITE_BUILD_URL')
         def branch = System.getenv('BUILDKITE_PULL_REQUEST_BASE_BRANCH') ?: System.getenv('BUILDKITE_BRANCH')
         def repoMatcher = System.getenv('BUILDKITE_REPO') =~ /(https:\/\/github\.com\/|git@github\.com:)(\S+)\.git/

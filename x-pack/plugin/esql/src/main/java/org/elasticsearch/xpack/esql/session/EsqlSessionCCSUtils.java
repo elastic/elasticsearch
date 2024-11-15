@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;

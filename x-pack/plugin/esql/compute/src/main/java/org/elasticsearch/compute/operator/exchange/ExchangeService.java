@@ -285,7 +285,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         String exchangeId,
         TransportService transportService,
         Transport.Connection conn,
-        Consumer<Exception> failureCollector
+        @Nullable Consumer<Exception> failureCollector
     ) {
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor, failureCollector);
     }
@@ -297,7 +297,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
         final Task parentTask;
         final String exchangeId;
         final Executor responseExecutor;
-        final Consumer<Exception> failureCollector;
+        final @Nullable Consumer<Exception> failureCollector;
 
         final AtomicLong estimatedPageSizeInBytes = new AtomicLong(0L);
 
@@ -308,7 +308,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
             Task parentTask,
             String exchangeId,
             Executor responseExecutor,
-            Consumer<Exception> failureCollector
+            @Nullable Consumer<Exception> failureCollector
         ) {
             this.transportService = transportService;
             this.blockFactory = blockFactory;

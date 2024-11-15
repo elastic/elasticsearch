@@ -286,9 +286,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testServerCloseConnectionMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/116774
 
 # Examples:
 #

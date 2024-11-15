@@ -58,7 +58,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         for (int i = 0; i < totalChunks; i++) {
             channel.writeInbound(randomContent(1024));
         }
-        assertEquals(totalChunks * 1024, stream.buf().readableBytes());
+        assertEquals(totalChunks * 1024, stream.bufSize());
     }
 
     // ensures all received chunks can be flushed downstream
@@ -101,7 +101,7 @@ public class Netty4HttpRequestBodyStreamTests extends ESTestCase {
         channel.writeInbound(randomLastContent(chunkSize));
 
         for (int i = 0; i < totalChunks; i++) {
-            assertNull("should not enqueue chunks", stream.buf());
+            assertEquals("should not enqueue chunks", 0, stream.bufSize());
             stream.next();
             channel.runPendingTasks();
             assertEquals("each next() should produce single chunk", i + 1, gotChunks.size());

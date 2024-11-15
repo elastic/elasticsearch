@@ -1524,7 +1524,7 @@ FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
 | EVAL int = (event_duration - 1232380)::integer
-| LOOKUP__ int_number_names ON int
+| LOOKUP_🐔 int_number_names ON int
 ;
 
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword

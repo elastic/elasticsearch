@@ -20,7 +20,6 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
@@ -59,6 +58,8 @@ import java.util.Optional;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
+
 /**
  * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
  */
@@ -92,6 +93,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     public void apply(Project project) {
         project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -220,7 +222,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = BuildParams.getBwcVersions().unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 
@@ -232,9 +234,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
+                        this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
                     return null;
                 }

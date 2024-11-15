@@ -37,6 +37,7 @@ restResources {
     }
 }
 
+<<<<<<< HEAD
 tasks.named("yamlRestTestV7CompatTest").configure {
     systemProperty 'tests.rest.blacklist', [
         '50_script_values/Scripted fields values return Long',
@@ -47,6 +48,9 @@ tasks.named("yamlRestTestV7CompatTest").configure {
 }
 
 if (BuildParams.isSnapshotBuild() == false) {
+=======
+if (buildParams.isSnapshotBuild() == false) {
+>>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }

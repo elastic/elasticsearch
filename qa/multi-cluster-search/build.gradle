@@ -35,7 +35,7 @@ def ccsSupportedVersion = bwcVersion -> {
   return currentVersion.minor == 0 || (currentVersion.major == bwcVersion.major && currentVersion.minor - bwcVersion.minor <= 1)
 }
 
-BuildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(ccsSupportedVersion) { bwcVersion, baseName ->
 
   def remoteCluster = testClusters.register("${baseName}-remote") {
     numberOfNodes = 2

@@ -30,6 +30,7 @@ tasks.named('yamlRestTestV7CompatTest') {
   usesDefaultDistribution()
 }
 
+<<<<<<< HEAD
 tasks.named("yamlRestTestV7CompatTransform").configure {task ->
   task.skipTest("eql/10_basic/Execute EQL events query with wildcard (*) fields filtering.", "Change of locale with Java 23 makes these tests non deterministic")
   task.skipTest("eql/10_basic/Execute EQL sequence with fields filtering.", "Change of locale with Java 23 makes these tests non deterministic")
@@ -39,6 +40,9 @@ tasks.named("yamlRestTestV7CompatTransform").configure {task ->
 }
 
 if (BuildParams.inFipsJvm){
+=======
+if (buildParams.inFipsJvm){
+>>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
   // This test cluster is using a BASIC license and FIPS 140 mode is not supported in BASIC
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }

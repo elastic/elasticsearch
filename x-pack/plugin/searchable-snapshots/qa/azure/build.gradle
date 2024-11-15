@@ -33,7 +33,7 @@ tasks.named("javaRestTest").configure {
   systemProperty 'test.azure.container', azureContainer
   systemProperty 'test.azure.key', azureKey
   systemProperty 'test.azure.sas_token', azureSasToken
-  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.azure.base_path', azureBasePath + "_searchable_snapshots_tests_" + buildParams.testSeed
 }
 
 tasks.register("azureThirdPartyTest") {

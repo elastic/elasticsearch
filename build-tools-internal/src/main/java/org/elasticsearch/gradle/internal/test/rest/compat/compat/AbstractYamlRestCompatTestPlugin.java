@@ -46,6 +46,7 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -74,7 +75,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
-
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
         final Path compatTestsDir = compatRestResourcesDir.resolve("yamlTests");

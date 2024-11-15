@@ -75,8 +75,8 @@ public abstract class TransportLocalClusterStateAction<Request extends ActionReq
                 .critical(
                     DeprecationCategory.API,
                     "TransportLocalClusterStateAction-master-timeout-parameter",
-                    "the [?master_timeout] query parameter to this API has no effect, is now deprecated, " +
-                        "and will be removed in a future version"
+                    "the [?master_timeout] query parameter to this API has no effect, is now deprecated, "
+                        + "and will be removed in a future version"
                 );
         }
     }

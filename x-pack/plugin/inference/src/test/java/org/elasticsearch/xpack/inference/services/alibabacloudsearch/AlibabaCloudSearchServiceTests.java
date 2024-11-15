@@ -410,6 +410,8 @@ public class AlibabaCloudSearchServiceTests extends ESTestCase {
                 """
                     {
                        "provider": "alibabacloud-ai-search",
+                       "name": "AlibabaCloud AI Search",
+                       "icon": "alibabaCloudIcon",
                        "task_types": [
                              {
                                  "task_type": "text_embedding",

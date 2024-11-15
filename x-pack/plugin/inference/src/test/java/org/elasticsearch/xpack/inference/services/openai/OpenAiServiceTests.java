@@ -1601,6 +1601,8 @@ public class OpenAiServiceTests extends ESTestCase {
                 """
                     {
                             "provider": "openai",
+                            "name": "OpenAI",
+                            "icon": "openAIIcon",
                             "task_types": [
                                  {
                                      "task_type": "text_embedding",

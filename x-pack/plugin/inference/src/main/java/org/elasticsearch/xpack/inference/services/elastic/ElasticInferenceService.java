@@ -63,6 +63,9 @@ public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
 
+    private static final String SERVICE_NAME = "Elastic";
+    private static final String ICON = "elasticIcon";
+
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
@@ -332,14 +335,19 @@ public class ElasticInferenceService extends SenderService {
 
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        // SPARSE_EMBEDDING task type has no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            // SPARSE_EMBEDDING task type has no task settings
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

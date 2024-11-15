@@ -1558,6 +1558,8 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "elasticsearch",
+                       "name": "Elasticsearch",
+                       "icon": "elasticIcon",
                        "task_types": [
                             {
                                 "task_type": "text_embedding",

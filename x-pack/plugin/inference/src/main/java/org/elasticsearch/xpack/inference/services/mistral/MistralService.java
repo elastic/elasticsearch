@@ -64,6 +64,9 @@ import static org.elasticsearch.xpack.inference.services.mistral.MistralConstant
 public class MistralService extends SenderService {
     public static final String NAME = "mistral";
 
+    private static final String SERVICE_NAME = "Mistral";
+    private static final String ICON = "mistralIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.TEXT_EMBEDDING);
 
     public MistralService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -335,14 +338,19 @@ public class MistralService extends SenderService {
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        // TEXT_EMBEDDING task type has no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            // TEXT_EMBEDDING task type has no task settings
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

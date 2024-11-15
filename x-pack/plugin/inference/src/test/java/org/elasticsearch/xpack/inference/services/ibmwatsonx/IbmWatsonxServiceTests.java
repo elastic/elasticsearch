@@ -776,6 +776,8 @@ public class IbmWatsonxServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                        "provider": "watsonxai",
+                       "name": "IBM Watsonx",
+                       "icon": "ibmWatsonxIcon",
                        "task_types": [
                             {
                                 "task_type": "text_embedding",

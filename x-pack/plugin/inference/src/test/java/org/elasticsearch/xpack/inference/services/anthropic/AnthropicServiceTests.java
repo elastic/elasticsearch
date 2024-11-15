@@ -605,6 +605,8 @@ public class AnthropicServiceTests extends ESTestCase {
             String content = XContentHelper.stripWhitespace("""
                 {
                       "provider": "anthropic",
+                      "name": "Anthropic",
+                      "icon": "anthropicIcon",
                       "task_types": [
                            {
                                "task_type": "completion",

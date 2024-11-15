@@ -55,6 +55,9 @@ import static org.elasticsearch.xpack.inference.services.huggingface.elser.Huggi
 public class HuggingFaceElserService extends HuggingFaceBaseService {
     public static final String NAME = "hugging_face_elser";
 
+    private static final String SERVICE_NAME = "Hugging Face ELSER";
+    private static final String ICON = "huggingFaceIcon";
+
     private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public HuggingFaceElserService(HttpRequestSender.Factory factory, ServiceComponents serviceComponents) {
@@ -164,14 +167,19 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
                 configurationMap.putAll(DefaultSecretSettings.toSettingsConfiguration());
                 configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
 
-                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
-                    Map<String, SettingsConfiguration> taskSettingsConfig;
-                    switch (t) {
-                        // SPARSE_EMBEDDING task type has no task settings
-                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
-                    }
-                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
-                }).toList()).setConfiguration(configurationMap).build();
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME)
+                    .setName(SERVICE_NAME)
+                    .setIcon(ICON)
+                    .setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                        Map<String, SettingsConfiguration> taskSettingsConfig;
+                        switch (t) {
+                            // SPARSE_EMBEDDING task type has no task settings
+                            default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                        }
+                        return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                    }).toList())
+                    .setConfiguration(configurationMap)
+                    .build();
             }
         );
     }

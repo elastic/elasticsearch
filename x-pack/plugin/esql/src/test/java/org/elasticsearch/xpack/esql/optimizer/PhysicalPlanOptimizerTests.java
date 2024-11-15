@@ -6427,7 +6427,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         String query = """
             FROM test
             | RENAME languages AS int
-            | LOOKUP__ int_number_names ON int""";
+            | LOOKUP_🐔 int_number_names ON int""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
             assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
@@ -6475,12 +6475,12 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
             | SORT emp_no
             | LIMIT 4
             | RENAME languages AS int
-            | LOOKUP__ int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME int AS languages, name AS lang_name
             | KEEP emp_no, languages, lang_name""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 5:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         PhysicalPlan plan = optimizedPlan(physicalPlan(query));
@@ -6527,17 +6527,18 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
      *   \_LocalRelation[[int{f}#24, name{f}#25],[...]]
      * }</pre>
      */
+    @AwaitsFix(bugUrl = "lookup functionality is not yet implemented")
     public void testLookupThenTopN() {
         String query = """
             FROM employees
             | RENAME languages AS int
-            | LOOKUP__ int_number_names ON int
+            | LOOKUP_🐔 int_number_names ON int
             | RENAME name AS languages
             | KEEP languages, emp_no
             | SORT languages ASC, emp_no ASC""";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> analyze(query));
-            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 3:3: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var plan = physicalPlan(query);

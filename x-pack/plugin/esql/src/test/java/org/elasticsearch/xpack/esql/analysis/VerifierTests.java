@@ -196,12 +196,12 @@ public class VerifierTests extends ESTestCase {
             // LOOKUP with unsupported type
             assertEquals(
                 "1:43: column type mismatch, table column was [integer] and original column was [unsupported]",
-                error("from test* | lookup__ int_number_names on int", analyzer)
+                error("from test* | lookup_🐔 int_number_names on int", analyzer)
             );
             // LOOKUP with multi-typed field
             assertEquals(
                 "1:46: column type mismatch, table column was [double] and original column was [unsupported]",
-                error("from test* | lookup__ double_number_names on double", analyzer)
+                error("from test* | lookup_🐔 double_number_names on double", analyzer)
             );
         }
 

@@ -7,24 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
+package org.elasticsearch.entitlement.bridge;
 
-configurations {
-  bridgeJar {
-    canBeConsumed = true
-    canBeResolved = false
-  }
-}
-
-tasks.named('jar').configure {
-  from sourceSets.main23.output
-}
-
-artifacts {
-  bridgeJar(jar)
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+public interface Java23EntitlementChecker extends EntitlementChecker {
 }

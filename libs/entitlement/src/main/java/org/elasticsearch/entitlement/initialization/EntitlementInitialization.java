@@ -17,6 +17,8 @@ import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 
 import java.lang.instrument.Instrumentation;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Set;
@@ -38,7 +40,7 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementChecker();
+        manager = initChecker();
 
         // TODO: Configure actual entitlement grants instead of this hardcoded one
         Method targetMethod = System.class.getMethod("exit", int.class);
@@ -49,6 +51,34 @@ public class EntitlementInitialization {
         inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
         inst.retransformClasses(System.class);
     }
+
+    private static ElasticsearchEntitlementChecker initChecker() {
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+        }
+        Constructor<?> constructor;
+        try {
+            constructor = clazz.getConstructor();
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+        }
+        try {
+            return (ElasticsearchEntitlementChecker) constructor.newInstance();
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new AssertionError(e);
+        }
+    };
 
     private static String internalName(Class<?> c) {
         return c.getName().replace('.', '/');

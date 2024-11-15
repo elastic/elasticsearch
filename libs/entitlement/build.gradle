@@ -10,6 +10,7 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
 
 apply plugin: 'elasticsearch.embedded-providers'
+apply plugin: 'elasticsearch.mrjar'
 
 embeddedProviders {
   impl 'entitlement', project(':libs:entitlement:asm-provider')
@@ -23,6 +24,8 @@ dependencies {
   testImplementation(project(":test:framework")) {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
+
+  main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
 }
 
 tasks.named('forbiddenApisMain').configure {

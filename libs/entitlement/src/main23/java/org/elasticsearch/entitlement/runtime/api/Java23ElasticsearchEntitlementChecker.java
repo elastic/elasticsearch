@@ -7,24 +7,13 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
+package org.elasticsearch.entitlement.runtime.api;
 
-configurations {
-  bridgeJar {
-    canBeConsumed = true
-    canBeResolved = false
-  }
-}
+import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
 
-tasks.named('jar').configure {
-  from sourceSets.main23.output
-}
-
-artifacts {
-  bridgeJar(jar)
-}
-
-tasks.named('forbiddenApisMain').configure {
-  replaceSignatureFiles 'jdk-signatures'
+public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
+    @Override
+    public void checkSystemExit(Class<?> callerClass, int status) {
+        throw new RuntimeException("system exit not allowed in java 23");
+    }
 }

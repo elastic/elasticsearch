@@ -17,7 +17,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.cluster.routing.ShardIterator;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -35,6 +34,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
 import java.io.IOException;
 import java.util.Arrays;
+import java.util.List;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 
 /**
@@ -79,17 +79,12 @@ public class TransportDownsampleIndexerAction extends TransportBroadcastAction<
     }
 
     @Override
-    protected GroupShardsIterator<ShardIterator> shards(
-        ClusterState clusterState,
-        DownsampleIndexerAction.Request request,
-        String[] concreteIndices
-    ) {
+    protected List<ShardIterator> shards(ClusterState clusterState, DownsampleIndexerAction.Request request, String[] concreteIndices) {
         if (concreteIndices.length > 1) {
             throw new IllegalArgumentException("multiple indices: " + Arrays.toString(concreteIndices));
         }
 
-        final GroupShardsIterator<ShardIterator> groups = clusterService.operationRouting()
-            .searchShards(clusterState, concreteIndices, null, null);
+        final List<ShardIterator> groups = clusterService.operationRouting().searchShards(clusterState, concreteIndices, null, null);
         for (ShardIterator group : groups) {
             // fails fast if any non-active groups
             if (group.size() == 0) {

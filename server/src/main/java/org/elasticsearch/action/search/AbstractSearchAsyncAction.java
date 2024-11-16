@@ -23,9 +23,9 @@ import org.elasticsearch.action.search.TransportSearchAction.SearchTimeProvider;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportActions;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.util.Countable;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -61,9 +61,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 
 /**
- * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link GroupShardsIterator}
+ * This is an abstract base class that encapsulates the logic to fan out to all shards in provided {@link List<SearchShardIterator>}
  * and collect the results. If a shard request returns a failure this class handles the advance to the next replica of the shard until
- * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link GroupShardsIterator} which is later
+ * the shards replica iterator is exhausted. Each shard is referenced by position in the {@link List<SearchShardIterator>} which is later
  * referred to as the {@code shardIndex}.
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
@@ -95,8 +95,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private final SearchTimeProvider timeProvider;
     private final SearchResponse.Clusters clusters;
 
-    protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
-    protected final GroupShardsIterator<SearchShardIterator> shardsIts;
+    protected final List<SearchShardIterator> toSkipShardsIts;
+    protected final List<SearchShardIterator> shardsIts;
     private final SearchShardIterator[] shardIterators;
     private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
@@ -120,7 +120,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         Executor executor,
         SearchRequest request,
         ActionListener<SearchResponse> listener,
-        GroupShardsIterator<SearchShardIterator> shardsIts,
+        List<SearchShardIterator> shardsIts,
         SearchTimeProvider timeProvider,
         ClusterState clusterState,
         SearchTask task,
@@ -139,8 +139,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 iterators.add(iterator);
             }
         }
-        this.toSkipShardsIts = new GroupShardsIterator<>(toSkipIterators);
-        this.shardsIts = new GroupShardsIterator<>(iterators);
+        this.toSkipShardsIts = toSkipIterators;
+        this.shardsIts = iterators;
 
         // we compute the shard index based on the natural order of the shards
         // that participate in the search request. This means that this number is
@@ -153,12 +153,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         }
         this.shardIndexMap = Collections.unmodifiableMap(shardMap);
         this.shardIterators = searchIterators.toArray(SearchShardIterator[]::new);
-
-        // we need to add 1 for non active partition, since we count it in the total. This means for each shard in the iterator we sum up
-        // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
-        // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
-        // we process hence we add one for the non active partition here.
-        this.expectedTotalOps = shardsIts.totalSizeWith1ForEmpty();
+        this.expectedTotalOps = totalSizeWith1ForEmpty(shardsIts);
         this.maxConcurrentRequestsPerNode = maxConcurrentRequestsPerNode;
         // in the case were we have less shards than maxConcurrentRequestsPerNode we don't need to throttle
         this.throttleConcurrentRequests = maxConcurrentRequestsPerNode < shardsIts.size();
@@ -181,14 +176,26 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         this.clusters = clusters;
     }
 
+    // we need to add 1 for non-active partition, since we count it in the total. This means for each shard in the iterator we sum up
+    // it's number of active shards but use 1 as the default if no replica of a shard is active at this point.
+    // on a per shards level we use shardIt.remaining() to increment the totalOps pointer but add 1 for the current shard result
+    // we process hence we add one for the non-active partition here.
+    private static int totalSizeWith1ForEmpty(List<? extends Countable> iterators) {
+        int size = 0;
+        for (Countable shard : iterators) {
+            size += Math.max(1, shard.size());
+        }
+        return size;
+    }
+
     protected void notifyListShards(
         SearchProgressListener progressListener,
         SearchResponse.Clusters clusters,
         SearchSourceBuilder sourceBuilder
     ) {
         progressListener.notifyListShards(
-            SearchProgressListener.buildSearchShards(this.shardsIts),
-            SearchProgressListener.buildSearchShards(toSkipShardsIts),
+            SearchProgressListener.buildSearchShardsFromIter(this.shardsIts),
+            SearchProgressListener.buildSearchShardsFromIter(toSkipShardsIts),
             clusters,
             sourceBuilder == null || sourceBuilder.size() > 0,
             timeProvider

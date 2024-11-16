@@ -112,30 +112,31 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException {
-        Bucket[][] topBucketsPerOrd = new Bucket[Math.toIntExact(ordsToCollect.size())][];
-        for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
-            final long ord = ordsToCollect.get(ordIdx);
-            final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
-            if (categorizer == null) {
-                topBucketsPerOrd[ordIdx] = new Bucket[0];
-                continue;
+        try (ObjectArray<Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(ordsToCollect.size())) {
+            for (long ordIdx = 0; ordIdx < ordsToCollect.size(); ordIdx++) {
+                final long ord = ordsToCollect.get(ordIdx);
+                final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
+                if (categorizer == null) {
+                    topBucketsPerOrd.set(ordIdx, new Bucket[0]);
+                    continue;
+                }
+                int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
+                topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
-            topBucketsPerOrd[ordIdx] = categorizer.toOrderedBuckets(size);
+            buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
+            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(ordsToCollect.size())];
+            for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                results[ordIdx] = new InternalCategorizationAggregation(
+                    name,
+                    bucketCountThresholds.getRequiredSize(),
+                    bucketCountThresholds.getMinDocCount(),
+                    similarityThreshold,
+                    metadata(),
+                    Arrays.asList(topBucketsPerOrd.get(ordIdx))
+                );
+            }
+            return results;
         }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-        InternalAggregation[] results = new InternalAggregation[topBucketsPerOrd.length];
-        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-            results[ordIdx] = new InternalCategorizationAggregation(
-                name,
-                bucketCountThresholds.getRequiredSize(),
-                bucketCountThresholds.getMinDocCount(),
-                similarityThreshold,
-                metadata(),
-                Arrays.asList(topBucketsPerOrd[ordIdx])
-            );
-        }
-        return results;
     }
 
     @Override

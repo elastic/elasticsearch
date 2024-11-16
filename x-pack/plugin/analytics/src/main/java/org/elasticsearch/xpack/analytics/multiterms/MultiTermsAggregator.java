@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Releasables;
@@ -237,9 +238,11 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        InternalMultiTerms.Bucket[][] topBucketsPerOrd = new InternalMultiTerms.Bucket[Math.toIntExact(owningBucketOrds.size())][];
-        try (LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true)) {
-            for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+        try (
+            LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
+            ObjectArray<InternalMultiTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
+        ) {
+            for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
                 final long owningBucketOrd = owningBucketOrds.get(ordIdx);
                 long bucketsInOrd = bucketOrds.bucketsInOrd(owningBucketOrd);
 
@@ -273,19 +276,20 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
                     // Get the top buckets
                     InternalMultiTerms.Bucket[] bucketsForOrd = new InternalMultiTerms.Bucket[(int) ordered.size()];
-                    topBucketsPerOrd[ordIdx] = bucketsForOrd;
+                    topBucketsPerOrd.set(ordIdx, bucketsForOrd);
                     for (int b = (int) ordered.size() - 1; b >= 0; --b) {
-                        topBucketsPerOrd[ordIdx][b] = ordered.pop();
-                        otherDocCounts.increment(ordIdx, -topBucketsPerOrd[ordIdx][b].getDocCount());
+                        InternalMultiTerms.Bucket[] buckets = topBucketsPerOrd.get(ordIdx);
+                        buckets[b] = ordered.pop();
+                        otherDocCounts.increment(ordIdx, -buckets[b].getDocCount());
                     }
                 }
             }
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
-            InternalAggregation[] result = new InternalAggregation[topBucketsPerOrd.length];
-            for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
-                result[ordIdx] = buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd[ordIdx]);
+            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+                result[ordIdx] = buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
             }
             return result;
         }

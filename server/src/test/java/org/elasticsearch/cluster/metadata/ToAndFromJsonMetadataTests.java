@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -349,8 +350,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                       "0" : [ ]
                     },
                     "rollover_info" : { },
+                    "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
@@ -360,7 +365,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentGateway_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -519,8 +524,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
+                    "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
@@ -530,7 +539,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPI_FlatSettingFalse_ReduceMappingTrue() throws IOException {
@@ -629,8 +638,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
+                    "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
@@ -640,7 +653,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : { }
               }
-            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     public void testToXContentAPIReservedMetadata() throws IOException {
@@ -765,8 +778,12 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                         "time" : 1
                       }
                     },
+                    "mappings_updated_version" : %s,
                     "system" : false,
                     "timestamp_range" : {
+                      "shards" : [ ]
+                    },
+                    "event_ingested_range" : {
                       "shards" : [ ]
                     }
                   }
@@ -776,7 +793,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                 },
                 "reserved_state" : {
                   "namespace_one" : {
-                    "version" : -1,
+                    "version" : -9223372036854775808,
                     "handlers" : {
                       "one" : {
                         "keys" : [
@@ -801,7 +818,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                     }
                   },
                   "namespace_two" : {
-                    "version" : -1,
+                    "version" : -9223372036854775808,
                     "handlers" : {
                       "three" : {
                         "keys" : [
@@ -821,7 +838,7 @@ public class ToAndFromJsonMetadataTests extends ESTestCase {
                   }
                 }
               }
-            }""", IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
+            }""", IndexVersion.current(), IndexVersion.current(), IndexVersion.current()), Strings.toString(builder));
     }
 
     private Metadata buildMetadata() throws IOException {

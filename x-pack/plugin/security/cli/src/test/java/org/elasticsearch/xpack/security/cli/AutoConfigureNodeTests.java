@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.ssl.KeyStoreUtil;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.http.HttpTransportSettings;
@@ -32,6 +33,8 @@ import java.security.cert.X509Certificate;
 import java.util.List;
 
 import static java.nio.file.StandardOpenOption.CREATE_NEW;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_HTTP_ALT_DN;
+import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.AUTO_CONFIG_TRANSPORT_ALT_DN;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.anyRemoteHostNodeAddress;
 import static org.elasticsearch.xpack.security.cli.AutoConfigureNode.removePreviousAutoconfiguration;
 import static org.hamcrest.Matchers.equalTo;
@@ -129,6 +132,21 @@ public class AutoConfigureNodeTests extends ESTestCase {
             AutoConfigureNode.AUTO_CONFIGURATION_END_MARKER
         );
         assertEquals(file1, removePreviousAutoconfiguration(file2));
+    }
+
+    public void testSubjectAndIssuerForGeneratedCertificates() throws Exception {
+        // test no publish settings
+        Path tempDir = createTempDir();
+        try {
+            Files.createDirectory(tempDir.resolve("config"));
+            // empty yml file, it just has to exist
+            Files.write(tempDir.resolve("config").resolve("elasticsearch.yml"), List.of(), CREATE_NEW);
+            Tuple<X509Certificate, X509Certificate> generatedCerts = runAutoConfigAndReturnCertificates(tempDir, Settings.EMPTY);
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v1(), "CN=dummy.test.hostname", AUTO_CONFIG_HTTP_ALT_DN), is(true));
+            assertThat(checkSubjectAndIssuerDN(generatedCerts.v2(), "CN=dummy.test.hostname", AUTO_CONFIG_TRANSPORT_ALT_DN), is(true));
+        } finally {
+            deleteDirectory(tempDir);
+        }
     }
 
     public void testGeneratedHTTPCertificateSANs() throws Exception {
@@ -262,6 +280,14 @@ public class AutoConfigureNodeTests extends ESTestCase {
         return false;
     }
 
+    private boolean checkSubjectAndIssuerDN(X509Certificate certificate, String subjectName, String issuerName) throws Exception {
+        if (certificate.getSubjectX500Principal().getName().equals(subjectName)
+            && certificate.getIssuerX500Principal().getName().equals(issuerName)) {
+            return true;
+        }
+        return false;
+    }
+
     private void verifyExtendedKeyUsage(X509Certificate httpCertificate) throws Exception {
         List<String> extendedKeyUsage = httpCertificate.getExtendedKeyUsage();
         assertEquals("Only one extended key usage expected for HTTP certificate.", 1, extendedKeyUsage.size());
@@ -270,6 +296,11 @@ public class AutoConfigureNodeTests extends ESTestCase {
     }
 
     private X509Certificate runAutoConfigAndReturnHTTPCertificate(Path configDir, Settings settings) throws Exception {
+        Tuple<X509Certificate, X509Certificate> generatedCertificates = runAutoConfigAndReturnCertificates(configDir, settings);
+        return generatedCertificates.v1();
+    }
+
+    private Tuple<X509Certificate, X509Certificate> runAutoConfigAndReturnCertificates(Path configDir, Settings settings) throws Exception {
         final Environment env = TestEnvironment.newEnvironment(Settings.builder().put("path.home", configDir).put(settings).build());
         // runs the command to auto-generate the config files and the keystore
         new AutoConfigureNode(false).execute(MockTerminal.create(), new OptionParser().parse(), env, null);
@@ -278,16 +309,28 @@ public class AutoConfigureNodeTests extends ESTestCase {
         nodeKeystore.decrypt(new char[0]); // the keystore is always bootstrapped with an empty password
 
         SecureString httpKeystorePassword = nodeKeystore.getString("xpack.security.http.ssl.keystore.secure_password");
+        SecureString transportKeystorePassword = nodeKeystore.getString("xpack.security.transport.ssl.keystore.secure_password");
 
         final Settings newSettings = Settings.builder().loadFromPath(env.configFile().resolve("elasticsearch.yml")).build();
         final String httpKeystorePath = newSettings.get("xpack.security.http.ssl.keystore.path");
+        final String transportKeystorePath = newSettings.get("xpack.security.transport.ssl.keystore.path");
 
         KeyStore httpKeystore = KeyStoreUtil.readKeyStore(
             configDir.resolve("config").resolve(httpKeystorePath),
             "PKCS12",
             httpKeystorePassword.getChars()
         );
-        return (X509Certificate) httpKeystore.getCertificate("http");
+
+        KeyStore transportKeystore = KeyStoreUtil.readKeyStore(
+            configDir.resolve("config").resolve(transportKeystorePath),
+            "PKCS12",
+            transportKeystorePassword.getChars()
+        );
+
+        X509Certificate httpCertificate = (X509Certificate) httpKeystore.getCertificate("http");
+        X509Certificate transportCertificate = (X509Certificate) transportKeystore.getCertificate("transport");
+
+        return new Tuple<>(httpCertificate, transportCertificate);
     }
 
     private void deleteDirectory(Path directory) throws IOException {

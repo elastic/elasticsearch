@@ -27,7 +27,7 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
 
     abstract Label label();
 
-    abstract static class Label {
+    abstract static sealed class Label {
         private final String name;
 
         /**
@@ -56,7 +56,7 @@ abstract class LabelFieldProducer extends AbstractDownsampleFieldProducer {
      * the implementation of this class end up storing the first value it is empty and then
      * ignoring everything else.
      */
-    static class LastValueLabel extends Label {
+    static final class LastValueLabel extends Label {
         private Object lastValue;
 
         LastValueLabel(String name) {

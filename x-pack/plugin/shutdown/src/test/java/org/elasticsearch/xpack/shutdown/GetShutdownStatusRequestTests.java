@@ -19,12 +19,13 @@ public class GetShutdownStatusRequestTests extends AbstractWireSerializingTestCa
 
     @Override
     protected Writeable.Reader<GetShutdownStatusAction.Request> instanceReader() {
-        return GetShutdownStatusAction.Request::readFrom;
+        return GetShutdownStatusAction.Request::new;
     }
 
     @Override
     protected GetShutdownStatusAction.Request createTestInstance() {
         return new GetShutdownStatusAction.Request(
+            TEST_REQUEST_TIMEOUT,
             randomList(0, 20, () -> randomAlphaOfLengthBetween(15, 25)).toArray(Strings.EMPTY_ARRAY)
         );
     }
@@ -35,6 +36,6 @@ public class GetShutdownStatusRequestTests extends AbstractWireSerializingTestCa
         String[] newNodeIds = randomList(1, 20, () -> randomValueOtherThanMany(oldIds::contains, () -> randomAlphaOfLengthBetween(15, 25)))
             .toArray(Strings.EMPTY_ARRAY);
 
-        return new GetShutdownStatusAction.Request(newNodeIds);
+        return new GetShutdownStatusAction.Request(TEST_REQUEST_TIMEOUT, newNodeIds);
     }
 }

@@ -5,9 +5,12 @@
 <titleabbrev>List connectors</titleabbrev>
 ++++
 
-preview::[]
+beta::[]
 
-Returns information about all stored connectors.
+Returns information about all created connectors.
+
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 
 [[list-connector-api-request]]
@@ -18,19 +21,19 @@ Returns information about all stored connectors.
 [[list-connector-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using connectors, it's essential to have the Elastic connectors service running.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 
 [[list-connector-api-path-params]]
 ==== {api-path-parms-title}
 
 `size`::
-(Optional, integer) Maximum number of results to retrieve.
+(Optional, integer) Maximum number of results to retrieve. Defaults to `100`.
 
 `from`::
-(Optional, integer) The offset from the first result to fetch.
+(Optional, integer) The offset from the first result to fetch. Defaults to `0`.
 
 `index_name`::
-(Optional, string) A comma-separated list of data index names associated with connectors, used to filter search results.
+(Optional, string) A comma-separated list of index names associated with connectors, used to filter search results.
 
 `connector_name`::
 (Optional, string) A comma-separated list of connector names, used to filter search results.
@@ -81,14 +84,14 @@ The following example lists the first two connectors:
 
 [source,console]
 ----
-GET _connector/?from=0&size=2
+GET _connector?from=0&size=2
 ----
 
-An example to list connectors associated with `search-google-drive` data index name:
+An example to list a connector associated with the `search-google-drive` Elasticsearch index:
 
 [source,console]
 ----
-GET _connector/?index_name=search-google-drive
+GET _connector?index_name=search-google-drive
 ----
 
 
@@ -96,12 +99,12 @@ An example to list all connectors with `sharepoint_online` service type:
 
 [source,console]
 ----
-GET _connector/?service_type=sharepoint_online
+GET _connector?service_type=sharepoint_online
 ----
 
 An example to list all connectors with `sharepoint_online` or `google_drive` service type:
 
 [source,console]
 ----
-GET _connector/?service_type=sharepoint_online,google_drive
+GET _connector?service_type=sharepoint_online,google_drive
 ----

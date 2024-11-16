@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.cluster.coordination.Coordinator.Mode;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Setting;
@@ -24,6 +24,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
+import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.monitor.NodeHealthService;
 import org.elasticsearch.monitor.StatusInfo;
@@ -102,6 +103,7 @@ public final class FollowersChecker {
 
     private final TransportService transportService;
     private final NodeHealthService nodeHealthService;
+    private final Executor clusterCoordinationExecutor;
     private volatile FastResponseState fastResponseState;
 
     public FollowersChecker(
@@ -115,6 +117,7 @@ public final class FollowersChecker {
         this.handleRequestAndUpdateState = handleRequestAndUpdateState;
         this.onNodeFailure = onNodeFailure;
         this.nodeHealthService = nodeHealthService;
+        this.clusterCoordinationExecutor = transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION);
 
         followerCheckInterval = FOLLOWER_CHECK_INTERVAL_SETTING.get(settings);
         followerCheckTimeout = FOLLOWER_CHECK_TIMEOUT_SETTING.get(settings);
@@ -201,21 +204,18 @@ public final class FollowersChecker {
             throw new CoordinationStateRejectedException("rejecting " + request + " since local state is " + this);
         }
 
-        transportService.getThreadPool()
-            .executor(Names.CLUSTER_COORDINATION)
-            .execute(ActionRunnable.supply(listener, new CheckedSupplier<>() {
-                @Override
-                public Void get() {
-                    logger.trace("responding to {} on slow path", request);
-                    handleRequestAndUpdateState.accept(request);
-                    return null;
-                }
+        clusterCoordinationExecutor.execute(ActionRunnable.run(listener, new CheckedRunnable<>() {
+            @Override
+            public void run() {
+                logger.trace("responding to {} on slow path", request);
+                handleRequestAndUpdateState.accept(request);
+            }
 
-                @Override
-                public String toString() {
-                    return "responding to [" + request + "] on slow path";
-                }
-            }));
+            @Override
+            public String toString() {
+                return "responding to [" + request + "] on slow path";
+            }
+        }));
     }
 
     /**
@@ -363,7 +363,7 @@ public final class FollowersChecker {
         }
 
         void failNode(String reason) {
-            transportService.getThreadPool().executor(Names.CLUSTER_COORDINATION).execute(new AbstractRunnable() {
+            clusterCoordinationExecutor.execute(new AbstractRunnable() {
 
                 @Override
                 public void onRejection(Exception e) {
@@ -403,17 +403,18 @@ public final class FollowersChecker {
         }
 
         private void scheduleNextWakeUp() {
-            transportService.getThreadPool().schedule(new Runnable() {
-                @Override
-                public void run() {
-                    handleWakeUp();
-                }
+            transportService.getThreadPool()
+                .scheduleUnlessShuttingDown(followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE, new Runnable() {
+                    @Override
+                    public void run() {
+                        handleWakeUp();
+                    }
 
-                @Override
-                public String toString() {
-                    return FollowerChecker.this + "::handleWakeUp";
-                }
-            }, followerCheckInterval, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                    @Override
+                    public String toString() {
+                        return FollowerChecker.this + "::handleWakeUp";
+                    }
+                });
         }
 
         @Override

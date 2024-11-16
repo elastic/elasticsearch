@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.DocWriteResponse;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -17,12 +19,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.util.List;
-
-import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 
 /**
  * A response of an index operation,
@@ -38,6 +37,7 @@ public class IndexResponse extends DocWriteResponse {
      */
     @Nullable
     protected final List<String> executedPipelines;
+    private IndexDocFailureStoreStatus failureStoreStatus;
 
     public IndexResponse(ShardId shardId, StreamInput in) throws IOException {
         super(shardId, in);
@@ -45,6 +45,11 @@ public class IndexResponse extends DocWriteResponse {
             executedPipelines = in.readOptionalCollectionAsList(StreamInput::readString);
         } else {
             executedPipelines = null;
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
+        } else {
+            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
         }
     }
 
@@ -55,10 +60,15 @@ public class IndexResponse extends DocWriteResponse {
         } else {
             executedPipelines = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            failureStoreStatus = IndexDocFailureStoreStatus.read(in);
+        } else {
+            failureStoreStatus = IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
+        }
     }
 
     public IndexResponse(ShardId shardId, String id, long seqNo, long primaryTerm, long version, boolean created) {
-        this(shardId, id, seqNo, primaryTerm, version, created, null);
+        this(shardId, id, seqNo, primaryTerm, version, created, null, IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN);
     }
 
     public IndexResponse(
@@ -70,7 +80,29 @@ public class IndexResponse extends DocWriteResponse {
         boolean created,
         @Nullable List<String> executedPipelines
     ) {
-        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, executedPipelines);
+        this(
+            shardId,
+            id,
+            seqNo,
+            primaryTerm,
+            version,
+            created ? Result.CREATED : Result.UPDATED,
+            executedPipelines,
+            IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+        );
+    }
+
+    public IndexResponse(
+        ShardId shardId,
+        String id,
+        long seqNo,
+        long primaryTerm,
+        long version,
+        boolean created,
+        @Nullable List<String> executedPipelines,
+        IndexDocFailureStoreStatus failureStoreStatus
+    ) {
+        this(shardId, id, seqNo, primaryTerm, version, created ? Result.CREATED : Result.UPDATED, executedPipelines, failureStoreStatus);
     }
 
     private IndexResponse(
@@ -80,10 +112,12 @@ public class IndexResponse extends DocWriteResponse {
         long primaryTerm,
         long version,
         Result result,
-        @Nullable List<String> executedPipelines
+        @Nullable List<String> executedPipelines,
+        IndexDocFailureStoreStatus failureStoreStatus
     ) {
         super(shardId, id, seqNo, primaryTerm, version, assertCreatedOrUpdated(result));
         this.executedPipelines = executedPipelines;
+        this.failureStoreStatus = failureStoreStatus;
     }
 
     @Override
@@ -91,6 +125,9 @@ public class IndexResponse extends DocWriteResponse {
         super.writeTo(out);
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            failureStoreStatus.writeTo(out);
         }
     }
 
@@ -100,6 +137,9 @@ public class IndexResponse extends DocWriteResponse {
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalCollection(executedPipelines, StreamOutput::writeString);
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.FAILURE_STORE_STATUS_IN_INDEX_RESPONSE)) {
+            failureStoreStatus.writeTo(out);
+        }
     }
 
     public XContentBuilder innerToXContent(XContentBuilder builder, Params params) throws IOException {
@@ -107,6 +147,7 @@ public class IndexResponse extends DocWriteResponse {
         if (executedPipelines != null) {
             updatedBuilder = updatedBuilder.field("executed_pipelines", executedPipelines.toArray());
         }
+        failureStoreStatus.toXContent(builder, params);
         return updatedBuilder;
     }
 
@@ -120,6 +161,15 @@ public class IndexResponse extends DocWriteResponse {
         return result == Result.CREATED ? RestStatus.CREATED : super.status();
     }
 
+    public void setFailureStoreStatus(IndexDocFailureStoreStatus failureStoreStatus) {
+        this.failureStoreStatus = failureStoreStatus;
+    }
+
+    @Override
+    public IndexDocFailureStoreStatus getFailureStoreStatus() {
+        return failureStoreStatus;
+    }
+
     @Override
     public String toString() {
         StringBuilder builder = new StringBuilder();
@@ -131,24 +181,8 @@ public class IndexResponse extends DocWriteResponse {
         builder.append(",seqNo=").append(getSeqNo());
         builder.append(",primaryTerm=").append(getPrimaryTerm());
         builder.append(",shards=").append(Strings.toString(getShardInfo()));
+        builder.append(",failure_store=").append(failureStoreStatus.getLabel());
         return builder.append("]").toString();
-    }
-
-    public static IndexResponse fromXContent(XContentParser parser) throws IOException {
-        ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
-
-        Builder context = new Builder();
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            parseXContentFields(parser, context);
-        }
-        return context.build();
-    }
-
-    /**
-     * Parse the current token and update the parsing context appropriately.
-     */
-    public static void parseXContentFields(XContentParser parser, Builder context) throws IOException {
-        DocWriteResponse.parseInnerToXContent(parser, context);
     }
 
     /**
@@ -159,7 +193,16 @@ public class IndexResponse extends DocWriteResponse {
     public static class Builder extends DocWriteResponse.Builder {
         @Override
         public IndexResponse build() {
-            IndexResponse indexResponse = new IndexResponse(shardId, id, seqNo, primaryTerm, version, result, null);
+            IndexResponse indexResponse = new IndexResponse(
+                shardId,
+                id,
+                seqNo,
+                primaryTerm,
+                version,
+                result,
+                null,
+                IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN
+            );
             indexResponse.setForcedRefresh(forcedRefresh);
             if (shardInfo != null) {
                 indexResponse.setShardInfo(shardInfo);

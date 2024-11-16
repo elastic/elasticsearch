@@ -122,8 +122,8 @@
 
 ---
 "Create index without soft deletes":
-  - skip:
-      version:  " - 7.99.99"
+  - requires:
+      cluster_features:  ["gte_v8.0.0"]
       reason:   "indices without soft-deletes is no longer supported "
   - do:
       catch: /illegal_argument_exception/
@@ -135,8 +135,8 @@
 
 ---
 "Create with alias containing date math":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: "date math support for aliases was added in 7.13"
   - do:
       indices.create:
@@ -149,3 +149,70 @@
       indices.exists_alias:
         name: logs_2022-12-31
   - is_true: ''
+
+---
+"Create lookup index":
+  - requires:
+      test_runner_features: [ capabilities, default_shards ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      indices.create:
+        index: "test_lookup"
+        body:
+          settings:
+            index.mode: lookup
+
+  - do:
+      indices.get_settings:
+        index: test_lookup
+
+  - match: { test_lookup.settings.index.number_of_shards: "1"}
+  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
+
+---
+"Create lookup index with one shard":
+  - requires:
+      test_runner_features: [ capabilities, default_shards ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      indices.create:
+        index: "test_lookup"
+        body:
+          settings:
+            index:
+              mode: lookup
+              number_of_shards: 1
+
+  - do:
+      indices.get_settings:
+        index: test_lookup
+
+  - match: { test_lookup.settings.index.number_of_shards: "1"}
+  - match: { test_lookup.settings.index.auto_expand_replicas: "0-all"}
+
+---
+"Create lookup index with two shards":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ lookup_index_mode ]
+      reason: "Support for 'lookup' index mode capability required"
+  - do:
+      catch: /illegal_argument_exception/
+      indices.create:
+        index: test_lookup
+        body:
+          settings:
+            index.mode: lookup
+            index.number_of_shards: 2
+

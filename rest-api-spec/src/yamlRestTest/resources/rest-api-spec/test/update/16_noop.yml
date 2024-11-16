@@ -1,7 +1,7 @@
 ---
 "Noop":
-  - skip:
-      version:  " - 7.3.99"
+  - requires:
+      cluster_features: [ "gte_v7.4.0" ]
       reason:   "Noop does not return seq_no and primary_term until 7.4"
   - do:
       index:

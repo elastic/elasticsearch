@@ -28,12 +28,15 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.core.security.action.profile.Profile;
 import org.elasticsearch.xpack.core.security.authc.CrossClusterAccessSubjectInfo.RoleDescriptorsBytes;
+import org.elasticsearch.xpack.core.security.authc.RealmConfig.RealmIdentifier;
 import org.elasticsearch.xpack.core.security.authc.esnative.NativeRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.file.FileRealmSettings;
 import org.elasticsearch.xpack.core.security.authc.service.ServiceAccountSettings;
 import org.elasticsearch.xpack.core.security.authc.support.AuthenticationContextSerializer;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
 import org.elasticsearch.xpack.core.security.user.AnonymousUser;
 import org.elasticsearch.xpack.core.security.user.InternalUser;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -74,6 +77,8 @@ import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.CR
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_NAME;
 import static org.elasticsearch.xpack.core.security.authc.AuthenticationField.FALLBACK_REALM_TYPE;
 import static org.elasticsearch.xpack.core.security.authc.RealmDomain.REALM_DOMAIN_PARSER;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.Fields.REMOTE_CLUSTER;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 
 /**
  * The Authentication class encapsulates identity information created after successful authentication
@@ -224,14 +229,14 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess() && olderVersion.before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to rewrite for ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
         }
-
         final Map<String, Object> newMetadata = maybeRewriteMetadata(olderVersion, this);
+
         final Authentication newAuthentication;
         if (isRunAs()) {
             // The lookup user for run-as currently doesn't have authentication metadata associated with them because
@@ -269,12 +274,23 @@ public final class Authentication implements ToXContentObject {
     }
 
     private static Map<String, Object> maybeRewriteMetadata(TransportVersion olderVersion, Authentication authentication) {
-        if (authentication.isAuthenticatedAsApiKey()) {
-            return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
-        } else if (authentication.isCrossClusterAccess()) {
-            return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
-        } else {
-            return authentication.getAuthenticatingSubject().getMetadata();
+        try {
+            if (authentication.isAuthenticatedAsApiKey()) {
+                return maybeRewriteMetadataForApiKeyRoleDescriptors(olderVersion, authentication);
+            } else if (authentication.isCrossClusterAccess()) {
+                return maybeRewriteMetadataForCrossClusterAccessAuthentication(olderVersion, authentication);
+            } else {
+                return authentication.getAuthenticatingSubject().getMetadata();
+            }
+        } catch (Exception e) {
+            // CCS workflows may swallow the exception message making this difficult to troubleshoot, so we explicitly log and re-throw
+            // here. It may result in duplicate logs, so we only log the message at warn level.
+            if (logger.isDebugEnabled()) {
+                logger.debug("Un-expected exception thrown while rewriting metadata. This is likely a bug.", e);
+            } else {
+                logger.warn("Un-expected exception thrown while rewriting metadata. This is likely a bug [" + e.getMessage() + "]");
+            }
+            throw e;
         }
     }
 
@@ -574,9 +590,9 @@ public final class Authentication implements ToXContentObject {
         if (isCrossClusterAccess && out.getTransportVersion().before(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)) {
             throw new IllegalArgumentException(
                 "versions of Elasticsearch before ["
-                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY
+                    + TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY.toReleaseVersion()
                     + "] can't handle cross cluster access authentication and attempted to send to ["
-                    + out.getTransportVersion()
+                    + out.getTransportVersion().toReleaseVersion()
                     + "]"
             );
         }
@@ -1008,6 +1024,11 @@ public final class Authentication implements ToXContentObject {
         return builder.toString();
     }
 
+    /**
+     * {@link RealmRef} expresses the grouping of realms, identified with {@link RealmIdentifier}s, under {@link RealmDomain}s.
+     * A domain groups different realms, such that any username, authenticated by different realms from the <b>same domain</b>,
+     * is to be associated to a single {@link Profile}.
+     */
     public static class RealmRef implements Writeable, ToXContentObject {
 
         private final String nodeName;
@@ -1080,6 +1101,13 @@ public final class Authentication implements ToXContentObject {
          */
         public @Nullable RealmDomain getDomain() {
             return domain;
+        }
+
+        /**
+         * The {@code RealmIdentifier} is the fully qualified way to refer to a realm.
+         */
+        public RealmIdentifier getIdentifier() {
+            return new RealmIdentifier(type, name);
         }
 
         @Override
@@ -1305,6 +1333,44 @@ public final class Authentication implements ToXContentObject {
                     )
                 );
             }
+
+            if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.before(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                // the authentication understands the remote_cluster field but the stream does not
+                metadata = new HashMap<>(metadata);
+                metadata.put(
+                    AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+                metadata.put(
+                    AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                    maybeRemoveRemoteClusterFromRoleDescriptors(
+                        (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY)
+                    )
+                );
+            } else if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)
+                && streamVersion.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS)) {
+                    // both the authentication object and the stream understand the remote_cluster field
+                    // check each individual permission and remove as needed
+                    metadata = new HashMap<>(metadata);
+                    metadata.put(
+                        AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY,
+                        maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_ROLE_DESCRIPTORS_KEY),
+                            streamVersion
+                        )
+                    );
+                    metadata.put(
+                        AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY,
+                        maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+                            (BytesReference) metadata.get(AuthenticationField.API_KEY_LIMITED_ROLE_DESCRIPTORS_KEY),
+                            streamVersion
+                        )
+                    );
+                }
+
             if (authentication.getEffectiveSubject().getTransportVersion().onOrAfter(VERSION_API_KEY_ROLES_AS_BYTES)
                 && streamVersion.before(VERSION_API_KEY_ROLES_AS_BYTES)) {
                 metadata = new HashMap<>(metadata);
@@ -1354,9 +1420,9 @@ public final class Authentication implements ToXContentObject {
                 () -> "Cross cluster access authentication has authentication field in metadata ["
                     + authenticationFromMetadata
                     + "] that may require a rewrite from version ["
-                    + effectiveSubjectVersion
+                    + effectiveSubjectVersion.toReleaseVersion()
                     + "] to ["
-                    + olderVersion
+                    + olderVersion.toReleaseVersion()
                     + "]"
             );
             final Map<String, Object> rewrittenMetadata = new HashMap<>(metadata);
@@ -1383,7 +1449,15 @@ public final class Authentication implements ToXContentObject {
         }
     }
 
+    static BytesReference maybeRemoveRemoteClusterFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, REMOTE_CLUSTER.getPreferredName());
+    }
+
     static BytesReference maybeRemoveRemoteIndicesFromRoleDescriptors(BytesReference roleDescriptorsBytes) {
+        return maybeRemoveTopLevelFromRoleDescriptors(roleDescriptorsBytes, RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName());
+    }
+
+    static BytesReference maybeRemoveTopLevelFromRoleDescriptors(BytesReference roleDescriptorsBytes, String topLevelField) {
         if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
             return roleDescriptorsBytes;
         }
@@ -1394,7 +1468,7 @@ public final class Authentication implements ToXContentObject {
             if (value instanceof Map) {
                 @SuppressWarnings("unchecked")
                 Map<String, Object> roleDescriptor = (Map<String, Object>) value;
-                boolean removed = roleDescriptor.remove(RoleDescriptor.Fields.REMOTE_INDICES.getPreferredName()) != null;
+                boolean removed = roleDescriptor.remove(topLevelField) != null;
                 if (removed) {
                     removedAtLeastOne.set(true);
                 }
@@ -1405,6 +1479,66 @@ public final class Authentication implements ToXContentObject {
             return convertRoleDescriptorsMapToBytes(roleDescriptorsMap);
         } else {
             // No need to serialize if we did not remove anything.
+            return roleDescriptorsBytes;
+        }
+    }
+
+    /**
+     * Before we send the role descriptors to the remote cluster, we need to remove the remote cluster privileges that the other cluster
+     * will not understand. If all privileges are removed, then the entire "remote_cluster" is removed to avoid sending empty privileges.
+     * @param roleDescriptorsBytes The role descriptors to be sent to the remote cluster, represented as bytes.
+     * @return The role descriptors with the privileges that unsupported by version removed, represented as bytes.
+     */
+    @SuppressWarnings("unchecked")
+    static BytesReference maybeRemoveRemoteClusterPrivilegesFromRoleDescriptors(
+        BytesReference roleDescriptorsBytes,
+        TransportVersion outboundVersion
+    ) {
+        if (roleDescriptorsBytes == null || roleDescriptorsBytes.length() == 0) {
+            return roleDescriptorsBytes;
+        }
+        final Map<String, Object> roleDescriptorsMap = convertRoleDescriptorsBytesToMap(roleDescriptorsBytes);
+        final Map<String, Object> roleDescriptorsMapMutated = new HashMap<>(roleDescriptorsMap);
+        final AtomicBoolean modified = new AtomicBoolean(false);
+        roleDescriptorsMap.forEach((key, value) -> {
+            if (value instanceof Map) {
+                Map<String, Object> roleDescriptor = (Map<String, Object>) value;
+                roleDescriptor.forEach((innerKey, innerValue) -> {
+                    // example: remote_cluster=[{privileges=[monitor_enrich, monitor_stats]
+                    if (REMOTE_CLUSTER.getPreferredName().equals(innerKey)) {
+                        assert innerValue instanceof List;
+                        RemoteClusterPermissions discoveredRemoteClusterPermission = new RemoteClusterPermissions(
+                            (List<Map<String, List<String>>>) innerValue
+                        );
+                        RemoteClusterPermissions mutated = discoveredRemoteClusterPermission.removeUnsupportedPrivileges(outboundVersion);
+                        if (mutated.equals(discoveredRemoteClusterPermission) == false) {
+                            // swap out the old value with the new value
+                            modified.set(true);
+                            Map<String, Object> remoteClusterMap = new HashMap<>((Map<String, Object>) roleDescriptorsMapMutated.get(key));
+                            if (mutated.hasAnyPrivileges()) {
+                                // has at least one group with privileges
+                                remoteClusterMap.put(innerKey, mutated.toMap());
+                            } else {
+                                // has no groups with privileges
+                                remoteClusterMap.remove(innerKey);
+                            }
+                            roleDescriptorsMapMutated.put(key, remoteClusterMap);
+                        }
+                    }
+                });
+            }
+        });
+        if (modified.get()) {
+            logger.debug(
+                "mutated role descriptors. Changed from {} to {} for outbound version {}",
+                roleDescriptorsMap,
+                roleDescriptorsMapMutated,
+                outboundVersion
+            );
+            return convertRoleDescriptorsMapToBytes(roleDescriptorsMapMutated);
+        } else {
+            // No need to serialize if we did not change anything.
+            logger.trace("no change to role descriptors {} for outbound version {}", roleDescriptorsMap, outboundVersion);
             return roleDescriptorsBytes;
         }
     }

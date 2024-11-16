@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -27,6 +28,8 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -188,9 +191,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
         if (ignoreMissingComponentTemplates == null) {
             return componentTemplates;
         }
-        return componentTemplates.stream()
-            .filter(componentTemplate -> ignoreMissingComponentTemplates.contains(componentTemplate) == false)
-            .toList();
+        // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
+        List<String> required = new ArrayList<>(componentTemplates.size());
+        for (String template : componentTemplates) {
+            if (ignoreMissingComponentTemplates.contains(template) == false) {
+                required.add(template);
+            }
+        }
+        return Collections.unmodifiableList(required);
     }
 
     @Nullable
@@ -372,14 +380,14 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             args -> new DataStreamTemplate(
                 args[0] != null && (boolean) args[0],
                 args[1] != null && (boolean) args[1],
-                DataStream.isFailureStoreEnabled() && args[2] != null && (boolean) args[2]
+                DataStream.isFailureStoreFeatureFlagEnabled() && args[2] != null && (boolean) args[2]
             )
         );
 
         static {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), HIDDEN);
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ALLOW_CUSTOM_ROUTING);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE);
             }
         }
@@ -474,7 +482,7 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
             builder.startObject();
             builder.field("hidden", hidden);
             builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-            if (DataStream.isFailureStoreEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
                 builder.field(FAILURE_STORE.getPreferredName(), failureStore);
             }
             builder.endObject();
@@ -533,6 +541,11 @@ public class ComposableIndexTemplate implements SimpleDiffable<ComposableIndexTe
 
         public Builder template(Template template) {
             this.template = template;
+            return this;
+        }
+
+        public Builder template(Template.Builder template) {
+            this.template = template.build();
             return this;
         }
 

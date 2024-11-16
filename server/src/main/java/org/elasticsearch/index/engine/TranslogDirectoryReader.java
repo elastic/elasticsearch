@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -12,10 +13,11 @@ import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
@@ -59,11 +61,9 @@ import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.mapper.VersionFieldMapper;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.translog.Translog;
-import org.elasticsearch.plugins.internal.DocumentSizeObserver;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -153,6 +153,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -161,6 +162,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
@@ -171,6 +173,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -179,6 +182,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
@@ -189,6 +193,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.DOCS,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -197,6 +202,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
@@ -251,14 +257,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(
-                    operation.id(),
-                    operation.source(),
-                    XContentHelper.xContentType(operation.source()),
-                    operation.routing(),
-                    Map.of(),
-                    DocumentSizeObserver.EMPTY_INSTANCE
-                ),
+                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
                 mappingLookup
             );
 
@@ -352,6 +351,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return getDelegate().getDocValuesSkipper(field);
+        }
+
+        @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             return getDelegate().getFloatVectorValues(field);
         }
@@ -395,11 +399,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            return getDelegate().getTermVectors(docID);
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             return getDelegate().termVectors();
         }
@@ -432,11 +431,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         @Override
         public int maxDoc() {
             return 1;
-        }
-
-        @Override
-        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

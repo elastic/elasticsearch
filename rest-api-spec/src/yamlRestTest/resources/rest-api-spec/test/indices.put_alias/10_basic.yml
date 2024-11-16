@@ -79,8 +79,8 @@
 
 ---
 "Can create filtered alias with a date_nanos range query":
-  - skip:
-      version: " - 7.99.99"
+  - requires:
+      cluster_features: ["gte_v8.0.0"]
       reason: "skipping older version until backport"
 
   - do:

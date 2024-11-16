@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.adjacency;
@@ -11,20 +12,20 @@ package org.elasticsearch.aggregations.bucket.adjacency;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.ObjectObjectPagedHashMap;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.search.aggregations.bucket.MultiBucketAggregatorsReducer;
+import org.elasticsearch.search.aggregations.bucket.BucketReducer;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Comparator;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -35,7 +36,7 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     public static class InternalBucket extends InternalMultiBucketAggregation.InternalBucket implements AdjacencyMatrix.Bucket {
 
         private final String key;
-        private long docCount;
+        private final long docCount;
         InternalAggregations aggregations;
 
         public InternalBucket(String key, long docCount, InternalAggregations aggregations) {
@@ -180,28 +181,40 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            final Map<String, MultiBucketAggregatorsReducer> bucketsReducer = new HashMap<>(getBuckets().size());
+            final ObjectObjectPagedHashMap<String, BucketReducer<InternalBucket>> bucketsReducer = new ObjectObjectPagedHashMap<>(
+                getBuckets().size(),
+                reduceContext.bigArrays()
+            );
 
             @Override
             public void accept(InternalAggregation aggregation) {
                 final InternalAdjacencyMatrix filters = (InternalAdjacencyMatrix) aggregation;
                 for (InternalBucket bucket : filters.buckets) {
-                    MultiBucketAggregatorsReducer reducer = bucketsReducer.computeIfAbsent(
-                        bucket.key,
-                        k -> new MultiBucketAggregatorsReducer(reduceContext, size)
-                    );
+                    BucketReducer<InternalBucket> reducer = bucketsReducer.get(bucket.key);
+                    if (reducer == null) {
+                        reducer = new BucketReducer<>(bucket, reduceContext, size);
+                        boolean success = false;
+                        try {
+                            bucketsReducer.put(bucket.key, reducer);
+                            success = true;
+                        } finally {
+                            if (success == false) {
+                                Releasables.close(reducer);
+                            }
+                        }
+                    }
                     reducer.accept(bucket);
                 }
             }
 
             @Override
             public InternalAggregation get() {
-                List<InternalBucket> reducedBuckets = new ArrayList<>(bucketsReducer.size());
-                for (Map.Entry<String, MultiBucketAggregatorsReducer> entry : bucketsReducer.entrySet()) {
-                    if (entry.getValue().getDocCount() >= 1) {
-                        reducedBuckets.add(new InternalBucket(entry.getKey(), entry.getValue().getDocCount(), entry.getValue().get()));
+                List<InternalBucket> reducedBuckets = new ArrayList<>((int) bucketsReducer.size());
+                bucketsReducer.forEach(entry -> {
+                    if (entry.value.getDocCount() >= 1) {
+                        reducedBuckets.add(new InternalBucket(entry.key, entry.value.getDocCount(), entry.value.getAggregations()));
                     }
-                }
+                });
                 reduceContext.consumeBucketsAndMaybeBreak(reducedBuckets.size());
                 reducedBuckets.sort(Comparator.comparing(InternalBucket::getKey));
                 return new InternalAdjacencyMatrix(name, reducedBuckets, getMetadata());
@@ -209,7 +222,8 @@ public class InternalAdjacencyMatrix extends InternalMultiBucketAggregation<Inte
 
             @Override
             public void close() {
-                Releasables.close(bucketsReducer.values());
+                bucketsReducer.forEach(entry -> Releasables.close(entry.value));
+                Releasables.close(bucketsReducer);
             }
         };
     }

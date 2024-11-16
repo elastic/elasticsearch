@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -239,7 +240,7 @@ class SystemIndexMigrationInfo implements Comparable<SystemIndexMigrationInfo> {
     /**
      * Convenience factory method holding the logic for creating instances from a Feature object.
      * @param feature The feature that
-     * @param metadata The current metadata, as index migration depends on the current state of the clsuter.
+     * @param metadata The current metadata, as index migration depends on the current state of the cluster.
      * @param indexScopedSettings This is necessary to make adjustments to the indices settings for unmanaged indices.
      * @return A {@link Stream} of {@link SystemIndexMigrationInfo}s that represent all the indices the given feature currently owns.
      */

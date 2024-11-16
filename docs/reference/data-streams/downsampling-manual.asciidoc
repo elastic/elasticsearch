@@ -14,7 +14,7 @@ DELETE _ingest/pipeline/my-timestamp-pipeline
 // TEARDOWN
 ////
 
-The recommended way to downsample a time series data stream (TSDS) is
+The recommended way to <<downsampling,downsample>> a <<tsds,time-series data stream (TSDS)>> is
 <<downsampling-ilm,through index lifecycle management (ILM)>>. However, if
 you're not using ILM, you can downsample a TSDS manually. This guide shows you
 how, using typical Kubernetes cluster monitoring data.
@@ -32,7 +32,7 @@ To test out manual downsampling, follow these steps:
 ==== Prerequisites
 
 * Refer to the <<tsds-prereqs,TSDS prerequisites>>.
-* It is not possible to downsample a data stream directly, nor
+* It is not possible to downsample a <<data-streams,data stream>> directly, nor
 multiple indices at once. It's only possible to downsample one time series index
 (TSDS backing index).
 * In order to downsample an index, it needs to be read-only. For a TSDS write
@@ -389,7 +389,7 @@ This returns:
 // TESTRESPONSE[s/"ltOJGmqgTVm4T-Buoe7Acg"/$body.data_streams.0.indices.0.index_uuid/]
 // TESTRESPONSE[s/"2023-07-26T09:26:42.000Z"/$body.data_streams.0.time_series.temporal_ranges.0.start/]
 // TESTRESPONSE[s/"2023-07-26T13:26:42.000Z"/$body.data_streams.0.time_series.temporal_ranges.0.end/]
-// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_indices":[],"failure_store":false/]
+// TESTRESPONSE[s/"replicated": false/"replicated": false,"failure_store":{"enabled": false, "indices": [], "rollover_on_write": true}/]
 <1> The backing index for this data stream.
 
 Before a backing index can be downsampled, the TSDS needs to be rolled over and

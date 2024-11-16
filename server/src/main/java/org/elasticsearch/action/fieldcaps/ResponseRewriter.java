@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.core.Predicates;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -49,7 +51,7 @@ final class ResponseRewriter {
         String[] filters,
         String[] allowedTypes
     ) {
-        Predicate<IndexFieldCapabilities> test = ifc -> true;
+        Predicate<IndexFieldCapabilities> test = Predicates.always();
         Set<String> objects = null;
         Set<String> nestedObjects = null;
         if (allowedTypes.length > 0) {

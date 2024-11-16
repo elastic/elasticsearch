@@ -1,22 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions;
 
-import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
+import groovy.util.Node;
+
 import com.github.jengelman.gradle.plugins.shadow.ShadowExtension;
 import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
-import groovy.util.Node;
-import org.elasticsearch.gradle.internal.conventions.util.Util;
+
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
+import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
+import org.elasticsearch.gradle.internal.conventions.util.Util;
+import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
+import org.gradle.api.Task;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.BasePlugin;
@@ -34,11 +39,12 @@ import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.bundling.Jar;
 import org.gradle.initialization.layout.BuildLayout;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
+import org.w3c.dom.Element;
 
-import javax.inject.Inject;
 import java.io.File;
 import java.util.Map;
 import java.util.concurrent.Callable;
+import javax.inject.Inject;
 
 public class PublishPlugin implements Plugin<Project> {
 
@@ -112,19 +118,22 @@ public class PublishPlugin implements Plugin<Project> {
         var archivesBaseName = providerFactory.provider(() -> getArchivesBaseName(extensions));
         var projectVersion = providerFactory.provider(() -> project.getVersion());
         var generateMavenPoms = project.getTasks().withType(GenerateMavenPom.class);
-        generateMavenPoms.configureEach(
-            pomTask -> pomTask.setDestination(
+        generateMavenPoms.configureEach(pomTask -> {
+            pomTask.setDestination(
                 (Callable<String>) () -> String.format(
                     "%s/distributions/%s-%s.pom",
                     projectLayout.getBuildDirectory().get().getAsFile().getPath(),
                     archivesBaseName.get(),
                     projectVersion.get()
                 )
-            )
-        );
+            );
+            pomTask.doFirst(t -> pomTask.getPom().withXml(xml -> formatDependencies(xml)));
+        });
+
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
-        addNameAndDescriptiontoPom(project, mavenPublications);
+
+        addNameAndDescriptionToPom(project, mavenPublications);
         mavenPublications.configureEach(publication -> {
             // Add git origin info to generated POM files for internal builds
             publication.getPom().withXml(xml -> addScmInfo(xml, gitInfo.get()));
@@ -134,11 +143,26 @@ public class PublishPlugin implements Plugin<Project> {
         });
     }
 
-    private void addNameAndDescriptiontoPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
+    /**
+     * just ensure we put dependencies to the end. more a cosmetic thing than anything else
+     * */
+    private void formatDependencies(XmlProvider xml) {
+        Element rootElement = xml.asElement();
+        var dependencies = rootElement.getElementsByTagName("dependencies");
+        if (dependencies.getLength() == 1 && dependencies.item(0) != null) {
+            org.w3c.dom.Node item = dependencies.item(0);
+            rootElement.removeChild(item);
+            rootElement.appendChild(item);
+        }
+    }
+
+    private void addNameAndDescriptionToPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
         var name = project.getName();
         var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
         mavenPublications.configureEach(p -> p.getPom().withXml(xml -> {
             var root = xml.asNode();
+            // Node versionNode = root.get("version");
+            // versionNode.plus(1, "name", name);
             root.appendNode("name", name);
             root.appendNode("description", description.get());
         }));

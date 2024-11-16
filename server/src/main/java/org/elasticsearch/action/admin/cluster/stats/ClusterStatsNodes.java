@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.stats;
@@ -782,9 +783,11 @@ public class ClusterStatsNodes implements ToXContentFragment {
             long coordinatingRejections = 0;
             long primaryRejections = 0;
             long replicaRejections = 0;
+            long primaryDocumentRejections = 0;
             long memoryLimit = 0;
 
             long totalCoordinatingOps = 0;
+            long totalCoordinatingRequests = 0;
             long totalPrimaryOps = 0;
             long totalReplicaOps = 0;
             long currentCoordinatingOps = 0;
@@ -811,6 +814,8 @@ public class ClusterStatsNodes implements ToXContentFragment {
                     currentCoordinatingOps += nodeStatIndexingPressureStats.getCurrentCoordinatingOps();
                     currentPrimaryOps += nodeStatIndexingPressureStats.getCurrentPrimaryOps();
                     currentReplicaOps += nodeStatIndexingPressureStats.getCurrentReplicaOps();
+                    primaryDocumentRejections += nodeStatIndexingPressureStats.getPrimaryDocumentRejections();
+                    totalCoordinatingRequests += nodeStatIndexingPressureStats.getTotalCoordinatingRequests();
                 }
             }
             indexingPressureStats = new IndexingPressureStats(
@@ -831,7 +836,9 @@ public class ClusterStatsNodes implements ToXContentFragment {
                 totalReplicaOps,
                 currentCoordinatingOps,
                 currentPrimaryOps,
-                currentReplicaOps
+                currentReplicaOps,
+                primaryDocumentRejections,
+                totalCoordinatingRequests
             );
         }
 

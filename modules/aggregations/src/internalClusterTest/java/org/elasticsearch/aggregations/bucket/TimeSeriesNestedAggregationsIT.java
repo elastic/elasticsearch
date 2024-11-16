@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -103,15 +103,11 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         final String[] routingDimensions
     ) {
         return prepareCreate("index").setSettings(
-            Settings.builder()
-                .put("mode", "time_series")
+            indexSettings(randomIntBetween(1, 3), randomIntBetween(1, 3)).put("mode", "time_series")
                 .put("routing_path", String.join(",", routingDimensions))
-                .put("index.number_of_shards", randomIntBetween(1, 3))
-                .put("index.number_of_replicas", randomIntBetween(1, 3))
                 .put("time_series.start_time", startMillis)
                 .put("time_series.end_time", endMillis)
                 .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 4192)
-                .build()
         ).setMapping(mapping).get();
     }
 

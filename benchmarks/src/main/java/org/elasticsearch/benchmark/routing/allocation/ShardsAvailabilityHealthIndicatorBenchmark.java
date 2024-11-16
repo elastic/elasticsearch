@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.benchmark.routing.allocation;
@@ -32,6 +33,7 @@ import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.openjdk.jmh.annotations.Benchmark;
 import org.openjdk.jmh.annotations.BenchmarkMode;
@@ -167,7 +169,7 @@ public class ShardsAvailabilityHealthIndicatorBenchmark {
             .build();
 
         Settings settings = Settings.builder().put("node.name", ShardsAvailabilityHealthIndicatorBenchmark.class.getSimpleName()).build();
-        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP);
+        ThreadPool threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
 
         ClusterService clusterService = new ClusterService(
             Settings.EMPTY,

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -25,19 +26,19 @@ import org.elasticsearch.action.support.replication.TransportWriteAction;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardClosedException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
+import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.SystemIndices;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
@@ -50,6 +51,7 @@ import java.io.IOException;
 import java.util.Map;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.function.BiFunction;
 
 import static org.elasticsearch.core.Strings.format;
 
@@ -88,10 +90,11 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
             actionFilters,
             RetentionLeaseSyncAction.Request::new,
             RetentionLeaseSyncAction.Request::new,
-            (service, ignore) -> ThreadPool.Names.MANAGEMENT,
-            false,
+            new ManagementOnlyExecutorFunction(threadPool),
+            PrimaryActionExecution.Force,
             indexingPressure,
-            systemIndices
+            systemIndices,
+            ReplicaActionExecution.BypassCircuitBreaker
         );
     }
 
@@ -107,47 +110,43 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
         RetentionLeases retentionLeases,
         ActionListener<ReplicationResponse> listener
     ) {
-        final ThreadContext threadContext = threadPool.getThreadContext();
-        try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+        try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
             // we have to execute under the system context so that if security is enabled the sync is authorized
-            threadContext.markAsSystemContext();
             final Request request = new Request(shardId, retentionLeases);
-            try (var ignored = threadContext.newTraceContext()) {
-                final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
-                transportService.sendChildRequest(
-                    clusterService.localNode(),
-                    transportPrimaryAction,
-                    new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
-                    task,
-                    transportOptions,
-                    new TransportResponseHandler<ReplicationResponse>() {
-                        @Override
-                        public ReplicationResponse read(StreamInput in) throws IOException {
-                            return newResponseInstance(in);
-                        }
-
-                        @Override
-                        public Executor executor() {
-                            return TransportResponseHandler.TRANSPORT_WORKER;
-                        }
-
-                        @Override
-                        public void handleResponse(ReplicationResponse response) {
-                            task.setPhase("finished");
-                            taskManager.unregister(task);
-                            listener.onResponse(response);
-                        }
-
-                        @Override
-                        public void handleException(TransportException e) {
-                            LOGGER.log(getExceptionLogLevel(e), () -> format("%s retention lease sync failed", shardId), e);
-                            task.setPhase("finished");
-                            taskManager.unregister(task);
-                            listener.onFailure(e);
-                        }
+            final ReplicationTask task = (ReplicationTask) taskManager.register("transport", "retention_lease_sync", request);
+            transportService.sendChildRequest(
+                clusterService.localNode(),
+                transportPrimaryAction,
+                new ConcreteShardRequest<>(request, primaryAllocationId, primaryTerm),
+                task,
+                transportOptions,
+                new TransportResponseHandler<ReplicationResponse>() {
+                    @Override
+                    public ReplicationResponse read(StreamInput in) throws IOException {
+                        return newResponseInstance(in);
                     }
-                );
-            }
+
+                    @Override
+                    public Executor executor() {
+                        return TransportResponseHandler.TRANSPORT_WORKER;
+                    }
+
+                    @Override
+                    public void handleResponse(ReplicationResponse response) {
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        listener.onResponse(response);
+                    }
+
+                    @Override
+                    public void handleException(TransportException e) {
+                        LOGGER.log(getExceptionLogLevel(e), () -> format("%s retention lease sync failed", shardId), e);
+                        task.setPhase("finished");
+                        taskManager.unregister(task);
+                        listener.onFailure(e);
+                    }
+                }
+            );
         }
     }
 
@@ -196,7 +195,7 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
 
     public static final class Request extends ReplicatedWriteRequest<Request> {
 
-        private RetentionLeases retentionLeases;
+        private final RetentionLeases retentionLeases;
 
         public RetentionLeases getRetentionLeases() {
             return retentionLeases;
@@ -261,6 +260,23 @@ public class RetentionLeaseSyncAction extends TransportWriteAction<
     @Override
     protected Response newResponseInstance(StreamInput in) throws IOException {
         return new Response(in);
+    }
+
+    /**
+     * A {@code BiFunction<ExecutorSelector, IndexShard, Executor>} for passing to the super constructor which always returns the
+     * MANAGEMENT executor (but looks it up once at construction time and caches the result, unlike how the obvious lambda would work).
+     */
+    private static class ManagementOnlyExecutorFunction implements BiFunction<ExecutorSelector, IndexShard, Executor> {
+        private final Executor executor;
+
+        ManagementOnlyExecutorFunction(ThreadPool threadPool) {
+            executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
+        }
+
+        @Override
+        public Executor apply(ExecutorSelector executorSelector, IndexShard indexShard) {
+            return executor;
+        }
     }
 
 }

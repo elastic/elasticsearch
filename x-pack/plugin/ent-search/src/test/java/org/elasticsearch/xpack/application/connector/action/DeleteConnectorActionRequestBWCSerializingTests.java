@@ -9,8 +9,8 @@ package org.elasticsearch.xpack.application.connector.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 
 import java.io.IOException;
 
@@ -23,7 +23,7 @@ public class DeleteConnectorActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected DeleteConnectorAction.Request createTestInstance() {
-        return new DeleteConnectorAction.Request(randomAlphaOfLengthBetween(1, 10));
+        return new DeleteConnectorAction.Request(randomAlphaOfLengthBetween(1, 10), false);
     }
 
     @Override
@@ -38,6 +38,6 @@ public class DeleteConnectorActionRequestBWCSerializingTests extends AbstractBWC
 
     @Override
     protected DeleteConnectorAction.Request mutateInstanceForVersion(DeleteConnectorAction.Request instance, TransportVersion version) {
-        return new DeleteConnectorAction.Request(instance.getConnectorId());
+        return new DeleteConnectorAction.Request(instance.getConnectorId(), instance.shouldDeleteSyncJobs());
     }
 }

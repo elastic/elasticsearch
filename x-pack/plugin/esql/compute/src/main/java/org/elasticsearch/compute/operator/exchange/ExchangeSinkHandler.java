@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.Page;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 
 import java.util.Queue;
 import java.util.concurrent.ConcurrentLinkedQueue;
@@ -49,10 +50,10 @@ public final class ExchangeSinkHandler {
         this.lastUpdatedInMillis = new AtomicLong(nowInMillis.getAsLong());
     }
 
-    private class LocalExchangeSink implements ExchangeSink {
+    private class ExchangeSinkImpl implements ExchangeSink {
         boolean finished;
 
-        LocalExchangeSink() {
+        ExchangeSinkImpl() {
             onChanged();
             outstandingSinks.incrementAndGet();
         }
@@ -81,7 +82,7 @@ public final class ExchangeSinkHandler {
         }
 
         @Override
-        public SubscribableListener<Void> waitForWriting() {
+        public IsBlockedResult waitForWriting() {
             return buffer.waitForWriting();
         }
     }
@@ -155,7 +156,7 @@ public final class ExchangeSinkHandler {
      * @see ExchangeSinkOperator
      */
     public ExchangeSink createExchangeSink() {
-        return new LocalExchangeSink();
+        return new ExchangeSinkImpl();
     }
 
     /**
@@ -183,5 +184,13 @@ public final class ExchangeSinkHandler {
      */
     long lastUpdatedTimeInMillis() {
         return lastUpdatedInMillis.get();
+    }
+
+    /**
+     * Returns the number of pages available in the buffer.
+     * This method should be used for testing only.
+     */
+    public int bufferSize() {
+        return buffer.size();
     }
 }

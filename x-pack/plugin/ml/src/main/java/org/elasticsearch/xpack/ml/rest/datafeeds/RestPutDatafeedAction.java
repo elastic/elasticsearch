@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.ml.rest.datafeeds;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.node.NodeClient;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -23,19 +22,17 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.PUT;
+import static org.elasticsearch.rest.RestUtils.getAckTimeout;
+import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
+import static org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfig.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestPutDatafeedAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(PUT, BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}")
-                .replaces(PUT, PRE_V7_BASE_PATH + "datafeeds/{" + DatafeedConfig.ID + "}", RestApiVersion.V_7)
-                .build()
-        );
+        return List.of(new Route(PUT, BASE_PATH + "datafeeds/{" + ID + "}"));
     }
 
     @Override
@@ -51,8 +48,8 @@ public class RestPutDatafeedAction extends BaseRestHandler {
         try (XContentParser parser = restRequest.contentParser()) {
             putDatafeedRequest = PutDatafeedAction.Request.parseRequest(datafeedId, indicesOptions, parser);
         }
-        putDatafeedRequest.timeout(restRequest.paramAsTime("timeout", putDatafeedRequest.timeout()));
-        putDatafeedRequest.masterNodeTimeout(restRequest.paramAsTime("master_timeout", putDatafeedRequest.masterNodeTimeout()));
+        putDatafeedRequest.ackTimeout(getAckTimeout(restRequest));
+        putDatafeedRequest.masterNodeTimeout(getMasterNodeTimeout(restRequest));
         return channel -> client.execute(PutDatafeedAction.INSTANCE, putDatafeedRequest, new RestToXContentListener<>(channel));
     }
 

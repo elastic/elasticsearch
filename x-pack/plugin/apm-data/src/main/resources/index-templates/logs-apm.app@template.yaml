@@ -1,6 +1,6 @@
 version: ${xpack.apmdata.template.version}
 index_patterns: ["logs-apm.app.*-*"]
-priority: 140
+priority: 210
 data_stream: {}
 allow_auto_create: true
 _meta:
@@ -11,14 +11,17 @@ composed_of:
 - apm@mappings
 - apm@settings
 - apm-10d@lifecycle
+- logs-apm@settings
+- logs-apm.app-fallback@ilm
 - logs@custom
 - logs-apm.app@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - logs@custom
 - logs-apm.app@custom
+- logs-apm.app-fallback@ilm
 template:
   settings:
     index:
-      default_pipeline: apm@default-pipeline
+      default_pipeline: logs-apm.app@default-pipeline
       final_pipeline: apm@pipeline

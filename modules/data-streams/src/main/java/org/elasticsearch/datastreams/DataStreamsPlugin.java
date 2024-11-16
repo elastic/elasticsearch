@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -18,7 +19,11 @@ import org.elasticsearch.action.datastreams.GetDataStreamAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
+import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
+import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
+import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
 import org.elasticsearch.client.internal.OriginSettingClient;
+import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
@@ -32,17 +37,14 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.datastreams.action.CreateDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.DataStreamsStatsTransportAction;
 import org.elasticsearch.datastreams.action.DeleteDataStreamTransportAction;
-import org.elasticsearch.datastreams.action.GetDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
+import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleService;
 import org.elasticsearch.datastreams.lifecycle.action.DeleteDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.ExplainDataStreamLifecycleAction;
-import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.GetDataStreamLifecycleStatsAction;
-import org.elasticsearch.datastreams.lifecycle.action.PutDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportDeleteDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.action.TransportGetDataStreamLifecycleAction;
@@ -55,6 +57,15 @@ import org.elasticsearch.datastreams.lifecycle.rest.RestDeleteDataStreamLifecycl
 import org.elasticsearch.datastreams.lifecycle.rest.RestExplainDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestGetDataStreamLifecycleAction;
 import org.elasticsearch.datastreams.lifecycle.rest.RestPutDataStreamLifecycleAction;
+import org.elasticsearch.datastreams.options.action.DeleteDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.GetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.PutDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.TransportDeleteDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.TransportGetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestDeleteDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
+import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
@@ -200,7 +211,8 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
                 services.threadPool()::absoluteTimeInMillis,
                 errorStoreInitialisationService.get(),
                 services.allocationService(),
-                dataStreamLifecycleErrorsPublisher.get()
+                dataStreamLifecycleErrorsPublisher.get(),
+                services.dataStreamGlobalRetentionSettings()
             )
         );
         dataLifecycleInitialisationService.get().init();
@@ -217,7 +229,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> actions = new ArrayList<>();
         actions.add(new ActionHandler<>(CreateDataStreamAction.INSTANCE, CreateDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(DeleteDataStreamAction.INSTANCE, DeleteDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(GetDataStreamAction.INSTANCE, GetDataStreamsTransportAction.class));
+        actions.add(new ActionHandler<>(GetDataStreamAction.INSTANCE, TransportGetDataStreamsAction.class));
         actions.add(new ActionHandler<>(DataStreamsStatsAction.INSTANCE, DataStreamsStatsTransportAction.class));
         actions.add(new ActionHandler<>(MigrateToDataStreamAction.INSTANCE, MigrateToDataStreamTransportAction.class));
         actions.add(new ActionHandler<>(PromoteDataStreamAction.INSTANCE, PromoteDataStreamTransportAction.class));
@@ -227,6 +239,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
+            actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
+            actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
+        }
         return actions;
     }
 
@@ -259,6 +276,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            handlers.add(new RestGetDataStreamOptionsAction());
+            handlers.add(new RestPutDataStreamOptionsAction());
+            handlers.add(new RestDeleteDataStreamOptionsAction());
+        }
         return handlers;
     }
 

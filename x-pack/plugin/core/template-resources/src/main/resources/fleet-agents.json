@@ -58,6 +58,9 @@
             }
           }
         },
+        "unhealthy_reason": {
+          "type": "keyword"
+        },
         "components": {
           "type": "object",
           "enabled": false
@@ -94,6 +97,9 @@
                       "type": "boolean"
                     },
                     "upgradeable": {
+                      "type": "boolean"
+                    },
+                    "unprivileged": {
                       "type": "boolean"
                     },
                     "version": {
@@ -309,6 +315,15 @@
           "enabled": false
         },
         "tags": {
+          "type": "keyword"
+        },
+        "namespaces": {
+          "type": "keyword"
+        },
+        "audit_unenrolled_time": {
+          "type": "date"
+        },
+        "audit_unenrolled_reason": {
           "type": "keyword"
         }
       }

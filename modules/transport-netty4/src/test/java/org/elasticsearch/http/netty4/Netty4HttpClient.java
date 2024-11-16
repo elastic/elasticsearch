@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -40,6 +41,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.netty4.NettyAllocator;
 
 import java.io.Closeable;
+import java.io.IOException;
 import java.net.SocketAddress;
 import java.net.SocketException;
 import java.nio.charset.StandardCharsets;
@@ -203,7 +205,11 @@ class Netty4HttpClient implements Closeable {
 
                 @Override
                 public void exceptionCaught(ChannelHandlerContext ctx, Throwable cause) {
-                    if (cause instanceof PrematureChannelClosureException || cause instanceof SocketException) {
+                    if (cause instanceof PrematureChannelClosureException
+                        || cause instanceof SocketException
+                        || (cause instanceof IOException
+                            && cause.getMessage() != null
+                            && cause.getMessage().contains("An established connection was aborted by the software in your host machine"))) {
                         // no more requests coming, so fast-forward the latch
                         fastForward();
                     } else {

@@ -30,7 +30,7 @@ import org.mockito.ArgumentCaptor;
 import java.util.List;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.core.security.action.apikey.CreateCrossClusterApiKeyRequestTests.randomCrossClusterApiKeyAccessField;
+import static org.elasticsearch.xpack.security.authc.ApiKeyServiceTests.randomCrossClusterApiKeyAccessField;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -89,15 +89,12 @@ public class RestUpdateCrossClusterApiKeyActionTests extends ESTestCase {
         // Disallow by license
         when(licenseState.isAllowed(Security.ADVANCED_REMOTE_CLUSTER_SECURITY_FEATURE)).thenReturn(false);
 
-        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(
-            new BytesArray("""
-                {
-                  "metadata": {}
-                }"""),
-            XContentType.JSON
-        ).withParams(Map.of("id", randomAlphaOfLength(10))).build();
+        final FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(new BytesArray("""
+            {
+              "metadata": {}
+            }"""), XContentType.JSON).withParams(Map.of("id", randomAlphaOfLength(10))).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.searchafter;
@@ -211,7 +212,7 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         return builder;
     }
 
-    void innerToXContent(XContentBuilder builder) throws IOException {
+    public void innerToXContent(XContentBuilder builder) throws IOException {
         builder.array(SEARCH_AFTER.getPreferredName(), sortValues);
     }
 
@@ -277,7 +278,8 @@ public class SearchAfterBuilder implements ToXContentObject, Writeable {
         if ((other instanceof SearchAfterBuilder) == false) {
             return false;
         }
-        return Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        boolean value = Arrays.equals(sortValues, ((SearchAfterBuilder) other).sortValues);
+        return value;
     }
 
     @Override

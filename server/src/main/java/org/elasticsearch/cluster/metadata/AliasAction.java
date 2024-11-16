@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
 
-import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.rest.action.admin.indices.AliasesNotFoundException;
 
 /**
  * Individual operation to perform on the cluster state as part of an {@link IndicesAliasesRequest}.
@@ -189,7 +190,7 @@ public abstract class AliasAction {
         boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
                 if (mustExist != null && mustExist) {
-                    throw new ResourceNotFoundException("required alias [" + alias + "] does not exist");
+                    throw new AliasesNotFoundException(alias);
                 }
                 return false;
             }

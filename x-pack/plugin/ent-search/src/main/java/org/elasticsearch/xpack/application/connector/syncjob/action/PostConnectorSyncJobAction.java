@@ -7,21 +7,16 @@
 
 package org.elasticsearch.xpack.application.connector.syncjob.action;
 
-import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
-import org.elasticsearch.xcontent.XContentParserConfiguration;
-import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.application.connector.Connector;
 import org.elasticsearch.xpack.application.connector.ConnectorTemplateRegistry;
 import org.elasticsearch.xpack.application.connector.syncjob.ConnectorSyncJob;
@@ -96,14 +91,6 @@ public class PostConnectorSyncJobAction {
 
         public ConnectorSyncJobTriggerMethod getTriggerMethod() {
             return triggerMethod;
-        }
-
-        public static Request fromXContentBytes(BytesReference source, XContentType xContentType) {
-            try (XContentParser parser = XContentHelper.createParser(XContentParserConfiguration.EMPTY, source, xContentType)) {
-                return Request.fromXContent(parser);
-            } catch (IOException e) {
-                throw new ElasticsearchParseException("Failed to parse: " + source.utf8ToString(), e);
-            }
         }
 
         public static Request fromXContent(XContentParser parser) throws IOException {

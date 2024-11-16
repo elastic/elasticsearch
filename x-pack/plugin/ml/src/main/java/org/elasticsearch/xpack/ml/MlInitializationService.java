@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.alias.TransportIndicesAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesAction;
 import org.elasticsearch.action.admin.indices.alias.get.GetAliasesRequest;
@@ -31,6 +32,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 
 import java.util.Collections;
 import java.util.Map;
@@ -54,6 +56,8 @@ public final class MlInitializationService implements ClusterStateListener {
 
     private final MlDailyMaintenanceService mlDailyMaintenanceService;
 
+    private final AdaptiveAllocationsScalerService adaptiveAllocationsScalerService;
+
     private boolean isMaster = false;
 
     MlInitializationService(
@@ -61,6 +65,7 @@ public final class MlInitializationService implements ClusterStateListener {
         ThreadPool threadPool,
         ClusterService clusterService,
         Client client,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         MlAssignmentNotifier mlAssignmentNotifier,
         boolean isAnomalyDetectionEnabled,
         boolean isDataFrameAnalyticsEnabled,
@@ -80,6 +85,7 @@ public final class MlInitializationService implements ClusterStateListener {
                 isDataFrameAnalyticsEnabled,
                 isNlpEnabled
             ),
+            adaptiveAllocationsScalerService,
             clusterService
         );
     }
@@ -89,11 +95,13 @@ public final class MlInitializationService implements ClusterStateListener {
         Client client,
         ThreadPool threadPool,
         MlDailyMaintenanceService dailyMaintenanceService,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService,
         ClusterService clusterService
     ) {
         this.client = Objects.requireNonNull(client);
         this.threadPool = threadPool;
         this.mlDailyMaintenanceService = dailyMaintenanceService;
+        this.adaptiveAllocationsScalerService = adaptiveAllocationsScalerService;
         clusterService.addListener(this);
         clusterService.addLifecycleListener(new LifecycleListener() {
             @Override
@@ -114,11 +122,13 @@ public final class MlInitializationService implements ClusterStateListener {
 
     public void onMaster() {
         mlDailyMaintenanceService.start();
+        adaptiveAllocationsScalerService.start();
         threadPool.executor(MachineLearning.UTILITY_THREAD_POOL_NAME).execute(this::makeMlInternalIndicesHidden);
     }
 
     public void offMaster() {
         mlDailyMaintenanceService.stop();
+        adaptiveAllocationsScalerService.stop();
     }
 
     @Override
@@ -145,7 +155,7 @@ public final class MlInitializationService implements ClusterStateListener {
             AnnotationIndex.createAnnotationsIndexIfNecessary(
                 client,
                 event.state(),
-                MasterNodeRequest.DEFAULT_MASTER_NODE_TIMEOUT,
+                MasterNodeRequest.TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT,
                 ActionListener.wrap(r -> isIndexCreationInProgress.set(false), e -> {
                     if (e.getMessage().equals(previousException)) {
                         logger.debug("Error creating ML annotations index or aliases", e);
@@ -173,7 +183,7 @@ public final class MlInitializationService implements ClusterStateListener {
         String[] mlHiddenIndexPatterns = MachineLearning.getMlHiddenIndexPatterns();
 
         // Step 5: Handle errors encountered on the way.
-        ActionListener<AcknowledgedResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
+        ActionListener<IndicesAliasesResponse> finalListener = ActionListener.wrap(updateAliasesResponse -> {
             if (updateAliasesResponse.isAcknowledged() == false) {
                 logger.warn("One or more of the ML internal aliases could not be made hidden.");
                 return;
@@ -194,7 +204,7 @@ public final class MlInitializationService implements ClusterStateListener {
             }
             if (indicesAliasesRequest.getAliasActions().isEmpty()) {
                 logger.debug("There are no ML internal aliases that need to be made hidden, [{}]", getAliasesResponse.getAliases());
-                finalListener.onResponse(AcknowledgedResponse.TRUE);
+                finalListener.onResponse(IndicesAliasesResponse.ACKNOWLEDGED_NO_ERRORS);
                 return;
             }
             String indicesWithNonHiddenAliasesString = indicesAliasesRequest.getAliasActions()

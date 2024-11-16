@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -17,7 +18,9 @@ import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
+import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -71,9 +74,11 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
     private static final String IMPACT_CLUSTER_FUNCTIONALITY_UNAVAILABLE_ID = "cluster_functionality_unavailable";
 
     private final ClusterService clusterService;
+    private final FeatureService featureService;
 
-    public DiskHealthIndicatorService(ClusterService clusterService) {
+    public DiskHealthIndicatorService(ClusterService clusterService, FeatureService featureService) {
         this.clusterService = clusterService;
+        this.featureService = featureService;
     }
 
     @Override
@@ -83,8 +88,18 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
 
     @Override
     public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
+        ClusterState clusterState = clusterService.state();
         Map<String, DiskHealthInfo> diskHealthInfoMap = healthInfo.diskInfoByNode();
         if (diskHealthInfoMap == null || diskHealthInfoMap.isEmpty()) {
+            if (featureService.clusterHasFeature(clusterState, HealthFeatures.SUPPORTS_HEALTH) == false) {
+                return createIndicator(
+                    HealthStatus.GREEN,
+                    "No disk usage data available. The cluster currently has mixed versions (an upgrade may be in progress).",
+                    HealthIndicatorDetails.EMPTY,
+                    List.of(),
+                    List.of()
+                );
+            }
             /*
              * If there is no disk health info, that either means that a new health node was just elected, or something is seriously
              * wrong with health data collection on the health node. Either way, we immediately return UNKNOWN. If there are at least
@@ -98,7 +113,6 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
                 Collections.emptyList()
             );
         }
-        ClusterState clusterState = clusterService.state();
         logNodesMissingHealthInfo(diskHealthInfoMap, clusterState);
 
         DiskHealthAnalyzer diskHealthAnalyzer = new DiskHealthAnalyzer(diskHealthInfoMap, clusterState);
@@ -107,7 +121,7 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             diskHealthAnalyzer.getSymptom(),
             diskHealthAnalyzer.getDetails(verbose),
             diskHealthAnalyzer.getImpacts(),
-            diskHealthAnalyzer.getDiagnoses(maxAffectedResourcesCount)
+            diskHealthAnalyzer.getDiagnoses(verbose, maxAffectedResourcesCount)
         );
     }
 
@@ -344,8 +358,8 @@ public class DiskHealthIndicatorService implements HealthIndicatorService {
             return impacts;
         }
 
-        private List<Diagnosis> getDiagnoses(int size) {
-            if (healthStatus == HealthStatus.GREEN) {
+        private List<Diagnosis> getDiagnoses(boolean verbose, int size) {
+            if (verbose == false || healthStatus == HealthStatus.GREEN) {
                 return List.of();
             }
             List<Diagnosis> diagnosisList = new ArrayList<>();

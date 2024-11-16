@@ -40,6 +40,7 @@ import org.elasticsearch.search.aggregations.BaseAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
@@ -196,15 +197,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             true,
             0,
-            // All but 2 shards are skipped. TBH I don't know why this 2 shards are not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 2
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
         testSearchAction(
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             false,
             0,
-            // All but 1 shards are skipped. TBH I don't know why this 1 shard is not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 1
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
     }
 
@@ -235,7 +234,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(client().getRemoteClusterClient(REMOTE_CLUSTER, EsExecutors.DIRECT_EXECUTOR_SERVICE)),
+            CheckpointClient.remote(
+                client().getRemoteClusterClient(
+                    REMOTE_CLUSTER,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
+            ),
             REMOTE_CLUSTER,
             new String[] { "remote_*" },
             QueryBuilders.matchAllQuery(),
@@ -255,7 +260,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(client().getRemoteClusterClient(REMOTE_CLUSTER, EsExecutors.DIRECT_EXECUTOR_SERVICE)),
+            CheckpointClient.remote(
+                client().getRemoteClusterClient(
+                    REMOTE_CLUSTER,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
+            ),
             REMOTE_CLUSTER,
             new String[] { "remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(timestamp),
@@ -275,7 +286,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
         );
         testGetCheckpointAction(
             threadContext,
-            CheckpointClient.remote(client().getRemoteClusterClient(REMOTE_CLUSTER, EsExecutors.DIRECT_EXECUTOR_SERVICE)),
+            CheckpointClient.remote(
+                client().getRemoteClusterClient(
+                    REMOTE_CLUSTER,
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                )
+            ),
             REMOTE_CLUSTER,
             new String[] { "remote_*" },
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),

@@ -366,7 +366,7 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
         refresh(
             clusterService.state().getMetadata().custom(PersistentTasksCustomMetadata.TYPE),
             Collections.singleton(jobId),
-            ActionListener.wrap(aVoid -> refreshAnomalyDetectorJobMemory(jobId, listener), listener::onFailure)
+            listener.delegateFailureAndWrap((l, aVoid) -> refreshAnomalyDetectorJobMemory(jobId, l))
         );
     }
 
@@ -503,15 +503,15 @@ public class MlMemoryTracker implements LocalNodeMasterListener {
             .map(task -> ((StartDataFrameAnalyticsAction.TaskParams) task.getParams()).getId())
             .collect(Collectors.toSet());
 
-        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, ActionListener.wrap(analyticsConfigs -> {
+        configProvider.getConfigsForJobsWithTasksLeniently(jobsWithTasks, listener.delegateFailureAndWrap((delegate, analyticsConfigs) -> {
             for (DataFrameAnalyticsConfig analyticsConfig : analyticsConfigs) {
                 memoryRequirementByDataFrameAnalyticsJob.put(
                     analyticsConfig.getId(),
                     analyticsConfig.getModelMemoryLimit().getBytes() + DataFrameAnalyticsConfig.PROCESS_MEMORY_OVERHEAD.getBytes()
                 );
             }
-            listener.onResponse(null);
-        }, listener::onFailure));
+            delegate.onResponse(null);
+        }));
     }
 
     /**

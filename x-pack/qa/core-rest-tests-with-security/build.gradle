@@ -9,6 +9,7 @@ dependencies {
   clusterModules project(':modules:reindex')
   clusterModules project(':modules:analysis-common')
   clusterModules project(':modules:health-shards-availability')
+  clusterModules project(':modules:data-streams')
   clusterModules project(xpackModule('stack'))
   clusterModules project(xpackModule('ilm'))
   clusterModules project(xpackModule('mapper-constant-keyword'))
@@ -26,7 +27,7 @@ tasks.named("yamlRestTest").configure {
     'index/10_with_id/Index with ID',
     'indices.get_alias/10_basic/Get alias against closed indices'
   ];
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (buildParams.isSnapshotBuild() == false) {
     blacklist += [
       'synonyms_privileges/10_synonyms_with_privileges/*',
       'synonyms_privileges/20_synonyms_no_privileges/*'

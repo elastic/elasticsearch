@@ -23,9 +23,12 @@ public abstract class BaseResponseHandler implements ResponseHandler {
     public static final String SERVER_ERROR = "Received a server error status code";
     public static final String RATE_LIMIT = "Received a rate limit status code";
     public static final String AUTHENTICATION = "Received an authentication error status code";
+    public static final String PERMISSION_DENIED = "Received a permission denied error status code";
     public static final String REDIRECTION = "Unhandled redirection";
     public static final String CONTENT_TOO_LARGE = "Received a content too large status code";
     public static final String UNSUCCESSFUL = "Received an unsuccessful status code";
+    public static final String BAD_REQUEST = "Received a bad request status code";
+    public static final String METHOD_NOT_ALLOWED = "Received a method not allowed status code";
 
     protected final String requestType;
     private final ResponseParser parseFunction;

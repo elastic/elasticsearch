@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -14,8 +15,10 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -34,8 +37,10 @@ import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.Comparator;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.ConcurrentLinkedQueue;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -59,6 +64,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private final MasterServiceTaskQueue<ReconcileDesiredBalanceTask> masterServiceTaskQueue;
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
+    private final Set<String> processedNodeShutdowns = new HashSet<>();
+    private final DesiredBalanceMetrics desiredBalanceMetrics;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -79,7 +86,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this(
             delegateAllocator,
@@ -87,7 +95,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
-            telemetryProvider
+            telemetryProvider,
+            nodeAllocationStatsProvider
         );
     }
 
@@ -97,8 +106,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
+        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -106,12 +117,14 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            desiredBalanceMetrics,
+            nodeAllocationStatsProvider
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
             @Override
             protected void processInput(DesiredBalanceInput desiredBalanceInput) {
+                processNodeShutdowns(desiredBalanceInput.routingAllocation().getClusterState());
 
                 long index = desiredBalanceInput.index();
                 logger.debug("Starting desired balance computation for [{}]", index);
@@ -128,7 +141,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     )
                 );
                 computationsExecuted.inc();
-                if (isFresh(desiredBalanceInput)) {
+
+                if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                    logger.debug(
+                        "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
+                        index
+                    );
+                    submitReconcileTask(currentDesiredBalance);
+                    var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
+                    desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
+                } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
                     submitReconcileTask(currentDesiredBalance);
@@ -162,6 +184,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
+            // Only update on change, to minimise volatile writes
+            if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
+                desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
+            }
         });
     }
 
@@ -191,6 +217,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
         reconcile(currentDesiredBalance, allocation);
+    }
+
+    private void processNodeShutdowns(ClusterState clusterState) {
+        final var nodes = clusterState.nodes();
+        final var nodeShutdowns = clusterState.metadata().nodeShutdowns();
+        // If we remove a shutdown marker from a node, but it is still in the cluster, we'd need a reset.
+        boolean reset = processedNodeShutdowns.stream()
+            .anyMatch(nodeId -> nodeShutdowns.contains(nodeId) == false && nodes.get(nodeId) != null);
+        // Clean up processed shutdowns that are removed from the cluster metadata
+        processedNodeShutdowns.removeIf(nodeId -> nodeShutdowns.contains(nodeId) == false);
+
+        for (var shutdown : nodeShutdowns.getAll().entrySet()) {
+            if (shutdown.getValue().getType() != SingleNodeShutdownMetadata.Type.RESTART) {
+                reset |= processedNodeShutdowns.add(shutdown.getKey());
+            }
+        }
+        if (reset) {
+            resetDesiredBalance();
+        }
     }
 
     @Override
@@ -281,9 +326,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count(),
-            desiredBalanceReconciler.unassignedShards.get(),
-            desiredBalanceReconciler.totalAllocations.get(),
-            desiredBalanceReconciler.undesiredAllocations.get()
+            desiredBalanceMetrics.unassignedShards(),
+            desiredBalanceMetrics.totalAllocations(),
+            desiredBalanceMetrics.undesiredAllocations()
         );
     }
 
@@ -293,10 +338,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
-
-            desiredBalanceReconciler.unassignedShards.set(0);
-            desiredBalanceReconciler.totalAllocations.set(0);
-            desiredBalanceReconciler.undesiredAllocations.set(0);
+            desiredBalanceMetrics.zeroAllMetrics();
         }
     }
 
@@ -373,5 +415,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             final long finished = threadPool.relativeTimeInMillis();
             metric.inc(finished - started);
         }
+    }
+
+    // Visible for testing
+    Set<String> getProcessedNodeShutdowns() {
+        return Set.copyOf(processedNodeShutdowns);
     }
 }

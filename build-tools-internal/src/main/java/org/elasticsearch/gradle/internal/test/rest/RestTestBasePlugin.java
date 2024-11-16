@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.test.rest;
@@ -17,10 +18,9 @@ import org.elasticsearch.gradle.ElasticsearchDistributionType;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
-import org.elasticsearch.gradle.internal.ElasticsearchJavaPlugin;
-import org.elasticsearch.gradle.internal.ElasticsearchTestBasePlugin;
+import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
@@ -57,6 +57,8 @@ import java.util.Optional;
 
 import javax.inject.Inject;
 
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
+
 /**
  * Base plugin used for wiring up build tasks to REST testing tasks using new JUnit rule-based test clusters framework.
  */
@@ -78,6 +80,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
     private static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadataDeps";
     private static final String DEFAULT_DISTRO_FEATURES_METADATA_CONFIGURATION = "defaultDistrofeaturesMetadataDeps";
     private static final String TESTS_FEATURES_METADATA_PATH = "tests.features.metadata.path";
+    private static final String MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP = "tests.minimum.wire.compatible";
 
     private final ProviderFactory providerFactory;
 
@@ -88,8 +91,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
 
     @Override
     public void apply(Project project) {
-        project.getPluginManager().apply(ElasticsearchJavaPlugin.class);
+        project.getPluginManager().apply(ElasticsearchJavaBasePlugin.class);
         project.getPluginManager().apply(InternalDistributionDownloadPlugin.class);
+        var bwcVersions = loadBuildParams(project).get().getBwcVersions();
 
         // Register integ-test and default distributions
         ElasticsearchDistribution defaultDistro = createDistribution(
@@ -167,11 +171,14 @@ public class RestTestBasePlugin implements Plugin<Project> {
             nonInputSystemProperties.systemProperty(TESTS_MAX_PARALLEL_FORKS_SYSPROP, () -> String.valueOf(task.getMaxParallelForks()));
 
             // Disable test failure reporting since this stuff is now captured in build scans
-            task.getExtensions().getExtraProperties().set(ElasticsearchTestBasePlugin.DUMP_OUTPUT_ON_FAILURE_PROP_NAME, false);
+            task.getExtensions().getByType(ErrorReportingTestListener.class).setDumpOutputOnFailure(false);
 
             // Disable the security manager and syscall filter since the test framework needs to fork processes
             task.systemProperty("tests.security.manager", "false");
             task.systemProperty("tests.system_call_filter", "false");
+
+            // Pass minimum wire compatible version which is used by upgrade tests
+            task.systemProperty(MINIMUM_WIRE_COMPATIBLE_VERSION_SYSPROP, bwcVersions.getMinimumWireCompatibleVersion());
 
             // Register plugins and modules as task inputs and pass paths as system properties to tests
             var modulePath = project.getObjects().fileCollection().from(modulesConfiguration);
@@ -218,7 +225,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     }
 
                     Version version = (Version) args[0];
-                    boolean isReleased = BuildParams.getBwcVersions().unreleasedInfo(version) == null;
+                    boolean isReleased = bwcVersions.unreleasedInfo(version) == null;
                     String versionString = version.toString();
                     ElasticsearchDistribution bwcDistro = createDistribution(project, "bwc_" + versionString, versionString);
 
@@ -230,9 +237,9 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         providerFactory.provider(() -> bwcDistro.getExtracted().getSingleFile().getPath())
                     );
 
-                    if (version.getMajor() > 0 && version.before(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion())) {
+                    if (version.getMajor() > 0 && version.before(bwcVersions.getMinimumWireCompatibleVersion())) {
                         // If we are upgrade testing older versions we also need to upgrade to 7.last
-                        this.call(BuildParams.getBwcVersions().getMinimumWireCompatibleVersion());
+                        this.call(bwcVersions.getMinimumWireCompatibleVersion());
                     }
                     return null;
                 }

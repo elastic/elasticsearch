@@ -44,6 +44,16 @@ public class CohereResponseHandlerTests extends ESTestCase {
         MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
     }
 
+    public void testCheckForFailureStatusCode_ThrowsFor500_WithShouldRetryTrue() {
+        var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(500, "id"));
+        assertTrue(exception.shouldRetry());
+        MatcherAssert.assertThat(
+            exception.getCause().getMessage(),
+            containsString("Received a server error status code for request from inference entity id [id] status [500]")
+        );
+        MatcherAssert.assertThat(((ElasticsearchStatusException) exception.getCause()).status(), is(RestStatus.BAD_REQUEST));
+    }
+
     public void testCheckForFailureStatusCode_ThrowsFor429() {
         var exception = expectThrows(RetryException.class, () -> callCheckForFailureStatusCode(429, "id"));
         assertTrue(exception.shouldRetry());
@@ -122,7 +132,7 @@ public class CohereResponseHandlerTests extends ESTestCase {
         var mockRequest = mock(Request.class);
         when(mockRequest.getInferenceEntityId()).thenReturn(modelId);
         var httpResult = new HttpResult(httpResponse, errorMessage == null ? new byte[] {} : responseJson.getBytes(StandardCharsets.UTF_8));
-        var handler = new CohereResponseHandler("", (request, result) -> null);
+        var handler = new CohereResponseHandler("", (request, result) -> null, false);
 
         handler.checkForFailureStatusCode(mockRequest, httpResult);
     }

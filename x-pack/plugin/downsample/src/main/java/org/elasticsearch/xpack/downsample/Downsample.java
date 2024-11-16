@@ -39,6 +39,7 @@ import org.elasticsearch.xpack.core.downsample.DownsampleIndexerAction;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardPersistentTaskState;
 import org.elasticsearch.xpack.core.downsample.DownsampleShardTask;
 
+import java.util.Collection;
 import java.util.List;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -132,5 +133,10 @@ public class Downsample extends Plugin implements ActionPlugin, PersistentTaskPl
             ),
             new NamedWriteableRegistry.Entry(PersistentTaskParams.class, DownsampleShardTaskParams.NAME, DownsampleShardTaskParams::new)
         );
+    }
+
+    @Override
+    public Collection<?> createComponents(PluginServices services) {
+        return List.of(DownsampleMetrics.class);
     }
 }

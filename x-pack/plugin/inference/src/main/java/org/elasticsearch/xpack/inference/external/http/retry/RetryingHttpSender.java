@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.inference.external.http.retry;
 
+import org.apache.http.client.protocol.HttpClientContext;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
@@ -15,8 +17,9 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.inference.common.SizeLimitInputStream;
+import org.elasticsearch.xpack.inference.external.http.HttpClient;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
-import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -24,40 +27,41 @@ import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.Objects;
 import java.util.concurrent.Executor;
+import java.util.concurrent.atomic.AtomicInteger;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
-public class RetryingHttpSender implements Retrier {
-    private final Sender sender;
+public class RetryingHttpSender implements RequestSender {
+
+    static final int MAX_RETIES = 3;
+
+    private final HttpClient httpClient;
     private final ThrottlerManager throttlerManager;
-    private final Logger logger;
     private final RetrySettings retrySettings;
     private final ThreadPool threadPool;
     private final Executor executor;
 
     public RetryingHttpSender(
-        Sender sender,
+        HttpClient httpClient,
         ThrottlerManager throttlerManager,
-        Logger logger,
         RetrySettings retrySettings,
         ThreadPool threadPool
     ) {
-        this(sender, throttlerManager, logger, retrySettings, threadPool, threadPool.executor(UTILITY_THREAD_POOL_NAME));
+        this(httpClient, throttlerManager, retrySettings, threadPool, threadPool.executor(UTILITY_THREAD_POOL_NAME));
     }
 
     // For testing only
     RetryingHttpSender(
-        Sender sender,
+        HttpClient httpClient,
         ThrottlerManager throttlerManager,
-        Logger logger,
         RetrySettings retrySettings,
         ThreadPool threadPool,
         Executor executor
     ) {
-        this.sender = Objects.requireNonNull(sender);
+        this.httpClient = Objects.requireNonNull(httpClient);
         this.throttlerManager = Objects.requireNonNull(throttlerManager);
-        this.logger = Objects.requireNonNull(logger);
         this.retrySettings = Objects.requireNonNull(retrySettings);
         this.threadPool = Objects.requireNonNull(threadPool);
         this.executor = Objects.requireNonNull(executor);
@@ -66,49 +70,74 @@ public class RetryingHttpSender implements Retrier {
     private class InternalRetrier extends RetryableAction<InferenceServiceResults> {
         private Request request;
         private final ResponseHandler responseHandler;
+        private final Logger logger;
+        private final HttpClientContext context;
+        private final Supplier<Boolean> hasRequestCompletedFunction;
+        private final AtomicInteger retryCount;
 
-        InternalRetrier(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
+        InternalRetrier(
+            Logger logger,
+            Request request,
+            HttpClientContext context,
+            Supplier<Boolean> hasRequestCompletedFunction,
+            ResponseHandler responseHandler,
+            ActionListener<InferenceServiceResults> listener
+        ) {
             super(
-                logger,
+                Objects.requireNonNull(logger),
                 threadPool,
-                retrySettings.getSettings().initialDelay(),
-                retrySettings.getSettings().maxDelayBound(),
-                retrySettings.getSettings().timeoutValue(),
+                retrySettings.getInitialDelay(),
+                retrySettings.getMaxDelayBound(),
+                retrySettings.getTimeout(),
                 listener,
                 executor
             );
-            this.request = request;
-            this.responseHandler = responseHandler;
+            this.logger = logger;
+            this.request = Objects.requireNonNull(request);
+            this.context = Objects.requireNonNull(context);
+            this.responseHandler = Objects.requireNonNull(responseHandler);
+            this.hasRequestCompletedFunction = Objects.requireNonNull(hasRequestCompletedFunction);
+            this.retryCount = new AtomicInteger(0);
         }
 
         @Override
         public void tryAction(ActionListener<InferenceServiceResults> listener) {
-            ActionListener<HttpResult> responseListener = ActionListener.wrap(result -> {
-                try {
-                    responseHandler.validateResponse(throttlerManager, logger, request, result);
-                    InferenceServiceResults inferenceResults = responseHandler.parseResult(request, result);
-
-                    listener.onResponse(inferenceResults);
-                } catch (Exception e) {
-                    logException(request, result, responseHandler.getRequestType(), e);
-                    listener.onFailure(e);
-                }
-            }, e -> {
-                logException(request, responseHandler.getRequestType(), e);
-                listener.onFailure(transformIfRetryable(e));
-            });
-
-            sender.send(request.createHttpRequest(), responseListener);
-        }
-
-        @Override
-        public boolean shouldRetry(Exception e) {
-            if (e instanceof Retryable retry) {
-                request = retry.rebuildRequest(request);
-                return retry.shouldRetry();
+            retryCount.incrementAndGet();
+            // A timeout likely occurred so let's stop attempting to execute the request
+            if (hasRequestCompletedFunction.get()) {
+                return;
             }
 
-            return false;
+            var retryableListener = listener.delegateResponse((l, e) -> {
+                logException(logger, request, responseHandler.getRequestType(), e);
+                l.onFailure(transformIfRetryable(e));
+            });
+
+            try {
+                if (request.isStreaming() && responseHandler.canHandleStreamingResponses()) {
+                    httpClient.stream(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
+                        var streamingResponseHandler = new StreamingResponseHandler(throttlerManager, logger, request, responseHandler);
+                        r.subscribe(streamingResponseHandler);
+                        l.onResponse(responseHandler.parseResult(request, streamingResponseHandler));
+                    }));
+                } else {
+                    httpClient.send(request.createHttpRequest(), context, retryableListener.delegateFailure((l, r) -> {
+                        try {
+                            responseHandler.validateResponse(throttlerManager, logger, request, r);
+                            InferenceServiceResults inferenceResults = responseHandler.parseResult(request, r);
+
+                            l.onResponse(inferenceResults);
+                        } catch (Exception e) {
+                            logException(logger, request, r, responseHandler.getRequestType(), e);
+                            listener.onFailure(e); // skip retrying
+                        }
+                    }));
+                }
+            } catch (Exception e) {
+                logException(logger, request, responseHandler.getRequestType(), e);
+
+                listener.onFailure(wrapWithElasticsearchException(e, request.getInferenceEntityId()));
+            }
         }
 
         /**
@@ -127,23 +156,63 @@ public class RetryingHttpSender implements Retrier {
                     RestStatus.BAD_REQUEST,
                     e
                 );
-            }
-
-            if (e instanceof IOException) {
-                exceptionToReturn = new RetryException(true, e);
+            } else if (e instanceof SizeLimitInputStream.InputStreamTooLargeException) {
+                return e;
+            } else if (e instanceof IOException) {
+                return new RetryException(true, e);
             }
 
             return exceptionToReturn;
         }
+
+        private Exception wrapWithElasticsearchException(Exception e, String inferenceEntityId) {
+            var transformedException = transformIfRetryable(e);
+
+            if (transformedException instanceof ElasticsearchException) {
+                return transformedException;
+            }
+
+            return new ElasticsearchException(
+                format("Http client failed to send request from inference entity id [%s]", inferenceEntityId),
+                transformedException
+            );
+        }
+
+        @Override
+        public boolean shouldRetry(Exception e) {
+            if (retryCount.get() >= MAX_RETIES) {
+                return false;
+            }
+
+            if (e instanceof Retryable retry) {
+                request = retry.rebuildRequest(request);
+                return retry.shouldRetry();
+            }
+
+            return false;
+        }
     }
 
     @Override
-    public void send(Request request, ResponseHandler responseHandler, ActionListener<InferenceServiceResults> listener) {
-        InternalRetrier retrier = new InternalRetrier(request, responseHandler, listener);
+    public void send(
+        Logger logger,
+        Request request,
+        Supplier<Boolean> hasRequestTimedOutFunction,
+        ResponseHandler responseHandler,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        var retrier = new InternalRetrier(
+            logger,
+            request,
+            HttpClientContext.create(),
+            hasRequestTimedOutFunction,
+            responseHandler,
+            listener
+        );
         retrier.run();
     }
 
-    private void logException(Request request, String requestType, Exception exception) {
+    private void logException(Logger logger, Request request, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(
@@ -153,7 +222,7 @@ public class RetryingHttpSender implements Retrier {
         );
     }
 
-    private void logException(Request request, HttpResult result, String requestType, Exception exception) {
+    private void logException(Logger logger, Request request, HttpResult result, String requestType, Exception exception) {
         var causeException = ExceptionsHelper.unwrapCause(exception);
 
         throttlerManager.warn(

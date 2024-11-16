@@ -83,7 +83,7 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
                 List.of(
                     new RoleDescriptor(
                         "cross_cluster",
-                        new String[] { "cross_cluster_search" },
+                        new String[] { "cross_cluster_search", "monitor_enrich" },
                         new RoleDescriptor.IndicesPrivileges[] {
                             RoleDescriptor.IndicesPrivileges.builder()
                                 .indices("logs")
@@ -115,7 +115,7 @@ public class RestCreateCrossClusterApiKeyActionTests extends ESTestCase {
               }
             }"""), XContentType.JSON).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

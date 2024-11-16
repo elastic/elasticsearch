@@ -1,0 +1,801 @@
+[#es-connectors-salesforce]
+=== Elastic Salesforce connector reference
+++++
+<titleabbrev>Salesforce</titleabbrev>
+++++
+// Attributes used in this file
+:service-name: Salesforce
+:service-name-stub: salesforce
+
+The _Elastic Salesforce connector_ is a <<es-connectors,connector>> for https://www.salesforce.com/[Salesforce^] data sources.
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// NATIVE CONNECTOR REFERENCE (MANAGED SERVICE) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-salesforce-native-connector-reference]
+==== *Elastic managed connector reference*
+
+.View *Elastic managed connector* reference
+[%collapsible]
+===============
+
+[discrete#es-connectors-salesforce-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a *managed connector* in Elastic Cloud since *8.12.0*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-salesforce-compatability]
+===== Compatibility
+
+This connector is compatible with the following:
+
+*  Salesforce
+*  Salesforce Sandbox
+
+[discrete#es-connectors-salesforce-create-native-connector]
+===== Create a {service-name} connector
+include::_connectors-create-native.asciidoc[]
+
+[discrete#es-connectors-salesforce-usage]
+===== Usage
+
+To use this connector as a **self-managed connector**, use the *Connector* workflow in the Kibana UI.
+
+For additional operations, see <<es-connectors-usage, connectors usage>>.
+
+[NOTE]
+====
+You need to create an Salesforce connected app with OAuth2.0 enabled to authenticate with Salesforce.
+====
+
+[discrete#es-connectors-salesforce-connected-app]
+====== Create a Salesforce connected app
+
+The Salesforce connector authenticates with Salesforce through a *connected app*.
+Follow the official Salesforce documentation for https://help.salesforce.com/s/articleView?id=sf.connected_app_client_credentials_setup.htm[Configuring a Connected App for the OAuth 2.0 Client Credentials Flow^].
+
+When creating the connected app, in the section titled *API (Enable OAuth Settings)* ensure the following settings are _enabled_:
+
+* *Enable OAuth Settings*
+* *Enable for Device Flow*
+** *Callback URL* should be the Salesforce dummy callback URL, `https://test.salesforce.com/services/oauth2/success`
+* *Require Secret for Web Server Flow*
+* *Require Secret for Refresh Token Flow*
+* *Enable Client Credentials Flow*
+
+All other options should be disabled.
+Finally, in the section *Selected OAuth Scopes*, include the following OAuth scopes:
+
+* *Manage user data via APIs (api)*
+* *Perform requests at any time (refresh_token, offline_access)*
+
+[discrete#es-connectors-salesforce-admin-prerequisites]
+===== Salesforce admin requirements
+
+By default, the Salesforce connector requires global administrator permissions to access Salesforce data.
+Expand the section below to learn how to create a custom Salesforce user with minimal permissions.
+
+.*Create a custom Salesforce user with minimal permissions*
+[%collapsible]
+==========================
+By creating a custom profile with sufficient permissions from the Setup menu, you can remove the system administrator role requirement for fetching data from Salesforce.
+
+To create a new profile:
+
+1. From the Salesforce Setup menu, go to *Administration => Users => Profiles*.
+2. Create a new profile.
+3. Choose `Read Only` or `Standard User` from the *Existing Profile* dropdown. Name the profile and save it.
++
+[TIP]
+====
+By default, `Read Only` or `Standard User` users have read permission to access all standard objects.
+====
++
+4. Edit the newly created profile. Under *Object Permissions*, assign at least `Read` access to the standard objects and custom objects you want to ingest into Elasticsearch.
+5. Make sure the newly created profile has at least `Read` access for the following standard objects:
+
+* Account
+* Campaign
+* Case
+* Contact
+* EmailMessage
+* Lead
+* Opportunity
+* User
++
+[TIP]
+====
+If using <<es-sync-rules-advanced,advanced sync rules>> you'll need to assign `Read` access for that specific object in the profile.
+====
++
+6. Go to *Users => Profiles* and assign the newly created profile to the user.
+7. Go to *Connected apps*, select your app and then select *Edit policies*.
+Assign the client credentials flow to the user with the custom profile in Salesforce.
++
+Now, the connector can be configured for this user profile to fetch all object records, without needing the system administration role.
+==========================
+
+[discrete#es-connectors-salesforce-configuration]
+===== Configuration
+
+The following settings are required to set up this connector:
+
+Domain (required)::
+The domain for your Salesforce account.
+This is the subdomain that appears in your Salesforce URL.
+For example, if your Salesforce URL is `foo.my.salesforce.com`, then your domain would be `foo`.
+If you are using Salesforce Sandbox, your URL will contain an extra subdomain and will look similar to `foo.sandbox.my.salesforce.com`.
+In this case, your domain would be `foo.sandbox`.
+
+Client ID (required)::
+The Client ID generated by your connected app.
+The Salesforce documentation will sometimes also call this a *Consumer Key*
+
+Client Secret (required)::
+The Client Secret generated by your connected app.
+The Salesforce documentation will sometimes also call this a *Consumer Secret*.
+
+Enable document level security::
+Toggle to enable document level security (DLS).
+Optional, disabled by default.
+Refer to the <<es-connectors-salesforce-client-dls,DLS section>> for more information, including how to set various Salesforce permission types.
++
+When enabled:
+
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
+
+[discrete#es-connectors-salesforce-configuration-credentials]
+====== Finding the Client ID and Client Secret
+
+The Client ID and Client Secret are not automatically shown to you after you create a connected app.
+You can find them by taking the following steps:
+
+* Navigate to *Setup*
+* Go to *Platform Tools > Apps > App Manager*
+* Click on the triangle next to your app and select *View*
+* After the page loads, click on *Manage Consumer Details*
+
+Your Client ID and Client Secret should now be visible at the top of the page.
+
+[discrete#es-connectors-salesforce-dls]
+===== Document level security (DLS)
+
+<<es-dls, Document level security (DLS)>> enables you to restrict access to documents based on a user'­s permissions.
+This feature is available by default for the Salesforce connector and supports both *standard and custom objects*.
+
+Salesforce allows users to set permissions in the following ways:
+
+* *Profiles*
+* *Permission sets*
+* *Permission set Groups*
+
+For guidance, refer to these https://howtovideos.hubs.vidyard.com/watch/B1bQnMFg2VyZq7V6zXQjPg#:~:text=This%20is%20a%20must%20watch,records%20in%20your%20Salesforce%20organization[video tutorials] about setting Salesforce permissions.
+
+To ingest any standard or custom objects, users must ensure that at least `Read` permission is granted to that object.
+This can be granted using any of the following methods for setting permissions.
+
+[discrete#es-connectors-salesforce-dls-profiles]
+====== Set Permissions using Profiles
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.admin_userprofiles.htm&type=5[Salesforce documentation] for setting permissions via Profiles.
+
+[discrete#es-connectors-salesforce-dls-permission-sets]
+====== Set Permissions using Permissions Set
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_sets_overview.htm&language=en_US&type=5[Salesforce documentation] for setting permissions via Permissions Sets.
+
+[discrete#es-connectors-salesforce-dls-permission-set-groups]
+====== Set Permissions using Permissions Set group
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_set_groups.htm&type=5[Salesforce documentation] for setting permissions via Permissions Set Groups.
+
+[discrete#es-connectors-salesforce-dls-assign-permissions]
+====== Assign Profiles, Permission Set and Permission Set Groups to the User
+
+Once the permissions are set, assign the Profiles, Permission Set or Permission Set Groups to the user.
+Follow these steps in Salesforce:
+
+1. Navigate to `Administration` under the `Users` section.
+2. Select `Users` and choose the user to set the permissions to. 
+3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
+
+[discrete#es-connectors-salesforce-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+For more information read <<es-sync-rules-types>>.
+
+[discrete#es-connectors-salesforce-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules enable filtering of data in Salesforce _before_ indexing into Elasticsearch.
+
+They take the following parameters:
+
+. `query` : Salesforce query to filter the documents.
+. `language` : Salesforce query language.
+Allowed values are *SOQL* and *SOSL*.
+
+[discrete#es-connectors-salesforce-sync-rules-advanced-fetch-query-language]
+======= Fetch documents based on the query and language specified
+
+**Example**: Fetch documents using SOQL query
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Id, Name FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents using SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "FIND {Salesforce} IN ALL FIELDS",
+    "language": "SOSL" 
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-sync-rules-advanced-fetch-objects]
+======= Fetch standard and custom objects using SOQL and SOSL queries
+
+**Example**: Fetch documents for standard objects via SOQL and SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Account_Id, Address, Contact_Number FROM Account",
+    "language": "SOQL"
+  },
+  {
+    "query": "FIND {Alex Wilber} IN ALL FIELDS RETURNING Contact(LastModifiedDate, Name, Address)",
+    "language": "SOSL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents for custom objects via SOQL and SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Connector_Name, Version FROM Connector__c",
+    "language": "SOQL"
+  },
+  {
+    "query": "FIND {Salesforce} IN ALL FIELDS RETURNING Connectors__c(Id, Connector_Name, Connector_Version)",
+    "language": "SOSL"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-sync-rules-advanced-fetch-standard-custom-fields]
+======= Fetch documents with standard and custom fields
+
+**Example**: Fetch documents with all standard and custom fields for Account object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(ALL) FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents with all custom fields for Connector object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(CUSTOM) FROM Connector__c",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents with all standard fields for Account object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(STANDARD) FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following Salesforce objects:
+
+* *Accounts*
+* *Campaigns*
+* *Cases*
+* *Contacts*
+* *Content Documents* (files uploaded to Salesforce)
+* *Leads*
+* *Opportunities*
+
+The connector will not ingest any objects that it does not have permissions to query.
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted. (Self-managed connectors can use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.)
+* Permissions are not synced by default. You must enable <<es-dls,document level security>>. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+====
+
+[discrete#es-connectors-salesforce-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-salesforce-content-extraction]
+===== Content Extraction
+
+The connector will retrieve Content Documents from your Salesforce source if they meet the following criteria:
+
+* Are attached to one or more objects that are synced
+* Are of a file type that can be extracted
+
+This means that the connector will not ingest any Content Documents you have that are _not_ attached to a supported Salesforce object.
+See <<es-connectors-salesforce-documents-syncs,documents and syncs>> for a list of supported object types.
+
+If a single Content Document is attached to multiple supported objects, only one Elastic document will be created for it.
+This document will retain links to every object that it was connected to in the `related_ids` field.
+
+See <<es-connectors-content-extraction,content extraction>> for more specifics on content extraction.
+
+[discrete#es-connectors-salesforce-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-salesforce-security]
+===== Security
+
+See <<es-connectors-security,connectors security>>.
+
+[discrete#es-connectors-salesforce-source]
+===== Framework and source
+
+This connector is built with the {connectors-python}[Elastic connector framework^].
+
+View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+// Closing the collapsible section 
+===============
+
+
+// //////// //// //// //// //// //// //// ////////
+// //////// CONNECTOR CLIENT REFERENCE (SELF-MANAGED) ///////
+// //////// //// //// //// //// //// //// ////////
+
+[discrete#es-connectors-salesforce-connector-client-reference]
+==== *Self-managed connector reference*
+
+.View *self-managed connector* reference
+[%collapsible]
+===============
+
+[discrete#es-connectors-salesforce-client-availability-prerequisites]
+===== Availability and prerequisites
+
+This connector is available as a self-managed *self-managed connector*.
+This self-managed connector is compatible with Elastic versions *8.10.0+*.
+To use this connector, satisfy all <<es-build-connector,self-managed connector requirements>>.
+
+[discrete#es-connectors-salesforce-client-compatability]
+===== Compatibility
+
+This connector is compatible with the following:
+
+*  Salesforce
+*  Salesforce Sandbox
+
+[discrete#es-connectors-salesforce-create-connector-client]
+===== Create a {service-name} connector
+include::_connectors-create-client.asciidoc[]
+
+[discrete#es-connectors-salesforce-client-usage]
+===== Usage
+
+To use this connector as a **self-managed connector**, use the *Connector* workflow in the Kibana UI.
+
+For additional operations, see <<es-connectors-usage, connectors usage>>.
+
+[NOTE]
+====
+You need to create an Salesforce connected app with OAuth2.0 enabled to authenticate with Salesforce.
+====
+
+[discrete#es-connectors-salesforce-client-connected-app]
+====== Create a Salesforce connected app
+
+The Salesforce connector authenticates with Salesforce through a *connected app*.
+Follow the official Salesforce documentation for https://help.salesforce.com/s/articleView?id=sf.connected_app_client_credentials_setup.htm[Configuring a Connected App for the OAuth 2.0 Client Credentials Flow^].
+
+When creating the connected app, in the section titled *API (Enable OAuth Settings)* ensure the following settings are _enabled_:
+
+* *Enable OAuth Settings*
+* *Enable for Device Flow*
+** *Callback URL* should be the Salesforce dummy callback URL, `https://test.salesforce.com/services/oauth2/success`
+* *Require Secret for Web Server Flow*
+* *Require Secret for Refresh Token Flow*
+* *Enable Client Credentials Flow*
+
+All other options should be disabled.
+Finally, in the section *Selected OAuth Scopes*, include the following OAuth scopes:
+
+* *Manage user data via APIs (api)*
+* *Perform requests at any time (refresh_token, offline_access)*
+
+[discrete#es-connectors-client-salesforce-admin-prerequisites]
+===== Salesforce admin requirements
+
+By default, the Salesforce connector requires global administrator permissions to access Salesforce data.
+Expand the section below to learn how to create a custom Salesforce user with minimal permissions.
+
+.*Create a custom Salesforce user with minimal permissions*
+[%collapsible]
+==========================
+By creating a custom profile with sufficient permissions from the Setup menu, you can remove the system administrator role requirement for fetching data from Salesforce.
+
+To create a new profile:
+
+1. From the Salesforce Setup menu, go to *Administration => Users => Profiles*.
+2. Create a new profile.
+3. Choose `Read Only` or `Standard User` from the *Existing Profile* dropdown. Name the profile and save it.
++
+[TIP]
+====
+By default, `Read Only` or `Standard User` users have read permission to access all standard objects.
+====
++
+4. Edit the newly created profile. Under *Object Permissions*, assign at least `Read` access to the standard objects and custom objects you want to ingest into Elasticsearch.
+5. Make sure the newly created profile has at least `Read` access for the following standard objects:
+
+* Account
+* Campaign
+* Case
+* Contact
+* EmailMessage
+* Lead
+* Opportunity
+* User
++
+[TIP]
+====
+If using <<es-sync-rules-advanced,advanced sync rules>> you'll need to assign `Read` access for that specific object in the profile.
+====
++
+6. Go to *Users => Profiles* and assign the newly created profile to the user.
+7. Go to *Connected apps*, select your app and then select *Edit policies*.
+Assign the client credentials flow to the user with the custom profile in Salesforce.
++
+Now, the connector can be configured for this user profile to fetch all object records, without needing the system administration role.
+==========================
+
+[discrete#es-connectors-salesforce-client-docker]
+===== Deployment using Docker
+
+Self-managed connectors are run on your own infrastructure.
+
+include::_connectors-docker-instructions.asciidoc[]
+
+[discrete#es-connectors-salesforce-client-configuration]
+===== Configuration
+
+The following settings are required to set up this connector:
+
+`domain`(required)::
+The domain for your Salesforce account.
+This is the subdomain that appears in your Salesforce URL.
+For example, if your Salesforce URL is `foo.my.salesforce.com`, then your domain would be `foo`.
+If you are using Salesforce Sandbox, your URL will contain an extra subdomain and will look similar to `foo.sandbox.my.salesforce.com`.
+In this case, your domain would be `foo.sandbox`.
+
+`client_id`(required)::
+The Client ID generated by your connected app.
+The Salesforce documentation will sometimes also call this a *Consumer Key*
+
+`client_secret`(required)::
+The Client Secret generated by your connected app.
+The Salesforce documentation will sometimes also call this a *Consumer Secret*.
+
+`use_document_level_security`::
+Toggle to enable document level security (DLS).
+Optional, disabled by default.
+Refer to the <<es-connectors-salesforce-dls,DLS section>> for more information, including how to set various Salesforce permission types.
++
+When enabled:
+
+* Full syncs will fetch access control lists for each document and store them in the `_allow_access_control` field.
+* Access control syncs will fetch users' access control lists and store them in a separate index.
+
+[discrete#es-connectors-salesforce-client-configuration-credentials]
+====== Finding the Client ID and Client Secret
+
+The Client ID and Client Secret are not automatically shown to you after you create a connected app.
+You can find them by taking the following steps:
+
+* Navigate to *Setup*
+* Go to *Platform Tools > Apps > App Manager*
+* Click on the triangle next to your app and select *View*
+* After the page loads, click on *Manage Consumer Details*
+
+Your Client ID and Client Secret should now be visible at the top of the page.
+
+[discrete#es-connectors-salesforce-client-dls]
+===== Document level security (DLS)
+
+<<es-dls, Document level security (DLS)>> enables you to restrict access to documents based on a user'­s permissions.
+This feature is available by default for the Salesforce connector and supports both *standard and custom objects*.
+
+Salesforce allows users to set permissions in the following ways:
+
+* *Profiles*
+* *Permission sets*
+* *Permission set Groups*
+
+For guidance, refer to these https://howtovideos.hubs.vidyard.com/watch/B1bQnMFg2VyZq7V6zXQjPg#:~:text=This%20is%20a%20must%20watch,records%20in%20your%20Salesforce%20organization[video tutorials] about setting Salesforce permissions.
+
+To ingest any standard or custom objects, users must ensure that at least `Read` permission is granted to that object.
+This can be granted using any of the following methods for setting permissions.
+
+[discrete#es-connectors-salesforce-client-dls-profiles]
+====== Set Permissions using Profiles
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.admin_userprofiles.htm&type=5[Salesforce documentation] for setting permissions via Profiles.
+
+[discrete#es-connectors-salesforce-client-dls-permission-sets]
+====== Set Permissions using Permissions Set
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_sets_overview.htm&language=en_US&type=5[Salesforce documentation] for setting permissions via Permissions Sets.
+
+[discrete#es-connectors-salesforce-client-dls-permission-set-groups]
+====== Set Permissions using Permissions Set group
+
+Refer to the https://help.salesforce.com/s/articleView?id=sf.perm_set_groups.htm&type=5[Salesforce documentation] for setting permissions via Permissions Set Groups.
+
+[discrete#es-connectors-salesforce-client-dls-assign-permissions]
+====== Assign Profiles, Permission Set and Permission Set Groups to the User
+
+Once the permissions are set, assign the Profiles, Permission Set or Permission Set Groups to the user.
+Follow these steps in Salesforce:
+
+1. Navigate to `Administration` under the `Users` section.
+2. Select `Users` and choose the user to set the permissions to. 
+3. Set the `Profile`, `Permission Set` or `Permission Set Groups` created in the earlier steps.
+
+[discrete#es-connectors-salesforce-client-sync-rules]
+===== Sync rules
+
+_Basic_ sync rules are identical for all connectors and are available by default.
+
+For more information read <<es-sync-rules-types,sync rules>>.
+
+[discrete#es-connectors-salesforce-client-sync-rules-advanced]
+====== Advanced sync rules
+
+[NOTE]
+====
+A <<es-connectors-sync-types-full, full sync>> is required for advanced sync rules to take effect.
+====
+
+The following section describes *advanced sync rules* for this connector.
+Advanced sync rules enable filtering of data in Salesforce _before_ indexing into Elasticsearch.
+
+They take the following parameters:
+
+. `query` : Salesforce query to filter the documents.
+. `language` : Salesforce query language.
+Allowed values are *SOQL* and *SOSL*.
+
+[discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-query-language]
+======= Fetch documents based on the query and language specified
+
+**Example**: Fetch documents using SOQL query
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Id, Name FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents using SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "FIND {Salesforce} IN ALL FIELDS",
+    "language": "SOSL" 
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-objects]
+======= Fetch standard and custom objects using SOQL and SOSL queries
+
+**Example**: Fetch documents for standard objects via SOQL and SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Account_Id, Address, Contact_Number FROM Account",
+    "language": "SOQL"
+  },
+  {
+    "query": "FIND {Alex Wilber} IN ALL FIELDS RETURNING Contact(LastModifiedDate, Name, Address)",
+    "language": "SOSL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents for custom objects via SOQL and SOSL query.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT Connector_Name, Version FROM Connector__c",
+    "language": "SOQL"
+  },
+  {
+    "query": "FIND {Salesforce} IN ALL FIELDS RETURNING Connectors__c(Id, Connector_Name, Connector_Version)",
+    "language": "SOSL"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-client-sync-rules-advanced-fetch-standard-custom-fields]
+======= Fetch documents with standard and custom fields
+
+**Example**: Fetch documents with all standard and custom fields for Account object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(ALL) FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents with all custom fields for Connector object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(CUSTOM) FROM Connector__c",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+**Example**: Fetch documents with all standard fields for Account object.
+
+[source,js]
+----
+[
+  {
+    "query": "SELECT FIELDS(STANDARD) FROM Account",
+    "language": "SOQL"
+  }
+]
+----
+// NOTCONSOLE
+
+[discrete#es-connectors-salesforce-client-documents-syncs]
+===== Documents and syncs
+
+The connector syncs the following Salesforce objects:
+
+* *Accounts*
+* *Campaigns*
+* *Cases*
+* *Contacts*
+* *Content Documents* (files uploaded to Salesforce)
+* *Leads*
+* *Opportunities*
+
+
+The connector will not ingest any objects that it does not have permissions to query.
+
+[NOTE]
+====
+* Content from files bigger than 10 MB won't be extracted by default. Use the <<es-connectors-content-extraction-local, self-managed local extraction service>> to handle larger binary files.
+* Permissions are not synced by default. You must enable <<es-dls,document level security>>. Otherwise, **all documents** indexed to an Elastic deployment will be visible to **all users with access** to that Elastic Deployment.
+====
+
+[discrete#es-connectors-salesforce-client-sync-types]
+====== Sync types
+
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+This connector also supports <<es-connectors-sync-types-incremental,incremental syncs>>.
+
+[discrete#es-connectors-salesforce-client-content-extraction]
+===== Content Extraction
+
+The connector will retrieve Content Documents from your Salesforce source if they meet the following criteria:
+
+* Are attached to one or more objects that are synced
+* Are of a file type that can be extracted
+
+This means that the connector will not ingest any Content Documents you have that are _not_ attached to a supported Salesforce object.
+See <<es-connectors-salesforce-client-documents-syncs,documents and syncs>> for a list of supported object types.
+
+If a single Content Document is attached to multiple supported objects, only one Elastic document will be created for it.
+This document will retain links to every object that it was connected to in the `related_ids` field.
+
+See <<es-connectors-content-extraction,content extraction>> for more specifics on content extraction.
+
+[discrete#es-connectors-salesforce-client-known-issues]
+===== Known issues
+
+There are currently no known issues for this connector.
+Refer to <<es-connectors-known-issues,connector known issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-salesforce-client-security]
+===== Security
+
+See <<es-connectors-security,connectors security>>.
+
+[discrete#es-connectors-salesforce-client-source]
+===== Framework and source
+
+This connector is built with the {connectors-python}[Elastic connector framework^].
+
+View the {connectors-python}/connectors/sources/salesforce.py[source code for this connector^] (branch _{connectors-branch}_, compatible with Elastic _{minor-version}_).
+
+
+// Closing the collapsible section 
+===============

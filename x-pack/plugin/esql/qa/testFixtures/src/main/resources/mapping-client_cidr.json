@@ -1,0 +1,10 @@
+{
+    "properties": {
+      "client_cidr": {
+        "type": "ip_range"
+      },
+      "env": {
+        "type": "keyword"
+      }
+    }
+  }

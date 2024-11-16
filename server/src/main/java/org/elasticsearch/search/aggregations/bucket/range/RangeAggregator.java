@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.range;
 
@@ -715,7 +716,15 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 cardinality,
                 metadata
             );
+            if (parent == null) {
+                grow(ranges.length);
+                this.collector = this::collectExistingBucket;
+            } else {
+                this.collector = this::collectBucket;
+            }
         }
+
+        private final BucketCollector collector;
 
         @Override
         protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
@@ -727,13 +736,18 @@ public abstract class RangeAggregator extends BucketsAggregator {
                 } else if (value >= ranges[mid].to) {
                     lo = mid + 1;
                 } else {
-                    collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, mid));
+                    collector.accept(sub, doc, subBucketOrdinal(owningBucketOrdinal, mid));
                     // The next value must fall in the next bucket to be collected.
                     return mid + 1;
                 }
             }
             return lo;
         }
+    }
+
+    @FunctionalInterface
+    private interface BucketCollector {
+        void accept(LeafBucketCollector sub, int doc, long subBucketOrdinal) throws IOException;
     }
 
     private static class Overlap extends NumericRangeAggregator {
@@ -770,9 +784,16 @@ public abstract class RangeAggregator extends BucketsAggregator {
             for (int i = 1; i < ranges.length; ++i) {
                 maxTo[i] = Math.max(ranges[i].to, maxTo[i - 1]);
             }
+            if (parent == null) {
+                grow(ranges.length);
+                this.collector = this::collectExistingBucket;
+            } else {
+                this.collector = this::collectBucket;
+            }
         }
 
         private final double[] maxTo;
+        private final BucketCollector collector;
 
         @Override
         protected int collect(LeafBucketCollector sub, int doc, double value, long owningBucketOrdinal, int lowBound) throws IOException {
@@ -817,7 +838,7 @@ public abstract class RangeAggregator extends BucketsAggregator {
 
             for (int i = startLo; i <= endHi; ++i) {
                 if (ranges[i].matches(value)) {
-                    collectBucket(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
+                    collector.accept(sub, doc, subBucketOrdinal(owningBucketOrdinal, i));
                 }
             }
 

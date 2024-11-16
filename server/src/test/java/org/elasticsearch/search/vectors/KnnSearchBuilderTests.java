@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -106,7 +107,7 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
                     instance.boost
                 );
             case 1:
-                float[] newVector = randomValueOtherThan(instance.queryVector, () -> randomVector(5));
+                float[] newVector = randomValueOtherThan(instance.queryVector.asFloatVector(), () -> randomVector(5));
                 return new KnnSearchBuilder(instance.field, newVector, instance.k, instance.numCands, instance.similarity).boost(
                     instance.boost
                 );
@@ -166,7 +167,8 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
             builder.addFilterQuery(filter);
         }
 
-        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, numCands, similarity).addFilterQueries(filterQueries).boost(boost);
+        QueryBuilder expected = new KnnVectorQueryBuilder(field, vector, null, numCands, similarity).addFilterQueries(filterQueries)
+            .boost(boost);
         assertEquals(expected, builder.toQueryBuilder());
     }
 
@@ -213,14 +215,14 @@ public class KnnSearchBuilderTests extends AbstractXContentSerializingTestCase<K
 
         assertThat(rewritten.field, equalTo(searchBuilder.field));
         assertThat(rewritten.boost, equalTo(searchBuilder.boost));
-        assertThat(rewritten.queryVector, equalTo(expectedArray));
+        assertThat(rewritten.queryVector.asFloatVector(), equalTo(expectedArray));
         assertThat(rewritten.queryVectorBuilder, nullValue());
         assertThat(rewritten.filterQueries, hasSize(1));
         assertThat(rewritten.similarity, equalTo(1f));
         assertThat(((RewriteableQuery) rewritten.filterQueries.get(0)).rewrites, equalTo(1));
     }
 
-    static float[] randomVector(int dim) {
+    public static float[] randomVector(int dim) {
         float[] vector = new float[dim];
         for (int i = 0; i < vector.length; i++) {
             vector[i] = randomFloat();

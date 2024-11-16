@@ -38,7 +38,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexModule;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
@@ -202,7 +201,16 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
                     )
                 );
             }
+        }
+        {
+            final var state = clusterStateWithIndexAndNodes("data_warm", DiscoveryNodes.builder().add(DATA_NODE).build(), null);
 
+            assertAllocationDecision(
+                state,
+                DATA_NODE,
+                Decision.Type.YES,
+                "index has a preference for tiers [data_warm] and node has tier [data]"
+            );
         }
     }
 
@@ -768,7 +776,7 @@ public class DataTierAllocationDeciderTests extends ESAllocationTestCase {
             case SIGTERM -> SingleNodeShutdownMetadata.builder()
                 .setNodeId(nodeId)
                 .setType(type)
-                .setGracePeriod(TimeValue.parseTimeValue(randomTimeValue(), this.getTestName()))
+                .setGracePeriod(randomTimeValue())
                 .setReason(this.getTestName())
                 .setStartedAtMillis(randomNonNegativeLong())
                 .build();

@@ -10,7 +10,7 @@ Changes the allocation of shards in a cluster.
 [[cluster-reroute-api-request]]
 ==== {api-request-title}
 
-`POST /_cluster/reroute?metric=none`
+`POST /_cluster/reroute`
 
 [[cluster-reroute-api-prereqs]]
 ==== {api-prereq-title}
@@ -112,7 +112,7 @@ query parameter, which will attempt a single retry round for these shards.
     (Optional, Boolean) If `true`, then retries allocation of shards that are
     blocked due to too many subsequent allocation failures.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [role="child_attributes"]
 [[cluster-reroute-api-request-body]]
@@ -193,7 +193,7 @@ This is a short example of a simple reroute API call:
 
 [source,console]
 --------------------------------------------------
-POST /_cluster/reroute?metric=none
+POST /_cluster/reroute
 {
   "commands": [
     {

@@ -9,4 +9,4 @@ contain a copy of the data anymore.
 IMPORTANT: Restoring the missing data requires you to have a backup of the affected indices and data streams that is
 up-to-date enough for your use case. Please do not proceed without confirming this.
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/restore-from-snapshot-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/restore-from-snapshot-widget.asciidoc[]

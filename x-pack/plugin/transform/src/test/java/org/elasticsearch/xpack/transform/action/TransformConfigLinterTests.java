@@ -42,7 +42,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         assertThat(TransformConfigLinter.getWarnings(function, sourceConfig, null), is(empty()));
 
@@ -117,7 +117,7 @@ public class TransformConfigLinterTests extends ESTestCase {
             AggregationConfigTests.randomAggregationConfig(),
             null
         );
-        Function function = new Pivot(pivotConfig, new SettingsConfig(), TransformConfigVersion.CURRENT, Collections.emptySet());
+        Function function = new Pivot(pivotConfig, SettingsConfig.EMPTY, TransformConfigVersion.CURRENT, Collections.emptySet());
         SourceConfig sourceConfig = SourceConfigTests.randomSourceConfig();
         SyncConfig syncConfig = TimeSyncConfigTests.randomTimeSyncConfig();
         assertThat(

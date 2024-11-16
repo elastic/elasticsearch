@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch;
 
@@ -15,9 +16,9 @@ import org.apache.lucene.store.LockObtainFailedException;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.RoutingMissingException;
 import org.elasticsearch.action.TimestampParsingException;
+import org.elasticsearch.action.bulk.IndexDocFailureStoreStatus;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.ShardSearchFailure;
-import org.elasticsearch.action.search.VersionMismatchException;
 import org.elasticsearch.action.support.replication.ReplicationOperation;
 import org.elasticsearch.client.internal.AbstractClientHeadersTestCase;
 import org.elasticsearch.cluster.action.shard.ShardStateAction;
@@ -60,13 +61,17 @@ import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardNotInPrimaryModeException;
 import org.elasticsearch.indices.AutoscalingMissedIndicesUpdateException;
+import org.elasticsearch.indices.FailureIndexNotSupportedException;
 import org.elasticsearch.indices.IndexTemplateMissingException;
 import org.elasticsearch.indices.InvalidIndexTemplateException;
 import org.elasticsearch.indices.recovery.PeerRecoveryNotFound;
 import org.elasticsearch.indices.recovery.RecoverFilesRecoveryException;
 import org.elasticsearch.indices.recovery.RecoveryCommitTooNewException;
 import org.elasticsearch.ingest.GraphStructureException;
+import org.elasticsearch.ingest.IngestPipelineException;
 import org.elasticsearch.ingest.IngestProcessorException;
+import org.elasticsearch.persistent.NotPersistentTaskNodeException;
+import org.elasticsearch.persistent.PersistentTaskNodeNotAssignedException;
 import org.elasticsearch.repositories.RepositoryConflictException;
 import org.elasticsearch.repositories.RepositoryException;
 import org.elasticsearch.rest.ApiNotAvailableException;
@@ -777,7 +782,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(125, TcpTransport.HttpRequestOnTransportException.class);
         ids.put(126, org.elasticsearch.index.mapper.MapperParsingException.class);
         ids.put(127, null); // was org.elasticsearch.search.SearchContextException.class
-        ids.put(128, org.elasticsearch.search.builder.SearchSourceBuilderException.class);
+        ids.put(128, null); // was org.elasticsearch.search.builder.SearchSourceBuilderException.class
         ids.put(129, null); // was org.elasticsearch.index.engine.EngineClosedException.class
         ids.put(130, org.elasticsearch.action.NoShardAvailableActionException.class);
         ids.put(131, org.elasticsearch.action.UnavailableShardsException.class);
@@ -810,7 +815,7 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(158, PeerRecoveryNotFound.class);
         ids.put(159, NodeHealthCheckFailureException.class);
         ids.put(160, NoSeedNodeLeftException.class);
-        ids.put(161, VersionMismatchException.class);
+        ids.put(161, null);   // was org.elasticsearch.action.search.VersionMismatchException.class
         ids.put(162, ElasticsearchAuthenticationProcessingError.class);
         ids.put(163, RepositoryConflictException.class);
         ids.put(164, VersionConflictException.class);
@@ -827,6 +832,12 @@ public class ExceptionSerializationTests extends ESTestCase {
         ids.put(175, AutoscalingMissedIndicesUpdateException.class);
         ids.put(176, SearchTimeoutException.class);
         ids.put(177, GraphStructureException.class);
+        ids.put(178, FailureIndexNotSupportedException.class);
+        ids.put(179, NotPersistentTaskNodeException.class);
+        ids.put(180, PersistentTaskNodeNotAssignedException.class);
+        ids.put(181, ResourceAlreadyUploadedException.class);
+        ids.put(182, IngestPipelineException.class);
+        ids.put(183, IndexDocFailureStoreStatus.ExceptionWithFailureStoreStatus.class);
 
         Map<Class<? extends ElasticsearchException>, Integer> reverse = new HashMap<>();
         for (Map.Entry<Integer, Class<? extends ElasticsearchException>> entry : ids.entrySet()) {

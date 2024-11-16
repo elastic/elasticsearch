@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.support.single.instance;
@@ -43,6 +44,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 
 import java.io.IOException;
+import java.util.concurrent.Executor;
 
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.EXCLUDED_DATA_STREAMS_KEY;
 
@@ -81,7 +83,7 @@ public abstract class TransportInstanceSingleOperationAction<
         new AsyncSingleAction(request, listener).start();
     }
 
-    protected abstract String executor(ShardId shardId);
+    protected abstract Executor executor(ShardId shardId);
 
     protected abstract void shardOperation(Request request, ActionListener<Response> listener);
 
@@ -259,7 +261,8 @@ public abstract class TransportInstanceSingleOperationAction<
     }
 
     private void handleShardRequest(Request request, TransportChannel channel, Task task) {
-        threadPool.executor(executor(request.shardId))
-            .execute(ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l)));
+        executor(request.shardId).execute(
+            ActionRunnable.wrap(new ChannelActionListener<Response>(channel), l -> shardOperation(request, l))
+        );
     }
 }

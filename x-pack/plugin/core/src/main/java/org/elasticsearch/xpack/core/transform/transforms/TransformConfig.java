@@ -234,7 +234,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
         this.pivotConfig = pivotConfig;
         this.latestConfig = latestConfig;
         this.description = description;
-        this.settings = settings == null ? new SettingsConfig() : settings;
+        this.settings = settings == null ? SettingsConfig.EMPTY : settings;
         this.metadata = metadata;
         this.retentionPolicyConfig = retentionPolicyConfig;
         if (this.description != null && this.description.length() > MAX_DESCRIPTION_LENGTH) {
@@ -450,7 +450,7 @@ public final class TransformConfig implements SimpleDiffable<TransformConfig>, W
                 builder.field(TransformField.VERSION.getPreferredName(), transformVersion);
             }
             if (createTime != null) {
-                builder.timeField(
+                builder.timestampFieldsFromUnixEpochMillis(
                     TransformField.CREATE_TIME.getPreferredName(),
                     TransformField.CREATE_TIME.getPreferredName() + "_string",
                     createTime.toEpochMilli()

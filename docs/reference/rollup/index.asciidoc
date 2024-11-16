@@ -2,7 +2,7 @@
 [[xpack-rollup]]
 == Rolling up historical data
 
-deprecated::[8.11.0,"Rollups will be removed in a future version. Use <<downsampling,downsampling>> instead."]
+deprecated::[8.11.0,"Rollups will be removed in a future version. Please <<rollup-migrating-to-downsampling,migrate>> to <<downsampling,downsampling>> instead."]
 
 Keeping historical data around for analysis is extremely useful but often avoided due to the financial cost of
 archiving massive amounts of data. Retention periods are thus driven by financial realities rather than by the
@@ -20,6 +20,7 @@ cost of raw data.
 * <<rollup-understanding-groups,Understanding rollup grouping>>
 * <<rollup-agg-limitations,Rollup aggregation limitations>>
 * <<rollup-search-limitations,Rollup search limitations>>
+* <<rollup-migrating-to-downsampling,Migrating to downsampling>>
 
 
 include::overview.asciidoc[]
@@ -28,3 +29,4 @@ include::rollup-getting-started.asciidoc[]
 include::understanding-groups.asciidoc[]
 include::rollup-agg-limitations.asciidoc[]
 include::rollup-search-limitations.asciidoc[]
+include::migrating-to-downsampling.asciidoc[]

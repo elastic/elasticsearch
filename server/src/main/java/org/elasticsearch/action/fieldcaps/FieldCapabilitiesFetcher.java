@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -21,6 +22,7 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
@@ -107,15 +109,15 @@ class FieldCapabilitiesFetcher {
             null,
             runtimeFields
         );
-
+        var indexMode = searchExecutionContext.getIndexSettings().getMode();
         if (searcher != null && canMatchShard(shardId, indexFilter, nowInMillis, searchExecutionContext) == false) {
-            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false);
+            return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), null, Collections.emptyMap(), false, indexMode);
         }
 
         final MappingMetadata mapping = indexService.getMetadata().mapping();
         String indexMappingHash;
         if (includeEmptyFields || enableFieldHasValue == false) {
-            indexMappingHash = mapping != null ? mapping.getSha256() : null;
+            indexMappingHash = mapping != null ? mapping.getSha256() + indexMode : null;
         } else {
             // even if the mapping is the same if we return only fields with values we need
             // to make sure that we consider all the shard-mappings pair, that is why we
@@ -123,14 +125,15 @@ class FieldCapabilitiesFetcher {
             final String shardUuid = indexService.getShard(shardId.getId()).getShardUuid();
             indexMappingHash = mapping == null ? shardUuid : shardUuid + mapping.getSha256();
         }
+        FieldPredicate fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         if (indexMappingHash != null) {
+            indexMappingHash = fieldPredicate.modifyHash(indexMappingHash);
             final Map<String, IndexFieldCapabilities> existing = indexMappingHashToResponses.get(indexMappingHash);
             if (existing != null) {
-                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true);
+                return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, existing, true, indexMode);
             }
         }
         task.ensureNotCancelled();
-        Predicate<String> fieldPredicate = indicesService.getFieldFilter().apply(shardId.getIndexName());
         final Map<String, IndexFieldCapabilities> responseMap = retrieveFieldCaps(
             searchExecutionContext,
             fieldNameFilter,
@@ -143,7 +146,7 @@ class FieldCapabilitiesFetcher {
         if (indexMappingHash != null) {
             indexMappingHashToResponses.put(indexMappingHash, responseMap);
         }
-        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true);
+        return new FieldCapabilitiesIndexResponse(shardId.getIndexName(), indexMappingHash, responseMap, true, indexMode);
     }
 
     static Map<String, IndexFieldCapabilities> retrieveFieldCaps(
@@ -151,7 +154,7 @@ class FieldCapabilitiesFetcher {
         Predicate<String> fieldNameFilter,
         String[] filters,
         String[] types,
-        Predicate<String> indexFieldfilter,
+        FieldPredicate fieldPredicate,
         IndexShard indexShard,
         boolean includeEmptyFields
     ) {
@@ -162,13 +165,14 @@ class FieldCapabilitiesFetcher {
         var fieldInfos = indexShard.getFieldInfos();
         includeEmptyFields = includeEmptyFields || enableFieldHasValue == false;
         Map<String, IndexFieldCapabilities> responseMap = new HashMap<>();
-        for (String field : context.getAllFieldNames()) {
+        for (Map.Entry<String, MappedFieldType> entry : context.getAllFields()) {
+            final String field = entry.getKey();
             if (fieldNameFilter.test(field) == false) {
                 continue;
             }
-            MappedFieldType ft = context.getFieldType(field);
+            MappedFieldType ft = entry.getValue();
             if ((includeEmptyFields || ft.fieldHasValue(fieldInfos))
-                && (indexFieldfilter.test(ft.name()) || context.isMetadataField(ft.name()))
+                && (fieldPredicate.test(ft.name()) || context.isMetadataField(ft.name()))
                 && (filter == null || filter.test(ft))) {
                 IndexFieldCapabilities fieldCap = new IndexFieldCapabilities(
                     field,

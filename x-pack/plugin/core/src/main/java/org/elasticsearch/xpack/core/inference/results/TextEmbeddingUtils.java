@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.core.inference.results;
 
+import org.elasticsearch.common.Strings;
+
 import java.util.List;
 
 public class TextEmbeddingUtils {
@@ -23,6 +25,18 @@ public class TextEmbeddingUtils {
         }
 
         return embeddings.get(0).getSize();
+    }
+
+    /**
+     * Throws an exception if the number of elements in the input text list is different than the results in text embedding
+     * response.
+     */
+    static void validateInputSizeAgainstEmbeddings(List<String> inputs, int embeddingSize) {
+        if (inputs.size() != embeddingSize) {
+            throw new IllegalArgumentException(
+                Strings.format("The number of inputs [%s] does not match the embeddings [%s]", inputs.size(), embeddingSize)
+            );
+        }
     }
 
     private TextEmbeddingUtils() {}

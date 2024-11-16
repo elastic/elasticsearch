@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.support;
@@ -555,7 +556,7 @@ public abstract class AggregationContext implements Releasable {
             // Removing an aggregator is done after calling Aggregator#buildTopLevel which happens on an executor thread.
             // We need to synchronize the removal because he AggregatorContext it is shared between executor threads.
             assert releaseMe.contains(aggregator)
-                : "removing non-existing aggregator [" + aggregator.name() + "] from the the aggregation context";
+                : "removing non-existing aggregator [" + aggregator.name() + "] from the aggregation context";
             releaseMe.remove(aggregator);
         }
 

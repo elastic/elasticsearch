@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -15,6 +16,8 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -37,10 +40,12 @@ import static org.elasticsearch.rest.RestController.ELASTIC_PRODUCT_HTTP_HEADER;
 public final class RestResponse implements Releasable {
 
     public static final String TEXT_CONTENT_TYPE = "text/plain; charset=UTF-8";
+    public static final Set<String> RESPONSE_PARAMS = Set.of("error_trace");
 
     static final String STATUS = "status";
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private final RestStatus status;
 
@@ -48,7 +53,7 @@ public final class RestResponse implements Releasable {
     private final BytesReference content;
 
     @Nullable
-    private final ChunkedRestResponseBody chunkedResponseBody;
+    private final ChunkedRestResponseBodyPart chunkedResponseBody;
     private final String responseMediaType;
     private Map<String, List<String>> customHeaders;
 
@@ -84,8 +89,9 @@ public final class RestResponse implements Releasable {
         this(status, responseMediaType, content, null, releasable);
     }
 
-    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBody content, @Nullable Releasable releasable) {
-        if (content.isDone()) {
+    public static RestResponse chunked(RestStatus restStatus, ChunkedRestResponseBodyPart content, @Nullable Releasable releasable) {
+        if (content.isPartComplete()) {
+            assert content.isLastPart() : "response with continuations must have at least one (possibly-empty) chunk in each part";
             return new RestResponse(restStatus, content.getResponseContentTypeString(), BytesArray.EMPTY, releasable);
         } else {
             return new RestResponse(restStatus, content.getResponseContentTypeString(), null, content, releasable);
@@ -99,7 +105,7 @@ public final class RestResponse implements Releasable {
         RestStatus status,
         String responseMediaType,
         @Nullable BytesReference content,
-        @Nullable ChunkedRestResponseBody chunkedResponseBody,
+        @Nullable ChunkedRestResponseBodyPart chunkedResponseBody,
         @Nullable Releasable releasable
     ) {
         this.status = status;
@@ -139,6 +145,16 @@ public final class RestResponse implements Releasable {
         if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
+
+        if (channel.detailedErrorsEnabled() == false) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "http_detailed_errors",
+                "The JSON format of non-detailed errors will change in Elasticsearch 9.0 to match the JSON structure"
+                    + " used for detailed errors. To keep using the existing format, use the V8 REST API."
+            );
+        }
+
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);
@@ -161,7 +177,7 @@ public final class RestResponse implements Releasable {
     }
 
     @Nullable
-    public ChunkedRestResponseBody chunkedContent() {
+    public ChunkedRestResponseBodyPart chunkedContent() {
         return chunkedResponseBody;
     }
 

@@ -71,6 +71,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 
 import static java.time.Clock.systemUTC;
 import static org.elasticsearch.cluster.metadata.LifecycleExecutionState.ILM_CUSTOM_METADATA_KEY;
+import static org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata.Type.SIGTERM;
 import static org.elasticsearch.gateway.GatewayService.STATE_NOT_RECOVERED_BLOCK;
 import static org.elasticsearch.xpack.core.ilm.AbstractStepTestCase.randomStepKey;
 import static org.elasticsearch.xpack.ilm.LifecyclePolicyTestsUtils.newTestLifecyclePolicy;
@@ -233,7 +234,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
 
     public void testRequestedStopInShrinkActionButNotShrinkStep() {
         // test all the shrink action steps that ILM can be stopped during (basically all of them minus the actual shrink)
-        ShrinkAction action = new ShrinkAction(1, null);
+        ShrinkAction action = new ShrinkAction(1, null, false);
         action.toSteps(mock(Client.class), "warm", randomStepKey())
             .stream()
             .map(sk -> sk.getKey().name())
@@ -389,7 +390,10 @@ public class IndexLifecycleServiceTests extends ESTestCase {
         MockAction mockAction = new MockAction(Collections.singletonList(i2mockStep));
         Phase i2phase = new Phase("phase", TimeValue.ZERO, Collections.singletonMap("action", mockAction));
         LifecyclePolicy i2policy = newTestLifecyclePolicy(policy1, Collections.singletonMap(i2phase.getName(), i1phase));
-        Index index2 = new Index(randomAlphaOfLengthBetween(1, 20), randomAlphaOfLengthBetween(1, 20));
+        Index index2 = new Index(
+            randomValueOtherThan(index1.getName(), () -> randomAlphaOfLengthBetween(1, 20)),
+            randomAlphaOfLengthBetween(1, 20)
+        );
         LifecycleExecutionState.Builder i2lifecycleState = LifecycleExecutionState.builder();
         i2lifecycleState.setPhase(i2currentStepKey.phase());
         i2lifecycleState.setAction(i2currentStepKey.action());
@@ -650,9 +654,7 @@ public class IndexLifecycleServiceTests extends ESTestCase {
             );
 
             final String targetNodeName = type == SingleNodeShutdownMetadata.Type.REPLACE ? randomAlphaOfLengthBetween(10, 20) : null;
-            final TimeValue grace = type == SingleNodeShutdownMetadata.Type.SIGTERM
-                ? TimeValue.parseTimeValue(randomTimeValue(), this.getTestName())
-                : null;
+            final TimeValue grace = type == SIGTERM ? randomTimeValue() : null;
             state = ClusterState.builder(state)
                 .metadata(
                     Metadata.builder(state.metadata())

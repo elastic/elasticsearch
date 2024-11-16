@@ -16,7 +16,6 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregationBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
-import org.elasticsearch.xpack.core.ClientHelper;
 import org.elasticsearch.xpack.core.ml.datafeed.DatafeedConfigUtils;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
@@ -47,9 +46,6 @@ import static org.elasticsearch.core.Strings.format;
 class CompositeAggregationDataExtractor implements DataExtractor {
 
     private static final Logger LOGGER = LogManager.getLogger(CompositeAggregationDataExtractor.class);
-
-    private static final String EARLIEST_TIME = "earliest_time";
-    private static final String LATEST_TIME = "latest_time";
 
     private volatile Map<String, Object> afterKey = null;
     private final CompositeAggregationBuilder compositeAggregationBuilder;
@@ -90,7 +86,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
 
     @Override
     public void cancel() {
-        LOGGER.debug(() -> "[" + context.jobId + "] Data extractor received cancel request");
+        LOGGER.debug("[{}] Data extractor received cancel request", context.jobId);
         isCancelled = true;
     }
 
@@ -113,7 +109,7 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         SearchInterval searchInterval = new SearchInterval(context.queryContext.start, context.queryContext.end);
         InternalAggregations aggs = search();
         if (aggs == null) {
-            LOGGER.trace(() -> "[" + context.jobId + "] extraction finished");
+            LOGGER.trace("[{}] extraction finished", context.jobId);
             hasNext = false;
             afterKey = null;
             return new Result(searchInterval, Optional.empty());
@@ -153,9 +149,9 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         }
         searchSourceBuilder.aggregation(compositeAggregationBuilder);
         ActionRequestBuilder<SearchRequest, SearchResponse> searchRequest = requestBuilder.build(searchSourceBuilder);
-        SearchResponse searchResponse = executeSearchRequest(searchRequest);
+        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(client, context.queryContext, searchRequest);
         try {
-            LOGGER.trace(() -> "[" + context.jobId + "] Search composite response was obtained");
+            LOGGER.trace("[{}] Search composite response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());
             InternalAggregations aggregations = searchResponse.getAggregations();
             if (aggregations == null) {
@@ -169,25 +165,6 @@ class CompositeAggregationDataExtractor implements DataExtractor {
         } finally {
             searchResponse.decRef();
         }
-    }
-
-    private SearchResponse executeSearchRequest(ActionRequestBuilder<SearchRequest, SearchResponse> searchRequestBuilder) {
-        SearchResponse searchResponse = ClientHelper.executeWithHeaders(
-            context.queryContext.headers,
-            ClientHelper.ML_ORIGIN,
-            client,
-            searchRequestBuilder::get
-        );
-        boolean success = false;
-        try {
-            DataExtractorUtils.checkForSkippedClusters(searchResponse);
-            success = true;
-        } finally {
-            if (success == false) {
-                searchResponse.decRef();
-            }
-        }
-        return searchResponse;
     }
 
     private InputStream processAggs(InternalAggregations aggs) throws IOException {
@@ -262,7 +239,11 @@ class CompositeAggregationDataExtractor implements DataExtractor {
             client,
             context.queryContext
         );
-        SearchResponse searchResponse = executeSearchRequest(searchRequestBuilder);
+        SearchResponse searchResponse = AbstractAggregationDataExtractor.executeSearchRequest(
+            client,
+            context.queryContext,
+            searchRequestBuilder
+        );
         try {
             LOGGER.debug("[{}] Aggregating Data summary response was obtained", context.jobId);
             timingStatsReporter.reportSearchDuration(searchResponse.getTook());

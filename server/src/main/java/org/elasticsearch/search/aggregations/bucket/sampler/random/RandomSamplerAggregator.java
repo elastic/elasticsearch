@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
@@ -101,10 +102,11 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         }
         // No sampling is being done, collect all docs
         if (probability >= 1.0) {
+            grow(1);
             return new LeafBucketCollector() {
                 @Override
                 public void collect(int doc, long owningBucketOrd) throws IOException {
-                    collectBucket(sub, doc, 0);
+                    collectExistingBucket(sub, doc, 0);
                 }
             };
         }
@@ -117,11 +119,12 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         try {
+            grow(1);
             // Iterate every document provided by the scorer iterator
             for (int docId = docIt.nextDoc(); docId != DocIdSetIterator.NO_MORE_DOCS; docId = docIt.nextDoc()) {
                 // If liveDocs is null, that means that every doc is a live doc, no need to check if it has been deleted or not
                 if (liveDocs == null || liveDocs.get(docIt.docID())) {
-                    collectBucket(sub, docIt.docID(), 0);
+                    collectExistingBucket(sub, docIt.docID(), 0);
                 }
             }
             // This collector could throw `CollectionTerminatedException` if the last leaf collector has stopped collecting

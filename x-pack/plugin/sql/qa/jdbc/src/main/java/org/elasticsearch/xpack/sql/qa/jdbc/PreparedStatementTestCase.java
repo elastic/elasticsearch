@@ -163,7 +163,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWithNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -195,7 +195,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
             versionSupportsDateNanos()
         );
 
-        long randomTimestampWitnNanos = randomTimeInNanos();
+        long randomTimestampWitnNanos = randomTimestampWithNanos();
         int randomNanosOnly = extractNanosOnly(randomTimestampWitnNanos);
         setupIndexForDateTimeTestsWithNanos(randomTimestampWitnNanos);
 
@@ -216,6 +216,14 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
                 }
             }
         }
+    }
+
+    private static long randomTimestampWithNanos() {
+        long randomTimestampWithNanos = randomTimeInNanos();
+        // Indexing will jiggle the value by adding -1, 0, 1. The query will truncate it from ns to ms and expect no match. If the
+        // jiggled value will round to no sub-ms fraction, the query will match. So ensure that won't happen.
+        randomTimestampWithNanos += (randomTimestampWithNanos % 1_000_000 < 10) ? 10 : 0;
+        return randomTimestampWithNanos;
     }
 
     public void testDate() throws IOException, SQLException {
@@ -301,6 +309,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testConstantKeywordField() throws IOException, SQLException {
         String mapping = """
             "properties":{"id":{"type":"integer"},"text":{"type":"constant_keyword"}}""";
@@ -368,6 +377,7 @@ public abstract class PreparedStatementTestCase extends JdbcIntegrationTestCase 
         }
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105840")
     public void testStringEscaping() throws SQLException {
         try (Connection connection = esJdbc()) {
             try (PreparedStatement statement = connection.prepareStatement("SELECT ?, ?, ?, ?")) {

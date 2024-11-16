@@ -29,78 +29,78 @@ before you create an {anomaly-job}.
 
 `by_field_name`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=by-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=by-field-name]
 
 `custom_rules`::
 +
 --
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules]
 
 `analysis_config`.`detectors`.`custom_rules`.`actions`:::
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-actions]
 
 `analysis_config`.`detectors`.`custom_rules`.`scope`:::
 (object)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope]
 
 `analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_id`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-id]
 
 `analysis_config`.`detectors`.`custom_rules`.`scope`.`filter_type`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-scope-filter-type]
 
 `analysis_config`.`detectors`.`custom_rules`.`conditions`:::
 (array)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions]
 
 `analysis_config`.`detectors`.`custom_rules`.`conditions`.`applies_to`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-applies-to]
 
 `analysis_config`.`detectors`.`custom_rules`.`conditions`.`operator`::::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-operator]
 
 `analysis_config`.`detectors`.`custom_rules`.`conditions`.`value`::::
 (double)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=custom-rules-conditions-value]
 --
 
 `detector_description`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-description]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=detector-description]
 
 `detector_index`::
 (integer)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-index]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=detector-index]
 
 `exclude_frequent`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=exclude-frequent]
 
 `field_name`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=detector-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=detector-field-name]
 
 `function`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=function]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=function]
 
 `over_field_name`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=over-field-name]
 
 `partition_field_name`::
 (string)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=partition-field-name]
 
 `use_null`::
 (Boolean)
-include::{es-repo-dir}/ml/ml-shared.asciidoc[tag=use-null]
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=use-null]
 
 [[ml-valid-detector-example]]
 == {api-examples-title}

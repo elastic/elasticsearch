@@ -266,7 +266,7 @@ public class JwtSignatureValidatorTests extends ESTestCase {
             try {
                 helpTestSignatureAlgorithm(signatureAlgorithm, false);
             } catch (Exception e) {
-                fail("signature validation with algorithm [" + signatureAlgorithm + "] should have succeeded");
+                throw new RuntimeException("signature validation with algorithm [" + signatureAlgorithm + "] should have succeeded", e);
             }
         }
         // Fail: "ES256K"

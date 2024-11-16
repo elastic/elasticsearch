@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.replication;
@@ -50,6 +51,7 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.util.ArrayList;
+import java.util.Collection;
 import java.util.EnumSet;
 import java.util.List;
 import java.util.Optional;
@@ -67,6 +69,7 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.in;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
@@ -134,10 +137,10 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 new SourceToParse("replica", new BytesArray("{}"), XContentType.JSON)
             );
             shards.promoteReplicaToPrimary(promotedReplica).get();
-            oldPrimary.close("demoted", randomBoolean());
+            closeShardNoCheck(oldPrimary, randomBoolean());
             oldPrimary.store().close();
             shards.removeReplica(remainingReplica);
-            remainingReplica.close("disconnected", false);
+            closeShardNoCheck(remainingReplica);
             remainingReplica.store().close();
             // randomly introduce a conflicting document
             final boolean extra = randomBoolean();
@@ -260,7 +263,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 newPrimary.flush(new FlushRequest());
             }
 
-            oldPrimary.close("demoted", false);
+            closeShardNoCheck(oldPrimary);
             oldPrimary.store().close();
 
             IndexShard newReplica = shards.addReplicaWithExistingPath(oldPrimary.shardPath(), oldPrimary.routingEntry().currentNodeId());
@@ -270,11 +273,11 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), empty());
                 assertThat(
                     newReplica.recoveryState().getTranslog().totalLocal(),
-                    equalTo(Math.toIntExact(globalCheckpointOnOldPrimary - safeCommitOnOldPrimary.get().localCheckpoint))
+                    equalTo(Math.toIntExact(globalCheckpointOnOldPrimary - safeCommitOnOldPrimary.get().localCheckpoint()))
                 );
                 assertThat(
                     newReplica.recoveryState().getTranslog().recoveredOperations(),
-                    equalTo(Math.toIntExact(totalDocs - 1 - safeCommitOnOldPrimary.get().localCheckpoint))
+                    equalTo(Math.toIntExact(totalDocs - 1 - safeCommitOnOldPrimary.get().localCheckpoint()))
                 );
             } else {
                 assertThat(newReplica.recoveryState().getIndex().fileDetails(), not(empty()));
@@ -306,7 +309,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             shards.promoteReplicaToPrimary(newPrimary).get();
             // Recover a replica should rollback the stale documents
             shards.removeReplica(replica);
-            replica.close("recover replica - first time", false);
+            closeShardNoCheck(replica);
             replica.store().close();
             replica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(replica);
@@ -317,7 +320,7 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
             assertThat(replica.getLastSyncedGlobalCheckpoint(), equalTo(replica.seqNoStats().getMaxSeqNo()));
             // Recover a replica again should also rollback the stale documents.
             shards.removeReplica(replica);
-            replica.close("recover replica - second time", false);
+            closeShardNoCheck(replica);
             replica.store().close();
             IndexShard anotherReplica = shards.addReplicaWithExistingPath(replica.shardPath(), replica.routingEntry().currentNodeId());
             shards.recoverReplica(anotherReplica);
@@ -897,6 +900,14 @@ public class RecoveryDuringReplicationTests extends ESIndexLevelReplicationTestC
                         safeAwait(block);
                     }
                     return super.addDocument(doc);
+                }
+
+                @Override
+                public long addDocuments(Iterable<? extends Iterable<? extends IndexableField>> docs) throws IOException {
+                    @SuppressWarnings("unchecked")
+                    Collection<Iterable<? extends IndexableField>> col = asInstanceOf(Collection.class, docs);
+                    assertThat(col, hasSize(1));
+                    return addDocument(col.iterator().next());
                 }
             }, null, null, config);
         }

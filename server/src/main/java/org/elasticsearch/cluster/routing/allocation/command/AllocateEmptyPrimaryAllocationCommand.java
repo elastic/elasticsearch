@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.command;
@@ -74,8 +75,7 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
 
     public static class Builder extends BasePrimaryAllocationCommand.Builder<AllocateEmptyPrimaryAllocationCommand> {
 
-        @Override
-        public Builder parse(XContentParser parser) throws IOException {
+        private Builder parse(XContentParser parser) throws IOException {
             return EMPTY_PRIMARY_PARSER.parse(parser, this, null);
         }
 
@@ -127,20 +127,20 @@ public class AllocateEmptyPrimaryAllocationCommand extends BasePrimaryAllocation
         }
 
         UnassignedInfo unassignedInfoToUpdate = null;
-        if (shardRouting.unassignedInfo().getReason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
+        if (shardRouting.unassignedInfo().reason() != UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY) {
             String unassignedInfoMessage = "force empty allocation from previous reason "
-                + shardRouting.unassignedInfo().getReason()
+                + shardRouting.unassignedInfo().reason()
                 + ", "
-                + shardRouting.unassignedInfo().getMessage();
+                + shardRouting.unassignedInfo().message();
             unassignedInfoToUpdate = new UnassignedInfo(
                 UnassignedInfo.Reason.FORCED_EMPTY_PRIMARY,
                 unassignedInfoMessage,
-                shardRouting.unassignedInfo().getFailure(),
+                shardRouting.unassignedInfo().failure(),
                 0,
                 System.nanoTime(),
                 System.currentTimeMillis(),
                 false,
-                shardRouting.unassignedInfo().getLastAllocationStatus(),
+                shardRouting.unassignedInfo().lastAllocationStatus(),
                 Collections.emptySet(),
                 null
             );

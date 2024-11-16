@@ -1,8 +1,13 @@
 ---
 setup:
+  - requires:
+      cluster_features: "gte_v8.2.0"
+      reason: "_tsid hashing introduced in 8.13"
   - skip:
-      version: " - 8.1.99,8.7.00 - 8.12.99"
-      reason: _tsid hashing introduced in 8.13
+      known_issues:
+        - cluster_feature: "gte_v8.7.0"
+          fixed_by: "gte_v8.13.0"
+      reason: "_tsid hashing introduced in 8.13"
 
   - do:
       indices.create:
@@ -63,8 +68,8 @@ setup:
 
 ---
 query a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -79,8 +84,8 @@ query a dimension:
 
 ---
 query a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -96,8 +101,8 @@ query a metric:
 
 ---
 "query tsid fails":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -111,8 +116,8 @@ query a metric:
 
 ---
 fetch a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -130,8 +135,8 @@ fetch a dimension:
 
 ---
 fetch a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -150,8 +155,8 @@ fetch a metric:
 
 ---
 fetch a tag:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -170,8 +175,8 @@ fetch a tag:
 
 ---
 "fetch the tsid":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -189,8 +194,8 @@ fetch a tag:
 
 ---
 aggregate a dimension:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -211,8 +216,8 @@ aggregate a dimension:
 
 ---
 aggregate a metric:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -239,8 +244,8 @@ aggregate a metric:
 
 ---
 aggregate a tag:
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -265,8 +270,8 @@ aggregate a tag:
 
 ---
 "aggregate the tsid":
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -289,8 +294,8 @@ aggregate a tag:
 
 ---
 "aggregate filter the tsid fails":
-  - skip:
-      version: " - 8.1.99"
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
       reason: tsdb indexing changed in 8.2.0
 
   - do:
@@ -308,8 +313,8 @@ aggregate a tag:
 
 ---
 sort by tsid:
-  - skip:
-      version: " - 8.12.99"
+  - requires:
+      cluster_features: ["gte_v8.13.0"]
       reason: _tsid hashing introduced in 8.13
 
   - do:
@@ -332,3 +337,20 @@ sort by tsid:
 
   - match: {hits.hits.7.sort: ["KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o", 1619635864467]}
   - match: {hits.hits.7.fields._tsid: [ "KCjEJ9R_BgO8TRX2QOd6dpR12oDh--qoyNZRQPy43y34Qdy2dpsyG0o"]}
+
+---
+aggs by index_mode:
+  - requires:
+      cluster_features: ["mapper.query_index_mode"]
+      reason: require _index_mode metadata field
+  - do:
+      search:
+        index: test
+        body:
+          aggs:
+            modes:
+              terms:
+                field: "_index_mode"
+  - match: {aggregations.modes.buckets.0.key: "time_series"}
+  - match: {aggregations.modes.buckets.0.doc_count: 8}
+

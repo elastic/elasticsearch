@@ -1,8 +1,8 @@
 ---
 "Remove alias with must_exist":
 
-  - skip:
-      version: " - 7.10.99"
+  - requires:
+      cluster_features: ["gte_v7.11.0"]
       reason: "must_exist does not work until 7.11"
 
   - do:
@@ -82,3 +82,100 @@
             - remove_index:
                 index: test_index
                 must_exist: true
+---
+"Partial success with must_exist == false":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "alias action results do not work until 8.14"
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+            - remove:
+                index: test_index
+                aliases: test_non_existing
+                must_exist: false
+  - is_true: errors
+  - match: { action_results.0.status: 200 }
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['test_index'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.error: null }
+  - match: { action_results.1.status: 404 }
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['test_index'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.error.type: aliases_not_found_exception }
+---
+"Partial success with must_exist == null (default)":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "alias action results do not work until 8.14"
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index
+                aliases: test_alias1
+            - remove:
+                index: test_index
+                aliases: test_non_existing
+  - is_true: errors
+  - match: { action_results.0.status: 200}
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['test_index'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.error: null }
+  - match: { action_results.1.status: 404}
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['test_index'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.error.type: aliases_not_found_exception }
+---
+"No action_results field if all actions successful":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "alias action results do not work until 8.14"
+  - do:
+      indices.create:
+        index: test_index
+  - do:
+     indices.update_aliases:
+      body:
+        actions:
+          - add:
+              index: test_index
+              aliases: test_alias1
+  - is_false: errors
+  - match: { action_results: null }
+---
+"Single result per input action":
+  - requires:
+      cluster_features: [ "gte_v8.14.0" ]
+      reason: "alias action results do not work until 8.14"
+  - do:
+      indices.create:
+        index: test_index1
+  - do:
+      indices.create:
+        index: test_index2
+  - do:
+      indices.update_aliases:
+        body:
+          actions:
+            - add:
+                index: test_index*
+                aliases: test_alias1
+            - remove:
+                index: test_index*
+                aliases: test_non_existing
+  - length: { action_results: 2 }
+  - is_true: errors
+  - match: { action_results.0.status: 200}
+  - match: { action_results.0.action: { 'type': 'add', 'indices': ['test_index1', 'test_index2'], 'aliases': ['test_alias1'] } }
+  - match: { action_results.0.error: null }
+  - match: { action_results.1.status: 404}
+  - match: { action_results.1.action: { 'type': 'remove', 'indices': ['test_index1', 'test_index2'], 'aliases': ['test_non_existing'] } }
+  - match: { action_results.1.error.type: aliases_not_found_exception }

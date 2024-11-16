@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
 
+import com.amazonaws.AmazonServiceException;
 import com.amazonaws.ClientConfiguration;
 import com.amazonaws.SDKGlobalConfiguration;
 import com.amazonaws.auth.AWSCredentials;
@@ -19,6 +21,8 @@ import com.amazonaws.auth.EC2ContainerCredentialsProviderWrapper;
 import com.amazonaws.auth.STSAssumeRoleWithWebIdentitySessionCredentialsProvider;
 import com.amazonaws.client.builder.AwsClientBuilder;
 import com.amazonaws.http.IdleConnectionReaper;
+import com.amazonaws.retry.PredefinedRetryPolicies;
+import com.amazonaws.retry.RetryPolicy;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3ClientBuilder;
 import com.amazonaws.services.s3.internal.Constants;
@@ -26,11 +30,13 @@ import com.amazonaws.services.securitytoken.AWSSecurityTokenService;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClient;
 import com.amazonaws.services.securitytoken.AWSSecurityTokenServiceClientBuilder;
 
+import org.apache.http.HttpStatus;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.cluster.coordination.stateless.StoreHeartbeatService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -92,6 +98,7 @@ class S3Service implements Closeable {
 
     final TimeValue compareAndExchangeTimeToLive;
     final TimeValue compareAndExchangeAntiContentionDelay;
+    final boolean isStateless;
 
     S3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
         webIdentityTokenCredentialsProvider = new CustomWebIdentityTokenCredentialsProvider(
@@ -103,6 +110,7 @@ class S3Service implements Closeable {
         );
         compareAndExchangeTimeToLive = REPOSITORY_S3_CAS_TTL_SETTING.get(nodeSettings);
         compareAndExchangeAntiContentionDelay = REPOSITORY_S3_CAS_ANTI_CONTENTION_DELAY_SETTING.get(nodeSettings);
+        isStateless = DiscoveryNode.isStateless(nodeSettings);
     }
 
     /**
@@ -189,7 +197,10 @@ class S3Service implements Closeable {
     protected AmazonS3ClientBuilder buildClientBuilder(S3ClientSettings clientSettings) {
         final AmazonS3ClientBuilder builder = AmazonS3ClientBuilder.standard();
         builder.withCredentials(buildCredentials(LOGGER, clientSettings, webIdentityTokenCredentialsProvider));
-        builder.withClientConfiguration(buildConfiguration(clientSettings));
+        final ClientConfiguration clientConfiguration = buildConfiguration(clientSettings, isStateless);
+        assert (isStateless == false && clientConfiguration.getRetryPolicy() == PredefinedRetryPolicies.DEFAULT)
+            || (isStateless && clientConfiguration.getRetryPolicy() == RETRYABLE_403_RETRY_POLICY) : "invalid retry policy configuration";
+        builder.withClientConfiguration(clientConfiguration);
 
         String endpoint = Strings.hasLength(clientSettings.endpoint) ? clientSettings.endpoint : Constants.S3_HOSTNAME;
         if ((endpoint.startsWith("http://") || endpoint.startsWith("https://")) == false) {
@@ -219,7 +230,7 @@ class S3Service implements Closeable {
     }
 
     // pkg private for tests
-    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings) {
+    static ClientConfiguration buildConfiguration(S3ClientSettings clientSettings, boolean isStateless) {
         final ClientConfiguration clientConfiguration = new ClientConfiguration();
         // the response metadata cache is only there for diagnostics purposes,
         // but can force objects from every response to the old generation.
@@ -239,9 +250,14 @@ class S3Service implements Closeable {
             clientConfiguration.setSignerOverride(clientSettings.signerOverride);
         }
 
+        clientConfiguration.setMaxConnections(clientSettings.maxConnections);
         clientConfiguration.setMaxErrorRetry(clientSettings.maxRetries);
         clientConfiguration.setUseThrottleRetries(clientSettings.throttleRetries);
         clientConfiguration.setSocketTimeout(clientSettings.readTimeoutMillis);
+
+        if (isStateless) {
+            clientConfiguration.setRetryPolicy(RETRYABLE_403_RETRY_POLICY);
+        }
 
         return clientConfiguration;
     }
@@ -319,7 +335,7 @@ class S3Service implements Closeable {
      * Customizes {@link com.amazonaws.auth.WebIdentityTokenCredentialsProvider}
      *
      * <ul>
-     * <li>Reads the the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
+     * <li>Reads the location of the web identity token not from AWS_WEB_IDENTITY_TOKEN_FILE, but from a symlink
      * in the plugin directory, so we don't need to create a hardcoded read file permission for the plugin.</li>
      * <li>Supports customization of the STS endpoint via a system property, so we can test it against a test fixture.</li>
      * <li>Supports gracefully shutting down the provider and the STS client.</li>
@@ -499,4 +515,21 @@ class S3Service implements Closeable {
     interface JvmEnvironment {
         String getProperty(String key, String defaultValue);
     }
+
+    static final RetryPolicy RETRYABLE_403_RETRY_POLICY = RetryPolicy.builder()
+        .withRetryCondition((originalRequest, exception, retriesAttempted) -> {
+            if (PredefinedRetryPolicies.DEFAULT_RETRY_CONDITION.shouldRetry(originalRequest, exception, retriesAttempted)) {
+                return true;
+            }
+            if (exception instanceof AmazonServiceException ase) {
+                return ase.getStatusCode() == HttpStatus.SC_FORBIDDEN && "InvalidAccessKeyId".equals(ase.getErrorCode());
+            }
+            return false;
+        })
+        .withBackoffStrategy(PredefinedRetryPolicies.DEFAULT_BACKOFF_STRATEGY)
+        .withMaxErrorRetry(PredefinedRetryPolicies.DEFAULT_MAX_ERROR_RETRY)
+        .withHonorMaxErrorRetryInClientConfig(true)
+        .withHonorDefaultMaxErrorRetryInRetryMode(true)
+        .withHonorDefaultBackoffStrategyInRetryMode(true)
+        .build();
 }

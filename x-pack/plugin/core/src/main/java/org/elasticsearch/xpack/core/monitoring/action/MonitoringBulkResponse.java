@@ -22,9 +22,9 @@ import java.util.Objects;
 
 public class MonitoringBulkResponse extends ActionResponse {
 
-    private long tookInMillis;
+    private final long tookInMillis;
     private Error error;
-    private boolean ignored;
+    private final boolean ignored;
 
     public MonitoringBulkResponse(final long tookInMillis, final boolean ignored) {
         this.tookInMillis = tookInMillis;

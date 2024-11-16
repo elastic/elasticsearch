@@ -11,13 +11,11 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -25,7 +23,7 @@ import java.util.function.Supplier;
 
 import static org.hamcrest.Matchers.equalTo;
 
-public class MvConcatTests extends AbstractFunctionTestCase {
+public class MvConcatTests extends AbstractScalarFunctionTestCase {
     public MvConcatTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -33,12 +31,12 @@ public class MvConcatTests extends AbstractFunctionTestCase {
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType fieldType : EsqlDataTypes.types()) {
-            if (EsqlDataTypes.isString(fieldType) == false) {
+        for (DataType fieldType : DataType.types()) {
+            if (DataType.isString(fieldType) == false) {
                 continue;
             }
-            for (DataType delimType : EsqlDataTypes.types()) {
-                if (EsqlDataTypes.isString(delimType) == false) {
+            for (DataType delimType : DataType.types()) {
+                if (DataType.isString(delimType) == false) {
                     continue;
                 }
                 for (int l = 1; l < 10; l++) {
@@ -62,14 +60,14 @@ public class MvConcatTests extends AbstractFunctionTestCase {
                                 new TestCaseSupplier.TypedData(new BytesRef(delim), delimType, "delim")
                             ),
                             "MvConcat[field=Attribute[channel=0], delim=Attribute[channel=1]]",
-                            DataTypes.KEYWORD,
+                            DataType.KEYWORD,
                             equalTo(new BytesRef(expected))
                         );
                     }));
                 }
             }
         }
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(false, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(false, suppliers, (v, p) -> "string");
     }
 
     @Override

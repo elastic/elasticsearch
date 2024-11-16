@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -15,7 +16,7 @@ import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchScrollRequest;
 import org.elasticsearch.action.search.TransportSearchScrollAction;
-import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
@@ -40,6 +41,7 @@ import static org.elasticsearch.test.NodeRoles.removeRoles;
 import static org.elasticsearch.transport.AbstractSimpleTransportTestCase.IGNORE_DESERIALIZATION_ERRORS_SETTING;
 import static org.elasticsearch.transport.RemoteClusterConnectionTests.startTransport;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RemoteClusterClientTests extends ESTestCase {
 
@@ -71,7 +73,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 remoteSettings
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
@@ -97,28 +99,37 @@ public class RemoteClusterClientTests extends ESTestCase {
                 var client = remoteClusterService.getRemoteClusterClient(
                     "test",
                     threadPool.executor(TEST_THREAD_POOL_NAME),
-                    randomBoolean()
+                    randomFrom(RemoteClusterService.DisconnectedStrategy.values())
                 );
-                ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
-                    future -> client.execute(
-                        ClusterStateAction.REMOTE_TYPE,
-                        new ClusterStateRequest(),
+                ClusterStateResponse clusterStateResponse = safeAwait(
+                    listener -> ActionListener.run(
                         ActionListener.runBefore(
-                            future,
+                            listener,
                             () -> assertTrue(Thread.currentThread().getName().contains('[' + TEST_THREAD_POOL_NAME + ']'))
-                        )
-                    ),
-                    10,
-                    TimeUnit.SECONDS
+                        ),
+                        clusterStateResponseListener -> {
+                            final var request = new ClusterStateRequest(TEST_REQUEST_TIMEOUT);
+                            if (randomBoolean()) {
+                                client.execute(ClusterStateAction.REMOTE_TYPE, request, clusterStateResponseListener);
+                            } else {
+                                SubscribableListener.<Transport.Connection>newForked(
+                                    l -> client.getConnection(randomFrom(request, null), l)
+                                )
+                                    .<ClusterStateResponse>andThen(
+                                        (l, connection) -> client.execute(connection, ClusterStateAction.REMOTE_TYPE, request, l)
+                                    )
+                                    .addListener(clusterStateResponseListener);
+                            }
+                        }
+                    )
                 );
                 assertNotNull(clusterStateResponse);
                 assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
                 // also test a failure, there is no handler for scroll registered
-                ActionNotFoundTransportException ex = expectThrows(
+                ActionNotFoundTransportException ex = safeAwaitAndUnwrapFailure(
                     ActionNotFoundTransportException.class,
-                    () -> PlainActionFuture.<SearchResponse, RuntimeException>get(
-                        future -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), future)
-                    )
+                    SearchResponse.class,
+                    listener -> client.execute(TransportSearchScrollAction.REMOTE_TYPE, new SearchScrollRequest(""), listener)
                 );
                 assertEquals("No handler for action [indices:data/read/scroll]", ex.getMessage());
             }
@@ -141,10 +152,11 @@ public class RemoteClusterClientTests extends ESTestCase {
                 remoteSettings
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
                 .put("cluster.remote.test.seeds", remoteNode.getAddress().getAddress() + ":" + remoteNode.getAddress().getPort())
+                .put("cluster.remote.test.skip_unavailable", "false") // ensureConnected is only true for skip_unavailable=false
                 .build();
             try (
                 MockTransportService service = MockTransportService.createNewService(
@@ -164,19 +176,37 @@ public class RemoteClusterClientTests extends ESTestCase {
                 for (int i = 0; i < 10; i++) {
                     RemoteClusterConnection remoteClusterConnection = remoteClusterService.getRemoteClusterConnection("test");
                     assertBusy(remoteClusterConnection::assertNoRunningConnections);
-                    ConnectionManager connectionManager = remoteClusterConnection.getConnectionManager();
-                    Transport.Connection connection = connectionManager.getConnection(remoteNode);
-                    PlainActionFuture<Void> closeFuture = new PlainActionFuture<>();
-                    connection.addCloseListener(closeFuture);
-                    connectionManager.disconnectFromNode(remoteNode);
-                    closeFuture.get();
 
-                    var client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, true);
-                    ClusterStateResponse clusterStateResponse = PlainActionFuture.get(
-                        f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
+                    safeAwait(connectionClosedListener -> {
+                        ConnectionManager connectionManager = remoteClusterConnection.getConnectionManager();
+                        Transport.Connection connection = connectionManager.getConnection(remoteNode);
+                        connection.addCloseListener(connectionClosedListener.map(v -> v));
+                        connectionManager.disconnectFromNode(remoteNode);
+                    });
+
+                    var client = remoteClusterService.getRemoteClusterClient(
+                        "test",
+                        EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                        randomFrom(
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED,
+                            RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                        )
                     );
-                    assertNotNull(clusterStateResponse);
-                    assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
+
+                    if (randomBoolean()) {
+                        final ClusterStateResponse clusterStateResponse = safeAwait(
+                            listener -> client.execute(
+                                ClusterStateAction.REMOTE_TYPE,
+                                new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                                listener
+                            )
+                        );
+                        assertNotNull(clusterStateResponse);
+                        assertEquals("foo_bar_cluster", clusterStateResponse.getState().getClusterName().value());
+                    } else {
+                        final Transport.Connection connection = safeAwait(listener -> client.getConnection(null, listener));
+                        assertFalse(connection.isClosed());
+                    }
                     assertTrue(remoteClusterConnection.isNodeConnected(remoteNode));
                 }
             }
@@ -199,7 +229,11 @@ public class RemoteClusterClientTests extends ESTestCase {
             final RemoteClusterService remoteClusterService = service.getRemoteClusterService();
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE, randomBoolean())
+                () -> remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    randomFrom(RemoteClusterService.DisconnectedStrategy.values())
+                )
             );
             assertThat(e.getMessage(), equalTo("this node does not have the remote_cluster_client role"));
         }
@@ -217,7 +251,7 @@ public class RemoteClusterClientTests extends ESTestCase {
                 remoteSettings
             )
         ) {
-            DiscoveryNode remoteNode = remoteTransport.getLocalDiscoNode();
+            DiscoveryNode remoteNode = remoteTransport.getLocalNode();
 
             Settings localSettings = Settings.builder()
                 .put(onlyRole(DiscoveryNodeRole.REMOTE_CLUSTER_CLIENT_ROLE))
@@ -242,33 +276,55 @@ public class RemoteClusterClientTests extends ESTestCase {
                 service.start();
                 service.acceptIncomingRequests();
                 RemoteClusterService remoteClusterService = service.getRemoteClusterService();
-                var client = remoteClusterService.getRemoteClusterClient("test", EsExecutors.DIRECT_EXECUTOR_SERVICE);
+                var client = remoteClusterService.getRemoteClusterClient(
+                    "test",
+                    EsExecutors.DIRECT_EXECUTOR_SERVICE,
+                    randomFrom(
+                        RemoteClusterService.DisconnectedStrategy.FAIL_IF_DISCONNECTED,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_UNLESS_SKIP_UNAVAILABLE
+                    )
+                );
 
                 try {
                     assertFalse(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
 
                     // check that we quickly fail
-                    expectThrows(
-                        NoSuchRemoteClusterException.class,
-                        () -> PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
-                            f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
-                        )
-                    );
+                    if (randomBoolean()) {
+                        ESTestCase.assertThat(
+                            safeAwaitFailure(
+                                ClusterStateResponse.class,
+                                listener -> client.execute(
+                                    ClusterStateAction.REMOTE_TYPE,
+                                    new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                                    listener
+                                )
+                            ),
+                            instanceOf(ConnectTransportException.class)
+                        );
+                    } else {
+                        ESTestCase.assertThat(
+                            safeAwaitFailure(Transport.Connection.class, listener -> client.getConnection(null, listener)),
+                            instanceOf(ConnectTransportException.class)
+                        );
+                    }
                 } finally {
                     service.clearAllRules();
                     latch.countDown();
                 }
 
-                assertBusy(() -> {
-                    try {
-                        PlainActionFuture.<ClusterStateResponse, RuntimeException>get(
-                            f -> client.execute(ClusterStateAction.REMOTE_TYPE, new ClusterStateRequest(), f)
-                        );
-                    } catch (NoSuchRemoteClusterException e) {
-                        // keep retrying on this exception, the goal is to check that we eventually reconnect
-                        throw new AssertionError(e);
-                    }
-                });
+                assertBusy(
+                    // keep retrying on an exception, the goal is to check that we eventually reconnect
+                    randomFrom(
+                        () -> safeAwait(
+                            listener -> client.execute(
+                                ClusterStateAction.REMOTE_TYPE,
+                                new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                                listener.map(v -> v)
+                            )
+                        ),
+                        () -> safeAwait(listener -> client.getConnection(null, listener.map(v -> v)))
+                    )
+                );
                 assertTrue(remoteClusterService.isRemoteNodeConnected("test", remoteNode));
             }
         }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package fixture.s3;
 
@@ -12,6 +13,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -61,6 +63,7 @@ public class S3HttpHandler implements HttpHandler {
 
     private final String bucket;
     private final String path;
+    private final String basePrefix;
 
     private final ConcurrentMap<String, BytesReference> blobs = new ConcurrentHashMap<>();
     private final ConcurrentMap<String, MultipartUpload> uploads = new ConcurrentHashMap<>();
@@ -71,6 +74,7 @@ public class S3HttpHandler implements HttpHandler {
 
     public S3HttpHandler(final String bucket, @Nullable final String basePath) {
         this.bucket = Objects.requireNonNull(bucket);
+        this.basePrefix = Objects.requireNonNullElse(basePath, "");
         this.path = bucket + (basePath != null && basePath.isEmpty() == false ? "/" + basePath : "");
     }
 
@@ -96,7 +100,9 @@ public class S3HttpHandler implements HttpHandler {
                 } else {
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                 }
-            } else if (Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)) {
+            } else if (isListMultipartUploadsRequest(request)) {
+                assert request.contains("prefix=" + basePrefix) : basePrefix + " vs " + request;
+
                 final Map<String, String> params = new HashMap<>();
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var prefix = params.get("prefix");
@@ -163,7 +169,21 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 if (upload == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    if (Randomness.get().nextBoolean()) {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    } else {
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                            <Code>NoSuchUpload</Code>
+                            <Message>No such upload</Message>
+                            <RequestId>test-request-id</RequestId>
+                            <HostId>test-host-id</HostId>
+                            </Error>""").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                        exchange.getResponseBody().write(response);
+                    }
                 } else {
                     final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
                     blobs.put(requestComponents.path, blobContents);
@@ -245,31 +265,49 @@ public class S3HttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("GET /" + path + "/*", request)) {
                 final BytesReference blob = blobs.get(requestComponents.uri());
-                if (blob != null) {
-                    final String range = exchange.getRequestHeaders().getFirst("Range");
-                    if (range == null) {
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
-                        blob.writeTo(exchange.getResponseBody());
-                    } else {
-                        final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                        if (matcher.matches() == false) {
-                            throw new AssertionError("Bytes range does not match expected pattern: " + range);
-                        }
-
-                        final int start = Integer.parseInt(matcher.group(1));
-                        final int end = Integer.parseInt(matcher.group(2));
-
-                        final BytesReference rangeBlob = blob.slice(start, end + 1 - start);
-                        exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
-                        exchange.getResponseHeaders()
-                            .add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, rangeBlob.length()));
-                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), rangeBlob.length());
-                        rangeBlob.writeTo(exchange.getResponseBody());
-                    }
-                } else {
+                if (blob == null) {
                     exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    return;
                 }
+                final String range = exchange.getRequestHeaders().getFirst("Range");
+                if (range == null) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                }
+
+                // S3 supports https://www.rfc-editor.org/rfc/rfc9110.html#name-range. The AWS SDK v1.x seems to always generate range
+                // requests with a header value like "Range: bytes=start-end" where both {@code start} and {@code end} are always defined
+                // (sometimes to very high value for {@code end}). It would be too tedious to fully support the RFC so S3HttpHandler only
+                // supports when both {@code start} and {@code end} are defined to match the SDK behavior.
+                final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
+                if (matcher.matches() == false) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                }
+                var groupStart = matcher.group(1);
+                var groupEnd = matcher.group(2);
+                if (groupStart == null || groupEnd == null) {
+                    throw new AssertionError("Bytes range does not match expected pattern: " + range);
+                }
+                long start = Long.parseLong(groupStart);
+                long end = Long.parseLong(groupEnd);
+                if (end < start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.OK.getStatus(), blob.length());
+                    blob.writeTo(exchange.getResponseBody());
+                    return;
+                } else if (blob.length() <= start) {
+                    exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                    exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
+                    return;
+                }
+                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
+                end = start + responseBlob.length() - 1;
+                exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
+                exchange.getResponseHeaders().add("Content-Range", String.format(Locale.ROOT, "bytes %d-%d/%d", start, end, blob.length()));
+                exchange.sendResponseHeaders(RestStatus.PARTIAL_CONTENT.getStatus(), responseBlob.length());
+                responseBlob.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + path + "/*", request)) {
                 int deletions = 0;
@@ -309,6 +347,11 @@ public class S3HttpHandler implements HttpHandler {
         } finally {
             exchange.close();
         }
+    }
+
+    private boolean isListMultipartUploadsRequest(String request) {
+        return Regex.simpleMatch("GET /" + bucket + "/?uploads&prefix=*", request)
+            || Regex.simpleMatch("GET /" + bucket + "/?uploads&max-uploads=*&prefix=*", request);
     }
 
     public Map<String, BytesReference> blobs() {

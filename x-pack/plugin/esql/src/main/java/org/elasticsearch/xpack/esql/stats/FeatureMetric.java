@@ -7,33 +7,27 @@
 
 package org.elasticsearch.xpack.esql.stats;
 
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Drop;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
+import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
+import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.Keep;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
+import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
-import org.elasticsearch.xpack.esql.plan.logical.show.ShowFunctions;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
-import org.elasticsearch.xpack.ql.plan.logical.Aggregate;
-import org.elasticsearch.xpack.ql.plan.logical.EsRelation;
-import org.elasticsearch.xpack.ql.plan.logical.Filter;
-import org.elasticsearch.xpack.ql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.ql.plan.logical.OrderBy;
 
 import java.util.BitSet;
 import java.util.Locale;
 import java.util.function.Predicate;
 
 public enum FeatureMetric {
-    /**
-     * The order of these enum values is important, do not change it.
-     * For any new values added to it, they should go at the end of the list.
-     * see {@link org.elasticsearch.xpack.esql.analysis.Verifier#gatherMetrics}
-     */
     DISSECT(Dissect.class::isInstance),
     EVAL(Eval.class::isInstance),
     GROK(Grok.class::isInstance),
@@ -43,7 +37,7 @@ public enum FeatureMetric {
     WHERE(Filter.class::isInstance),
     ENRICH(Enrich.class::isInstance),
     MV_EXPAND(MvExpand.class::isInstance),
-    SHOW(plan -> plan instanceof ShowInfo || plan instanceof ShowFunctions),
+    SHOW(ShowInfo.class::isInstance),
     ROW(Row.class::isInstance),
     FROM(EsRelation.class::isInstance),
     DROP(Drop.class::isInstance),

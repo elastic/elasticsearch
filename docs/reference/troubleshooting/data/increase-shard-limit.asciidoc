@@ -12,7 +12,7 @@ satisfy the index configuration.
 
 In order to fix this follow the next steps:
 
-include::{es-repo-dir}/tab-widgets/troubleshooting/data/total-shards-per-node-widget.asciidoc[]
+include::{es-ref-dir}/tab-widgets/troubleshooting/data/total-shards-per-node-widget.asciidoc[]
 
 
 

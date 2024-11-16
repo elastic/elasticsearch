@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.cluster.node.tasks;
 
@@ -23,7 +24,7 @@ import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasks
 import org.elasticsearch.action.admin.indices.forcemerge.ForceMergeAction;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
 import org.elasticsearch.action.admin.indices.validate.query.ValidateQueryAction;
-import org.elasticsearch.action.bulk.BulkAction;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.TransportIndexAction;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
@@ -41,6 +42,7 @@ import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
+import org.elasticsearch.tasks.RemovedTaskListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.tasks.TaskId;
@@ -140,7 +142,7 @@ public class TasksIT extends ESIntegTestCase {
         registerTaskManagerListeners(TransportClusterHealthAction.NAME);
 
         // First run the health on the master node - should produce only one task on the master node
-        internalCluster().masterClient().admin().cluster().prepareHealth().get();
+        internalCluster().masterClient().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertEquals(1, numberOfEvents(TransportClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         // counting only unregistration events
         // When checking unregistration events there might be some delay since receiving the response from the cluster doesn't
@@ -150,7 +152,7 @@ public class TasksIT extends ESIntegTestCase {
         resetTaskManagerListeners(TransportClusterHealthAction.NAME);
 
         // Now run the health on a non-master node - should produce one task on master and one task on another node
-        internalCluster().nonMasterClient().admin().cluster().prepareHealth().get();
+        internalCluster().nonMasterClient().admin().cluster().prepareHealth(TEST_REQUEST_TIMEOUT).get();
         assertEquals(2, numberOfEvents(TransportClusterHealthAction.NAME, Tuple::v1)); // counting only registration events
         // counting only unregistration events
         assertBusy(() -> assertEquals(2, numberOfEvents(TransportClusterHealthAction.NAME, event -> event.v1() == false)));
@@ -297,10 +299,10 @@ public class TasksIT extends ESIntegTestCase {
     }
 
     public void testTransportBulkTasks() {
-        registerTaskManagerListeners(BulkAction.NAME);  // main task
-        registerTaskManagerListeners(BulkAction.NAME + "[s]");  // shard task
-        registerTaskManagerListeners(BulkAction.NAME + "[s][p]");  // shard task on primary
-        registerTaskManagerListeners(BulkAction.NAME + "[s][r]");  // shard task on replica
+        registerTaskManagerListeners(TransportBulkAction.NAME);  // main task
+        registerTaskManagerListeners(TransportBulkAction.NAME + "[s]");  // shard task
+        registerTaskManagerListeners(TransportBulkAction.NAME + "[s][p]");  // shard task on primary
+        registerTaskManagerListeners(TransportBulkAction.NAME + "[s][r]");  // shard task on replica
         createIndex("test");
         ensureGreen("test"); // Make sure all shards are allocated to catch replication tasks
         // ensures the mapping is available on all nodes so we won't retry the request (in case replicas don't have the right mapping).
@@ -308,13 +310,13 @@ public class TasksIT extends ESIntegTestCase {
         client().prepareBulk().add(prepareIndex("test").setId("test_id").setSource("{\"foo\": \"bar\"}", XContentType.JSON)).get();
 
         // the bulk operation should produce one main task
-        List<TaskInfo> topTask = findEvents(BulkAction.NAME, Tuple::v1);
+        List<TaskInfo> topTask = findEvents(TransportBulkAction.NAME, Tuple::v1);
         assertEquals(1, topTask.size());
         assertEquals("requests[1], indices[test]", topTask.get(0).description());
 
         // we should also get 1 or 2 [s] operation with main operation as a parent
         // in case the primary is located on the coordinating node we will have 1 operation, otherwise - 2
-        List<TaskInfo> shardTasks = findEvents(BulkAction.NAME + "[s]", Tuple::v1);
+        List<TaskInfo> shardTasks = findEvents(TransportBulkAction.NAME + "[s]", Tuple::v1);
         assertThat(shardTasks.size(), allOf(lessThanOrEqualTo(2), greaterThanOrEqualTo(1)));
 
         // Select the effective shard task
@@ -323,30 +325,30 @@ public class TasksIT extends ESIntegTestCase {
             // we have only one task - it's going to be the parent task for all [s][p] and [s][r] tasks
             shardTask = shardTasks.get(0);
             // and it should have the main task as a parent
-            assertParentTask(shardTask, findEvents(BulkAction.NAME, Tuple::v1).get(0));
+            assertParentTask(shardTask, findEvents(TransportBulkAction.NAME, Tuple::v1).get(0));
         } else {
             if (shardTasks.get(0).parentTaskId().equals(shardTasks.get(1).taskId())) {
                 // task 1 is the parent of task 0, that means that task 0 will control [s][p] and [s][r] tasks
                 shardTask = shardTasks.get(0);
                 // in turn the parent of the task 1 should be the main task
-                assertParentTask(shardTasks.get(1), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertParentTask(shardTasks.get(1), findEvents(TransportBulkAction.NAME, Tuple::v1).get(0));
             } else {
                 // otherwise task 1 will control [s][p] and [s][r] tasks
                 shardTask = shardTasks.get(1);
                 // in turn the parent of the task 0 should be the main task
-                assertParentTask(shardTasks.get(0), findEvents(BulkAction.NAME, Tuple::v1).get(0));
+                assertParentTask(shardTasks.get(0), findEvents(TransportBulkAction.NAME, Tuple::v1).get(0));
             }
         }
         assertThat(shardTask.description(), startsWith("requests[1], index[test]["));
 
         // we should also get one [s][p] operation with shard operation as a parent
-        assertEquals(1, numberOfEvents(BulkAction.NAME + "[s][p]", Tuple::v1));
-        assertParentTask(findEvents(BulkAction.NAME + "[s][p]", Tuple::v1), shardTask);
+        assertEquals(1, numberOfEvents(TransportBulkAction.NAME + "[s][p]", Tuple::v1));
+        assertParentTask(findEvents(TransportBulkAction.NAME + "[s][p]", Tuple::v1), shardTask);
 
         // we should get as many [s][r] operations as we have replica shards
         // they all should have the same shard task as a parent
-        assertEquals(getNumShards("test").numReplicas, numberOfEvents(BulkAction.NAME + "[s][r]", Tuple::v1));
-        assertParentTask(findEvents(BulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
+        assertEquals(getNumShards("test").numReplicas, numberOfEvents(TransportBulkAction.NAME + "[s][r]", Tuple::v1));
+        assertParentTask(findEvents(TransportBulkAction.NAME + "[s][r]", Tuple::v1), shardTask);
     }
 
     public void testSearchTaskDescriptions() {
@@ -509,6 +511,9 @@ public class TasksIT extends ESIntegTestCase {
 
         expectThrows(TaskCancelledException.class, future);
 
+        logger.info("--> waiting for all ongoing tasks to complete within a reasonable time");
+        safeGet(clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").setWaitForCompletion(true).execute());
+
         logger.info("--> checking that test tasks are not running");
         assertEquals(0, clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name() + "*").get().getTasks().size());
     }
@@ -542,13 +547,7 @@ public class TasksIT extends ESIntegTestCase {
 
             // This ensures that a task has progressed to the point of listing all running tasks and subscribing to their updates
             for (var threadPool : internalCluster().getInstances(ThreadPool.class)) {
-                var max = threadPool.info(ThreadPool.Names.MANAGEMENT).getMax();
-                var executor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
-                var waitForManagementToCompleteAllTasks = new CyclicBarrier(max + 1);
-                for (int i = 0; i < max; i++) {
-                    executor.submit(() -> safeAwait(waitForManagementToCompleteAllTasks));
-                }
-                safeAwait(waitForManagementToCompleteAllTasks);
+                flushThreadPoolExecutor(threadPool, ThreadPool.Names.MANAGEMENT);
             }
 
             return future;
@@ -599,23 +598,31 @@ public class TasksIT extends ESIntegTestCase {
             TEST_TASK_ACTION.name() + "[n]",
             () -> client().execute(TEST_TASK_ACTION, request)
         );
-        ActionFuture<T> waitResponseFuture;
+        var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
+        assertThat(tasks, hasSize(1));
+        TaskId taskId = tasks.get(0).taskId();
+        clusterAdmin().prepareGetTask(taskId).get();
+
+        var taskManager = (MockTaskManager) internalCluster().getInstance(
+            TransportService.class,
+            clusterService().state().getNodes().resolveNode(taskId.getNodeId()).getName()
+        ).getTaskManager();
+        var listener = new MockTaskManagerListener() {
+            @Override
+            public void onRemovedTaskListenerRegistered(RemovedTaskListener removedTaskListener) {
+                // Unblock the request only after it started waiting for task completion
+                client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest());
+            }
+        };
+        taskManager.addListener(listener);
         try {
-            var tasks = clusterAdmin().prepareListTasks().setActions(TEST_TASK_ACTION.name()).get().getTasks();
-            assertThat(tasks, hasSize(1));
-            var taskId = tasks.get(0).taskId();
-            clusterAdmin().prepareGetTask(taskId).get();
-
             // Spin up a request to wait for the test task to finish
-            waitResponseFuture = wait.apply(taskId);
+            // The task will be unblocked as soon as the request started waiting for task completion
+            T waitResponse = wait.apply(taskId).get();
+            validator.accept(waitResponse);
         } finally {
-            // Unblock the request so the wait for completion request can finish
-            client().execute(UNBLOCK_TASK_ACTION, new TestTaskPlugin.UnblockTestTasksRequest()).get();
+            taskManager.removeListener(listener);
         }
-
-        // Now that the task is unblocked the list response will come back
-        T waitResponse = waitResponseFuture.get();
-        validator.accept(waitResponse);
 
         TestTaskPlugin.NodesResponse response = future.get();
         assertEquals(emptyList(), response.failures());

@@ -1,5 +1,0 @@
-pr: 105015
-summary: Modify name of threadpool metric for rejected
-area: Infra/Metrics
-type: enhancement
-issues: []

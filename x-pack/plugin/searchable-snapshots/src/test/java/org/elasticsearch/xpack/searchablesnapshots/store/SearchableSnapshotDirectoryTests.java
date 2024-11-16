@@ -401,9 +401,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
             false, // no prewarming in this test because we want to ensure that files are accessed on purpose
             (directory, snapshotDirectory) -> {
                 for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                    final long checksum;
-                    try (IndexInput input = directory.openInput(fileName, Store.READONCE_CHECKSUM)) {
-                        checksum = CodecUtil.checksumEntireFile(input);
+                    final long expectedChecksum;
+                    try (IndexInput input = directory.openInput(fileName, IOContext.READONCE)) {
+                        expectedChecksum = CodecUtil.checksumEntireFile(input);
                     }
 
                     final long snapshotChecksum;
@@ -418,9 +418,9 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     }
 
                     assertThat(
-                        "Expected checksum [" + checksum + "] but got [" + snapshotChecksum + ']',
+                        "Expected checksum [" + expectedChecksum + "] but got [" + snapshotChecksum + ']',
                         snapshotChecksum,
-                        equalTo(checksum)
+                        equalTo(expectedChecksum)
                     );
                     assertThat(
                         "File [" + fileName + "] should have been read from heap",
@@ -606,13 +606,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
                     BlobStoreTestUtil.mockClusterService(repositoryMetadata),
                     MockBigArrays.NON_RECYCLING_INSTANCE,
                     new RecoverySettings(Settings.EMPTY, new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS))
-                ) {
-
-                    @Override
-                    protected void assertSnapshotOrGenericThread() {
-                        // eliminate thread name check as we create repo manually on test/main threads
-                    }
-                };
+                );
                 repository.start();
                 releasables.add(repository::stop);
 
@@ -698,7 +692,7 @@ public class SearchableSnapshotDirectoryTests extends AbstractSearchableSnapshot
     private void testIndexInputs(final CheckedBiConsumer<IndexInput, IndexInput, Exception> consumer) throws Exception {
         testDirectories((directory, snapshotDirectory) -> {
             for (String fileName : randomSubsetOf(Arrays.asList(snapshotDirectory.listAll()))) {
-                final IOContext context = randomIOContext();
+                final IOContext context = fileName.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : randomIOContext();
                 try (IndexInput indexInput = directory.openInput(fileName, context)) {
                     final List<Closeable> closeables = new ArrayList<>();
                     try {

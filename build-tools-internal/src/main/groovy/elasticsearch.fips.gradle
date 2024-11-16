@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 
@@ -14,11 +15,12 @@ import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.testclusters.TestClustersAware
 import org.elasticsearch.gradle.testclusters.TestDistribution
 
-// Common config when running with a FIPS-140 runtime JVM
-if (BuildParams.inFipsJvm) {
+//apply plugin: org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin
 
+// Common config when running with a FIPS-140 runtime JVM
+if (buildParams.inFipsJvm) {
   allprojects {
-    String javaSecurityFilename = BuildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
+    String javaSecurityFilename = buildParams.runtimeJavaDetails.toLowerCase().contains('oracle') ? 'fips_java_oracle.security' : 'fips_java.security'
     File fipsResourcesDir = new File(project.buildDir, 'fips-resources')
     File fipsSecurity = new File(fipsResourcesDir, javaSecurityFilename)
     File fipsPolicy = new File(fipsResourcesDir, 'fips_java.policy')

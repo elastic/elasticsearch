@@ -7,13 +7,15 @@
 
 package org.elasticsearch.compute.operator.exchange;
 
-import org.elasticsearch.action.support.SubscribableListener;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.IsBlockedResult;
 import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,13 +65,13 @@ public class ExchangeSinkOperator extends SinkOperator {
     }
 
     @Override
-    public SubscribableListener<Void> isBlocked() {
+    public IsBlockedResult isBlocked() {
         return sink.waitForWriting();
     }
 
     @Override
     public boolean needsInput() {
-        return isFinished() == false && isBlocked().isDone();
+        return isFinished() == false && isBlocked().listener().isDone();
     }
 
     @Override
@@ -147,6 +149,11 @@ public class ExchangeSinkOperator extends SinkOperator {
         @Override
         public String toString() {
             return Strings.toString(this);
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersions.V_8_11_X;
         }
     }
 }

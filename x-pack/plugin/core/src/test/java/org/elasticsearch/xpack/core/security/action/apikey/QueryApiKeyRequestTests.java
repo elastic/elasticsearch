@@ -23,6 +23,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
             null,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(request1.validate(), nullValue());
@@ -34,6 +35,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(0, Integer.MAX_VALUE),
             null,
             null,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(request2.validate().getMessage(), containsString("[from] parameter cannot be negative"));
@@ -45,6 +47,7 @@ public class QueryApiKeyRequestTests extends ESTestCase {
             randomIntBetween(Integer.MIN_VALUE, -1),
             null,
             null,
+            randomBoolean(),
             randomBoolean()
         );
         assertThat(request3.validate().getMessage(), containsString("[size] parameter cannot be negative"));

@@ -153,7 +153,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 client,
                 emptyMap(),
                 "my-transform",
-                new SettingsConfig(),
+                SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
                 listener
@@ -233,7 +233,7 @@ public class AggregationSchemaAndResultTests extends ESTestCase {
                 client,
                 emptyMap(),
                 "my-transform",
-                new SettingsConfig(),
+                SettingsConfig.EMPTY,
                 pivotConfig,
                 new SourceConfig(new String[] { "source-index" }),
                 listener

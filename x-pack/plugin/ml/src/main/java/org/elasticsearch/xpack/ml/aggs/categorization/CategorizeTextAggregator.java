@@ -94,11 +94,11 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 true
             );
         }
-        this.categorizers = bigArrays().newObjectArray(1);
+        this.categorizers = context.bigArrays().newObjectArray(1);
         this.similarityThreshold = similarityThreshold;
-        this.bucketOrds = LongKeyedBucketOrds.build(bigArrays(), CardinalityUpperBound.MANY);
+        this.bucketOrds = LongKeyedBucketOrds.build(context.bigArrays(), CardinalityUpperBound.MANY);
         this.bucketCountThresholds = bucketCountThresholds;
-        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, bigArrays()));
+        this.bytesRefHash = new CategorizationBytesRefHash(new BytesRefHash(2048, context.bigArrays()));
         // TODO: make it possible to choose a language instead of or as well as English for the part-of-speech dictionary
         this.partOfSpeechDictionary = CategorizationPartOfSpeechDictionary.getInstance();
     }
@@ -113,7 +113,8 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     public InternalAggregation[] buildAggregations(long[] ordsToCollect) throws IOException {
         Bucket[][] topBucketsPerOrd = new Bucket[ordsToCollect.length][];
         for (int ordIdx = 0; ordIdx < ordsToCollect.length; ordIdx++) {
-            final TokenListCategorizer categorizer = categorizers.get(ordsToCollect[ordIdx]);
+            final long ord = ordsToCollect[ordIdx];
+            final TokenListCategorizer categorizer = (ord < categorizers.size()) ? categorizers.get(ord) : null;
             if (categorizer == null) {
                 topBucketsPerOrd[ordIdx] = new Bucket[0];
                 continue;

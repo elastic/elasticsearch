@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -30,11 +31,11 @@ import java.util.Map;
 public class RankEvalResponse extends ActionResponse implements ToXContentObject {
 
     /** The overall evaluation result. */
-    private double metricScore;
+    private final double metricScore;
     /** details about individual ranking evaluation queries, keyed by their id */
-    private Map<String, EvalQueryQuality> details;
+    private final Map<String, EvalQueryQuality> details;
     /** exceptions for specific ranking evaluation queries, keyed by their id */
-    private Map<String, Exception> failures;
+    private final Map<String, Exception> failures;
 
     public RankEvalResponse(double metricScore, Map<String, EvalQueryQuality> partialResults, Map<String, Exception> failures) {
         this.metricScore = metricScore;

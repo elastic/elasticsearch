@@ -12,14 +12,14 @@ setup:
               day_of_week:
                 type: keyword
                 script: |
-                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
               # Test fetching from _source
               day_of_week_from_source:
                 type: keyword
                 script: |
                   Instant instant = Instant.ofEpochMilli(params._source.timestamp);
                   ZonedDateTime dt = ZonedDateTime.ofInstant(instant, ZoneId.of("UTC"));
-                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(dt.dayOfWeek.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
               # Test fetching many values
               day_of_week_letters:
                 type: keyword
@@ -75,7 +75,7 @@ setup:
   - match: {sensor.mappings.runtime.day_of_week.type: keyword }
   - match:
       sensor.mappings.runtime.day_of_week.script.source: |
-        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+        emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
   - match: {sensor.mappings.runtime.day_of_week.script.lang: painless }
 
 # --- TODO get field mappings needs to be adapted
@@ -90,7 +90,7 @@ setup:
 #        type: keyword
 #        script:
 #          source: |
-#            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+#            emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
 #          lang: painless
 #        meta: {}
 #
@@ -107,6 +107,76 @@ setup:
   - match: {hits.hits.0.fields.day_of_week_from_source: [Thursday] }
   - match: {hits.hits.0.fields.day_of_week_letters: [T, a, d, h, r, s, u, y] }
   - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+
+---
+"fetch multiple stored fields":
+  - requires:
+      cluster_features: ["gte_v8.14.0"]
+      reason: "bug fixed in 8.14"
+
+  - do:
+      indices.create:
+        index: sensor-test
+        body:
+          settings:
+            number_of_shards: 1
+            number_of_replicas: 0
+          mappings:
+            runtime:
+              prefixed_node:
+                type: keyword
+                script:
+                  source: |
+                    for (String node : params._fields.node.values) {
+                      emit(params.prefix + node);
+                    }
+                  params:
+                    prefix: node_
+              prefixed_region:
+                type: keyword
+                script:
+                  source: |
+                    for (String region : params._fields.region.values) {
+                      emit(params.prefix + region)
+                    }
+                  params:
+                    prefix: us-
+            properties:
+              timestamp:
+                type: date
+              node:
+                type: keyword
+                store: true
+              region:
+                type: keyword
+                store: true
+
+  - do:
+      bulk:
+        index: sensor-test
+        refresh: true
+        body: |
+          {"index":{}}
+          {"timestamp": 1516729294000, "node": "a", "region": "west-1" }
+          {"index":{}}
+          {"timestamp": 1516642894000, "node": "b", "region": "west-2" }
+          {"index":{}}
+          {"timestamp": 1516556494000, "node": "a", "region": "west-1"}
+          {"index":{}}
+          {"timestamp": 1516470094000, "node": "b", "region": "west-2"}
+          {"index":{}}
+          {"timestamp": 1516383694000, "node": "c", "region": "west-2"}
+          {"index":{}}
+          {"timestamp": 1516297294000, "node": "c", "region": "west-2"}
+  - do:
+      search:
+        index: sensor-test
+        body:
+          sort: timestamp
+          fields: [prefixed_node, prefixed_region]
+  - match: {hits.total.value: 6}
+  - match: {hits.hits.0.fields.prefixed_node: [node_c] }
+  - match: {hits.hits.0.fields.prefixed_region: [us-west-2]}
 
 ---
 "docvalue_fields":
@@ -148,7 +218,7 @@ setup:
             day_of_week:
               type: keyword
               script: |
-                emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.SHORT, Locale.ROOT));
+                emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.SHORT, Locale.ENGLISH));
   - do:
       search:
         index: sensor

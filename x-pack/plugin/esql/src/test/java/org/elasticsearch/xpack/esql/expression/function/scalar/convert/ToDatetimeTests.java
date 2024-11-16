@@ -11,12 +11,12 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
+import org.elasticsearch.common.time.DateUtils;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateParse;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 
 import java.math.BigInteger;
 import java.time.Instant;
@@ -25,8 +25,9 @@ import java.util.List;
 import java.util.function.Supplier;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.DEFAULT_DATE_TIME_FORMATTER;
 
-public class ToDatetimeTests extends AbstractFunctionTestCase {
+public class ToDatetimeTests extends AbstractScalarFunctionTestCase {
     public ToDatetimeTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
@@ -36,22 +37,29 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
         final String read = "Attribute[channel=0]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
 
-        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataTypes.DATETIME, Instant::toEpochMilli, emptyList());
+        TestCaseSupplier.forUnaryDatetime(suppliers, read, DataType.DATETIME, Instant::toEpochMilli, emptyList());
+        TestCaseSupplier.forUnaryDateNanos(
+            suppliers,
+            "ToDatetimeFromDateNanosEvaluator[field=" + read + "]",
+            DataType.DATETIME,
+            i -> DateUtils.toMilliSeconds(DateUtils.toLong(i)),
+            emptyList()
+        );
 
         TestCaseSupplier.forUnaryInt(
             suppliers,
             "ToLongFromIntEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             i -> ((Integer) i).longValue(),
             Integer.MIN_VALUE,
             Integer.MAX_VALUE,
             emptyList()
         );
-        TestCaseSupplier.forUnaryLong(suppliers, read, DataTypes.DATETIME, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, emptyList());
+        TestCaseSupplier.forUnaryLong(suppliers, read, DataType.DATETIME, l -> l, Long.MIN_VALUE, Long.MAX_VALUE, emptyList());
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "ToLongFromUnsignedLongEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             BigInteger::longValueExact,
             BigInteger.ZERO,
             BigInteger.valueOf(Long.MAX_VALUE),
@@ -60,50 +68,50 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
         TestCaseSupplier.forUnaryUnsignedLong(
             suppliers,
             "ToLongFromUnsignedLongEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             bi -> null,
             BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.TWO),
             UNSIGNED_LONG_MAX,
             bi -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + bi + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + bi + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToLongFromDoubleEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             d -> null,
             Double.NEGATIVE_INFINITY,
             -9.223372036854777E18, // a "convenient" value smaller than `(double) Long.MIN_VALUE` (== ...776E18)
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryDouble(
             suppliers,
             "ToLongFromDoubleEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             d -> null,
             9.223372036854777E18, // a "convenient" value larger than `(double) Long.MAX_VALUE` (== ...776E18)
             Double.POSITIVE_INFINITY,
             d -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                "Line -1:-1: org.elasticsearch.xpack.ql.InvalidArgumentException: [" + d + "] out of [long] range"
+                "Line -1:-1: org.elasticsearch.xpack.esql.core.InvalidArgumentException: [" + d + "] out of [long] range"
             )
         );
         TestCaseSupplier.forUnaryStrings(
             suppliers,
             "ToDatetimeFromStringEvaluator[field=" + read + "]",
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: "
                     + (bytesRef.utf8ToString().isEmpty()
-                        ? "cannot parse empty date"
-                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"))
+                        ? "cannot parse empty datetime"
+                        : ("failed to parse date field [" + bytesRef.utf8ToString() + "] with format [strict_date_optional_time]"))
             )
         );
         TestCaseSupplier.unary(
@@ -113,12 +121,12 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
                 new TestCaseSupplier.TypedDataSupplier(
                     "<date string>",
                     // millis past "0001-01-01T00:00:00.000Z" to match the default formatter
-                    () -> new BytesRef(randomDateString(-62135596800000L, Long.MAX_VALUE)),
-                    DataTypes.KEYWORD
+                    () -> new BytesRef(randomDateString(-62135596800000L, 253402300799999L)),
+                    DataType.KEYWORD
                 )
             ),
-            DataTypes.DATETIME,
-            bytesRef -> DateParse.DEFAULT_FORMATTER.parseMillis(((BytesRef) bytesRef).utf8ToString()),
+            DataType.DATETIME,
+            bytesRef -> DEFAULT_DATE_TIME_FORMATTER.parseMillis(((BytesRef) bytesRef).utf8ToString()),
             emptyList()
         );
         TestCaseSupplier.unary(
@@ -126,32 +134,47 @@ public class ToDatetimeTests extends AbstractFunctionTestCase {
             "ToDatetimeFromStringEvaluator[field=" + read + "]",
             List.of(
                 new TestCaseSupplier.TypedDataSupplier(
-                    "<date string before 0001-01-01T00:00:00.000Z>",
-                    // millis before "0001-01-01T00:00:00.000Z"
-                    () -> new BytesRef(randomDateString(Long.MIN_VALUE, -62135596800001L)),
-                    DataTypes.KEYWORD
+                    "<date string before -9999-12-31T23:59:59.999Z>",
+                    // millis before "-9999-12-31T23:59:59.999Z"
+                    () -> new BytesRef(randomDateString(Long.MIN_VALUE, -377736739200000L)),
+                    DataType.KEYWORD
                 )
             ),
-            DataTypes.DATETIME,
+            DataType.DATETIME,
             bytesRef -> null,
             bytesRef -> List.of(
                 "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
                 "Line -1:-1: java.lang.IllegalArgumentException: failed to parse date field ["
                     + ((BytesRef) bytesRef).utf8ToString()
-                    + "] with format [yyyy-MM-dd'T'HH:mm:ss.SSS'Z']"
+                    + "] with format [strict_date_optional_time]"
+            )
+        );
+        TestCaseSupplier.unary(
+            suppliers,
+            "ToDatetimeFromStringEvaluator[field=" + read + "]",
+            List.of(
+                new TestCaseSupplier.TypedDataSupplier(
+                    "<date string after 9999-12-31T23:59:59.999Z>",
+                    // millis after "9999-12-31T23:59:59.999Z"
+                    () -> new BytesRef(randomDateString(253402300800000L, Long.MAX_VALUE)),
+                    DataType.KEYWORD
+                )
+            ),
+            DataType.DATETIME,
+            bytesRef -> null,
+            bytesRef -> List.of(
+                "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                "Line -1:-1: java.lang.IllegalArgumentException: failed to parse date field ["
+                    + ((BytesRef) bytesRef).utf8ToString()
+                    + "] with format [strict_date_optional_time]"
             )
         );
 
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers)));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(true, suppliers, (v, p) -> "date_nanos or datetime or numeric or string");
     }
 
     private static String randomDateString(long from, long to) {
-        String result = Instant.ofEpochMilli(randomLongBetween(from, to)).toString();
-        if (result.matches(".*:..Z")) {
-            // it's a zero millisecond date string, Instant.toString() will strip the milliseconds (and the parsing will fail)
-            return result.replace("Z", ".000Z");
-        }
-        return result;
+        return Instant.ofEpochMilli(randomLongBetween(from, to)).toString();
     }
 
     @Override

@@ -103,15 +103,15 @@ public abstract class AbstractAuditor<T extends AbstractAuditMessage> {
     }
 
     public void info(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.INFO, new Date(), nodeName));
+        audit(Level.INFO, resourceId, message);
     }
 
     public void warning(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.WARNING, new Date(), nodeName));
+        audit(Level.WARNING, resourceId, message);
     }
 
     public void error(String resourceId, String message) {
-        indexDoc(messageFactory.newMessage(resourceId, message, Level.ERROR, new Date(), nodeName));
+        audit(Level.ERROR, resourceId, message);
     }
 
     private static void onIndexResponse(DocWriteResponse response) {

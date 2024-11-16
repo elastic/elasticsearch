@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -72,7 +73,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("consumed", randomAlphaOfLength(8));
         params.put("unconsumed", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -107,7 +108,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("unconsumed-first", randomAlphaOfLength(8));
         params.put("unconsumed-second", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -154,7 +155,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("very_close_to_parametre", randomAlphaOfLength(8));
         params.put("very_far_from_every_consumed_parameter", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         final IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
             () -> handler.handleRequest(request, channel, mockClient)
@@ -205,7 +206,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("consumed", randomAlphaOfLength(8));
         params.put("response_param", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -235,8 +236,9 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("filter_path", randomAlphaOfLength(8));
         params.put("pretty", randomFrom("true", "false", "", null));
         params.put("human", null);
+        params.put("error_trace", randomFrom("true", "false", null));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -281,7 +283,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         params.put("size", randomAlphaOfLength(8));
         params.put("time", randomAlphaOfLength(8));
         RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params).build();
-        RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        RestChannel channel = new FakeRestChannel(request, true, 1);
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -312,7 +314,7 @@ public class BaseRestHandlerTests extends ESTestCase {
                 new BytesArray(builder.toString()),
                 XContentType.JSON
             ).build();
-            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            final RestChannel channel = new FakeRestChannel(request, true, 1);
             handler.handleRequest(request, channel, mockClient);
             assertTrue(restChannelConsumer.executed);
             assertTrue(restChannelConsumer.closed);
@@ -339,7 +341,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         };
 
         final RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).build();
-        final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+        final RestChannel channel = new FakeRestChannel(request, true, 1);
         handler.handleRequest(request, channel, mockClient);
         assertTrue(restChannelConsumer.executed);
         assertTrue(restChannelConsumer.closed);
@@ -369,7 +371,7 @@ public class BaseRestHandlerTests extends ESTestCase {
                 new BytesArray(builder.toString()),
                 XContentType.JSON
             ).build();
-            final RestChannel channel = new FakeRestChannel(request, randomBoolean(), 1);
+            final RestChannel channel = new FakeRestChannel(request, true, 1);
             final IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
                 () -> handler.handleRequest(request, channel, mockClient)

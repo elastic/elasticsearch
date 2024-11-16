@@ -1,5 +1,0 @@
-pr: 102435
-summary: S3 first byte latency metric
-area: Search
-type: enhancement
-issues: []

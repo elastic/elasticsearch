@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.functionscore;
@@ -116,11 +117,8 @@ public class FunctionScoreIT extends ESIntegTestCase {
             ),
             response -> {
                 assertThat(response.getHits().getAt(0).getScore(), equalTo(1.0f));
-                assertThat(
-                    ((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getKeyAsString(),
-                    equalTo("1.0")
-                );
-                assertThat(((Terms) response.getAggregations().asMap().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
+                assertThat(((Terms) response.getAggregations().get("score_agg")).getBuckets().get(0).getKeyAsString(), equalTo("1.0"));
+                assertThat(((Terms) response.getAggregations().get("score_agg")).getBuckets().get(0).getDocCount(), is(1L));
             }
         );
     }
@@ -147,9 +145,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
             ),
             response -> {
                 if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value, is(0L));
+                    assertThat(response.getHits().getTotalHits().value(), is(0L));
                 } else {
-                    assertThat(response.getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getHits().getTotalHits().value(), is(1L));
                 }
             }
         );
@@ -169,9 +167,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
             ),
             response -> {
                 if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value, is(0L));
+                    assertThat(response.getHits().getTotalHits().value(), is(0L));
                 } else {
-                    assertThat(response.getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getHits().getTotalHits().value(), is(1L));
                 }
             }
         );
@@ -226,9 +224,9 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertNoFailures(searchResponse);
-        assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits().value(), is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -244,7 +242,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             client().search(new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 termQueryScore[0] = response.getHits().getAt(0).getScore();
             }
         );
@@ -261,7 +259,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
             }
         );
@@ -271,7 +269,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                     searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
                 )
             ),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
         );
     }
 }

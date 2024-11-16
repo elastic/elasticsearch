@@ -102,7 +102,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateIlmPolicyForIndexWithoutILMMetadata() {
-        ShrinkAction shrinkAction = new ShrinkAction(2, null);
+        ShrinkAction shrinkAction = new ShrinkAction(2, null, false);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);
@@ -153,7 +153,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
     }
 
     public void testMigrateIlmPolicyForPhaseWithDeactivatedMigrateAction() {
-        ShrinkAction shrinkAction = new ShrinkAction(2, null);
+        ShrinkAction shrinkAction = new ShrinkAction(2, null, false);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
 
         LifecyclePolicy policy = new LifecyclePolicy(
@@ -216,7 +216,7 @@ public class MetadataMigrateToDataTiersRoutingServiceTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testMigrateIlmPolicyRefreshesCachedPhase() {
-        ShrinkAction shrinkAction = new ShrinkAction(2, null);
+        ShrinkAction shrinkAction = new ShrinkAction(2, null, false);
         AllocateAction warmAllocateAction = new AllocateAction(null, null, Map.of("data", "warm"), null, Map.of("rack", "rack1"));
         AllocateAction coldAllocateAction = new AllocateAction(0, null, null, null, Map.of("data", "cold"));
         SetPriorityAction warmSetPriority = new SetPriorityAction(100);

@@ -21,8 +21,8 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -36,6 +36,7 @@ import java.util.Map;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.CLUSTER_SETTINGS_CHECKS;
+import static org.elasticsearch.xpack.deprecation.DeprecationChecks.DATA_STREAM_CHECKS;
 import static org.elasticsearch.xpack.deprecation.DeprecationChecks.INDEX_SETTINGS_CHECKS;
 
 public class TransportDeprecationInfoAction extends TransportMasterNodeReadAction<
@@ -134,6 +135,7 @@ public class TransportDeprecationInfoAction extends TransportMasterNodeReadActio
                                 request,
                                 response,
                                 INDEX_SETTINGS_CHECKS,
+                                DATA_STREAM_CHECKS,
                                 CLUSTER_SETTINGS_CHECKS,
                                 deprecationIssues,
                                 skipTheseDeprecations

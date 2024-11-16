@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.synonyms;
@@ -17,14 +18,26 @@ import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 
-class SynonymsTestUtils {
+public class SynonymsTestUtils {
 
     private SynonymsTestUtils() {
         throw new UnsupportedOperationException();
     }
 
+    public static SynonymRule[] randomSynonymsSet(int length) {
+        return randomSynonymsSet(length, length);
+    }
+
+    public static SynonymRule[] randomSynonymsSet(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+    }
+
+    public static SynonymRule[] randomSynonymsSetWithoutIds(int minLength, int maxLength) {
+        return randomArray(minLength, maxLength, SynonymRule[]::new, () -> randomSynonymRule(null));
+    }
+
     static SynonymRule[] randomSynonymsSet() {
-        return randomArray(10, SynonymRule[]::new, SynonymsTestUtils::randomSynonymRule);
+        return randomSynonymsSet(0, 10);
     }
 
     static SynonymSetSummary[] randomSynonymsSetSummary() {
@@ -32,10 +45,11 @@ class SynonymsTestUtils {
     }
 
     static SynonymRule randomSynonymRule() {
-        return new SynonymRule(
-            randomBoolean() ? null : randomIdentifier(),
-            String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10)))
-        );
+        return randomSynonymRule(randomBoolean() ? null : randomIdentifier());
+    }
+
+    public static SynonymRule randomSynonymRule(String id) {
+        return new SynonymRule(id, String.join(", ", randomArray(1, 10, String[]::new, () -> randomAlphaOfLengthBetween(1, 10))));
     }
 
     static SynonymSetSummary randomSynonymSetSummary() {

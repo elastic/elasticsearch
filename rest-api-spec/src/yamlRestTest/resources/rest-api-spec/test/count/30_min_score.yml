@@ -3,6 +3,9 @@
   - do:
       indices.create:
           index:  test_count_min_score
+          body:
+            settings:
+              number_of_shards: 1
 
   - do:
       index:

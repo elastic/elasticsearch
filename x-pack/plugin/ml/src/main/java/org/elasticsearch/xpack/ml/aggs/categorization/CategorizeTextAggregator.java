@@ -111,7 +111,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray ordsToCollect) throws IOException {
         try (ObjectArray<Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(ordsToCollect.size())) {
             for (long ordIdx = 0; ordIdx < ordsToCollect.size(); ordIdx++) {
                 final long ord = ordsToCollect.get(ordIdx);
@@ -124,18 +124,17 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                 topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
             buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(ordsToCollect.size())];
-            for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                results[ordIdx] = new InternalCategorizationAggregation(
+            return buildAggregations(
+                ordsToCollect.size(),
+                ordIdx -> new InternalCategorizationAggregation(
                     name,
                     bucketCountThresholds.getRequiredSize(),
                     bucketCountThresholds.getMinDocCount(),
                     similarityThreshold,
                     metadata(),
                     Arrays.asList(topBucketsPerOrd.get(ordIdx))
-                );
-            }
-            return results;
+                )
+            );
         }
     }
 

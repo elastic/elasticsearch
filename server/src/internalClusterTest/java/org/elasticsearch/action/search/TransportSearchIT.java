@@ -27,7 +27,9 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -670,8 +672,10 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
-            return new InternalAggregation[] { buildEmptyAggregation() };
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) {
+            ObjectArray<InternalAggregation> agg = BigArrays.NON_RECYCLING_INSTANCE.newObjectArray(1);
+            agg.set(0, buildEmptyAggregation());
+            return agg;
         }
 
         @Override

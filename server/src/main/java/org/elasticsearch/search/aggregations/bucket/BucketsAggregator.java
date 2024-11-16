@@ -12,6 +12,7 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -163,7 +164,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * the provided ordinals.
      * <p>
      * Most aggregations should probably use something like
-     * {@link #buildSubAggsForAllBuckets(Object[][], ToLongFunction, BiConsumer)}
+     * {@link #buildSubAggsForAllBuckets(ObjectArray, ToLongFunction, BiConsumer)}
      * or {@link #buildAggregationsForVariableBuckets(LongArray, LongKeyedBucketOrds, BucketBuilderForVariable, ResultBuilderForVariable)}
      * or {@link #buildAggregationsForFixedBucketCount(LongArray, int, BucketBuilderForFixedCount, Function)}
      * or {@link #buildAggregationsForSingleBucket(LongArray, SingleBucketResultBuilder)}
@@ -205,26 +206,26 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param setAggs how to set the sub-aggregation results on a bucket
      */
     protected final <B> void buildSubAggsForAllBuckets(
-        B[][] buckets,
+        ObjectArray<B[]> buckets,
         ToLongFunction<B> bucketToOrd,
         BiConsumer<B, InternalAggregations> setAggs
     ) throws IOException {
         long totalBucketOrdsToCollect = 0;
-        for (B[] bucketsForOneResult : buckets) {
-            totalBucketOrdsToCollect += bucketsForOneResult.length;
+        for (long b = 0; b < buckets.size(); b++) {
+            totalBucketOrdsToCollect += buckets.get(b).length;
         }
 
         try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(totalBucketOrdsToCollect)) {
             int s = 0;
-            for (B[] bucketsForOneResult : buckets) {
-                for (B bucket : bucketsForOneResult) {
+            for (long ord = 0; ord < buckets.size(); ord++) {
+                for (B bucket : buckets.get(ord)) {
                     bucketOrdsToCollect.set(s++, bucketToOrd.applyAsLong(bucket));
                 }
             }
             var results = buildSubAggsForBuckets(bucketOrdsToCollect);
             s = 0;
-            for (B[] bucket : buckets) {
-                for (B value : bucket) {
+            for (long ord = 0; ord < buckets.size(); ord++) {
+                for (B value : buckets.get(ord)) {
                     setAggs.accept(value, results.apply(s++));
                 }
             }

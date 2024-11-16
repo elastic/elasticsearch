@@ -18,6 +18,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -283,9 +284,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             Releasable {
 
         private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-            try (LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true)) {
-                B[][] topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()));
-                for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+            try (
+                LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
+                ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()))
+            ) {
+                for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
                     long owningOrd = owningBucketOrds.get(ordIdx);
                     collectZeroDocEntriesIfNeeded(owningOrd, excludeDeletedDocs);
                     int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
@@ -307,19 +310,19 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                             spare = ordered.insertWithOverflow(spare);
                         }
 
-                        topBucketsPerOrd[ordIdx] = buildBuckets((int) ordered.size());
+                        topBucketsPerOrd.set(ordIdx, buildBuckets((int) ordered.size()));
                         for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                            topBucketsPerOrd[ordIdx][i] = ordered.pop();
-                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd[ordIdx][i].getDocCount());
-                            finalizeBucket(topBucketsPerOrd[ordIdx][i]);
+                            topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
+                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[i].getDocCount());
+                            finalizeBucket(topBucketsPerOrd.get(ordIdx)[i]);
                         }
                     }
                 }
 
                 buildSubAggs(topBucketsPerOrd);
-                InternalAggregation[] result = new InternalAggregation[topBucketsPerOrd.length];
+                InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
                 for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd[ordIdx]);
+                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
                 }
                 return result;
             }
@@ -363,7 +366,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         /**
          * Build an array to hold the "top" buckets for each ordinal.
          */
-        abstract B[][] buildTopBucketsPerOrd(int size);
+        abstract ObjectArray<B[]> buildTopBucketsPerOrd(long size);
 
         /**
          * Build an array of buckets for a particular ordinal to collect the
@@ -381,7 +384,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -503,8 +506,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        StringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new StringTerms.Bucket[size][];
+        ObjectArray<StringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -523,7 +526,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(StringTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
         }
 
@@ -639,8 +642,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        SignificantStringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new SignificantStringTerms.Bucket[size][];
+        ObjectArray<SignificantStringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -659,7 +662,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(SignificantStringTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(ObjectArray<SignificantStringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
         }
 

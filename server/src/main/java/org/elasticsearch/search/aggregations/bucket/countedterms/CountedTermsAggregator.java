@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -110,9 +111,11 @@ class CountedTermsAggregator extends TermsAggregator {
 
     @Override
     public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        StringTerms.Bucket[][] topBucketsPerOrd = new StringTerms.Bucket[Math.toIntExact(owningBucketOrds.size())][];
-        try (LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size())) {
-            for (int ordIdx = 0; ordIdx < topBucketsPerOrd.length; ordIdx++) {
+        try (
+            LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size());
+            ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
+        ) {
+            for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
                 int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
                 // as users can't control sort order, in practice we'll always sort by doc count descending
@@ -145,22 +148,22 @@ class CountedTermsAggregator extends TermsAggregator {
                         spare = ordered.insertWithOverflow(spare);
                     }
 
-                    topBucketsPerOrd[ordIdx] = new StringTerms.Bucket[(int) ordered.size()];
+                    topBucketsPerOrd.set(ordIdx, new StringTerms.Bucket[(int) ordered.size()]);
                     for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPerOrd[ordIdx][i] = ordered.pop();
-                        otherDocCounts.increment(ordIdx, -topBucketsPerOrd[ordIdx][i].getDocCount());
-                        topBucketsPerOrd[ordIdx][i].setTermBytes(BytesRef.deepCopyOf(topBucketsPerOrd[ordIdx][i].getTermBytes()));
+                        topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
+                        otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[i].getDocCount());
+                        topBucketsPerOrd.get(ordIdx)[i].setTermBytes(BytesRef.deepCopyOf(topBucketsPerOrd.get(ordIdx)[i].getTermBytes()));
                     }
                 }
             }
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, InternalTerms.Bucket::getBucketOrd, InternalTerms.Bucket::setAggregations);
-            InternalAggregation[] result = new InternalAggregation[topBucketsPerOrd.length];
+            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
             for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
                 final BucketOrder reduceOrder;
                 if (isKeyOrder(order) == false) {
                     reduceOrder = InternalOrder.key(true);
-                    Arrays.sort(topBucketsPerOrd[ordIdx], reduceOrder.comparator());
+                    Arrays.sort(topBucketsPerOrd.get(ordIdx), reduceOrder.comparator());
                 } else {
                     reduceOrder = order;
                 }
@@ -175,7 +178,7 @@ class CountedTermsAggregator extends TermsAggregator {
                     bucketCountThresholds.getShardSize(),
                     false,
                     otherDocCounts.get(ordIdx),
-                    Arrays.asList(topBucketsPerOrd[ordIdx]),
+                    Arrays.asList(topBucketsPerOrd.get(ordIdx)),
                     null
                 );
             }

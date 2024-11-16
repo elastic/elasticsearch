@@ -312,7 +312,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             bucketCountThresholds.getShardSize(),
             showTermDocCountError,
             otherDocCount,
-            List.of(topBuckets),
+            Arrays.asList(topBuckets),
             0,
             formats,
             keyConverters,

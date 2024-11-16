@@ -40,7 +40,6 @@ import org.elasticsearch.search.aggregations.support.ValuesSource;
 
 import java.io.IOException;
 import java.util.Arrays;
-import java.util.List;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
@@ -402,7 +401,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
-                List.of(topBuckets),
+                Arrays.asList(topBuckets),
                 null
             );
         }
@@ -484,7 +483,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 bucketCountThresholds.getShardSize(),
                 showTermDocCountError,
                 otherDocCount,
-                List.of(topBuckets),
+                Arrays.asList(topBuckets),
                 null
             );
         }
@@ -606,7 +605,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 subsetSizes.get(owningBucketOrd),
                 supersetSize,
                 significanceHeuristic,
-                List.of(topBuckets)
+                Arrays.asList(topBuckets)
             );
         }
 

@@ -66,6 +66,6 @@ testfixtures_shared/
 .ci/templates/
 .ci/views/
 
-# Generated
+# Generated-
 checkstyle_ide.xml
 x-pack/plugin/esql/src/main/generated-src/generated/

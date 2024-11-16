@@ -86,7 +86,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             claimsInventory.put(cluster, currentClaims);
             cluster.setClaims(currentClaims);
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
-                System.out.println("TestClustersRegistry.stopCluster " + cluster.getName() + " stopping...");
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }

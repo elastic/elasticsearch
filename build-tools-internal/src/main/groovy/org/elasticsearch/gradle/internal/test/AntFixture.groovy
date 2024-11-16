@@ -13,10 +13,17 @@ import org.elasticsearch.gradle.OS
 
 import org.elasticsearch.gradle.internal.AntFixtureStop
 import org.elasticsearch.gradle.internal.AntTask
+import org.elasticsearch.gradle.testclusters.TestClusterInfo
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
 import org.gradle.api.GradleException
 import org.gradle.api.file.ProjectLayout
+import org.gradle.api.provider.Property
 import org.gradle.api.provider.Provider
 import org.gradle.api.provider.ProviderFactory
+import org.gradle.api.provider.ValueSource
+import org.gradle.api.provider.ValueSourceParameters
+import org.gradle.api.tasks.Input
 import org.gradle.api.tasks.Internal
 import org.gradle.api.tasks.TaskProvider
 
@@ -289,5 +296,23 @@ class AntFixture extends AntTask {
     @Internal
     protected File getRunLog() {
         return new File(cwd, 'run.log')
+    }
+
+    @Internal
+    Provider<AntFixtureValueSource> getAddressAndPortSource() {
+        return providerFactory.of(AntFixtureValueSource.class, spec -> {
+            spec.getParameters().getPortFile().set(portsFile);
+        });
+    }
+
+    static abstract class AntFixtureValueSource implements ValueSource<String, AntFixtureValueSource.Parameters> {
+        @Override
+        String obtain() {
+            return getParameters().getPortFile().map { it.readLines("UTF-8").get(0) }.get()
+        }
+
+        interface Parameters extends ValueSourceParameters {
+            Property<File> getPortFile();
+        }
     }
 }

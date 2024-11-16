@@ -2,9 +2,6 @@
 
 set -euo pipefail
 
-# TODO/ FIXIT without a full resolved gradle home, we see issues configuration cache reuse
-.ci/scripts/run-gradle.sh --no-daemon precommit
-
 .ci/scripts/run-gradle.sh --configuration-cache precommit -Dorg.gradle.configuration-cache.inputs.unsafe.ignore.file-system-checks=build/*.tar.bz2
 
 # Create a temporary file

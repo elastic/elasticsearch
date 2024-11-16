@@ -58,7 +58,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
     private final Client client;
     private final CircuitBreakerService circuitBreakerService;
-    final Map<String, List<DownloadTaskRemovedListener>> downloadTrackersByModelId;
+    final Map<String, List<DownloadTaskRemovedListener>> taskRemovedListenersByModelId;
 
     @Inject
     public TransportLoadTrainedModelPackage(
@@ -83,7 +83,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
         );
         this.client = new OriginSettingClient(client, ML_ORIGIN);
         this.circuitBreakerService = circuitBreakerService;
-        downloadTrackersByModelId = new HashMap<>();
+        taskRemovedListenersByModelId = new HashMap<>();
     }
 
     @Override
@@ -174,7 +174,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
             // Otherwise register a task removed listener which is called
             // once the tasks is complete and unregistered
             var tracker = new DownloadTaskRemovedListener(inProgress, listener);
-            downloadTrackersByModelId.computeIfAbsent(modelId, s -> new ArrayList<>()).add(tracker);
+            taskRemovedListenersByModelId.computeIfAbsent(modelId, s -> new ArrayList<>()).add(tracker);
             taskManager.registerRemovedTaskListener(tracker);
             return true;
         }
@@ -191,7 +191,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     synchronized void unregisterTask(ModelDownloadTask task) {
         taskManager.unregister(task); // unregister will call the on remove function
 
-        var trackers = downloadTrackersByModelId.remove(task.getModelId());
+        var trackers = taskRemovedListenersByModelId.remove(task.getModelId());
         if (trackers != null) {
             for (var tracker : trackers) {
                 taskManager.unregisterRemovedTaskListener(tracker);

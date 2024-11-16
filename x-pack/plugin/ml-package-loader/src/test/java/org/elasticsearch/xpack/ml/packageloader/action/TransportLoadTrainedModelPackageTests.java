@@ -157,14 +157,14 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
 
         assertTrue(action.existingDownloadInProgress(modelId, true, ActionListener.noop()));
         verify(taskManager).registerRemovedTaskListener(any());
-        assertThat(action.downloadTrackersByModelId.entrySet(), hasSize(1));
-        assertThat(action.downloadTrackersByModelId.get(modelId), hasSize(1));
+        assertThat(action.taskRemovedListenersByModelId.entrySet(), hasSize(1));
+        assertThat(action.taskRemovedListenersByModelId.get(modelId), hasSize(1));
 
         // With wait for completion == false no new removed listener will be added
         assertTrue(action.existingDownloadInProgress(modelId, false, ActionListener.noop()));
         verify(taskManager, times(1)).registerRemovedTaskListener(any());
-        assertThat(action.downloadTrackersByModelId.entrySet(), hasSize(1));
-        assertThat(action.downloadTrackersByModelId.get(modelId), hasSize(1));
+        assertThat(action.taskRemovedListenersByModelId.entrySet(), hasSize(1));
+        assertThat(action.taskRemovedListenersByModelId.get(modelId), hasSize(1));
 
         assertFalse(action.existingDownloadInProgress("no-task-for-this-one", randomBoolean(), ActionListener.noop()));
     }

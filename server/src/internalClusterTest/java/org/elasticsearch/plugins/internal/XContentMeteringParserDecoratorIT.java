@@ -9,7 +9,6 @@
 
 package org.elasticsearch.plugins.internal;
 
-import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineFactory;
@@ -126,7 +125,7 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         public DocumentParsingProvider getDocumentParsingProvider() {
             return new DocumentParsingProvider() {
                 @Override
-                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
+                public <T> XContentMeteringParserDecorator newMeteringParserDecorator(IndexRequest request) {
                     return new TestXContentMeteringParserDecorator(0L);
                 }
 
@@ -152,8 +151,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
 
         @Override
         public void onIndexingCompleted(ParsedDocument parsedDocument) {
-            long delta = parsedDocument.getNormalizedSize().ingestedBytes();
-            if (delta > 0) {
+            long delta = parsedDocument.getNormalizedSize();
+            if (delta > XContentMeteringParserDecorator.UNKNOWN_SIZE) {
                 COUNTER.addAndGet(delta);
             }
             assertThat(indexName, equalTo(TEST_INDEX_NAME));
@@ -181,8 +180,8 @@ public class XContentMeteringParserDecoratorIT extends ESIntegTestCase {
         }
 
         @Override
-        public ParsedDocument.DocumentSize meteredDocumentSize() {
-            return new ParsedDocument.DocumentSize(counter, counter);
+        public long meteredDocumentSize() {
+            return counter;
         }
     }
 }

@@ -64,19 +64,19 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testExistsStandardSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(false)));
+        assertExistsQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testExistsSyntheticSource() throws IOException {
-        assertExistsQuery(createMapperService(testMapping(true)));
+        assertExistsQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQueryStandardSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(false)));
+        assertPhraseQuery(createMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     public void testPhraseQuerySyntheticSource() throws IOException {
-        assertPhraseQuery(createMapperService(testMapping(true)));
+        assertPhraseQuery(createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text"))));
     }
 
     private void assertPhraseQuery(MapperService mapperService) throws IOException {
@@ -102,13 +102,6 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
             b -> { b.field("meta", Collections.singletonMap("format", "mysql.access")); },
             m -> assertEquals(Collections.singletonMap("format", "mysql.access"), m.fieldType().meta())
         );
-    }
-
-    private static XContentBuilder testMapping(boolean syntheticSource) throws IOException {
-        if (syntheticSource) {
-            return syntheticSourceMapping(b -> b.startObject("field").field("type", "match_only_text").endObject());
-        }
-        return fieldMapping(b -> b.field("type", "match_only_text"));
     }
 
     @Override
@@ -256,7 +249,7 @@ public class MatchOnlyTextFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromSynthetic() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceFieldMapping(b -> b.field("type", "match_only_text")));
+        MapperService mapper = createSytheticSourceMapperService(fieldMapping(b -> b.field("type", "match_only_text")));
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }
 

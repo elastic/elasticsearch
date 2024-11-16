@@ -1537,6 +1537,8 @@ setup:
   - not_exists: docs.0.doc.error
 
   - do:
+      allowed_warnings:
+        - "index [foo-1] matches multiple legacy templates [global, my-legacy-template], composable templates will only match a single template"
       indices.create:
         index: foo-1
   - match: { acknowledged: true }

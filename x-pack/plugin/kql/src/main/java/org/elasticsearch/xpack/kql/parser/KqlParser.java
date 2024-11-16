@@ -14,8 +14,8 @@ import org.antlr.v4.runtime.ParserRuleContext;
 import org.antlr.v4.runtime.RecognitionException;
 import org.antlr.v4.runtime.Recognizer;
 import org.antlr.v4.runtime.atn.PredictionMode;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.QueryBuilder;
-import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
@@ -25,17 +25,14 @@ import java.util.function.Function;
 public class KqlParser {
     private static final Logger log = LogManager.getLogger(KqlParser.class);
 
-    public QueryBuilder parseKqlQuery(String kqlQuery, SearchExecutionContext searchExecutionContext) {
-        if (log.isDebugEnabled()) {
-            log.debug("Parsing KQL query: {}", kqlQuery);
-        }
-
-        return invokeParser(kqlQuery, searchExecutionContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
+    public QueryBuilder parseKqlQuery(String kqlQuery, KqlParsingContext kqlParserContext) {
+        log.trace("Parsing KQL query: {}", kqlQuery);
+        return invokeParser(kqlQuery, kqlParserContext, KqlBaseParser::topLevelQuery, KqlAstBuilder::toQueryBuilder);
     }
 
     private <T> T invokeParser(
         String kqlQuery,
-        SearchExecutionContext searchExecutionContext,
+        KqlParsingContext kqlParsingContext,
         Function<KqlBaseParser, ParserRuleContext> parseFunction,
         BiFunction<KqlAstBuilder, ParserRuleContext, T> visitor
     ) {
@@ -54,11 +51,9 @@ public class KqlParser {
 
         ParserRuleContext tree = parseFunction.apply(parser);
 
-        if (log.isTraceEnabled()) {
-            log.trace("Parse tree: {}", tree.toStringTree());
-        }
+        log.trace(() -> Strings.format("Parse tree: %s", tree.toStringTree()));
 
-        return visitor.apply(new KqlAstBuilder(searchExecutionContext), tree);
+        return visitor.apply(new KqlAstBuilder(kqlParsingContext), tree);
     }
 
     private static final BaseErrorListener ERROR_LISTENER = new BaseErrorListener() {

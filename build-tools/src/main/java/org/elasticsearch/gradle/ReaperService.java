@@ -168,6 +168,7 @@ public abstract class ReaperService implements BuildService<ReaperService.Params
 
     @Override
     public void close() throws Exception {
+        System.out.println("ReaperService.close");
         shutdown();
     }
 

@@ -89,6 +89,7 @@ tasks.named("test").configure {
     def effectiveProjectDir = projectDir
 
     doLast {
+      List signatures = signatureFolder.list().findAll {it.endsWith("svg")}
       List types = typesFolder.list().findAll {it.endsWith("asciidoc")}
       int count = types == null ? 0 : types.size()
       Closure readExample = line -> {

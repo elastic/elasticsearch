@@ -10,6 +10,8 @@ package org.elasticsearch.gradle.testclusters;
 
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Provider;
+import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
 
@@ -18,18 +20,23 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
 
+import javax.inject.Inject;
+
 public abstract class TestClustersRegistry implements BuildService<BuildServiceParameters.None> {
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
     private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
-
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
+    private final Map<String, Process> nodeProcesses = new HashMap<>();
+
+    @Inject
+    abstract public ProviderFactory getProviderFactory();
 
     public void claimCluster(ElasticsearchCluster cluster) {
-        cluster.freeze();
-        int claim = claimsInventory.getOrDefault(cluster, 0) + 1;
+        int claim = claimsInventory.getOrDefault(cluster, cluster.getClaims()) + 1;
         claimsInventory.put(cluster, claim);
+        cluster.setClaims(claim);
         if (claim > 1) {
             cluster.setShared(true);
         }
@@ -41,6 +48,13 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
         }
         runningClusters.add(cluster);
         cluster.start();
+    }
+
+    public Provider<TestClusterInfo> getClusterInfo(String clusterName) {
+        return getProviderFactory().of(TestClusterValueSource.class, spec -> {
+            spec.getParameters().getService().set(TestClustersRegistry.this);
+            spec.getParameters().getClusterName().set(clusterName);
+        });
     }
 
     public void stopCluster(ElasticsearchCluster cluster, boolean taskFailed) {
@@ -67,13 +81,32 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
                 runningClusters.remove(cluster);
             }
         } else {
-            int currentClaims = claimsInventory.getOrDefault(cluster, 0) - 1;
+            int currentClaims = claimsInventory.getOrDefault(cluster, cluster.getClaims()) - 1;
             claimsInventory.put(cluster, currentClaims);
+            cluster.setClaims(currentClaims);
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
+                System.out.println("TestClustersRegistry.stopCluster " + cluster.getName() + " stopping...");
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }
         }
     }
 
+    public TestClusterInfo getClusterDetails(String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
+        return new TestClusterInfo(cluster.getAllHttpSocketURI(), cluster.getAllTransportPortURI());
+    }
+
+    public void restart(String clusterName) {
+        ElasticsearchCluster cluster = runningClusters.stream().filter(c -> c.getName().equals(clusterName)).findFirst().orElseThrow();
+        cluster.restart();
+    }
+
+    public void storeProcess(String id, Process esProcess) {
+        nodeProcesses.put(id, esProcess);
+    }
+
+    public Process getProcess(String id) {
+        return nodeProcesses.get(id);
+    }
 }

@@ -134,7 +134,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         try (ObjectArray<InternalGeoGridBucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())) {
             for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
                 int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), shardSize);
@@ -162,11 +162,10 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
                 }
             }
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
-            for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                results[ordIdx] = buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata());
-            }
-            return results;
+            return buildAggregations(
+                topBucketsPerOrd.size(),
+                ordIdx -> buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata())
+            );
         }
     }
 

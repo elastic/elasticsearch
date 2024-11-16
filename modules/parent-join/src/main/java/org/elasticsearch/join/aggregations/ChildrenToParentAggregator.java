@@ -10,6 +10,7 @@ package org.elasticsearch.join.aggregations;
 
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -45,7 +46,7 @@ public class ChildrenToParentAggregator extends ParentJoinAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForSingleBucket(
             owningBucketOrds,
             (owningBucketOrd, subAggregationResults) -> new InternalParent(

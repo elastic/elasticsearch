@@ -237,7 +237,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         try (
             LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
             ObjectArray<InternalMultiTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
@@ -286,12 +286,10 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
             }
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
-
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                result[ordIdx] = buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
-            }
-            return result;
+            return buildAggregations(
+                owningBucketOrds.size(),
+                ordIdx -> buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
+            );
         }
     }
 

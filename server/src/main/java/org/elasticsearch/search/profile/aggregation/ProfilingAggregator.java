@@ -11,6 +11,8 @@ package org.elasticsearch.search.profile.aggregation;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.InternalAggregation;
@@ -69,18 +71,26 @@ public class ProfilingAggregator extends Aggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         Timer timer = profileBreakdown.getNewTimer(AggregationTimingType.BUILD_AGGREGATION);
-        InternalAggregation[] result;
-        timer.start();
+        ObjectArray<InternalAggregation> result = null;
+        boolean success = false;
         try {
-            result = delegate.buildAggregations(owningBucketOrds);
+            timer.start();
+            try {
+                result = delegate.buildAggregations(owningBucketOrds);
+            } finally {
+                timer.stop();
+            }
+            profileBreakdown.addDebugInfo("built_buckets", result.size());
+            delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
+            success = true;
+            return result;
         } finally {
-            timer.stop();
+            if (success == false) {
+                Releasables.close(result);
+            }
         }
-        profileBreakdown.addDebugInfo("built_buckets", result.length);
-        delegate.collectDebugInfo(profileBreakdown::addDebugInfo);
-        return result;
     }
 
     @Override

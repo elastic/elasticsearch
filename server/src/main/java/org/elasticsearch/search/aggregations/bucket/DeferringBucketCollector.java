@@ -11,6 +11,7 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -81,7 +82,7 @@ public abstract class DeferringBucketCollector extends BucketCollector {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
             return in.buildAggregations(owningBucketOrds);
         }
 

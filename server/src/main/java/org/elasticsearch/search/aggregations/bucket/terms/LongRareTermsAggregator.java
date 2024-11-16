@@ -120,7 +120,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         /*
          * Collect the list of buckets, populate the filter with terms
          * that are too frequent, and figure out how to merge sub-buckets.
@@ -173,21 +173,11 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
              * Now build the results!
              */
             buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+            return buildAggregations(owningBucketOrds.size(), ordIdx -> {
                 LongRareTerms.Bucket[] buckets = rarestPerOrd.get(ordIdx);
                 Arrays.sort(buckets, ORDER.comparator());
-                result[ordIdx] = new LongRareTerms(
-                    name,
-                    ORDER,
-                    metadata(),
-                    format,
-                    Arrays.asList(buckets),
-                    maxDocCount,
-                    filters.get(ordIdx)
-                );
-            }
-            return result;
+                return new LongRareTerms(name, ORDER, metadata(), format, Arrays.asList(buckets), maxDocCount, filters.get(ordIdx));
+            });
         }
     }
 

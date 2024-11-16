@@ -16,6 +16,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TermQuery;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
@@ -48,7 +49,7 @@ public class AggregatorBaseTests extends MapperServiceTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) {
             throw new UnsupportedOperationException();
         }
 

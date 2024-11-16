@@ -18,6 +18,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -138,7 +139,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         return singleton != null ? getLeafCollector(singleton, sub) : getLeafCollector(values, sub);
     }
 
-    protected final InternalAggregation[] buildAggregations(
+    protected final ObjectArray<InternalAggregation> buildAggregations(
         LongKeyedBucketOrds bucketOrds,
         LongToIntFunction roundingIndexFor,
         LongArray owningBucketOrds
@@ -324,7 +325,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
             return buildAggregations(bucketOrds, l -> roundingIdx, owningBucketOrds);
         }
 
@@ -594,7 +595,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
             /*
              * Rebucket before building the aggregation to build as small as result
              * as possible.

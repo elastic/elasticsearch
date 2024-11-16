@@ -70,7 +70,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         BytesRef spare = new BytesRef();
         try (ObjectArray<InternalTimeSeries.InternalBucket[]> allBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())) {
             for (long ordIdx = 0; ordIdx < allBucketsPerOrd.size(); ordIdx++) {
@@ -100,12 +100,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 allBucketsPerOrd.set(ordIdx, buckets.toArray(new InternalTimeSeries.InternalBucket[0]));
             }
             buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
-
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(allBucketsPerOrd.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                result[ordIdx] = buildResult(allBucketsPerOrd.get(ordIdx));
-            }
-            return result;
+            return buildAggregations(owningBucketOrds.size(), ordIdx -> buildResult(allBucketsPerOrd.get(ordIdx)));
         }
     }
 

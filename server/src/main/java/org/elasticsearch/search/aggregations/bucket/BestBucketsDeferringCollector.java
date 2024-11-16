@@ -22,6 +22,7 @@ import org.apache.lucene.util.packed.PackedLongValues;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -236,7 +237,7 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
     public Aggregator wrap(final Aggregator in) {
         return new WrappedAggregator(in) {
             @Override
-            public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+            public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }

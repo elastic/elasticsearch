@@ -16,6 +16,8 @@ import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.common.util.ObjectArray;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.search.aggregations.bucket.sampler.random.RandomSamplerAggregator;
 import org.elasticsearch.search.aggregations.metrics.MinAggregator;
@@ -360,5 +362,33 @@ public abstract class AggregatorBase extends Aggregator {
      */
     protected final IndexSearcher searcher() {
         return context.searcher();
+    }
+
+    /**
+     * Build the {@link ObjectArray} of this aggregation.
+     * @param size the size of the array to allocate
+     * @param buildAggregation a function that builds the aggregation for a given ordinal
+     * @return the {@link ObjectArray} of this aggregation. It is responsibility of the caller to close the returned {@link ObjectArray}
+     */
+    protected final ObjectArray<InternalAggregation> buildAggregations(long size, CheckedLongFunction<InternalAggregation> buildAggregation)
+        throws IOException {
+        final ObjectArray<InternalAggregation> results = bigArrays().newObjectArray(size);
+        boolean success = false;
+        try {
+            for (long ordIdx = 0; ordIdx < results.size(); ordIdx++) {
+                results.set(ordIdx, buildAggregation.apply(ordIdx));
+            }
+            success = true;
+            return results;
+        } finally {
+            if (success == false) {
+                Releasables.close(results);
+            }
+        }
+    }
+
+    @FunctionalInterface
+    protected interface CheckedLongFunction<T> {
+        T apply(long l) throws IOException;
     }
 }

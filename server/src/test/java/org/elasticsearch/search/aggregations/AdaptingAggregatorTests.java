@@ -9,7 +9,9 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -114,8 +116,10 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
-            return new InternalAggregation[] { null };
+        public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) {
+            ObjectArray<InternalAggregation> result = BigArrays.NON_RECYCLING_INSTANCE.newObjectArray(1);
+            result.set(0, null);
+            return result;
         }
 
         @Override

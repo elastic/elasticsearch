@@ -15,6 +15,7 @@ import org.apache.lucene.util.InPlaceMergeSorter;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.DoubleArray;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -566,7 +567,7 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         int numClusters = collector.finalNumBuckets();
 
         try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(numClusters)) {
@@ -574,26 +575,24 @@ public class VariableWidthHistogramAggregator extends DeferableBucketAggregator 
                 bucketOrdsToCollect.set(i, i);
             }
 
-            var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
+            try (var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect)) {
+                List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
+                for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
+                    buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
+                }
+                Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {
+                    // The contract of the histogram aggregation is that shards must return
+                    // buckets ordered by centroid in ascending order
+                    CollectionUtil.introSort(bucketsToFormat, BucketOrder.key(true).comparator());
 
-            List<InternalVariableWidthHistogram.Bucket> buckets = new ArrayList<>(numClusters);
-            for (int bucketOrd = 0; bucketOrd < numClusters; bucketOrd++) {
-                buckets.add(collector.buildBucket(bucketOrd, subAggregationResults.apply(bucketOrd)));
+                    InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
+                        buildEmptySubAggregations()
+                    );
+
+                    return new InternalVariableWidthHistogram(name, bucketsToFormat, emptyBucketInfo, numBuckets, formatter, metadata());
+                };
+                return buildAggregations(1L, ordIdx -> resultBuilder.apply(buckets));
             }
-
-            Function<List<InternalVariableWidthHistogram.Bucket>, InternalAggregation> resultBuilder = bucketsToFormat -> {
-                // The contract of the histogram aggregation is that shards must return
-                // buckets ordered by centroid in ascending order
-                CollectionUtil.introSort(bucketsToFormat, BucketOrder.key(true).comparator());
-
-                InternalVariableWidthHistogram.EmptyBucketInfo emptyBucketInfo = new InternalVariableWidthHistogram.EmptyBucketInfo(
-                    buildEmptySubAggregations()
-                );
-
-                return new InternalVariableWidthHistogram(name, bucketsToFormat, emptyBucketInfo, numBuckets, formatter, metadata());
-            };
-
-            return new InternalAggregation[] { resultBuilder.apply(buckets) };
         }
 
     }

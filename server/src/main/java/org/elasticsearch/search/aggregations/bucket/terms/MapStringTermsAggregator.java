@@ -118,7 +118,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -283,7 +283,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         implements
             Releasable {
 
-        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        private ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
             try (
                 LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
                 ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()))
@@ -320,12 +320,13 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 }
 
                 buildSubAggs(topBucketsPerOrd);
-                InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
-                for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
-                }
-                return result;
+                return MapStringTermsAggregator.this.buildAggregations(
+                    owningBucketOrds.size(),
+                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
+                );
+
             }
+
         }
 
         /**

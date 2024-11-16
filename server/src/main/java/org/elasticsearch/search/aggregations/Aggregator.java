@@ -15,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
 import org.elasticsearch.search.sort.SortOrder;
@@ -142,9 +143,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
       * @param ordsToCollect the ordinals of the buckets that we want to
      *        collect from this aggregation
      * @return the results for each ordinal, in the same order as the array
-     *         of ordinals
+     *         of ordinals. It is responsibility of the caller to close the returned {@link ObjectArray}
      */
-    public abstract InternalAggregation[] buildAggregations(LongArray ordsToCollect) throws IOException;
+    public abstract ObjectArray<InternalAggregation> buildAggregations(LongArray ordsToCollect) throws IOException;
 
     /**
      * Release this aggregation and its sub-aggregations.
@@ -159,7 +160,9 @@ public abstract class Aggregator extends BucketCollector implements Releasable {
      */
     public final InternalAggregation buildTopLevel() throws IOException {
         assert parent() == null;
-        return buildAggregations(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true))[0];
+        try (var agg = buildAggregations(BigArrays.NON_RECYCLING_INSTANCE.newLongArray(1, true))) {
+            return agg.get(0);
+        }
     }
 
     /**

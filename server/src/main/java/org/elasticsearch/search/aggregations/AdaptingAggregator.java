@@ -11,7 +11,9 @@ package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.ScoreMode;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
 import java.io.IOException;
@@ -99,13 +101,21 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
-    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
-        InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-        for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-            result[ordIdx] = adapt(delegateResults[ordIdx]);
+    public final ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+        final ObjectArray<InternalAggregation> delegateResults = delegate.buildAggregations(owningBucketOrds);
+        boolean success = false;
+        try {
+            // update in place
+            for (long ordIdx = 0; ordIdx < delegateResults.size(); ordIdx++) {
+                delegateResults.set(ordIdx, adapt(delegateResults.get(ordIdx)));
+            }
+            success = true;
+            return delegateResults;
+        } finally {
+            if (success == false) {
+                Releasables.close(delegateResults);
+            }
         }
-        return result;
     }
 
     @Override

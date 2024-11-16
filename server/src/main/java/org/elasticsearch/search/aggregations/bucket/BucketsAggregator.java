@@ -14,6 +14,7 @@ import org.elasticsearch.common.util.IntArray;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorBase;
@@ -37,7 +38,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
-import java.util.function.IntFunction;
+import java.util.function.LongFunction;
 import java.util.function.LongUnaryOperator;
 import java.util.function.ToLongFunction;
 
@@ -172,28 +173,51 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @return the sub-aggregation results in the same order as the provided
      *         array of ordinals
      */
-    protected final IntFunction<InternalAggregations> buildSubAggsForBuckets(LongArray bucketOrdsToCollect) throws IOException {
+    protected final InternalAggregationsFunction buildSubAggsForBuckets(LongArray bucketOrdsToCollect) throws IOException {
         prepareSubAggs(bucketOrdsToCollect);
-        InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
-        for (int i = 0; i < subAggregators.length; i++) {
-            updateCircuitBreaker("building_sub_aggregation");
-            aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
+        final List<ObjectArray<InternalAggregation>> aggregations = new ArrayList<>(subAggregators.length);
+        boolean success = false;
+        try {
+            for (int i = 0; i < subAggregators.length; i++) {
+                updateCircuitBreaker("building_sub_aggregation");
+                aggregations.add(subAggregators[i].buildAggregations(bucketOrdsToCollect));
+            }
+            success = true;
+            return new InternalAggregationsFunction(aggregations);
+        } finally {
+            if (success == false) {
+                Releasables.close(aggregations);
+            }
         }
-        return subAggsForBucketFunction(aggregations);
     }
 
-    private static IntFunction<InternalAggregations> subAggsForBucketFunction(InternalAggregation[][] aggregations) {
-        return ord -> InternalAggregations.from(new AbstractList<>() {
-            @Override
-            public InternalAggregation get(int index) {
-                return aggregations[index][ord];
-            }
+    /** a {@link LongFunction} that can be released */
+    protected static class InternalAggregationsFunction implements LongFunction<InternalAggregations>, Releasable {
+        private final List<ObjectArray<InternalAggregation>> aggregations;
 
-            @Override
-            public int size() {
-                return aggregations.length;
-            }
-        });
+        private InternalAggregationsFunction(List<ObjectArray<InternalAggregation>> aggregations) {
+            this.aggregations = aggregations;
+        }
+
+        @Override
+        public InternalAggregations apply(long ord) {
+            return InternalAggregations.from(new AbstractList<>() {
+                @Override
+                public InternalAggregation get(int index) {
+                    return aggregations.get(index).get(ord);
+                }
+
+                @Override
+                public int size() {
+                    return aggregations.size();
+                }
+            });
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(aggregations);
+        }
     }
 
     /**
@@ -222,11 +246,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
                     bucketOrdsToCollect.set(s++, bucketToOrd.applyAsLong(bucket));
                 }
             }
-            var results = buildSubAggsForBuckets(bucketOrdsToCollect);
-            s = 0;
-            for (long ord = 0; ord < buckets.size(); ord++) {
-                for (B value : buckets.get(ord)) {
-                    setAggs.accept(value, results.apply(s++));
+            try (var results = buildSubAggsForBuckets(bucketOrdsToCollect)) {
+                s = 0;
+                for (long ord = 0; ord < buckets.size(); ord++) {
+                    for (B value : buckets.get(ord)) {
+                        setAggs.accept(value, results.apply(s++));
+                    }
                 }
             }
         }
@@ -240,7 +265,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param bucketBuilder how to build a bucket
      * @param resultBuilder how to build a result from buckets
      */
-    protected final <B> InternalAggregation[] buildAggregationsForFixedBucketCount(
+    protected final <B> ObjectArray<InternalAggregation> buildAggregationsForFixedBucketCount(
         LongArray owningBucketOrds,
         int bucketsPerOwningBucketOrd,
         BucketBuilderForFixedCount<B> bucketBuilder,
@@ -254,24 +279,22 @@ public abstract class BucketsAggregator extends AggregatorBase {
                     bucketOrdsToCollect.set(bucketOrdIdx++, ord++);
                 }
             }
-            bucketOrdIdx = 0;
-            var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int owningOrdIdx = 0; owningOrdIdx < results.length; owningOrdIdx++) {
-                List<B> buckets = new ArrayList<>(bucketsPerOwningBucketOrd);
-                for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
-                    buckets.add(
-                        bucketBuilder.build(
-                            offsetInOwningOrd,
-                            bucketDocCount(bucketOrdsToCollect.get(bucketOrdIdx)),
-                            subAggregationResults.apply(bucketOrdIdx++)
-                        )
-                    );
-                }
-                results[owningOrdIdx] = resultBuilder.apply(buckets);
+            long[] bucketOrdIdxArr = new long[1];
+            try (var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect)) {
+                return buildAggregations(owningBucketOrds.size(), ordIdx -> {
+                    List<B> buckets = new ArrayList<>(bucketsPerOwningBucketOrd);
+                    for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
+                        buckets.add(
+                            bucketBuilder.build(
+                                offsetInOwningOrd,
+                                bucketDocCount(bucketOrdsToCollect.get(bucketOrdIdxArr[0])),
+                                subAggregationResults.apply(bucketOrdIdxArr[0]++)
+                            )
+                        );
+                    }
+                    return resultBuilder.apply(buckets);
+                });
             }
-            return results;
         }
     }
 
@@ -285,7 +308,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param owningBucketOrds owning bucket ordinals for which to build the results
      * @param resultBuilder how to build a result from the sub aggregation results
      */
-    protected final InternalAggregation[] buildAggregationsForSingleBucket(
+    protected final ObjectArray<InternalAggregation> buildAggregationsForSingleBucket(
         LongArray owningBucketOrds,
         SingleBucketResultBuilder resultBuilder
     ) throws IOException {
@@ -294,12 +317,12 @@ public abstract class BucketsAggregator extends AggregatorBase {
          * `consumeBucketsAndMaybeBreak(owningBucketOrds.length)`
          * here but we don't because single bucket aggs never have.
          */
-        var subAggregationResults = buildSubAggsForBuckets(owningBucketOrds);
-        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-            results[ordIdx] = resultBuilder.build(owningBucketOrds.get(ordIdx), subAggregationResults.apply(ordIdx));
+        try (var subAggregationResults = buildSubAggsForBuckets(owningBucketOrds)) {
+            return buildAggregations(
+                owningBucketOrds.size(),
+                ordIdx -> resultBuilder.build(owningBucketOrds.get(ordIdx), subAggregationResults.apply(ordIdx))
+            );
         }
-        return results;
     }
 
     @FunctionalInterface
@@ -313,7 +336,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
      * @param owningBucketOrds owning bucket ordinals for which to build the results
      * @param bucketOrds hash of values to the bucket ordinal
      */
-    protected final <B> InternalAggregation[] buildAggregationsForVariableBuckets(
+    protected final <B> ObjectArray<InternalAggregation> buildAggregationsForVariableBuckets(
         LongArray owningBucketOrds,
         LongKeyedBucketOrds bucketOrds,
         BucketBuilderForVariable<B> bucketBuilder,
@@ -342,30 +365,32 @@ public abstract class BucketsAggregator extends AggregatorBase {
                         bucketOrdsToCollect.set(b++, ordsEnum.ord());
                     }
                 }
-                var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-
-                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-                b = 0;
-                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                    final long owningBucketOrd = owningBucketOrds.get(ordIdx);
-                    List<B> buckets = new ArrayList<>(bucketsInOrd.get(ordIdx));
-                    LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                    while (ordsEnum.next()) {
-                        if (bucketOrdsToCollect.get(b) != ordsEnum.ord()) {
-                            // If we hit this, something has gone horribly wrong and we need to investigate
-                            throw AggregationErrors.iterationOrderChangedWithoutMutating(
-                                bucketOrds.toString(),
-                                ordsEnum.ord(),
-                                bucketOrdsToCollect.get(b)
+                long[] buckerOrdIdx = new long[1];
+                try (var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect)) {
+                    return buildAggregations(owningBucketOrds.size(), ordIdx -> {
+                        final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                        List<B> buckets = new ArrayList<>(bucketsInOrd.get(ordIdx));
+                        LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
+                        while (ordsEnum.next()) {
+                            if (bucketOrdsToCollect.get(buckerOrdIdx[0]) != ordsEnum.ord()) {
+                                // If we hit this, something has gone horribly wrong and we need to investigate
+                                throw AggregationErrors.iterationOrderChangedWithoutMutating(
+                                    bucketOrds.toString(),
+                                    ordsEnum.ord(),
+                                    bucketOrdsToCollect.get(buckerOrdIdx[0])
+                                );
+                            }
+                            buckets.add(
+                                bucketBuilder.build(
+                                    ordsEnum.value(),
+                                    bucketDocCount(ordsEnum.ord()),
+                                    subAggregationResults.apply(buckerOrdIdx[0]++)
+                                )
                             );
                         }
-                        buckets.add(
-                            bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults.apply(b++))
-                        );
-                    }
-                    results[ordIdx] = resultBuilder.build(owningBucketOrd, buckets);
+                        return resultBuilder.build(owningBucketOrd, buckets);
+                    });
                 }
-                return results;
             }
         }
     }

@@ -17,6 +17,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -73,8 +74,8 @@ public class BucketsAggregatorTests extends AggregatorTestCase {
                     }
 
                     @Override
-                    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
-                        return new InternalAggregation[0];
+                    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) {
+                        return bigArrays().newObjectArray(0);
                     }
 
                     @Override

@@ -115,12 +115,6 @@ testClusters.matching { it.name == "yamlRestTestSystemProperties" }.configureEac
 tasks.named("ec2FixtureContainerCredentials").configure {
   env 'ACTIVATE_CONTAINER_CREDENTIALS', true
 }
-//
-//def addressAndPortProvider = tasks.findByName("ec2FixtureContainerCredentials").addressAndPortProvider
-//testClusters.matching { it.name == "yamlRestTestContainerCredentials" }.configureEach {
-//  environment 'AWS_CONTAINER_CREDENTIALS_FULL_URI',
-//    { "http://${-> addressAndPortProvider.get()}/ecs_credentials_endpoint" }, IGNORE_VALUE
-//}
 
 // Extra config for InstanceProfile
 tasks.named("ec2FixtureInstanceProfile").configure {

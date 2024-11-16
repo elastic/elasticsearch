@@ -177,7 +177,7 @@ public class BwcSetupExtension {
         }
     }
 
-    public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
+    public static abstract class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
 
         private String minimumCompilerVersionPath(Version bwcVersion) {
             return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))

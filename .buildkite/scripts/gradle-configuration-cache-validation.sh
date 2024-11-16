@@ -3,7 +3,7 @@
 set -euo pipefail
 
 # This is a workaround for https://github.com/gradle/gradle/issues/28159
-.ci/scripts/run-gradle.sh --no-daemon help
+.ci/scripts/run-gradle.sh --no-daemon precommit
 
 .ci/scripts/run-gradle.sh --configuration-cache precommit -Dorg.gradle.configuration-cache.inputs.unsafe.ignore.file-system-checks=build/*.tar.bz2
 

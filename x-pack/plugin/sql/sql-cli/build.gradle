@@ -8,7 +8,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 

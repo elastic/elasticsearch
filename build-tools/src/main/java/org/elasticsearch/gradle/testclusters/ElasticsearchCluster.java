@@ -597,7 +597,6 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public void stop(boolean tailLogs) {
-        System.out.println("ElasticsearchCluster.stop " + getName());
         nodes.forEach(each -> each.stop(tailLogs));
     }
 
@@ -668,7 +667,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     @Override
     public String toString() {
-        return "cluster{" + path + ":" + clusterName + "} - " + System.identityHashCode(this);
+        return "cluster{" + path + ":" + clusterName + "}";
     }
 
     @Internal

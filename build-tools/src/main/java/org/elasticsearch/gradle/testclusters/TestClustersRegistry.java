@@ -31,7 +31,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private final Map<String, Process> nodeProcesses = new HashMap<>();
 
     @Inject
-    abstract public ProviderFactory getProviderFactory();
+    public abstract ProviderFactory getProviderFactory();
 
     public void claimCluster(ElasticsearchCluster cluster) {
         int claim = claimsInventory.getOrDefault(cluster, cluster.getClaims()) + 1;
@@ -85,7 +85,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
             claimsInventory.put(cluster, currentClaims);
             cluster.setClaims(currentClaims);
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
-                System.out.println("TestClustersRegistry.stopCluster " + cluster.getName() + " stopping...");
                 cluster.stop(false);
                 runningClusters.remove(cluster);
             }

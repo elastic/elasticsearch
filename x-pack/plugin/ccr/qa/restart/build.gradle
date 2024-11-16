@@ -42,8 +42,6 @@ def followCluster = testClusters.register('follow-cluster') {
   nameCustomization = { 'follow' }
 }
 
-println "followCluster (config): ${followCluster.get()}"
-
 tasks.register('leader-cluster', RestIntegTestTask) {
   mustRunAfter("precommit")
   systemProperty 'tests.target_cluster', 'leader'
@@ -92,7 +90,6 @@ tasks.register("followClusterRestartTest", StandaloneRestIntegTestTask) {
   nonInputProperties.systemProperty 'tests.rest.cluster', followUris
 
   doFirst {
-    println "followCluster (exec): ${followCluster.get()}"
     serviceProvider.get().restart("follow-cluster")
   }
 }

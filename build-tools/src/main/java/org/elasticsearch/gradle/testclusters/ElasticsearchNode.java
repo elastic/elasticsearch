@@ -570,7 +570,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public void restart() {
-        System.out.println("restarting = " + this);
         LOGGER.info("Restarting {}", this);
         stop(false);
         start();

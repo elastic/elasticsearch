@@ -36,7 +36,6 @@ import org.apache.lucene.util.RoaringDocIdSet;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexSortConfig;
@@ -186,7 +185,7 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         // Composite aggregator must be at the top of the aggregation tree
         assert owningBucketOrds.size() == 1 && owningBucketOrds.get(0) == 0L;
         if (deferredCollectors != NO_OP_BUCKET_COLLECTOR) {
@@ -200,39 +199,36 @@ public final class CompositeAggregator extends BucketsAggregator implements Size
             for (int i = 0; i < queue.size(); i++) {
                 bucketOrdsToCollect.set(i, i);
             }
-            try (var subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect)) {
-                while (queue.size() > 0) {
-                    int slot = queue.pop();
-                    CompositeKey key = queue.toCompositeKey(slot);
-                    InternalAggregations aggs = subAggsForBuckets.apply(slot);
-                    long docCount = queue.getDocCount(slot);
-                    buckets[(int) queue.size()] = new InternalComposite.InternalBucket(
-                        sourceNames,
-                        formats,
-                        key,
-                        reverseMuls,
-                        missingOrders,
-                        docCount,
-                        aggs
-                    );
-                }
-                CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
-                return buildAggregations(
-                    1L,
-                    ord -> new InternalComposite(
-                        name,
-                        size,
-                        sourceNames,
-                        formats,
-                        Arrays.asList(buckets),
-                        lastBucket,
-                        reverseMuls,
-                        missingOrders,
-                        earlyTerminated,
-                        metadata()
-                    )
+            var subAggsForBuckets = buildSubAggsForBuckets(bucketOrdsToCollect);
+            while (queue.size() > 0) {
+                int slot = queue.pop();
+                CompositeKey key = queue.toCompositeKey(slot);
+                InternalAggregations aggs = subAggsForBuckets.apply(slot);
+                long docCount = queue.getDocCount(slot);
+                buckets[(int) queue.size()] = new InternalComposite.InternalBucket(
+                    sourceNames,
+                    formats,
+                    key,
+                    reverseMuls,
+                    missingOrders,
+                    docCount,
+                    aggs
                 );
             }
+            CompositeKey lastBucket = num > 0 ? buckets[num - 1].getRawKey() : null;
+            return new InternalAggregation[] {
+                new InternalComposite(
+                    name,
+                    size,
+                    sourceNames,
+                    formats,
+                    Arrays.asList(buckets),
+                    lastBucket,
+                    reverseMuls,
+                    missingOrders,
+                    earlyTerminated,
+                    metadata()
+                ) };
         }
     }
 

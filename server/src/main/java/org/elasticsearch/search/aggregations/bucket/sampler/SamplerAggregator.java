@@ -12,7 +12,6 @@ import org.apache.lucene.misc.search.DiversifiedTopDocsCollector;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -214,7 +213,7 @@ public class SamplerAggregator extends DeferableBucketAggregator implements Sing
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForSingleBucket(
             owningBucketOrds,
             (owningBucketOrd, subAggregationResults) -> new InternalSampler(

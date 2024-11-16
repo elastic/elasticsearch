@@ -136,7 +136,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -163,7 +163,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
     abstract class ResultStrategy<R extends InternalAggregation, B extends InternalMultiBucketAggregation.InternalBucket>
         implements
             Releasable {
-        private ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             try (
                 LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
                 ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.size())
@@ -202,10 +202,12 @@ public final class NumericTermsAggregator extends TermsAggregator {
                 }
 
                 buildSubAggs(topBucketsPerOrd);
-                return NumericTermsAggregator.this.buildAggregations(
-                    owningBucketOrds.size(),
-                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
-                );
+
+                InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
+                for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
+                }
+                return result;
             }
         }
 

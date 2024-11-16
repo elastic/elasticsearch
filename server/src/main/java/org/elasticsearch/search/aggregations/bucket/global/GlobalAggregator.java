@@ -15,7 +15,6 @@ import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Scorable;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
@@ -64,7 +63,7 @@ public final class GlobalAggregator extends BucketsAggregator implements SingleB
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         assert owningBucketOrds.size() == 1 && owningBucketOrds.get(0) == 0 : "global aggregator can only be a top level aggregator";
         return buildAggregationsForSingleBucket(
             owningBucketOrds,

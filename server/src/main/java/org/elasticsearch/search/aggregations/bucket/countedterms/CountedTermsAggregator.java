@@ -110,7 +110,7 @@ class CountedTermsAggregator extends TermsAggregator {
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         try (
             LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size());
             ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())
@@ -158,7 +158,8 @@ class CountedTermsAggregator extends TermsAggregator {
             }
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, InternalTerms.Bucket::getBucketOrd, InternalTerms.Bucket::setAggregations);
-            return buildAggregations(topBucketsPerOrd.size(), ordIdx -> {
+            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
+            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
                 final BucketOrder reduceOrder;
                 if (isKeyOrder(order) == false) {
                     reduceOrder = InternalOrder.key(true);
@@ -166,7 +167,7 @@ class CountedTermsAggregator extends TermsAggregator {
                 } else {
                     reduceOrder = order;
                 }
-                return new StringTerms(
+                result[ordIdx] = new StringTerms(
                     name,
                     reduceOrder,
                     order,
@@ -180,7 +181,8 @@ class CountedTermsAggregator extends TermsAggregator {
                     Arrays.asList(topBucketsPerOrd.get(ordIdx)),
                     null
                 );
-            });
+            }
+            return result;
         }
     }
 

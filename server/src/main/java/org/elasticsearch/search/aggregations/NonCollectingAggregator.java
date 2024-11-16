@@ -10,7 +10,6 @@
 package org.elasticsearch.search.aggregations;
 
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -41,7 +40,11 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
-        return buildAggregations(owningBucketOrds.size(), l -> buildEmptyAggregation());
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+            results[ordIdx] = buildEmptyAggregation();
+        }
+        return results;
     }
 }

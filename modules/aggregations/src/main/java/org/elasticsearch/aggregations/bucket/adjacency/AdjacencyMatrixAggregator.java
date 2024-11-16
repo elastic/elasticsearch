@@ -16,7 +16,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.LongArray;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -179,7 +178,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         // Buckets are ordered into groups - [keyed filters] [key1&key2 intersects]
         long maxOrd = owningBucketOrds.size() * totalNumKeys;
         long totalBucketsToBuild = 0;
@@ -189,55 +188,55 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             }
         }
         try (LongArray bucketOrdsToBuild = bigArrays().newLongArray(totalBucketsToBuild)) {
-            int[] builtBucketIndex = new int[] { 0 };
+            int builtBucketIndex = 0;
             for (int ord = 0; ord < maxOrd; ord++) {
                 if (bucketDocCount(ord) > 0) {
-                    bucketOrdsToBuild.set(builtBucketIndex[0]++, ord);
+                    bucketOrdsToBuild.set(builtBucketIndex++, ord);
                 }
             }
-            assert builtBucketIndex[0] == totalBucketsToBuild;
-            builtBucketIndex[0] = 0;
-            try (var bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild)) {
-                ObjectArray<InternalAggregation> result = buildAggregations(owningBucketOrds.size(), ordIdx -> {
-                    List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
-                    for (int i = 0; i < keys.length; i++) {
-                        long bucketOrd = bucketOrd(owningBucketOrds.get(ordIdx), i);
+            assert builtBucketIndex == totalBucketsToBuild;
+            builtBucketIndex = 0;
+            var bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
+            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+            for (int owningBucketOrdIdx = 0; owningBucketOrdIdx < results.length; owningBucketOrdIdx++) {
+                List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
+                for (int i = 0; i < keys.length; i++) {
+                    long bucketOrd = bucketOrd(owningBucketOrds.get(owningBucketOrdIdx), i);
+                    long docCount = bucketDocCount(bucketOrd);
+                    // Empty buckets are not returned because this aggregation will commonly be used under a
+                    // a date-histogram where we will look for transactions over time and can expect many
+                    // empty buckets.
+                    if (docCount > 0) {
+                        InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
+                            keys[i],
+                            docCount,
+                            bucketSubAggs.apply(builtBucketIndex++)
+                        );
+                        buckets.add(bucket);
+                    }
+                }
+                int pos = keys.length;
+                for (int i = 0; i < keys.length; i++) {
+                    for (int j = i + 1; j < keys.length; j++) {
+                        long bucketOrd = bucketOrd(owningBucketOrds.get(owningBucketOrdIdx), pos);
                         long docCount = bucketDocCount(bucketOrd);
-                        // Empty buckets are not returned because this aggregation will commonly be used under a
-                        // a date-histogram where we will look for transactions over time and can expect many
-                        // empty buckets.
+                        // Empty buckets are not returned due to potential for very sparse matrices
                         if (docCount > 0) {
+                            String intersectKey = keys[i] + separator + keys[j];
                             InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
-                                keys[i],
+                                intersectKey,
                                 docCount,
-                                bucketSubAggs.apply(builtBucketIndex[0]++)
+                                bucketSubAggs.apply(builtBucketIndex++)
                             );
                             buckets.add(bucket);
                         }
+                        pos++;
                     }
-                    int pos = keys.length;
-                    for (int i = 0; i < keys.length; i++) {
-                        for (int j = i + 1; j < keys.length; j++) {
-                            long bucketOrd = bucketOrd(owningBucketOrds.get(ordIdx), pos);
-                            long docCount = bucketDocCount(bucketOrd);
-                            // Empty buckets are not returned due to potential for very sparse matrices
-                            if (docCount > 0) {
-                                String intersectKey = keys[i] + separator + keys[j];
-                                InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
-                                    intersectKey,
-                                    docCount,
-                                    bucketSubAggs.apply(builtBucketIndex[0]++)
-                                );
-                                buckets.add(bucket);
-                            }
-                            pos++;
-                        }
-                    }
-                    return new InternalAdjacencyMatrix(name, buckets, metadata());
-                });
-                assert builtBucketIndex[0] == totalBucketsToBuild;
-                return result;
+                }
+                results[owningBucketOrdIdx] = new InternalAdjacencyMatrix(name, buckets, metadata());
             }
+            assert builtBucketIndex == totalBucketsToBuild;
+            return results;
         }
     }
 

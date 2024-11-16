@@ -192,7 +192,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -697,13 +697,14 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         B extends InternalMultiBucketAggregation.InternalBucket,
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
-        private ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
 
             if (valueCount == 0) { // no context in this reader
-                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
-                    owningBucketOrds.size(),
-                    ordIdx -> buildNoValuesResult(owningBucketOrds.get(ordIdx))
-                );
+                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                    results[ordIdx] = buildNoValuesResult(owningBucketOrds.get(ordIdx));
+                }
+                return results;
             }
             try (
                 LongArray otherDocCount = bigArrays().newLongArray(owningBucketOrds.size(), true);
@@ -749,10 +750,12 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                 }
 
                 buildSubAggs(topBucketsPreOrd);
-                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
-                    owningBucketOrds.size(),
-                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd.get(ordIdx))
-                );
+
+                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(topBucketsPreOrd.size())];
+                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                    results[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd.get(ordIdx));
+                }
+                return results;
             }
         }
 

@@ -30,7 +30,6 @@ abstract class AntFixtureStop extends LoggedExec implements FixtureStop {
     }
 
     void setFixture(AntFixture fixture) {
-        assert this.fixture == null
         def pidFile = fixture.pidFile
         def fixtureName = fixture.name
         final Object pid = "${-> Integer.parseInt(pidFile.getText('UTF-8').trim())}"

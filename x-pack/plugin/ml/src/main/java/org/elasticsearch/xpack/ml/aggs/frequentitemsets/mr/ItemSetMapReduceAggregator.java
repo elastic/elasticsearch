@@ -19,7 +19,6 @@ import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongObjectPagedHashMap;
-import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -119,8 +118,13 @@ public abstract class ItemSetMapReduceAggregator<
     }
 
     @Override
-    public final ObjectArray<InternalAggregation> buildAggregations(LongArray owningBucketOrds) throws IOException {
-        return buildAggregations(owningBucketOrds.size(), this::buildAggregation);
+    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+            results[ordIdx] = buildAggregation(ordIdx);
+        }
+
+        return results;
     }
 
     @Override

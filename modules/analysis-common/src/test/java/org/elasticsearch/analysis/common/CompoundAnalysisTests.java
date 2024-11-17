@@ -80,7 +80,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     /**
-     * Given a word list of: ["kaffee", "fee", "maschine"]
+     * For example given a word list of: ["kaffee", "fee", "maschine"]
      * no_sub_matches should prevent the token "fee" as a token in "kaffeemaschine".
      */
     public void testHyphenationDecompoundingAnalyzerNoSubMatches() throws Exception {
@@ -93,7 +93,7 @@ public class CompoundAnalysisTests extends ESTestCase {
     }
 
     /**
-     * Given a word list of: ["fuss", "fussball", "ballpumpe", "ball", "pumpe"]
+     * For example given a word list of: ["fuss", "fussball", "ballpumpe", "ball", "pumpe"]
      * no_overlapping_matches should prevent the token "ballpumpe" as a token in "fussballpumpe.
      */
     public void testHyphenationDecompoundingAnalyzerNoOverlappingMatches() throws Exception {

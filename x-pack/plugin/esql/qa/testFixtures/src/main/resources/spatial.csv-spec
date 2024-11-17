@@ -111,6 +111,16 @@ POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.755253400653
 // end::st_x_y-result[]
 ;
 
+stExtentSinglePoint
+required_capability: st_extent
+ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
+| STATS extent = st_extent(point);
+
+c:geo_point                                 | x:double          | y:double
+POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+;
+
+
 simpleLoad
 required_capability: spatial_points_from_source
 

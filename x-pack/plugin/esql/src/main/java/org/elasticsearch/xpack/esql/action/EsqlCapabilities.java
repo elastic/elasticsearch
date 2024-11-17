@@ -183,6 +183,9 @@ public class EsqlCapabilities {
          */
         ST_DISTANCE,
 
+        /** Support for function {@code ST_EXTENT}. */
+        ST_EXTENT,
+
         /**
          * Fix determination of CRS types in spatial functions when folding.
          */

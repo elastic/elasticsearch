@@ -329,6 +329,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116817
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/116444
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoHex
+  issue: https://github.com/elastic/elasticsearch/issues/115705
 
 # Examples:
 #

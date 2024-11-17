@@ -121,7 +121,7 @@ public class IndexLifecycleExplainResponseTests extends AbstractSerializingTestC
             null,
             null
         );
-        assertThat(response.getAge(), equalTo(TimeValue.ZERO));
+        assertThat(response.getAge(System::currentTimeMillis), equalTo(TimeValue.ZERO));
     }
 
     @Override

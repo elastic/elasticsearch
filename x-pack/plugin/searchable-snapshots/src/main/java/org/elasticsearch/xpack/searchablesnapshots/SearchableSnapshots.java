@@ -548,6 +548,12 @@ public class SearchableSnapshots extends Plugin implements IndexStorePlugin, Eng
     public static final String CACHE_PREWARMING_THREAD_POOL_NAME = "searchable_snapshots_cache_prewarming";
     public static final String CACHE_PREWARMING_THREAD_POOL_SETTING = "xpack.searchable_snapshots.cache_prewarming_thread_pool";
 
+    static {
+        // these thread names must be aligned with those in :server
+        assert CACHE_FETCH_ASYNC_THREAD_POOL_NAME.equals(BlobStoreRepository.SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME);
+        assert CACHE_PREWARMING_THREAD_POOL_NAME.equals(BlobStoreRepository.SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME);
+    }
+
     public static ScalingExecutorBuilder[] executorBuilders(Settings settings) {
         final int processors = EsExecutors.allocatedProcessors(settings);
         // searchable snapshots cache thread pools should always reject tasks once they are shutting down, otherwise some threads might be

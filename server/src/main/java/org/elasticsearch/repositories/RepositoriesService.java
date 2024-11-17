@@ -283,12 +283,17 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
 
         @Override
         public ClusterState execute(ClusterState currentState) {
-            RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(request.name(), request.type(), request.settings());
             Metadata.Builder mdBuilder = Metadata.builder(currentState.metadata());
             RepositoriesMetadata repositories = RepositoriesMetadata.get(currentState);
             List<RepositoryMetadata> repositoriesMetadata = new ArrayList<>(repositories.repositories().size() + 1);
             for (RepositoryMetadata repositoryMetadata : repositories.repositories()) {
-                if (repositoryMetadata.name().equals(newRepositoryMetadata.name())) {
+                if (repositoryMetadata.name().equals(request.name())) {
+                    final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
+                        request.name(),
+                        repositoryMetadata.uuid(),
+                        request.type(),
+                        request.settings()
+                    );
                     Repository existing = repositoriesService.repositories.get(request.name());
                     if (existing == null) {
                         existing = repositoriesService.internalRepositories.get(request.name());

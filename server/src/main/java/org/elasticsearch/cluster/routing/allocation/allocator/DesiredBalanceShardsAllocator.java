@@ -208,6 +208,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
         if (allocation.routingTable().indicesRouting().isEmpty()) {
             logger.debug("No allocation needed for empty routing table");
+            listener.onResponse(null);
             return;
         }
 

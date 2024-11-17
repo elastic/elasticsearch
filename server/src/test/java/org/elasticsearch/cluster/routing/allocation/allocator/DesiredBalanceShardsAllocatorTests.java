@@ -13,6 +13,7 @@ import org.apache.logging.log4j.Level;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionTestUtils;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -57,6 +58,7 @@ import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.TestThreadPool;
 
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Queue;
@@ -910,6 +912,38 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             rerouteAndWait(service, clusterState, "random-reroute");
             assertFalse("desired balance reset should not be called", resetCalled.get());
             assertThat(desiredBalanceAllocator.getProcessedNodeShutdowns(), empty());
+        } finally {
+            clusterService.close();
+            terminate(threadPool);
+        }
+    }
+
+    public void testNoAllocationForEmptyRoutingTable() {
+        final var threadPool = new TestThreadPool(getTestName());
+        var clusterService = ClusterServiceUtils.createClusterService(ClusterState.EMPTY_STATE, threadPool);
+        final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
+            createBuiltInClusterSettings(),
+            createShardsAllocator(),
+            threadPool,
+            clusterService,
+            (clusterState, rerouteStrategy) -> null,
+            TelemetryProvider.NOOP,
+            EMPTY_NODE_ALLOCATION_STATS
+        );
+        try {
+            final PlainActionFuture<Void> future = new PlainActionFuture<>();
+            desiredBalanceShardsAllocator.allocate(
+                new RoutingAllocation(
+                    new AllocationDeciders(Collections.emptyList()),
+                    clusterService.state(),
+                    null,
+                    null,
+                    randomNonNegativeLong()
+                ),
+                future
+            );
+            safeGet(future);
+            assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(0L));
         } finally {
             clusterService.close();
             terminate(threadPool);

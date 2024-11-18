@@ -164,8 +164,9 @@ public abstract class IndexRouting {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
-                if (indexMode == IndexMode.LOGSDB && creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID)) {
-                    indexRequest.autoGenerateTimeBasedId(OptionalInt.empty());
+                if (creationVersion.between(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID_BACKPORT, IndexVersions.UPGRADE_TO_LUCENE_10_0_0)
+                    || creationVersion.onOrAfter(IndexVersions.TIME_BASED_K_ORDERED_DOC_ID) && indexMode == IndexMode.LOGSDB) {
+                    indexRequest.autoGenerateTimeBasedId();
                 } else {
                     indexRequest.autoGenerateId();
                 }

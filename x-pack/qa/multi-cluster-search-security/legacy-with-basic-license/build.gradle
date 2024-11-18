@@ -26,6 +26,7 @@ def fulfillingCluster = testClusters.register('fulfilling-cluster') {
   module ':x-pack:plugin:autoscaling'
   module ':x-pack:plugin:esql-core'
   module ':x-pack:plugin:esql'
+  module ':x-pack:plugin:inference'
   module ':x-pack:plugin:ml'
   module ':modules:ingest-common'
   module ':x-pack:plugin:enrich'

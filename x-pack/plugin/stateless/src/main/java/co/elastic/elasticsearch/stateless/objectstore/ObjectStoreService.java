@@ -525,6 +525,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
      */
     private static BatchedCompoundCommit readBatchedCompoundCommitUsingCache(
         IndexBlobStoreCacheDirectory directory,
+        IOContext context,
         PrimaryTermAndGeneration blobTermAndGen,
         long maxBlobLength,
         boolean exactBlobLength
@@ -547,7 +548,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
         );
         return BatchedCompoundCommit.readFromStore(blobName, maxBlobLength, (ignored, offset, length) -> {
             assert offset + length <= maxBlobLength : offset + " + " + length + " > " + maxBlobLength;
-            var input = dir.openInput(blobName, IOContext.DEFAULT);
+            var input = dir.openInput(blobName, context);
             try {
                 return new InputStreamStreamInput(new InputStreamIndexInput(input.slice(blobName, offset, length), length) {
                     @Override
@@ -564,7 +565,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     /**
      * Find the latest batched compound commit in the provided map and read it using
-     * {@link #readBatchedCompoundCommitUsingCache(IndexBlobStoreCacheDirectory, PrimaryTermAndGeneration, long, boolean)}
+     * {@link #readBatchedCompoundCommitUsingCache(IndexBlobStoreCacheDirectory, IOContext, PrimaryTermAndGeneration, long, boolean)}
      *
      * @param directory the {@link IndexBlobStoreCacheDirectory} to use for reading the blob
      * @param blobs     a sorted map of batched compound commit blobs
@@ -574,12 +575,13 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
     // package private for testing
     static BatchedCompoundCommit readLatestBcc(
         IndexBlobStoreCacheDirectory directory,
+        IOContext context,
         NavigableMap<PrimaryTermAndGeneration, BlobMetadata> blobs
     ) throws IOException {
         var lastEntry = blobs.lastEntry();
         if (lastEntry != null) {
             assert startsWithBlobPrefix(lastEntry.getValue().name()) : lastEntry.getValue();
-            return readBatchedCompoundCommitUsingCache(directory, lastEntry.getKey(), lastEntry.getValue().length(), true);
+            return readBatchedCompoundCommitUsingCache(directory, context, lastEntry.getKey(), lastEntry.getValue().length(), true);
         }
         return null;
     }
@@ -646,6 +648,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public static void readIndexingShardState(
         IndexBlobStoreCacheDirectory directory,
+        IOContext context,
         BlobContainer shardContainer,
         long primaryTerm,
         ThreadPool threadPool,
@@ -697,7 +700,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.GENERIC);
 
                 // Find the most recent batched compound commit and read its headers using cache
-                var latestBcc = ObjectStoreService.readLatestBcc(directory, blobs);
+                var latestBcc = ObjectStoreService.readLatestBcc(directory, context, blobs);
                 if (latestBcc == null) {
                     logger.trace(() -> format("%s no blob found for recovery", directory.getShardId()));
                     ActionListener.completeWith(l, () -> IndexingShardState.EMPTY);
@@ -727,6 +730,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                 // Read/Warm header(s) of every referenced blob and compute BlobFileRanges
                 readBlobsAndComputeBlobFileRanges(
                     directory,
+                    context,
                     latestBcc,
                     referencedBlobs,
                     useReplicatedRanges,
@@ -762,6 +766,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     private static void readBlobsAndComputeBlobFileRanges(
         IndexBlobStoreCacheDirectory directory,
+        IOContext context,
         BatchedCompoundCommit latestBcc,
         Map<PrimaryTermAndGeneration, ReferencedBlobMaxBlobLengthAndFiles> referencedBlobs,
         boolean useReplicatedRanges,
@@ -778,12 +783,9 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
                     var blobTermAndGen = referencedBlob.getKey();
                     var blobLengthAndFiles = referencedBlob.getValue();
 
-                    BatchedCompoundCommit bcc;
-                    if (blobTermAndGen.equals(latestBcc.primaryTermAndGeneration()) == false) {
-                        bcc = readBatchedCompoundCommitUsingCache(directory, blobTermAndGen, blobLengthAndFiles.maxBlobLength(), false);
-                    } else {
-                        bcc = latestBcc;
-                    }
+                    BatchedCompoundCommit bcc = blobTermAndGen.equals(latestBcc.primaryTermAndGeneration()) == false
+                        ? readBatchedCompoundCommitUsingCache(directory, context, blobTermAndGen, blobLengthAndFiles.maxBlobLength(), false)
+                        : latestBcc;
                     blobFileRanges.putAll(computeBlobFileRanges(bcc, blobLengthAndFiles.files(), useReplicatedRanges));
                 }));
             }

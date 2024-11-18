@@ -32,6 +32,7 @@ import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.index.IndexFileNames;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -2742,6 +2743,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
         var future = new PlainActionFuture<ObjectStoreService.IndexingShardState>();
         ObjectStoreService.readIndexingShardState(
             IndexBlobStoreCacheDirectory.unwrapDirectory(node.indexingDirectory),
+            IOContext.DEFAULT,
             node.objectStoreService.getBlobContainer(node.shardId),
             primaryTerm,
             node.threadPool,

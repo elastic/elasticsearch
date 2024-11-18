@@ -6,9 +6,11 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+
+import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+
 apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.publish'
-
 apply plugin: 'elasticsearch.embedded-providers'
 apply plugin: 'elasticsearch.mrjar'
 
@@ -28,6 +30,6 @@ dependencies {
   main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
 }
 
-tasks.named('forbiddenApisMain').configure {
+tasks.withType(CheckForbiddenApisTask).configureEach {
   replaceSignatureFiles 'jdk-signatures'
 }

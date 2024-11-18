@@ -6,7 +6,6 @@ issues: []
 breaking:
   title: Remove legacy params from range query
   area: Search
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  details: The deprecated range query parameters `to`, `from`, `include_lower`, and `include_upper` are no longer supported.
+  impact: Users should use `lt`, `lte`, `gt`, and `gte` query parameters instead.
   notable: false

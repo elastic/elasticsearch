@@ -12,7 +12,6 @@ package org.elasticsearch.search.aggregations.bucket;
 import com.carrotsearch.randomizedtesting.generators.RandomStrings;
 
 import org.elasticsearch.action.index.IndexRequestBuilder;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.index.fielddata.ScriptDocValues;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -43,7 +42,6 @@ import java.util.Set;
 import java.util.function.Function;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
-import java.util.stream.IntStream;
 
 import static org.elasticsearch.search.aggregations.AggregationBuilders.dateHistogram;
 import static org.elasticsearch.search.aggregations.AggregationBuilders.histogram;
@@ -51,7 +49,6 @@ import static org.elasticsearch.search.aggregations.AggregationBuilders.terms;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAllSuccessful;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 
 @ESIntegTestCase.SuiteScopeTestCase
@@ -325,31 +322,28 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 final Terms allTerms = allTermsResponse.getAggregations().get("terms");
                 assertEquals(cardinality, allTerms.getBuckets().size());
 
-                final int size = randomIntBetween(1, cardinality + 2);
-                final int minDocCount = 20;
-                final long[] finalMinDocCount = { 0 };
-                assertResponses(response -> {
-                    assertAllSuccessful(response);
-                    assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), minDocCount, size, include);
-                },
-                    IntStream.rangeClosed(0, minDocCount - 1)
-                        .mapToObj(
-                            num -> prepareSearch("idx").setSize(0)
-                                .setQuery(QUERY)
-                                .addAggregation(
-                                    script.apply(terms("terms"), field)
-                                        .collectMode(randomFrom(SubAggCollectionMode.values()))
-                                        .executionHint(randomExecutionHint())
-                                        .order(order)
-                                        .size(size)
-                                        .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
-                                        .shardSize(cardinality + randomInt(10))
-                                        .minDocCount(minDocCount)
-                                )
-                        )
-                        .toList()
-                        .toArray(new SearchRequestBuilder[0])
-                );
+                for (long minDocCount = 0; minDocCount < 20; ++minDocCount) {
+                    final int size = randomIntBetween(1, cardinality + 2);
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(
+                                script.apply(terms("terms"), field)
+                                    .collectMode(randomFrom(SubAggCollectionMode.values()))
+                                    .executionHint(randomExecutionHint())
+                                    .order(order)
+                                    .size(size)
+                                    .includeExclude(include == null ? null : new IncludeExclude(include, null, null, null))
+                                    .shardSize(cardinality + randomInt(10))
+                                    .minDocCount(minDocCount)
+                            ),
+                        response -> {
+                            assertAllSuccessful(response);
+                            assertSubset(allTerms, (Terms) response.getAggregations().get("terms"), finalMinDocCount, size, include);
+                        }
+                    );
+                }
             }
         );
     }
@@ -394,19 +388,17 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(0)),
             allResponse -> {
                 final Histogram allHisto = allResponse.getAggregations().get("histo");
-                final int minDocCount = 50;
-                final int[] i = { 0 };
-                assertResponses(
-                    response -> { assertSubset(allHisto, response.getAggregations().get("histo"), i[0]++); },
-                    IntStream.rangeClosed(0, minDocCount - 1)
-                        .mapToObj(
-                            num -> prepareSearch("idx").setSize(0)
-                                .setQuery(QUERY)
-                                .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(num))
-                        )
-                        .toList()
-                        .toArray(new SearchRequestBuilder[0])
-                );
+                for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(histogram("histo").field("d").interval(interval).order(order).minDocCount(minDocCount)),
+                        response -> {
+                            assertSubset(allHisto, response.getAggregations().get("histo"), finalMinDocCount);
+                        }
+                    );
+                }
             }
         );
     }
@@ -418,24 +410,23 @@ public class MinDocCountIT extends AbstractTermsTestCase {
                 .addAggregation(dateHistogram("histo").field("date").fixedInterval(DateHistogramInterval.DAY).order(order).minDocCount(0)),
             allResponse -> {
                 final Histogram allHisto = allResponse.getAggregations().get("histo");
-                final int minDocCount = 50;
-                final int[] i = { 0 };
-                assertResponses(
-                    response -> { assertSubset(allHisto, response.getAggregations().get("histo"), i[0]++); },
-                    IntStream.rangeClosed(0, minDocCount - 1)
-                        .mapToObj(
-                            num -> prepareSearch("idx").setSize(0)
-                                .setQuery(QUERY)
-                                .addAggregation(
-                                    dateHistogram("histo").field("date")
-                                        .fixedInterval(DateHistogramInterval.DAY)
-                                        .order(order)
-                                        .minDocCount(num)
-                                )
-                        )
-                        .toList()
-                        .toArray(new SearchRequestBuilder[0])
-                );
+
+                for (long minDocCount = 0; minDocCount < 50; ++minDocCount) {
+                    final long finalMinDocCount = minDocCount;
+                    assertResponse(
+                        prepareSearch("idx").setSize(0)
+                            .setQuery(QUERY)
+                            .addAggregation(
+                                dateHistogram("histo").field("date")
+                                    .fixedInterval(DateHistogramInterval.DAY)
+                                    .order(order)
+                                    .minDocCount(minDocCount)
+                            ),
+                        response -> {
+                            assertSubset(allHisto, response.getAggregations().get("histo"), finalMinDocCount);
+                        }
+                    );
+                }
             }
         );
     }

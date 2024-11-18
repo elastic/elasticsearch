@@ -21,6 +21,7 @@ restResources {
 
 dependencies {
   testImplementation project(path: ':test:test-clusters')
+  testImplementation project(path: ':modules:reindex')
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 

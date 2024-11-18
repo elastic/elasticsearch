@@ -35,10 +35,13 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final ChannelFutureListener closeListener = future -> doClose();
     private final List<ChunkHandler> tracingHandlers = new ArrayList<>(4);
     private ByteBuf buf;
-    private boolean hasLast = false;
     private boolean requested = false;
     private boolean closing = false;
     private HttpBody.ChunkHandler handler;
+
+    // used in tests
+    private volatile int bufSize = 0;
+    private volatile boolean hasLast = false;
 
     public Netty4HttpRequestBodyStream(Channel channel) {
         this.channel = channel;
@@ -106,6 +109,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             comp.addComponent(true, chunk);
             buf = comp;
         }
+        bufSize = buf.readableBytes();
     }
 
     // visible for test
@@ -114,8 +118,8 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     }
 
     // visible for test
-    ByteBuf buf() {
-        return buf;
+    int bufSize() {
+        return bufSize;
     }
 
     // visible for test
@@ -129,6 +133,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         var bytesRef = Netty4Utils.toReleasableBytesReference(buf);
         requested = false;
         buf = null;
+        bufSize = 0;
         for (var tracer : tracingHandlers) {
             tracer.onNext(bytesRef, hasLast);
         }
@@ -155,6 +160,7 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         if (buf != null) {
             buf.release();
             buf = null;
+            bufSize = 0;
         }
         channel.config().setAutoRead(true);
     }

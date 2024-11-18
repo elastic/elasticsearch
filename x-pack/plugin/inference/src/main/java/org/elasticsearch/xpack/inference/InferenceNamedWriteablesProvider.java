@@ -422,8 +422,7 @@ public class InferenceNamedWriteablesProvider {
                 ElasticRerankerServiceSettings.NAME,
                 ElasticRerankerServiceSettings::new
             )
-        )
-
+        );
     }
 
     private static void addChunkedInferenceResultsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {

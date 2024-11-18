@@ -466,7 +466,7 @@ required_capability: date_nanos_add_subtract
 FROM date_nanos
 | WHERE millis > "2020-01-01"
 | EVAL mo = nanos + 1 month, hr = nanos + 1 hour, dy = nanos - 4 days, mn = nanos - 2 minutes
-| SORT millis
+| SORT millis DESC
 | KEEP mo, hr, dy, mn;
 
 mo:date_nanos                  | hr:date_nanos                  | dy:date_nanos                  | mn:date_nanos                  

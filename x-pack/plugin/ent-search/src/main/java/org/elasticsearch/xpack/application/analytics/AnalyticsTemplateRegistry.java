@@ -7,13 +7,11 @@
 package org.elasticsearch.xpack.application.analytics;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -35,8 +33,6 @@ import static org.elasticsearch.xpack.application.analytics.AnalyticsConstants.T
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
-
-    public static final NodeFeature ANALYTICS_TEMPLATE_FEATURE = new NodeFeature("behavioral_analytics.templates");
 
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 3;
@@ -137,10 +133,5 @@ public class AnalyticsTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        return featureService.clusterHasFeature(event.state(), ANALYTICS_TEMPLATE_FEATURE);
     }
 }

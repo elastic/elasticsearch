@@ -71,7 +71,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -89,7 +88,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        featureService = new FeatureService(List.of(new StackTemplatesFeatures(), new DataStreamFeatures()));
+        featureService = new FeatureService(List.of(new DataStreamFeatures()));
         registry = new StackTemplateRegistry(
             Settings.EMPTY,
             clusterService,
@@ -553,11 +552,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
             .map(PipelineConfiguration::getConfigAsMap)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
-    }
-
-    public void testDataStreamLifecycleNodeFeatureId() {
-        // let's make sure these ids remain in-sync
-        assertThat(StackTemplateRegistry.DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.DATA_STREAM_LIFECYCLE.id()));
     }
 
     // -------------

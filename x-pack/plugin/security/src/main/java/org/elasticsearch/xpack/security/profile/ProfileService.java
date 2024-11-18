@@ -100,14 +100,12 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.bulk.TransportSingleItemBulkWriteAction.toSingleItemBulkRequest;
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SECURITY_PROFILE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 import static org.elasticsearch.xpack.core.security.authc.Authentication.isFileOrNativeRealm;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.PRIMARY_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecurityIndexManager.Availability.SEARCH_SHARDS;
 import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ALIAS;
-import static org.elasticsearch.xpack.security.support.SecuritySystemIndices.SECURITY_PROFILE_ORIGIN_FEATURE;
 
 public class ProfileService {
     private static final Logger logger = LogManager.getLogger(ProfileService.class);
@@ -273,7 +271,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
+                    SECURITY_PROFILE_ORIGIN,
                     TransportSearchAction.TYPE,
                     searchRequest,
                     ActionListener.wrap(searchResponse -> {
@@ -403,7 +401,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
+                    SECURITY_PROFILE_ORIGIN,
                     TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(multiSearchResponse -> {
@@ -484,7 +482,7 @@ public class ProfileService {
                 listener::onFailure,
                 () -> executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
+                    SECURITY_PROFILE_ORIGIN,
                     TransportGetAction.TYPE,
                     getRequest,
                     ActionListener.wrap(response -> {
@@ -514,7 +512,7 @@ public class ProfileService {
         tryFreezeAndCheckIndex(listener, PRIMARY_SHARDS).ifPresent(frozenProfileIndex -> {
             frozenProfileIndex.checkIndexVersionThenExecute(
                 listener::onFailure,
-                () -> new OriginSettingClient(client, getActionOrigin()).prepareMultiGet()
+                () -> new OriginSettingClient(client, SECURITY_PROFILE_ORIGIN).prepareMultiGet()
                     .addIds(frozenProfileIndex.aliasName(), uids.stream().map(ProfileService::uidToDocId).toArray(String[]::new))
                     .execute(ActionListener.wrap(multiGetResponse -> {
                         List<VersionedDocument> retrievedDocs = new ArrayList<>(multiGetResponse.getResponses().length);
@@ -589,7 +587,7 @@ public class ProfileService {
                 subjects.forEach(subject -> multiSearchRequest.add(buildSearchRequestForSubject(subject)));
                 executeAsyncWithOrigin(
                     client,
-                    getActionOrigin(),
+                    SECURITY_PROFILE_ORIGIN,
                     TransportMultiSearchAction.TYPE,
                     multiSearchRequest,
                     ActionListener.wrap(
@@ -742,7 +740,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                getActionOrigin(),
+                SECURITY_PROFILE_ORIGIN,
                 TransportBulkAction.TYPE,
                 bulkRequest,
                 TransportBulkAction.<IndexResponse>unwrappingSingleItemBulkResponse(ActionListener.wrap(indexResponse -> {
@@ -1007,7 +1005,7 @@ public class ProfileService {
             listener::onFailure,
             () -> executeAsyncWithOrigin(
                 client,
-                getActionOrigin(),
+                SECURITY_PROFILE_ORIGIN,
                 TransportUpdateAction.TYPE,
                 updateRequest,
                 ActionListener.wrap(updateResponse -> {
@@ -1017,15 +1015,6 @@ public class ProfileService {
                 }, listener::onFailure)
             )
         );
-    }
-
-    private String getActionOrigin() {
-        // profile origin and user is not available before v8.3.0
-        if (featureService.clusterHasFeature(clusterService.state(), SECURITY_PROFILE_ORIGIN_FEATURE)) {
-            return SECURITY_PROFILE_ORIGIN;
-        } else {
-            return SECURITY_ORIGIN;
-        }
     }
 
     private static String uidToDocId(String uid) {

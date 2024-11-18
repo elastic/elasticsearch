@@ -36,7 +36,7 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         threadPool = new TestThreadPool(this.getClass().getName());
         Client client = new NoOpClient(threadPool);
         ClusterService clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        var featureService = new FeatureService(List.of(new StackTemplatesFeatures()));
+        var featureService = new FeatureService(List.of());
         registry = new LegacyStackTemplateRegistry(
             Settings.EMPTY,
             clusterService,

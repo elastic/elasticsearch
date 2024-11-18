@@ -1219,7 +1219,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
     }
 
     private enum VectorIndexType {
-        HNSW("hnsw") {
+        HNSW("hnsw", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1246,7 +1246,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT8_HNSW("int8_hnsw") {
+        INT8_HNSW("int8_hnsw", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1278,7 +1278,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT4_HNSW("int4_hnsw") {
+        INT4_HNSW("int4_hnsw", true) {
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
                 Object efConstructionNode = indexOptionsMap.remove("ef_construction");
@@ -1309,7 +1309,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims % 2 == 0;
             }
         },
-        FLAT("flat") {
+        FLAT("flat", false) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1326,7 +1326,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT8_FLAT("int8_flat") {
+        INT8_FLAT("int8_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1348,7 +1348,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return true;
             }
         },
-        INT4_FLAT("int4_flat") {
+        INT4_FLAT("int4_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object confidenceIntervalNode = indexOptionsMap.remove("confidence_interval");
@@ -1370,7 +1370,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims % 2 == 0;
             }
         },
-        BBQ_HNSW("bbq_hnsw") {
+        BBQ_HNSW("bbq_hnsw", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 Object mNode = indexOptionsMap.remove("m");
@@ -1397,7 +1397,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 return dims >= BBQ_MIN_DIMS;
             }
         },
-        BBQ_FLAT("bbq_flat") {
+        BBQ_FLAT("bbq_flat", true) {
             @Override
             public IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap) {
                 MappingParser.checkNoRemainingFields(fieldName, indexOptionsMap);
@@ -1420,9 +1420,11 @@ public class DenseVectorFieldMapper extends FieldMapper {
         }
 
         private final String name;
+        private final boolean quantized;
 
-        VectorIndexType(String name) {
+        VectorIndexType(String name, boolean quantized) {
             this.name = name;
+            this.quantized = quantized;
         }
 
         abstract IndexOptions parseIndexOptions(String fieldName, Map<String, ?> indexOptionsMap);
@@ -1430,6 +1432,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
         public abstract boolean supportsElementType(ElementType elementType);
 
         public abstract boolean supportsDimension(int dims);
+
+        public boolean isQuantized() {
+            return quantized;
+        }
 
         @Override
         public String toString() {
@@ -2011,6 +2017,16 @@ public class DenseVectorFieldMapper extends FieldMapper {
             if (isIndexed() == false) {
                 throw new IllegalArgumentException(
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
+                );
+            }
+            if (rescoreOversample != null && indexOptions.type.isQuantized() == false) {
+                throw new IllegalArgumentException(
+                    "cannot use rescore oversample on field ["
+                        + name()
+                        + "], that uses non-quantized type ["
+                        + indexOptions.type
+                        + "]. "
+                        + "Only quantized index option types support rescore oversample."
                 );
             }
             return switch (getElementType()) {

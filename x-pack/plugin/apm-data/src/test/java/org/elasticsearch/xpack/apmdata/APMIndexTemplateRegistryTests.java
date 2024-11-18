@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.apmdata;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;

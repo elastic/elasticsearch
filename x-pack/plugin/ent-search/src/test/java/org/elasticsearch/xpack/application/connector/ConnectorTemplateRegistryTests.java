@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.application.connector;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;

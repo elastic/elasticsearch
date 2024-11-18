@@ -209,9 +209,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRestartNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/116730
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116182
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
@@ -240,12 +237,14 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests
   method: testFloatGetVectorValueAndGetMagnitude
   issue: https://github.com/elastic/elasticsearch/issues/116863
-- class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconcilerMetricsIT
-  method: testDesiredBalanceMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/116870
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/116542
+- class: org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluatorTests
+  method: testTermQuery
+  issue: https://github.com/elastic/elasticsearch/issues/116879
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116899
 
 # Examples:
 #

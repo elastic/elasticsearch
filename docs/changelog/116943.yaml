@@ -1,6 +1,6 @@
 pr: 116943
 summary: Remove support for deprecated `force_source` highlighting parameter
-area: Highlighting
+area: REST API
 type: breaking
 issues: []
 breaking:

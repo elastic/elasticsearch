@@ -1,0 +1,12 @@
+pr: 116943
+summary: Remove support for deprecated `force_source` higlighting parameter
+area: Highlighting
+type: breaking
+issues: []
+breaking:
+  title: Remove support for deprecated `force_source` higlighting parameter
+  area: Highlighting
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users
+  notable: false

@@ -48,6 +48,10 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
 
     private final Map<String, IndexMetadata.State> indexStateMap;
 
+    private final Map<String, List<String>> indexTierPreferenceMap;
+
+    private final Map<String, Long> indexCreationDateMap;
+
     private final ShardStats[] shards;
 
     private Map<ShardRouting, ShardStats> shardStatsMap;
@@ -55,12 +59,23 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            indexTierPreferenceMap = in.readMap(StreamInput::readStringCollectionAsList);
+            indexCreationDateMap = in.readMap(StreamInput::readLong);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
+            // where we only had health and state available.
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            indexTierPreferenceMap = Map.of();
+            indexCreationDateMap = Map.of();
         } else {
             indexHealthMap = Map.of();
             indexStateMap = Map.of();
+            indexTierPreferenceMap = Map.of();
+            indexCreationDateMap = Map.of();
         }
     }
 
@@ -81,6 +96,8 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
         Objects.requireNonNull(shards);
         Map<String, ClusterHealthStatus> indexHealthModifiableMap = new HashMap<>();
         Map<String, IndexMetadata.State> indexStateModifiableMap = new HashMap<>();
+        Map<String, List<String>> indexTierPreferenceModifiableMap = new HashMap<>();
+        Map<String, Long> indexCreationDateModifiableMap = new HashMap<>();
         for (ShardStats shard : shards) {
             Index index = shard.getShardRouting().index();
             IndexMetadata indexMetadata = metadata.findIndex(index).orElse(null);
@@ -90,10 +107,14 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                     ignored -> new ClusterIndexHealth(indexMetadata, routingTable.index(index)).getStatus()
                 );
                 indexStateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getState());
+                indexTierPreferenceModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getTierPreference());
+                indexCreationDateModifiableMap.computeIfAbsent(index.getName(), ignored -> indexMetadata.getCreationDate());
             }
         }
         indexHealthMap = unmodifiableMap(indexHealthModifiableMap);
         indexStateMap = unmodifiableMap(indexStateModifiableMap);
+        indexTierPreferenceMap = unmodifiableMap(indexTierPreferenceModifiableMap);
+        indexCreationDateMap = unmodifiableMap(indexCreationDateModifiableMap);
     }
 
     public Map<ShardRouting, ShardStats> asMap() {
@@ -131,7 +152,14 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
             Index index = shard.getShardRouting().index();
             IndexStatsBuilder indexStatsBuilder = indexToIndexStatsBuilder.computeIfAbsent(
                 index.getName(),
-                k -> new IndexStatsBuilder(k, index.getUUID(), indexHealthMap.get(index.getName()), indexStateMap.get(index.getName()))
+                k -> new IndexStatsBuilder(
+                    k,
+                    index.getUUID(),
+                    indexHealthMap.get(index.getName()),
+                    indexStateMap.get(index.getName()),
+                    indexTierPreferenceMap.get(index.getName()),
+                    indexCreationDateMap.get(index.getName())
+                )
             );
             indexStatsBuilder.add(shard);
         }
@@ -176,7 +204,13 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+            out.writeMap(indexTierPreferenceMap, StreamOutput::writeStringCollection);
+            out.writeMap(indexCreationDateMap, StreamOutput::writeLong);
+
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
             out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }
@@ -204,6 +238,12 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
                             }
                             if (indexStats.getState() != null) {
                                 builder.field("status", indexStats.getState().toString().toLowerCase(Locale.ROOT));
+                            }
+                            if (indexStats.getTierPreference() != null) {
+                                builder.field("tier_preference", indexStats.getTierPreference());
+                            }
+                            if (indexStats.getCreationDate() != null) {
+                                builder.field("creation_date", indexStats.getCreationDate());
                             }
                             builder.startObject("primaries");
                             indexStats.getPrimaries().toXContent(builder, p);

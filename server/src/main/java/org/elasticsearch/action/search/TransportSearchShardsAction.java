@@ -155,7 +155,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         new SearchShardsResponse(toGroups(shardIts), project.cluster().nodes().getAllNodes(), aliasFilters)
                     );
                 } else {
-                    var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(project.cluster().nodes().get(node));
                     },
@@ -169,8 +169,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         delegate.map(its -> new SearchShardsResponse(toGroups(its), project.cluster().nodes().getAllNodes(), aliasFilters))
-                    );
-                    canMatchPhase.start();
+                    ).start();
                 }
             })
         );

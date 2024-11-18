@@ -126,6 +126,11 @@ public class HuggingFaceElserService extends HuggingFaceBaseService {
     }
 
     @Override
+    public Boolean hideFromConfigurationApi() {
+        return Boolean.TRUE;
+    }
+
+    @Override
     public EnumSet<TaskType> supportedTaskTypes() {
         return supportedTaskTypes;
     }

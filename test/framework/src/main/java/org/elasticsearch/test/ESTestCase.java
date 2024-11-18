@@ -436,11 +436,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
         System.setProperty("es.set.netty.runtime.available.processors", "false");
-
-        // sometimes use the java.time date formatters
-        if (random.nextBoolean()) {
-            System.setProperty("es.datetime.java_time_parsers", "true");
-        }
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());

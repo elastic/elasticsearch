@@ -1781,7 +1781,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 TestIndexNameExpressionResolver.newInstance(threadPool.getThreadContext()),
                 null,
                 null,
-                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService()

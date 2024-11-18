@@ -44,9 +44,7 @@ public class BlobContainerSupplier implements Supplier<BlobContainer> {
     }
 
     private synchronized BlobContainer refreshAndGet() {
-        final LastKnownState lastKnownState = this.lastKnownState;
         final BlobStoreRepository currentRepository = repositorySupplier.get();
-
         if (lastKnownState.blobStoreRepository() == currentRepository) {
             return lastKnownState.blobContainer();
         } else {
@@ -54,7 +52,7 @@ public class BlobContainerSupplier implements Supplier<BlobContainer> {
                 currentRepository,
                 currentRepository.shardContainer(indexId, shardId)
             );
-            this.lastKnownState = new LastKnownState(currentRepository, newContainer);
+            lastKnownState = new LastKnownState(currentRepository, newContainer);
             return newContainer;
         }
     }

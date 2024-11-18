@@ -170,12 +170,12 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
         // In tests, this many documents + commits tend to produce 3-6 merges
         int totalDocs = 0;
-        int threshold = randomIntBetween(1500, 2500);
+        int threshold = randomIntBetween(1500, 2000);
         while (totalDocs < threshold) {
             int docs = randomIntBetween(100, 200);
             totalDocs += docs;
             indexDocs(indexName, docs);
-            indicesAdmin().prepareFlush(indexName).get();
+            indicesAdmin().prepareRefresh(indexName).get();
         }
 
         try {
@@ -184,7 +184,9 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
                 equalTo(startingMerges)
             );
 
+            logger.info("--> force merge call");
             client(indexNode).admin().indices().prepareForceMerge(indexName).setMaxNumSegments(1).get();
+            logger.info("--> force merge call returned");
 
             assertThat(
                 client().admin().indices().prepareStats(indexName).clear().setMerge(true).get().getPrimaries().merge.getTotal(),
@@ -192,6 +194,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             );
 
         } finally {
+            logger.info("--> resume handoff countdown");
             resumeHandoff.countDown();
         }
     }

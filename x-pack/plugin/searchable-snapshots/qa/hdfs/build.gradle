@@ -28,6 +28,6 @@ restResources {
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

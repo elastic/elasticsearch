@@ -287,13 +287,7 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(
-            INVOKESTATIC,
-            handleClass,
-            "instance",
-            "()" + checkerClassDescriptor,
-            false
-        );
+        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", "()" + checkerClassDescriptor, false);
     }
 
     public record ClassFileInfo(String fileName, byte[] bytecodes) {}

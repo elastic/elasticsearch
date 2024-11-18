@@ -14,6 +14,7 @@ import org.elasticsearch.xpack.core.XPackField;
 
 import java.util.Arrays;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
@@ -227,6 +228,50 @@ public class XPackLicenseStateTests extends ESTestCase {
         assertThat("feature.check updates usage", lastUsed.keySet(), containsInAnyOrder(usage));
         assertThat(lastUsed.get(usage), equalTo(200L));
     }
+
+    public void testLastUsedMomentaryFeatureWithSameNameDifferentFamily() {
+        LicensedFeature.Momentary featureFamilyA = LicensedFeature.momentary("familyA", "goldFeature", GOLD);
+        LicensedFeature.Momentary featureFamilyB = LicensedFeature.momentary("familyB", "goldFeature", GOLD);
+
+        AtomicInteger currentTime = new AtomicInteger(100); // non zero start time
+        XPackLicenseState licenseState = new XPackLicenseState(currentTime::get);
+
+        featureFamilyA.check(licenseState);
+        featureFamilyB.check(licenseState);
+
+        Map<XPackLicenseState.FeatureUsage, Long> lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check tracks usage separately by family", lastUsed, aMapWithSize(2));
+        Set<FeatureInfoWithTimestamp> actualFeatures = lastUsed.entrySet()
+            .stream()
+            .map(it -> new FeatureInfoWithTimestamp(it.getKey().feature().getFamily(), it.getKey().feature().getName(), it.getValue()))
+            .collect(Collectors.toSet());
+        assertThat(
+            actualFeatures,
+            containsInAnyOrder(
+                new FeatureInfoWithTimestamp("familyA", "goldFeature", 100L),
+                new FeatureInfoWithTimestamp("familyB", "goldFeature", 100L)
+            )
+        );
+
+        currentTime.set(200);
+        featureFamilyB.check(licenseState);
+
+        lastUsed = licenseState.getLastUsed();
+        assertThat("feature.check tracks usage separately by family", lastUsed, aMapWithSize(2));
+        actualFeatures = lastUsed.entrySet()
+            .stream()
+            .map(it -> new FeatureInfoWithTimestamp(it.getKey().feature().getFamily(), it.getKey().feature().getName(), it.getValue()))
+            .collect(Collectors.toSet());
+        assertThat(
+            actualFeatures,
+            containsInAnyOrder(
+                new FeatureInfoWithTimestamp("familyA", "goldFeature", 100L),
+                new FeatureInfoWithTimestamp("familyB", "goldFeature", 200L)
+            )
+        );
+    }
+
+    private record FeatureInfoWithTimestamp(String family, String featureName, Long timestamp) {}
 
     public void testLastUsedPersistentFeature() {
         LicensedFeature.Persistent goldFeature = LicensedFeature.persistent("family", "goldFeature", GOLD);

@@ -5,7 +5,7 @@ type: breaking
 issues: []
 breaking:
   title: Remove legacy params from range query
-  area: Search
+  area: REST API
   details: The deprecated range query parameters `to`, `from`, `include_lower`, and `include_upper` are no longer supported.
   impact: Users should use `lt`, `lte`, `gt`, and `gte` query parameters instead.
   notable: false

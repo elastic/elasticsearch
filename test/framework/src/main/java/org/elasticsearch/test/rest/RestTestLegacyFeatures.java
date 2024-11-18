@@ -88,8 +88,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature NEW_DATA_STREAMS_INDEX_NAME_FORMAT = new NodeFeature("data_stream.new_index_name_format");
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final NodeFeature DISABLE_FIELD_NAMES_FIELD_REMOVED = new NodeFeature("disable_of_field_names_field_removed");
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature ML_NLP_SUPPORTED = new NodeFeature("ml.nlp_supported");
 
     // YAML
@@ -125,7 +123,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SLM_SUPPORTED, Version.V_7_4_0),
             entry(DATA_STREAMS_SUPPORTED, Version.V_7_9_0),
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
-            entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
             entry(ML_NLP_SUPPORTED, Version.V_8_0_0)
         );
     }

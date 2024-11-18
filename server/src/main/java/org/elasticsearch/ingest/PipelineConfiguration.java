@@ -9,6 +9,7 @@
 
 package org.elasticsearch.ingest;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
 import org.elasticsearch.common.Strings;
@@ -23,9 +24,9 @@ import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -40,11 +41,11 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>("pipeline_config", true, Builder::new);
     static {
         PARSER.declareString(Builder::setId, new ParseField("id"));
-        PARSER.declareField((parser, builder, aVoid) -> {
-            XContentBuilder contentBuilder = XContentBuilder.builder(parser.contentType().xContent());
-            contentBuilder.generator().copyCurrentStructure(parser);
-            builder.setConfig(BytesReference.bytes(contentBuilder), contentBuilder.contentType());
-        }, new ParseField("config"), ObjectParser.ValueType.OBJECT);
+        PARSER.declareField(
+            (parser, builder, aVoid) -> builder.setConfig(parser.map()),
+            new ParseField("config"),
+            ObjectParser.ValueType.OBJECT
+        );
     }
 
     public static ContextParser<Void, PipelineConfiguration> getParser() {
@@ -54,36 +55,31 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     private static class Builder {
 
         private String id;
-        private BytesReference config;
-        private XContentType xContentType;
+        private Map<String, Object> config;
 
         void setId(String id) {
             this.id = id;
         }
 
-        void setConfig(BytesReference config, XContentType xContentType) {
+        void setConfig(Map<String, Object> config) {
             this.config = config;
-            this.xContentType = xContentType;
         }
 
         PipelineConfiguration build() {
-            return new PipelineConfiguration(id, config, xContentType);
+            return new PipelineConfiguration(id, config);
         }
     }
 
     private final String id;
-    // Store config as bytes reference, because the config is only used when the pipeline store reads the cluster state
-    // and the way the map of maps config is read requires a deep copy (it removes instead of gets entries to check for unused options)
-    // also the get pipeline api just directly returns this to the caller
-    private final BytesReference config;
-    private final XContentType xContentType;
-    private final Map<String, Object> parsedConfigMap;
+    private final Map<String, Object> config;
+
+    public PipelineConfiguration(String id, Map<String, Object> config) {
+        this.id = Objects.requireNonNull(id);
+        this.config = deepCopy(config, true); // defensive deep copy
+    }
 
     public PipelineConfiguration(String id, BytesReference config, XContentType xContentType) {
-        this.id = Objects.requireNonNull(id);
-        this.config = Objects.requireNonNull(config);
-        this.xContentType = Objects.requireNonNull(xContentType);
-        this.parsedConfigMap = deepCopy(parseConfigAsMap(), true);
+        this(id, XContentHelper.convertToMap(config, true, xContentType).v2());
     }
 
     public String getId() {
@@ -91,11 +87,11 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     }
 
     public Map<String, Object> getConfigAsMap() {
-        return parsedConfigMap;
+        return config;
     }
 
     public Map<String, Object> parseConfigAsMap() {
-        return XContentHelper.convertToMap(config, true, xContentType).v2();
+        return deepCopy(config, false);
     }
 
     @SuppressWarnings("unchecked")
@@ -123,18 +119,8 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         }
     }
 
-    // pkg-private for tests
-    XContentType getXContentType() {
-        return xContentType;
-    }
-
-    // pkg-private for tests
-    BytesReference getConfig() {
-        return config;
-    }
-
     public Integer getVersion() {
-        Object o = getConfigAsMap().get("version");
+        Object o = config.get("version");
         if (o == null) {
             return null;
         } else if (o instanceof Number number) {
@@ -148,13 +134,22 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field("id", id);
-        builder.field("config", getConfigAsMap());
+        builder.field("config", config);
         builder.endObject();
         return builder;
     }
 
     public static PipelineConfiguration readFrom(StreamInput in) throws IOException {
-        return new PipelineConfiguration(in.readString(), in.readBytesReference(), in.readEnum(XContentType.class));
+        final String id = in.readString();
+        final Map<String, Object> config;
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_PIPELINE_CONFIGURATION_AS_MAP)) {
+            config = in.readGenericMap();
+        } else {
+            final BytesReference bytes = in.readBytesReference();
+            final XContentType type = in.readEnum(XContentType.class);
+            config = XContentHelper.convertToMap(bytes, true, type).v2();
+        }
+        return new PipelineConfiguration(id, config);
     }
 
     public static Diff<PipelineConfiguration> readDiffFrom(StreamInput in) throws IOException {
@@ -169,8 +164,14 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(id);
-        out.writeBytesReference(config);
-        XContentHelper.writeTo(out, xContentType);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INGEST_PIPELINE_CONFIGURATION_AS_MAP)) {
+            out.writeGenericMap(config);
+        } else {
+            XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent).prettyPrint();
+            builder.map(config);
+            out.writeBytesReference(BytesReference.bytes(builder));
+            XContentHelper.writeTo(out, XContentType.JSON);
+        }
     }
 
     @Override
@@ -181,14 +182,14 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         PipelineConfiguration that = (PipelineConfiguration) o;
 
         if (id.equals(that.id) == false) return false;
-        return getConfigAsMap().equals(that.getConfigAsMap());
+        return config.equals(that.config);
 
     }
 
     @Override
     public int hashCode() {
         int result = id.hashCode();
-        result = 31 * result + getConfigAsMap().hashCode();
+        result = 31 * result + config.hashCode();
         return result;
     }
 
@@ -214,11 +215,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
             }
         }
         if (changed) {
-            try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
-                return new PipelineConfiguration(id, BytesReference.bytes(builder.map(mutableConfigMap)), xContentType);
-            } catch (IOException e) {
-                throw new UncheckedIOException(e);
-            }
+            return new PipelineConfiguration(id, mutableConfigMap);
         } else {
             return this;
         }

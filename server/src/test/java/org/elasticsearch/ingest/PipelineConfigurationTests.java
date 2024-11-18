@@ -40,13 +40,11 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             XContentType.JSON
         );
         assertThat(configuration.getConfigAsMap(), anEmptyMap());
-
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
-        assertEquals("{}", serialized.getConfig().utf8ToString());
+        assertThat(serialized.getConfigAsMap(), anEmptyMap());
     }
 
     public void testMetaSerialization() throws IOException {
@@ -57,13 +55,14 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getXContentType());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
-        assertEquals(configJson, serialized.getConfig().utf8ToString());
+        assertEquals(
+            XContentHelper.convertToMap(new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), true, XContentType.JSON).v2(),
+            serialized.getConfigAsMap()
+        );
     }
 
     public void testParser() throws IOException {
@@ -81,9 +80,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentParser xContentParser = xContentType.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
-        assertEquals(xContentType.canonical(), parsed.getXContentType());
         assertThat(parsed.getId(), equalTo("1"));
-        assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
+        assertThat(parsed.getConfigAsMap(), anEmptyMap());
     }
 
     public void testGetVersion() {

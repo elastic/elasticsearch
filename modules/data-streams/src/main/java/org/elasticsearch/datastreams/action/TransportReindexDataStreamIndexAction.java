@@ -36,15 +36,16 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-import java.util.Map;
 import java.util.Set;
 
-public class TransportReindexDataStreamIndexAction
-    extends HandledTransportAction<ReindexDataStreamIndexAction.Request, ReindexDataStreamIndexAction.Response> {
+public class TransportReindexDataStreamIndexAction extends HandledTransportAction<
+    ReindexDataStreamIndexAction.Request,
+    ReindexDataStreamIndexAction.Response> {
 
     private static final Logger logger = LogManager.getLogger(TransportReindexDataStreamIndexAction.class);
 
-    // copied from https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack/plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
+    // copied from
+    // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack/plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
     private static final Set<String> DISALLOWED_SETTINGS = Set.of(
         // Private ES settings
         "index.allocation.existing_shards_allocator",
@@ -110,15 +111,18 @@ public class TransportReindexDataStreamIndexAction
         IndexMetadata sourceIndex = clusterService.state().getMetadata().index(sourceIndexName);
 
         if (sourceIndex.getCreationVersion().isLegacyIndexVersion() == false) {
-            logger.warn("Reindexing datastream index with non-legacy version, index [{}], version [{}]", sourceIndexName, sourceIndex.getCreationVersion());
+            logger.warn(
+                "Reindexing datastream index with non-legacy version, index [{}], version [{}]",
+                sourceIndexName,
+                sourceIndex.getCreationVersion()
+            );
         }
 
-        SubscribableListener
-            .<AcknowledgedResponse>newForked(l -> deleteDestIfExists(destIndexName, l))
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDestIfExists(destIndexName, l))
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(sourceIndex, destIndexName, l))
-//            .<AcknowledgedResponse>andThen(l -> createSnapshot(sourceIndex, sourceIndexName, destIndexName, l))
+            // .<AcknowledgedResponse>andThen(l -> createSnapshot(sourceIndex, sourceIndexName, destIndexName, l))
             .andThenApply(response -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
@@ -126,25 +130,18 @@ public class TransportReindexDataStreamIndexAction
     private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
         logger.debug("Attempting to delete index [{}]", destIndexName);
         var ignoreUnavailable = IndicesOptions.fromOptions(true, false, false, false);
-        var deleteIndexRequest = new DeleteIndexRequest(destIndexName)
-            .indicesOptions(ignoreUnavailable)
+        var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(ignoreUnavailable)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
 
-        client.admin()
-            .indices()
-            .delete(deleteIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-                if (response.isAcknowledged() == false) {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not delete index [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            destIndexName
-                        )
-                    );
-                } else {
-                    delegate.onResponse(null);
-                }
-            }));
+        client.admin().indices().delete(deleteIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+            if (response.isAcknowledged() == false) {
+                delegate.onFailure(
+                    new ElasticsearchStatusException("Could not delete index [{}]", RestStatus.INTERNAL_SERVER_ERROR, destIndexName)
+                );
+            } else {
+                delegate.onResponse(null);
+            }
+        }));
     }
 
     private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
@@ -154,21 +151,15 @@ public class TransportReindexDataStreamIndexAction
         var createIndexRequest = new CreateIndexRequest(destIndexName, settings);
 
         // TODO will create fail if exists ?
-        client.admin()
-            .indices()
-            .create(createIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-                if (response.isAcknowledged() == false) {
-                    delegate.onFailure(
-                        new ElasticsearchStatusException(
-                            "Could not create index [{}]",
-                            RestStatus.INTERNAL_SERVER_ERROR,
-                            destIndexName
-                        )
-                    );
-                } else {
-                    delegate.onResponse(null);
-                }
-            }));
+        client.admin().indices().create(createIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
+            if (response.isAcknowledged() == false) {
+                delegate.onFailure(
+                    new ElasticsearchStatusException("Could not create index [{}]", RestStatus.INTERNAL_SERVER_ERROR, destIndexName)
+                );
+            } else {
+                delegate.onResponse(null);
+            }
+        }));
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
@@ -216,7 +207,7 @@ public class TransportReindexDataStreamIndexAction
     private Settings getPostSettings(IndexMetadata sourceIndex) {
         // TODO
         return Settings.EMPTY;
-//        return sourceIndex.getSettings().filter(DISALLOWED_SETTINGS::contains);
+        // return sourceIndex.getSettings().filter(DISALLOWED_SETTINGS::contains);
     }
 
     public static String generateDestIndexName(String sourceIndex) {

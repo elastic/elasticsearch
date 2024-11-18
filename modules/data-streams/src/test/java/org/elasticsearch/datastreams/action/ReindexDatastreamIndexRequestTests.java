@@ -26,8 +26,6 @@ public class ReindexDatastreamIndexRequestTests extends AbstractWireSerializingT
 
     @Override
     protected Request mutateInstance(Request instance) {
-        return new ReindexDataStreamIndexAction.Request(
-            randomValueOtherThan(instance.getSourceIndex(), () -> randomAlphaOfLength(20))
-        );
+        return new ReindexDataStreamIndexAction.Request(randomValueOtherThan(instance.getSourceIndex(), () -> randomAlphaOfLength(20)));
     }
 }

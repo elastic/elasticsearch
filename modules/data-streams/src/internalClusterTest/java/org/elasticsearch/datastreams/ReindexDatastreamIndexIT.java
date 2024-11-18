@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.datastreams;
 
-
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -32,7 +31,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.hamcrest.Matchers.equalTo;
 
-
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
     @Override
@@ -52,7 +50,8 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
+        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
 
         // verify that dest still exists, but is now empty
         assertHitCount(prepareSearch(destIndex).setSize(0), 0);

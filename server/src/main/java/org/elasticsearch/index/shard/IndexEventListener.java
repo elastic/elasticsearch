@@ -190,4 +190,18 @@ public interface IndexEventListener {
      * @param indexShard the shard that is recovering
      */
     default void afterFilesRestoredFromRepository(IndexShard indexShard) {}
+
+    /**
+     * Called when one or more primary permits are attempted to be acquired.
+     *
+     * @param indexShard    the shard
+     */
+    default void onPrimaryPermitAcquire(IndexShard indexShard) {}
+
+    /**
+     * Called when one or more primary permits are released.
+     *
+     * @param indexShard    the shard
+     */
+    default void onPrimaryPermitReleased(IndexShard indexShard) {}
 }

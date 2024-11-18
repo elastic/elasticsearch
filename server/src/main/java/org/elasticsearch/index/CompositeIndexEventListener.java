@@ -349,4 +349,28 @@ final class CompositeIndexEventListener implements IndexEventListener {
             }
         }
     }
+
+    @Override
+    public void onPrimaryPermitAcquire(IndexShard indexShard) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onPrimaryPermitAcquire(indexShard);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke on primary permit acquire", e);
+                throw e;
+            }
+        }
+    }
+
+    @Override
+    public void onPrimaryPermitReleased(IndexShard indexShard) {
+        for (IndexEventListener listener : listeners) {
+            try {
+                listener.onPrimaryPermitReleased(indexShard);
+            } catch (Exception e) {
+                logger.warn(() -> "[" + indexShard.shardId() + "] failed to invoke on primary permit released", e);
+                throw e;
+            }
+        }
+    }
 }

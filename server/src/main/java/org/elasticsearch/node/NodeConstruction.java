@@ -221,6 +221,7 @@ import org.elasticsearch.xcontent.NamedXContentRegistry;
 import java.io.Closeable;
 import java.io.IOException;
 import java.io.UncheckedIOException;
+import java.lang.management.ManagementFactory;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
@@ -538,15 +539,17 @@ class NodeConstruction {
         // after settings validation.
         nodeEnvironment = new NodeEnvironment(envSettings, environment);
         logger.info(
-            "node name [{}], node ID [{}], cluster name [{}], roles {}",
+            "node name [{}], node ID [{}], cluster name [{}], roles {}, myPID {}",
             Node.NODE_NAME_SETTING.get(envSettings),
             nodeEnvironment.nodeId(),
             ClusterName.CLUSTER_NAME_SETTING.get(envSettings).value(),
             DiscoveryNode.getRolesFromSettings(settings)
                 .stream()
                 .map(DiscoveryNodeRole::roleName)
-                .collect(Collectors.toCollection(LinkedHashSet::new))
+                .collect(Collectors.toCollection(LinkedHashSet::new)),
+            ManagementFactory.getRuntimeMXBean().getName()
         );
+
         resourcesToClose.add(nodeEnvironment);
         modules.bindToInstance(NodeEnvironment.class, nodeEnvironment);
 

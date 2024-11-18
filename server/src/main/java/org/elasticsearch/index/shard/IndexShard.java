@@ -776,6 +776,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         final String targetNodeId,
         final String targetAllocationId,
         final BiConsumer<ReplicationTracker.PrimaryContext, ActionListener<Void>> consumer,
+        // TODO primary permits if already held to release after primary context
         final ActionListener<Void> listener
     ) throws IllegalIndexShardStateException, IllegalStateException {
         assert shardRouting.primary() : "only primaries can be marked as relocated: " + shardRouting;
@@ -1825,6 +1826,23 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         } catch (Exception e) {
             finalListener.onFailure(e);
         }
+    }
+
+    /**
+     * Resets the engine, by closing the current engine reference and creating a new engine.
+     */
+    public void resetEngine() throws IOException {
+        assert indexShardOperationPermits.getActiveOperationsCount() == OPERATIONS_BLOCKED : "must hold permits to reset the engine";
+        final EngineConfig config = newEngineConfig(replicationTracker);
+        synchronized (engineMutex) {
+            IOUtils.close(currentEngineReference.get());
+            final Engine newEngine = createEngine(config);
+            currentEngineReference.set(newEngine);
+            onNewEngine(newEngine);
+            active.set(true);
+        }
+        onSettingsChanged();
+        checkAndCallWaitForEngineOrClosedShardListeners();
     }
 
     /**
@@ -3553,6 +3571,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
+        indexEventListener.onPrimaryPermitAcquire(this);
         indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
@@ -3581,25 +3600,32 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      */
     private ActionListener<Releasable> wrapPrimaryOperationPermitListener(final ActionListener<Releasable> listener) {
         return listener.delegateFailure((l, r) -> {
-            if (isPrimaryMode()) {
-                l.onResponse(r);
+            var wrappedReleasable = wrapPrimaryPermitReleasable(r);
+            if (isPrimaryMode() || state() == IndexShardState.POST_RECOVERY) {
+                l.onResponse(wrappedReleasable);
             } else {
-                r.close();
+                wrappedReleasable.close();
                 l.onFailure(new ShardNotInPrimaryModeException(shardId, state));
             }
         });
     }
 
+    private Releasable wrapPrimaryPermitReleasable(Releasable releasable) {
+        return Releasables.wrap(releasable, () -> { indexEventListener.onPrimaryPermitReleased(this); });
+    }
+
     private void asyncBlockOperations(ActionListener<Releasable> onPermitAcquired, long timeout, TimeUnit timeUnit) {
         final Releasable forceRefreshes = refreshListeners.forceRefreshes();
         final ActionListener<Releasable> wrappedListener = ActionListener.wrap(r -> {
+            var wrappedReleasable = wrapPrimaryPermitReleasable(r);
             forceRefreshes.close();
-            onPermitAcquired.onResponse(r);
+            onPermitAcquired.onResponse(wrappedReleasable);
         }, e -> {
             forceRefreshes.close();
             onPermitAcquired.onFailure(e);
         });
         try {
+            indexEventListener.onPrimaryPermitAcquire(this);
             indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
@@ -3637,6 +3663,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         assert newPrimaryTerm > pendingPrimaryTerm || (newPrimaryTerm >= pendingPrimaryTerm && combineWithAction != null);
         assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
         final CountDownLatch termUpdated = new CountDownLatch(1);
+        indexEventListener.onPrimaryPermitAcquire(this);
         asyncBlockOperations(new ActionListener<Releasable>() {
             @Override
             public void onFailure(final Exception e) {
@@ -3659,7 +3686,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
             @Override
             public void onResponse(final Releasable releasable) {
-                final Releasable releaseOnce = Releasables.releaseOnce(releasable);
+                final Releasable releaseOnce = Releasables.releaseOnce(wrapPrimaryPermitReleasable(releasable));
                 try {
                     assert getOperationPrimaryTerm() <= pendingPrimaryTerm;
                     termUpdated.await();

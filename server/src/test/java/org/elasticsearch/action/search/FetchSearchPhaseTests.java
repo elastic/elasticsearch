@@ -788,18 +788,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
         w.addDocument(new Document());
         IndexReader r = w.getReader();
         w.close();
-        SearchContext searchContext = null;
-        try {
-            ContextIndexSearcher contextIndexSearcher = createSearcher(r);
-            searchContext = createSearchContext(contextIndexSearcher, true);
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true)) {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
             fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null);
             assertTrue(searchContext.queryResult().searchTimedOut());
             assertEquals(1, searchContext.fetchResult().hits().getHits().length);
         } finally {
-            if (searchContext != null) {
-                searchContext.fetchResult().decRef();
-            }
             r.close();
             dir.close();
         }
@@ -813,18 +808,13 @@ public class FetchSearchPhaseTests extends ESTestCase {
         w.addDocument(new Document());
         IndexReader r = w.getReader();
         w.close();
-        SearchContext searchContext = null;
-        try {
-            ContextIndexSearcher contextIndexSearcher = createSearcher(r);
-            searchContext = createSearchContext(contextIndexSearcher, false);
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false)) {
             FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
-            SearchContext context = searchContext;
-            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(context, new int[] { 0, 1, 2 }, null));
+            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null));
             assertNull(searchContext.fetchResult().hits());
         } finally {
-            if (searchContext != null) {
-                searchContext.fetchResult().decRef();
-            }
             r.close();
             dir.close();
         }
@@ -940,6 +930,7 @@ public class FetchSearchPhaseTests extends ESTestCase {
                 return request;
             }
         };
+        searchContext.addReleasable(searchContext.fetchResult()::decRef);
         searchContext.setTask(new SearchShardTask(-1, "type", "action", "description", null, Collections.emptyMap()));
         return searchContext;
     }

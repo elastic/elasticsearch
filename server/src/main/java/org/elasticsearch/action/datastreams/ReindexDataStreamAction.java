@@ -104,5 +104,16 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
         public String getSourceDataStream() {
             return sourceDataStream;
         }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(sourceDataStream);
+        }
+
+        @Override
+        public boolean equals(Object other) {
+            return other instanceof ReindexDataStreamRequest
+                && sourceDataStream.equals(((ReindexDataStreamRequest) other).sourceDataStream);
+        }
     }
 }

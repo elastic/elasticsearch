@@ -27,6 +27,10 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+/*
+ * This transport action creates a new persistent task for reindexing the source data stream given in the request. On successful creation
+ *  of the persistent task, it responds with the persistent task id so that the user can monitor the persistent task.
+ */
 public class ReindexDataStreamTransportAction extends HandledTransportAction<ReindexDataStreamRequest, ReindexDataStreamResponse> {
     private final PersistentTasksService persistentTasksService;
 
@@ -81,13 +85,14 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
                 )
             );
         } catch (ResourceAlreadyExistsException e) {
+            // There is already a persistent task running for this data stream
             listener.onFailure(e);
         }
     }
 
     private String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
         return "reindex-data-stream-" + dataStreamName;
-        // TODO: Do we want to make an attempt to make these unqiue, and allow multiple to be running at once as long as all but one are
+        // TODO: Do we want to make an attempt to make these unique, and allow multiple to be running at once as long as all but one are
         // complete?
     }
 }

@@ -96,31 +96,55 @@ public interface DocumentParserListener {
         }
     }
 
-    sealed interface Event permits Event.DocumentSwitch, Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart,
-        Event.ObjectArrayEnd, Event.LeafArrayStart, Event.LeafArrayEnd, Event.LeafValue {
-        record DocumentSwitch(LuceneDocument document) implements Event {}
+    sealed interface Event permits Event.DocumentStart, Event.ObjectStart, Event.ObjectEnd, Event.ObjectArrayStart, Event.ObjectArrayEnd,
+        Event.LeafArrayStart, Event.LeafArrayEnd, Event.LeafValue {
+        record DocumentStart(RootObjectMapper rootObjectMapper, LuceneDocument document) implements Event {}
 
-        record DocumentStart(RootObjectMapper rootObjectMapper) implements Event {}
-
-        record ObjectStart(ObjectMapper objectMapper) implements Event {}
+        record ObjectStart(ObjectMapper objectMapper, boolean insideObjectArray, ObjectMapper parentMapper, LuceneDocument document)
+            implements
+                Event {}
 
         record ObjectEnd(ObjectMapper objectMapper) implements Event {}
 
-        record ObjectArrayStart(ObjectMapper objectMapper) implements Event {}
+        record ObjectArrayStart(ObjectMapper objectMapper, ObjectMapper parentMapper, LuceneDocument document) implements Event {}
 
         record ObjectArrayEnd() implements Event {}
 
         final class LeafValue implements Event {
             private final FieldMapper fieldMapper;
+            private final boolean insideObjectArray;
+            private final ObjectMapper parentMapper;
+            private final LuceneDocument document;
             private final XContentParser parser;
 
-            public LeafValue(FieldMapper fieldMapper, XContentParser parser) {
+            public LeafValue(
+                FieldMapper fieldMapper,
+                boolean insideObjectArray,
+                ObjectMapper parentMapper,
+                LuceneDocument document,
+                XContentParser parser
+            ) {
                 this.fieldMapper = fieldMapper;
+                this.insideObjectArray = insideObjectArray;
+                this.parentMapper = parentMapper;
+                this.document = document;
                 this.parser = parser;
             }
 
             public FieldMapper fieldMapper() {
                 return fieldMapper;
+            }
+
+            public boolean insideObjectArray() {
+                return insideObjectArray;
+            }
+
+            public ObjectMapper parentMapper() {
+                return parentMapper;
+            }
+
+            public LuceneDocument document() {
+                return document;
             }
 
             boolean isComplexValue() {
@@ -138,7 +162,7 @@ public interface DocumentParserListener {
             }
         }
 
-        record LeafArrayStart(FieldMapper fieldMapper) implements Event {}
+        record LeafArrayStart(FieldMapper fieldMapper, ObjectMapper parentMapper, LuceneDocument document) implements Event {}
 
         record LeafArrayEnd() implements Event {}
     }

@@ -470,12 +470,8 @@ public abstract class DocumentParserContext {
         return copyToFields;
     }
 
-    public void initListeners() throws IOException {
-        listeners.publish(new DocumentParserListener.Event.DocumentSwitch(doc()));
-    }
-
     public DocumentParser.Listeners.AutoEndEventSender publishEvent(DocumentParserListener.Event event) throws IOException {
-        return listeners.publish(event);
+        return listeners.publish(event, this);
     }
 
     public void finishListeners() {
@@ -702,8 +698,6 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) throws IOException {
-        listeners.publish(new DocumentParserListener.Event.DocumentSwitch(document));
-
         DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {

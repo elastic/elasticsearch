@@ -14,15 +14,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.ArrayDeque;
-import java.util.ArrayList;
-import java.util.Deque;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.Stack;
+import java.util.*;
 
 class SyntheticSourceDocumentParserListener implements DocumentParserListener {
+    private final CustomSyntheticSourceFieldLookup customSyntheticSourceFieldLookup;
     private final IndexSettings indexSettings;
     private final XContentType xContentType;
 
@@ -31,11 +26,12 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     private State state;
 
     SyntheticSourceDocumentParserListener(MappingLookup mappingLookup, IndexSettings indexSettings, XContentType xContentType) {
+        this.customSyntheticSourceFieldLookup = mappingLookup.getCustomSyntheticSourceFieldLookup();
         this.indexSettings = indexSettings;
         this.xContentType = xContentType;
 
         this.ignoredSourceValues = new HashMap<>();
-        this.state = new Tracking(mappingLookup.getMapping().getRoot());
+        this.state = new Tracking();
     }
 
     @Override
@@ -58,11 +54,40 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
             return;
         }
 
-        if (event instanceof Event.DocumentSwitch documentSwitch) {
-            ignoredSourceValues.put(documentSwitch.document(), new HashMap<>());
-        }
-
         this.state = state.consume(event);
+    }
+
+    private boolean shouldSkipEvent(Event event) {
+        return switch (event) {
+            case Event.LeafValue leafValue -> {
+                var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                    .get(leafValue.fieldMapper().fullPath());
+
+                if (reason == null) {
+                    yield true;
+                }
+
+                if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && leafValue.insideObjectArray() == false) {
+                    yield true;
+                }
+
+                yield false;
+            }
+            case Event.ObjectStart objectStart -> {
+                var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                    .get(objectStart.objectMapper().fullPath());
+                if (reason == null) {
+                    yield true;
+                }
+
+                if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && objectStart.insideObjectArray() == false) {
+                    yield true;
+                }
+
+                yield false;
+            }
+            default -> false;
+        };
     }
 
     @Override
@@ -137,7 +162,7 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     }
 
     private void addIgnoredSourceValue(StoredValue storedValue, String fullPath, LuceneDocument luceneDocument) {
-        var values = ignoredSourceValues.get(luceneDocument).computeIfAbsent(fullPath, p -> new ArrayList<>());
+        var values = ignoredSourceValues.computeIfAbsent(luceneDocument, ld -> new HashMap<>()).computeIfAbsent(fullPath, p -> new ArrayList<>());
 
         values.add(storedValue);
     }
@@ -272,28 +297,12 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     }
 
     class Tracking implements State {
-        private final Deque<Parent> parents;
-        private final Stack<Document> documents;
-
-        private int depth;
-
-        Tracking(RootObjectMapper rootMapper) {
-            this.parents = new ArrayDeque<>() {
-                {
-                    push(new Tracking.Parent(rootMapper, Parent.Type.OBJECT, 0));
-                }
-            };
-            this.documents = new Stack<>();
-            this.depth = 0;
-        }
-
         public State consume(Token token) throws IOException {
             return this;
         }
 
         public State consume(Event event) throws IOException {
             switch (event) {
-                case Event.DocumentSwitch documentSwitch -> documents.push(new Document(documentSwitch.document(), depth));
                 case Event.DocumentStart documentStart -> {
                     if (documentStart.rootObjectMapper().isEnabled() == false) {
                         return new Storing(
@@ -302,109 +311,108 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
                             documentStart.rootObjectMapper().fullPath(),
                             documentStart.rootObjectMapper(),
                             StoreReason.OTHER,
-                            documents.peek().document()
+                            documentStart.document()
                         );
                     }
                 }
                 case Event.ObjectStart objectStart -> {
-                    depth += 1;
-
-                    var storeReason = shouldStoreObject(objectStart);
-                    if (storeReason != null) {
-                        return new Storing(
-                            this,
-                            Token.START_OBJECT,
-                            objectStart.objectMapper().fullPath(),
-                            parents.peek().parentMapper(),
-                            storeReason,
-                            documents.peek().document()
-                        );
+                    var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                        .get(objectStart.objectMapper().fullPath());
+                    if (reason == null) {
+                        return this;
+                    }
+                    if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && objectStart.insideObjectArray() == false) {
+                        return this;
                     }
 
-                    parents.push(new Parent(objectStart.objectMapper(), Parent.Type.OBJECT, depth));
+                    return new Storing(
+                        this,
+                        Token.START_OBJECT,
+                        objectStart.objectMapper().fullPath(),
+                        objectStart.parentMapper(),
+                        StoreReason.OTHER,
+                        objectStart.document()
+                    );
                 }
                 case Event.ObjectEnd objectEnd -> {
-                    assert depth > 0;
-
-                    if (documents.peek().depth == depth) {
-                        documents.pop();
-                    }
-
-                    if (parents.peek().depth() == depth) {
-                        parents.pop();
-                    }
-
-                    depth -= 1;
                 }
                 case Event.ObjectArrayStart objectArrayStart -> {
-                    depth += 1;
-
-                    var storeReason = shouldStoreObjectArray(objectArrayStart);
-                    if (storeReason != null) {
-                        return new Storing(
-                            this,
-                            Token.START_ARRAY,
-                            objectArrayStart.objectMapper().fullPath(),
-                            parents.peek().parentMapper(),
-                            storeReason,
-                            documents.peek().document()
-                        );
+                    var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                        .get(objectArrayStart.objectMapper().fullPath());
+                    if (reason == null) {
+                        return this;
                     }
 
-                    parents.push(new Parent(objectArrayStart.objectMapper(), Parent.Type.ARRAY, depth));
+                    return new Storing(
+                        this,
+                        Token.START_ARRAY,
+                        objectArrayStart.objectMapper().fullPath(),
+                        objectArrayStart.parentMapper(),
+                        StoreReason.OTHER,
+                        objectArrayStart.document()
+                    );
                 }
                 case Event.ObjectArrayEnd objectArrayEnd -> {
-                    assert depth > 0;
-
-                    if (parents.peek().depth() == depth) {
-                        parents.pop();
-                    }
-
-                    depth -= 1;
                 }
                 case Event.LeafValue leafValue -> {
-                    var storeReason = shouldStoreLeaf(leafValue);
-                    if (storeReason != null) {
-                        if (leafValue.isComplexValue()) {
-                            return new Storing(
-                                this,
-                                leafValue.isArray() ? Token.START_ARRAY : Token.START_OBJECT,
-                                leafValue.fieldMapper().fullPath(),
-                                parents.peek().parentMapper(),
-                                storeReason,
-                                documents.peek().document()
-                            );
-                        }
-
-                        var parentMapper = parents.peek().parentMapper();
-                        var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
-
-                        var nameValue = new IgnoredSourceFieldMapper.NameValue(
-                            leafValue.fieldMapper().fullPath(),
-                            parentOffset,
-                            leafValue.encodeValue(),
-                            documents.peek().document()
-                        );
-                        addIgnoredSourceValue(
-                            new StoredValue.Singleton(nameValue, storeReason),
-                            leafValue.fieldMapper().fullPath(),
-                            documents.peek().document()
-                        );
+                    var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                        .get(leafValue.fieldMapper().fullPath());
+                    if (reason == null) {
+                        return this;
                     }
-                }
-                case Event.LeafArrayStart leafArrayStart -> {
-                    var storeReason = shouldStoreLeafArray(leafArrayStart);
-                    if (storeReason != null) {
-                        // TODO generalize this
+                    if (reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS && leafValue.insideObjectArray() == false) {
+                        return this;
+                    }
+
+                    var storeReason = reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS
+                        ? StoreReason.LEAF_VALUE_STASH_FOR_STORED_ARRAYS
+                        : StoreReason.OTHER;
+
+                    if (leafValue.isComplexValue()) {
                         return new Storing(
                             this,
-                            Token.START_ARRAY,
-                            leafArrayStart.fieldMapper().fullPath(),
-                            parents.peek().parentMapper(),
+                            leafValue.isArray() ? Token.START_ARRAY : Token.START_OBJECT,
+                            leafValue.fieldMapper().fullPath(),
+                            leafValue.parentMapper(),
                             storeReason,
-                            documents.peek().document()
+                            leafValue.document()
                         );
                     }
+
+                    var parentMapper = leafValue.parentMapper();
+                    var parentOffset = parentMapper.isRoot() ? 0 : parentMapper.fullPath().length() + 1;
+
+                    var nameValue = new IgnoredSourceFieldMapper.NameValue(
+                        leafValue.fieldMapper().fullPath(),
+                        parentOffset,
+                        leafValue.encodeValue(),
+                        leafValue.document()
+                    );
+                    addIgnoredSourceValue(
+                        new StoredValue.Singleton(nameValue, storeReason),
+                        leafValue.fieldMapper().fullPath(),
+                        leafValue.document()
+                    );
+                }
+                case Event.LeafArrayStart leafArrayStart -> {
+                    var reason = customSyntheticSourceFieldLookup.getFieldsWithCustomSyntheticSourceHandling()
+                        .get(leafArrayStart.fieldMapper().fullPath());
+                    if (reason == null) {
+                        return this;
+                    }
+
+                    var storeReason = reason == CustomSyntheticSourceFieldLookup.Reason.SOURCE_KEEP_ARRAYS
+                        ? StoreReason.LEAF_STORED_ARRAY
+                        : StoreReason.OTHER;
+                    // TODO generalize this
+                    return new Storing(
+                        this,
+                        Token.START_ARRAY,
+                        leafArrayStart.fieldMapper().fullPath(),
+                        leafArrayStart.parentMapper(),
+                        storeReason,
+                        leafArrayStart.document()
+                    );
                 }
                 case Event.LeafArrayEnd leafArrayEnd -> {
                 }
@@ -412,91 +420,5 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
 
             return this;
         }
-
-        private StoreReason shouldStoreObject(Event.ObjectStart objectStart) {
-            var sourceKeepMode = sourceKeepMode(objectStart.objectMapper());
-
-            // This is a special case of "stashing" a single value in case this field
-            // has "mixed" values inside an object array - some values are arrays and some are singletons.
-            // Since ignored source always takes precedence over standard synthetic source logic
-            // in such a case we would display only values from arrays and lose singleton values.
-            // This additional logic fixes it by storing single values in ignored source as well.
-            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && insideHigherLevelObjectArray()) {
-                return StoreReason.OTHER;
-            }
-
-            if (objectStart.objectMapper().isEnabled() == false || sourceKeepMode == Mapper.SourceKeepMode.ALL) {
-                return SyntheticSourceDocumentParserListener.StoreReason.OTHER;
-            }
-
-            return null;
-        }
-
-        private StoreReason shouldStoreObjectArray(Event.ObjectArrayStart objectArrayStart) {
-            var sourceKeepMode = sourceKeepMode(objectArrayStart.objectMapper());
-            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && objectArrayStart.objectMapper().isNested() == false) {
-                return StoreReason.OTHER;
-            }
-
-            if (sourceKeepMode == Mapper.SourceKeepMode.ALL) {
-                return StoreReason.OTHER;
-            }
-
-            return null;
-        }
-
-        private StoreReason shouldStoreLeaf(Event.LeafValue leafValue) {
-            var sourceKeepMode = sourceKeepMode(leafValue.fieldMapper());
-            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS && insideHigherLevelObjectArray()) {
-                return StoreReason.LEAF_VALUE_STASH_FOR_STORED_ARRAYS;
-            }
-            if (sourceKeepMode == Mapper.SourceKeepMode.ALL) {
-                return StoreReason.OTHER;
-            }
-            if (leafValue.fieldMapper().syntheticSourceMode() == FieldMapper.SyntheticSourceMode.FALLBACK) {
-                return StoreReason.OTHER;
-            }
-
-            return null;
-        }
-
-        private StoreReason shouldStoreLeafArray(Event.LeafArrayStart leafArrayStart) {
-            var sourceKeepMode = sourceKeepMode(leafArrayStart.fieldMapper());
-            if (sourceKeepMode == Mapper.SourceKeepMode.ARRAYS) {
-                return StoreReason.LEAF_STORED_ARRAY;
-            }
-            if (sourceKeepMode == Mapper.SourceKeepMode.ALL) {
-                return StoreReason.OTHER;
-            }
-
-            return null;
-        }
-
-        private Mapper.SourceKeepMode sourceKeepMode(ObjectMapper mapper) {
-            return mapper.sourceKeepMode().orElseGet(indexSettings::sourceKeepMode);
-        }
-
-        private Mapper.SourceKeepMode sourceKeepMode(FieldMapper mapper) {
-            return mapper.sourceKeepMode().orElseGet(indexSettings::sourceKeepMode);
-        }
-
-        private boolean insideHigherLevelObjectArray() {
-            for (var parent : parents) {
-                if (parent.type() == Parent.Type.ARRAY) {
-                    return true;
-                }
-            }
-
-            return false;
-        }
-
-        record Parent(ObjectMapper parentMapper, Type type, int depth) {
-            enum Type {
-                OBJECT,
-                ARRAY
-            }
-        }
-
-        record Document(LuceneDocument document, int depth) {}
     }
 }

@@ -1,6 +1,0 @@
-pr: 112678
-summary: Make "too many clauses" throw IllegalArgumentException to avoid 500s
-area: Search
-type: bug
-issues:
- - 112177

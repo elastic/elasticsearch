@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
@@ -31,7 +32,7 @@ public class Kql extends FullTextFunction {
         returnType = "boolean",
         preview = true,
         description = "Performs a KQL query. Returns true if the provided KQL query string matches the row.",
-        examples = {}
+        examples = { @Example(file = "kql-function", tag = "kql-with-field") }
     )
     public Kql(
         Source source,

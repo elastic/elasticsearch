@@ -996,7 +996,7 @@ public class Stateless extends Plugin
                                 if (indexShard.routingEntry().state() != ShardRoutingState.INITIALIZING) {
                                     indexShard.updateLocalCheckpointForShard(
                                         indexShard.routingEntry().allocationId().getId(),
-                                        indexEngine.getLastSyncedGlobalCheckpoint()
+                                        indexEngine.getPersistedLocalCheckpoint()
                                     );
                                 }
                             } catch (Exception e) {

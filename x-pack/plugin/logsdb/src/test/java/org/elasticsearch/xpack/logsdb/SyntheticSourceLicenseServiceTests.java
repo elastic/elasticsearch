@@ -41,7 +41,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         when(licenseState.isAllowed(any())).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(false));
+        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(false, false));
         Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
     }
 
@@ -50,7 +50,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         when(licenseState.isAllowed(any())).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(true));
+        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(true, false));
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
@@ -59,7 +59,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         when(licenseState.isAllowed(any())).thenReturn(false);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertTrue("synthetic source is not allowed, so fallback to stored source", licenseService.fallbackToStoredSource(false));
+        assertTrue("synthetic source is not allowed, so fallback to stored source", licenseService.fallbackToStoredSource(false, false));
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
@@ -71,7 +71,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         licenseService.setSyntheticSourceFallback(true);
         assertTrue(
             "synthetic source is allowed, but fallback has been enabled, so fallback to stored source",
-            licenseService.fallbackToStoredSource(false)
+            licenseService.fallbackToStoredSource(false, false)
         );
         Mockito.verifyNoInteractions(licenseState);
     }

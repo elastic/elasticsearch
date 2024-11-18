@@ -77,8 +77,14 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
+        //
+        boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
+            templateIndexMode,
+            indexName,
+            dataStreamName
+        );
         if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
-            && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
+            && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation, legacyLicensedUsageOfSyntheticSourceAllowed)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
             return Settings.builder()
                 .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
@@ -162,5 +168,34 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         tmpIndexMetadata.settings(finalResolvedSettings);
         return tmpIndexMetadata.build();
+    }
+
+    /**
+     * The GA-ed use cases in which synthetic source usage is allowed with gold or platinum license.
+     */
+    boolean isLegacyLicensedUsageOfSyntheticSourceAllowed(IndexMode templateIndexMode, String indexName, String dataStreamName) {
+        if (templateIndexMode == IndexMode.TIME_SERIES) {
+            return true;
+        }
+
+        if (dataStreamName.startsWith("profiling-metrics")) {
+            return true;
+        } else if (dataStreamName.startsWith("profiling-events")) {
+            return true;
+        } else if (indexName.startsWith(".profiling-sq-executables")) {
+            return true;
+        } else if (indexName.startsWith(".profiling-sq-leafframes")) {
+            return true;
+        } else if (indexName.startsWith(".profiling-stacktraces")) {
+            return true;
+        }
+
+        // To allow the following patterns: metrics-apm.transaction.*, metrics-apm.service_transaction.*, metrics-apm.service_summary.*,
+        // metrics-apm.service_destination.*, "metrics-apm.internal-* and metrics-apm.app.*
+        if (dataStreamName.startsWith("metrics-apm.")) {
+            return true;
+        }
+
+        return false;
     }
 }

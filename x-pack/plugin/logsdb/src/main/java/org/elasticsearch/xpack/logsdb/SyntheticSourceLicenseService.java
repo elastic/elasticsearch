@@ -65,7 +65,7 @@ final class SyntheticSourceLicenseService {
     /**
      * @return whether synthetic source mode should fallback to stored source.
      */
-    public boolean fallbackToStoredSource(boolean isTemplateValidation) {
+    public boolean fallbackToStoredSource(boolean isTemplateValidation, boolean legacyLicensedUsageOfSyntheticSourceAllowed) {
         if (syntheticSourceFallback) {
             return true;
         }
@@ -73,7 +73,8 @@ final class SyntheticSourceLicenseService {
         var operationMode = licenseState.getOperationMode();
         LicensedFeature.Momentary licensedFeature;
         boolean beforeCutoffDate = licenseService.getLicense().startDate() <= cutoffDate;
-        if (beforeCutoffDate && operationMode == License.OperationMode.GOLD || operationMode == License.OperationMode.PLATINUM) {
+        if (legacyLicensedUsageOfSyntheticSourceAllowed && beforeCutoffDate && operationMode == License.OperationMode.GOLD
+            || operationMode == License.OperationMode.PLATINUM) {
             // platinum license will allow synthetic source with gold legacy licensed feature too.
             licensedFeature = SYNTHETIC_SOURCE_FEATURE_LEGACY;
         } else {
@@ -101,7 +102,7 @@ final class SyntheticSourceLicenseService {
     private static long getCutoffDate() {
         var value = System.getProperty(CUTOFF_DATE_SYS_PROP_NAME);
         if (value != null) {
-            long cutoffDate =  LocalDateTime.parse(value).toInstant(ZoneOffset.UTC).toEpochMilli();
+            long cutoffDate = LocalDateTime.parse(value).toInstant(ZoneOffset.UTC).toEpochMilli();
             if (cutoffDate > MAX_CUTOFF_DATE) {
                 throw new IllegalArgumentException("Provided cutoff date is beyond max cutoff date");
             }

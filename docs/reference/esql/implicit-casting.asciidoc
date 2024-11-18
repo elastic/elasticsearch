@@ -18,9 +18,10 @@ FROM employees
 | LIMIT 1
 ----
 
-
+[discrete]
+[[esql-implicit-casting-example]]
 ==== Implicit casting example
-Implicit casting improves usability, by automatically converting string literals to the target data type. This is most useful when the target data type is `date`, `date_period`, `time_duration`, `ip` or `version`. It is natural to specify these as a string in queries.
+Implicit casting automatically converts string literals to the target data type. This allows users to specify string values for types like `date`, `date_period`, `time_duration`, `ip` and `version` in their queries.
 
 The first query can be coded without calling the `to_datetime` function, as follows:
 
@@ -33,6 +34,8 @@ FROM employees
 | LIMIT 1
 ----
 
+[discrete]
+[[esql-implicit-casting-supported-operations]]
 ==== Operations that support implicit casting
 
 The following table details which {esql} operations support implicit casting for different data types.

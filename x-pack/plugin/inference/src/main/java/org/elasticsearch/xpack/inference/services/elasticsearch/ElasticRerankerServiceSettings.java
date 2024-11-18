@@ -36,7 +36,7 @@ public class ElasticRerankerServiceSettings extends ElasticsearchInternalService
     }
 
     /**
-     * Parse the MultilingualE5SmallServiceSettings from map and validate the setting values.
+     * Parse the ElasticRerankerServiceSettings from map and validate the setting values.
      *
      * If required setting are missing or the values are invalid an
      * {@link ValidationException} is thrown.

@@ -283,8 +283,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
     private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
         // Update current desired balance if the old value has not been changed already by master fail-over
+        final AtomicReference<DesiredBalance> oldDesiredBalance = new AtomicReference<>();
         final DesiredBalance updatedDesiredBalance = currentDesiredBalanceRef.updateAndGet(current -> {
             if (current != DesiredBalance.NOT_MASTER) {
+                oldDesiredBalance.set(current);
                 return newDesiredBalance;
             } else {
                 return current;
@@ -300,7 +302,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             } else {
                 logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
             }
-            computedShardMovements.inc(DesiredBalance.shardMovements(updatedDesiredBalance, newDesiredBalance));
+            assert oldDesiredBalance.get() != null;
+            computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance.get(), newDesiredBalance));
         } else {
             logger.debug("discard desired balance for [{}]", newDesiredBalance.lastConvergedIndex());
         }

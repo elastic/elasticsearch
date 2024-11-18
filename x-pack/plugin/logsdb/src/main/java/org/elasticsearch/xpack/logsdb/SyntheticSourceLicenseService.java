@@ -40,16 +40,10 @@ final class SyntheticSourceLicenseService {
         License.OperationMode.ENTERPRISE
     );
 
-    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_GOLD = LicensedFeature.momentary(
+    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_LEGACY = LicensedFeature.momentary(
         MAPPINGS_FEATURE_FAMILY,
-        "synthetic-source-gold",
+        "synthetic-source-legacy",
         License.OperationMode.GOLD
-    );
-
-    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_PLATINUM = LicensedFeature.momentary(
-        MAPPINGS_FEATURE_FAMILY,
-        "synthetic-source-platinum",
-        License.OperationMode.PLATINUM
     );
 
     private final long cutoffDate;
@@ -71,12 +65,12 @@ final class SyntheticSourceLicenseService {
             return true;
         }
 
+        var operationMode = licenseState.getOperationMode();
         LicensedFeature.Momentary licensedFeature;
         boolean beforeCutoffDate = licenseService.getLicense().startDate() <= cutoffDate;
-        if (beforeCutoffDate && licenseState.getOperationMode() == License.OperationMode.GOLD) {
-            licensedFeature = SYNTHETIC_SOURCE_FEATURE_GOLD;
-        } else if (beforeCutoffDate && licenseState.getOperationMode() == License.OperationMode.PLATINUM) {
-            licensedFeature = SYNTHETIC_SOURCE_FEATURE_PLATINUM;
+        if (beforeCutoffDate && operationMode == License.OperationMode.GOLD || operationMode == License.OperationMode.PLATINUM) {
+            // platinum license will allow synthetic source with gold legacy licensed feature too.
+            licensedFeature = SYNTHETIC_SOURCE_FEATURE_LEGACY;
         } else {
             licensedFeature = SYNTHETIC_SOURCE_FEATURE;
         }

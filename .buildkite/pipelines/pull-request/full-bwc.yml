@@ -6,7 +6,7 @@ steps:
       - label: $BWC_VERSION / bwc
         key: "full-bwc:$BWC_VERSION_SNAKE"
         bwc_template: true
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v$BWC_VERSION#bwcTest
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true :qa:node-startup-bench:v$BWC_VERSION#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp

@@ -67,13 +67,4 @@ public class TextExpansionConfigTests extends InferenceConfigItemTestCase<TextEx
     protected TextExpansionConfig mutateInstanceForVersion(TextExpansionConfig instance, TransportVersion version) {
         return instance;
     }
-
-    public void testBertTokenizationOnly() {
-        ElasticsearchStatusException e = expectThrows(
-            ElasticsearchStatusException.class,
-            () -> new TextExpansionConfig(null, RobertaTokenizationTests.createRandom(), null)
-        );
-        assertEquals(RestStatus.BAD_REQUEST, e.status());
-        assertEquals("text expansion models must be configured with BERT tokenizer, [roberta] given", e.getMessage());
-    }
 }

@@ -4263,6 +4263,28 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         }
     }
 
+    public void myReset(ActionListener<Void> listener) throws IOException {
+        ActionListener.run(ActionListener.<Void>wrap(ignored -> {
+            ActionListener.run(listener, l -> {
+                final EngineConfig config = newEngineConfig(replicationTracker);
+                config.setEnableGcDeletes(false);
+                synchronized (engineMutex) {
+                    IOUtils.close(currentEngineReference.get());
+                    final Engine newEngine = createEngine(config);
+                    currentEngineReference.set(newEngine);
+                    onNewEngine(newEngine);
+                    active.set(true);
+                }
+                onSettingsChanged();
+                checkAndCallWaitForEngineOrClosedShardListeners();
+
+                getEngine().skipTranslogRecovery();
+                getEngine().refresh("post_recovery");
+                indexEventListener.afterIndexShardRecovery(this, l);
+            });
+        }, e -> { listener.onFailure(e); }), l -> indexEventListener.beforeIndexShardRecovery(this, indexSettings, l));
+    }
+
     /**
      * Rollback the current engine to the safe commit, then replay local translog up to the global checkpoint.
      */

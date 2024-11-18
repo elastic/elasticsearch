@@ -282,6 +282,11 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
     }
 
     static boolean needsMapperService(IndexSettings indexSettings, IndexCreationContext indexCreationContext) {
+        // if (indexSettings.getSettings().get("index.provided_name").equals(".ds-gharchive-2024.11.22-000025")) {
+        // return true;
+        // } else {
+        // return false;
+        // }
         return false == (indexSettings.getIndexMetadata().getState() == IndexMetadata.State.CLOSE
             && indexCreationContext == IndexCreationContext.CREATE_INDEX); // metadata verification needs a mapper service
     }

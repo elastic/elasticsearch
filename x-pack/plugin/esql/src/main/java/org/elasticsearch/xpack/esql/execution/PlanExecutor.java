@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
@@ -42,9 +42,9 @@ public class PlanExecutor {
     private final Verifier verifier;
     private final PlanningMetricsManager planningMetricsManager;
     private final Client client;
-    private final ClusterState clusterState;
+    private final ClusterService clusterService;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, Client client, ClusterState clusterState) {
+    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, Client client, ClusterService clusterService) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
@@ -53,7 +53,7 @@ public class PlanExecutor {
         this.verifier = new Verifier(metrics);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
         this.client = client;
-        this.clusterState = clusterState;
+        this.clusterService = clusterService;
     }
 
     public void esql(
@@ -80,7 +80,7 @@ public class PlanExecutor {
             planningMetrics,
             indicesExpressionGrouper,
             client,
-            clusterState
+            clusterService.state()
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

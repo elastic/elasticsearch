@@ -17,6 +17,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -104,12 +105,9 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(
-            indexResolver,
-            MeterRegistry.NOOP,
-            null,
-            new ClusterState.Builder(new ClusterName("name")).build()
-        );
+        ClusterService clusterService = mock(ClusterService.class);
+        when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("name")).build());
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, null, clusterService);
         var enrichResolver = mockEnrichResolver();
 
         var request = new EsqlQueryRequest();

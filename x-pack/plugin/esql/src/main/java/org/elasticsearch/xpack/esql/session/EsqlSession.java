@@ -293,7 +293,9 @@ public class EsqlSession {
 
         preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
-            inferenceContext.setIndices(indices.get().concreteIndices());
+            if (indices.isValid()) {
+                inferenceContext.setIndices(indices.get().concreteIndices());
+            }
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(
                     configuration,

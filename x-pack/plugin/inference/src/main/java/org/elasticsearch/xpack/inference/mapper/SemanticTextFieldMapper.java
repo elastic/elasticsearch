@@ -43,7 +43,6 @@ import org.elasticsearch.index.mapper.TextSearchInfo;
 import org.elasticsearch.index.mapper.ValueFetcher;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
-import org.elasticsearch.index.query.ExistsQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.NestedQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -70,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -558,17 +558,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        final Integer requestSize = searchExecutionContext.requestSize();
-                        if (Objects.equals(requestSize, 0)) {
-                            // Rewrite to a query that will return all docs with indexed embeddings for the queried field.
-                            // Size is often set to 0 when calculating aggregations and an unconstrained kNN query will return all docs
-                            // with indexed embeddings for the queried field, so we rewrite to a query that achieves that as efficiently as
-                            // possible.
-                            // TODO: Apply pre-filters once they are available
-                            yield new ExistsQueryBuilder(inferenceResultsFieldName);
+                        Integer requestSize = searchExecutionContext.requestSize();
+                        if (requestSize != null) {
+                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
+                            requestSize = Math.max(requestSize, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, requestSize, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

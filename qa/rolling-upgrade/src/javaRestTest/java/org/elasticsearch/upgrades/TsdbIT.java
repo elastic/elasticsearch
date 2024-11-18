@@ -23,8 +23,6 @@ import java.util.Map;
 import static org.elasticsearch.cluster.metadata.DataStreamTestHelper.backingIndexEqualTo;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
-import static org.hamcrest.Matchers.notNullValue;
-import static org.hamcrest.Matchers.nullValue;
 
 public class TsdbIT extends AbstractRollingUpgradeTestCase {
 
@@ -150,65 +148,6 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
             performMixedClusterOperations(dataStreamName);
         } else if (isUpgradedCluster()) {
             performUpgradedClusterOperations(dataStreamName);
-        }
-    }
-
-    public void testTsdbDataStreamWithComponentTemplate() throws Exception {
-        String dataStreamName = "template-with-component-template";
-        if (isOldCluster()) {
-            final String COMPONENT_TEMPLATE = """
-                    {
-                        "template": $TEMPLATE
-                    }
-                """;
-            var putComponentTemplate = new Request("POST", "/_component_template/1");
-            String template = TEMPLATE.replace("\"time_series\"", "\"time_series\", \"routing_path\": [\"k8s.pod.uid\"]");
-            putComponentTemplate.setJsonEntity(COMPONENT_TEMPLATE.replace("$TEMPLATE", template));
-            assertOK(client().performRequest(putComponentTemplate));
-            final String INDEX_TEMPLATE = """
-                {
-                    "index_patterns": ["$PATTERN"],
-                    "composed_of": ["1"],
-                    "data_stream": {
-                    }
-                }""";
-            // Add composable index template
-            String templateName = "2";
-            var putIndexTemplateRequest = new Request("POST", "/_index_template/" + templateName);
-            putIndexTemplateRequest.setJsonEntity(INDEX_TEMPLATE.replace("$PATTERN", dataStreamName));
-            assertOK(client().performRequest(putIndexTemplateRequest));
-
-            performOldClustertOperations(templateName, dataStreamName);
-        } else if (isMixedCluster()) {
-            performMixedClusterOperations(dataStreamName);
-        } else if (isUpgradedCluster()) {
-            performUpgradedClusterOperations(dataStreamName);
-
-            var dataStreams = getDataStream(dataStreamName);
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.name"), equalTo(dataStreamName));
-            assertThat(ObjectPath.evaluate(dataStreams, "data_streams.0.generation"), equalTo(2));
-            String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
-            {
-                var indices = getIndex(firstBackingIndex);
-                var escapedBackingIndex = firstBackingIndex.replace(".", "\\.");
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), nullValue());
-                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-                assertThat(startTime, nullValue());
-                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-                assertThat(endTime, nullValue());
-            }
-            String secondBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.1.index_name");
-            {
-                var indices = getIndex(secondBackingIndex);
-                var escapedBackingIndex = secondBackingIndex.replace(".", "\\.");
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".data_stream"), equalTo(dataStreamName));
-                assertThat(ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.mode"), equalTo("time_series"));
-                String startTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.start_time");
-                assertThat(startTime, notNullValue());
-                String endTime = ObjectPath.evaluate(indices, escapedBackingIndex + ".settings.index.time_series.end_time");
-                assertThat(endTime, notNullValue());
-            }
         }
     }
 

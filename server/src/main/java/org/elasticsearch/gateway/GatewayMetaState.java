@@ -300,7 +300,7 @@ public class GatewayMetaState implements Closeable {
             upgradedMetadata.put(newMetadata, false);
         }
         // upgrade current templates
-        if (applyPluginUpgraders(
+        if (applyPluginTemplateUpgraders(
             metadata.getProject().templates(),
             metadataUpgrader.indexTemplateMetadataUpgraders,
             upgradedMetadata::removeTemplate,
@@ -308,10 +308,23 @@ public class GatewayMetaState implements Closeable {
         )) {
             changed = true;
         }
+        // upgrade custom metadata
+        for (Map.Entry<String, UnaryOperator<Metadata.ProjectCustom>> entry : metadataUpgrader.customMetadataUpgraders.entrySet()) {
+            String type = entry.getKey();
+            Function<Metadata.ProjectCustom, Metadata.ProjectCustom> upgrader = entry.getValue();
+            Metadata.ProjectCustom original = metadata.getProject().custom(type);
+            if (original != null) {
+                Metadata.ProjectCustom upgraded = upgrader.apply(original);
+                if (upgraded.equals(original) == false) {
+                    upgradedMetadata.putCustom(type, upgraded);
+                    changed = true;
+                }
+            }
+        }
         return changed ? upgradedMetadata.build() : metadata;
     }
 
-    private static boolean applyPluginUpgraders(
+    private static boolean applyPluginTemplateUpgraders(
         Map<String, IndexTemplateMetadata> existingData,
         UnaryOperator<Map<String, IndexTemplateMetadata>> upgrader,
         Consumer<String> removeData,

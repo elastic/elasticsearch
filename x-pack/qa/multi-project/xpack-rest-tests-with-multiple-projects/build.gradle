@@ -1,6 +1,5 @@
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.util.GradleUtils
 
 dependencies {
@@ -148,7 +147,7 @@ tasks.named("yamlRestTest").configure {
     'voting_only_node/*/*',
     'wildcard/*/*',
   ];
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (buildParams.isSnapshotBuild() == false) {
     blacklist += [];
   }
   systemProperty 'tests.rest.blacklist', blacklist.join(',')

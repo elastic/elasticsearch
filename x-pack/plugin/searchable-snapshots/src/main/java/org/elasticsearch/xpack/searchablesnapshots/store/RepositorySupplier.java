@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.repositories.Repository;
@@ -19,6 +21,8 @@ import java.util.Objects;
 import java.util.function.Supplier;
 
 public class RepositorySupplier implements Supplier<BlobStoreRepository> {
+
+    private static final Logger logger = LogManager.getLogger(BlobContainerSupplier.class);
 
     private final RepositoriesService repositoriesService;
 
@@ -51,7 +55,8 @@ public class RepositorySupplier implements Supplier<BlobStoreRepository> {
 
         final Map<String, Repository> repositoriesByName = repositoriesService.getRepositories();
 
-        final Repository repositoryByLastKnownName = repositoriesByName.get(repositoryNameHint);
+        final String currentRepositoryNameHint = repositoryNameHint;
+        final Repository repositoryByLastKnownName = repositoriesByName.get(currentRepositoryNameHint);
         if (repositoryByLastKnownName != null) {
             final var foundRepositoryUuid = repositoryByLastKnownName.getMetadata().uuid();
             if (Objects.equals(repositoryUuid, foundRepositoryUuid)) {
@@ -61,6 +66,13 @@ public class RepositorySupplier implements Supplier<BlobStoreRepository> {
 
         for (final Repository repository : repositoriesByName.values()) {
             if (repository.getMetadata().uuid().equals(repositoryUuid)) {
+                final var newRepositoryName = repository.getMetadata().name();
+                logger.debug(
+                    "getRepository: repository [{}] with uuid [{}] replacing repository [{}]",
+                    newRepositoryName,
+                    repositoryUuid,
+                    currentRepositoryNameHint
+                );
                 repositoryNameHint = repository.getMetadata().name();
                 return repository;
             }

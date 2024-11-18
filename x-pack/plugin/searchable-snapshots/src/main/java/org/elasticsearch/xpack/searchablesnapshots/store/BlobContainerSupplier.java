@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.searchablesnapshots.store;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.support.FilterBlobContainer;
@@ -18,6 +20,8 @@ import java.io.InputStream;
 import java.util.function.Supplier;
 
 public class BlobContainerSupplier implements Supplier<BlobContainer> {
+
+    private static final Logger logger = LogManager.getLogger(BlobContainerSupplier.class);
 
     private final Supplier<BlobStoreRepository> repositorySupplier;
     private final IndexId indexId;
@@ -48,6 +52,7 @@ public class BlobContainerSupplier implements Supplier<BlobContainer> {
         if (lastKnownState.blobStoreRepository() == currentRepository) {
             return lastKnownState.blobContainer();
         } else {
+            logger.debug("creating new blob container [{}][{}][{}]", currentRepository.getMetadata().name(), indexId, shardId);
             final BlobContainer newContainer = new RateLimitingBlobContainer(
                 currentRepository,
                 currentRepository.shardContainer(indexId, shardId)

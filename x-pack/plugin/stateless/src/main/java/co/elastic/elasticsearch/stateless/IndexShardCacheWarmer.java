@@ -19,6 +19,7 @@ package co.elastic.elasticsearch.stateless;
 
 import co.elastic.elasticsearch.stateless.cache.SharedBlobCacheWarmingService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
+import co.elastic.elasticsearch.stateless.lucene.BlobCacheIndexInput;
 import co.elastic.elasticsearch.stateless.lucene.IndexDirectory;
 import co.elastic.elasticsearch.stateless.objectstore.ObjectStoreService;
 
@@ -98,6 +99,7 @@ public class IndexShardCacheWarmer {
                 );
                 ObjectStoreService.readIndexingShardState(
                     prewarmingDirectory,
+                    BlobCacheIndexInput.WARMING,
                     blobStore.blobContainer(shardBasePath),
                     indexShard.getOperationPrimaryTerm(),
                     threadPool,

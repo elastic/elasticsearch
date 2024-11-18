@@ -36,6 +36,7 @@ import co.elastic.elasticsearch.stateless.recovery.RecoveryCommitRegistrationHan
 
 import org.apache.lucene.index.SegmentInfos;
 import org.apache.lucene.store.AlreadyClosedException;
+import org.apache.lucene.store.IOContext;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -174,6 +175,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
             ObjectStoreService.readIndexingShardState(
                 IndexBlobStoreCacheDirectory.unwrapDirectory(indexShard.store().directory()),
+                IOContext.DEFAULT,
                 shardContainer,
                 indexShard.getOperationPrimaryTerm(),
                 threadPool,

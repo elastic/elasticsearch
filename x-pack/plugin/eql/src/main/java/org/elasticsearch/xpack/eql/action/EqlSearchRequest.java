@@ -64,6 +64,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     private Map<String, Object> runtimeMappings = emptyMap();
     private int maxSamplesPerKey = RequestDefaults.MAX_SAMPLES_PER_KEY;
     private Boolean allowPartialSearchResults;
+    private Boolean allowPartialSequenceResults;
 
     // Async settings
     private TimeValue waitForCompletionTimeout = null;
@@ -85,6 +86,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final String KEY_RUNTIME_MAPPINGS = "runtime_mappings";
     static final String KEY_MAX_SAMPLES_PER_KEY = "max_samples_per_key";
     static final String KEY_ALLOW_PARTIAL_SEARCH_RESULTS = "allow_partial_search_results";
+    static final String KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS = "allow_partial_sequence_results";
 
     static final ParseField FILTER = new ParseField(KEY_FILTER);
     static final ParseField TIMESTAMP_FIELD = new ParseField(KEY_TIMESTAMP_FIELD);
@@ -100,6 +102,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
     static final ParseField FETCH_FIELDS_FIELD = SearchSourceBuilder.FETCH_FIELDS_FIELD;
     static final ParseField MAX_SAMPLES_PER_KEY = new ParseField(KEY_MAX_SAMPLES_PER_KEY);
     static final ParseField ALLOW_PARTIAL_SEARCH_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEARCH_RESULTS);
+    static final ParseField ALLOW_PARTIAL_SEQUENCE_RESULTS = new ParseField(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS);
 
     private static final ObjectParser<EqlSearchRequest, Void> PARSER = objectParser(EqlSearchRequest::new);
 
@@ -140,8 +143,10 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
             allowPartialSearchResults = in.readOptionalBoolean();
+            allowPartialSequenceResults = in.readOptionalBoolean();
         } else {
             allowPartialSearchResults = false;
+            allowPartialSequenceResults = true;
         }
     }
 
@@ -254,6 +259,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         builder.field(KEY_MAX_SAMPLES_PER_KEY, maxSamplesPerKey);
         builder.field(KEY_ALLOW_PARTIAL_SEARCH_RESULTS, allowPartialSearchResults);
+        builder.field(KEY_ALLOW_PARTIAL_SEQUENCE_RESULTS, allowPartialSequenceResults);
 
         return builder;
     }
@@ -289,6 +295,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         parser.declareObject(EqlSearchRequest::runtimeMappings, (p, c) -> p.map(), SearchSourceBuilder.RUNTIME_MAPPINGS_FIELD);
         parser.declareInt(EqlSearchRequest::maxSamplesPerKey, MAX_SAMPLES_PER_KEY);
         parser.declareBoolean(EqlSearchRequest::allowPartialSearchResults, ALLOW_PARTIAL_SEARCH_RESULTS);
+        parser.declareBoolean(EqlSearchRequest::allowPartialSequenceResults, ALLOW_PARTIAL_SEQUENCE_RESULTS);
         return parser;
     }
 
@@ -446,6 +453,15 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         return this;
     }
 
+    public Boolean allowPartialSequenceResults() {
+        return allowPartialSequenceResults;
+    }
+
+    public EqlSearchRequest allowPartialSequenceResults(Boolean val) {
+        this.allowPartialSequenceResults = val;
+        return this;
+    }
+
     private static List<FieldAndFormat> parseFetchFields(XContentParser parser) throws IOException {
         List<FieldAndFormat> result = new ArrayList<>();
         Token token = parser.currentToken();
@@ -491,6 +507,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
             out.writeOptionalBoolean(allowPartialSearchResults);
+            out.writeOptionalBoolean(allowPartialSequenceResults);
         }
     }
 
@@ -519,7 +536,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             && Objects.equals(fetchFields, that.fetchFields)
             && Objects.equals(runtimeMappings, that.runtimeMappings)
             && Objects.equals(maxSamplesPerKey, that.maxSamplesPerKey)
-            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults)
+            && Objects.equals(allowPartialSequenceResults, that.allowPartialSequenceResults);
     }
 
     @Override
@@ -541,7 +559,8 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             fetchFields,
             runtimeMappings,
             maxSamplesPerKey,
-            allowPartialSearchResults
+            allowPartialSearchResults,
+            allowPartialSequenceResults
         );
     }
 

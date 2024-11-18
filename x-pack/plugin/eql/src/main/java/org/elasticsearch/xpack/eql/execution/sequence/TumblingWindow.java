@@ -106,6 +106,7 @@ public class TumblingWindow implements Executable {
     private final boolean hasKeys;
     private final List<List<Attribute>> listOfKeys;
     private final boolean allowPartialSearchResults;
+    private final boolean allowPartialSequenceResults;
     private Map<String, ShardSearchFailure> shardFailures = new HashMap<>();
 
     // flag used for DESC sequences to indicate whether
@@ -132,7 +133,9 @@ public class TumblingWindow implements Executable {
         SequenceCriterion until,
         SequenceMatcher matcher,
         List<List<Attribute>> listOfKeys,
-        boolean allowPartialSearchResults
+        boolean allowPartialSearchResults,
+        boolean allowPartialSequenceResults
+
     ) {
         this.client = client;
 
@@ -147,6 +150,7 @@ public class TumblingWindow implements Executable {
         this.restartWindowFromTailQuery = baseRequest.descending();
         this.listOfKeys = listOfKeys;
         this.allowPartialSearchResults = allowPartialSearchResults;
+        this.allowPartialSequenceResults = allowPartialSequenceResults;
     }
 
     @Override
@@ -164,6 +168,9 @@ public class TumblingWindow implements Executable {
      * Move the window while preserving the same base.
      */
     private void tumbleWindow(int currentStage, ActionListener<Payload> listener) {
+        if (allowPartialSequenceResults == false && shardFailures.isEmpty() == false) {
+            doPayload(listener);
+        }
         if (currentStage > matcher.firstPositiveStage && matcher.hasCandidates() == false) {
             if (restartWindowFromTailQuery) {
                 currentStage = matcher.firstPositiveStage;
@@ -748,7 +755,7 @@ public class TumblingWindow implements Executable {
 
         log.trace("Sending payload for [{}] sequences", completed.size());
 
-        if (completed.isEmpty()) {
+        if (completed.isEmpty() || (allowPartialSequenceResults == false && shardFailures.isEmpty() == false)) {
             listener.onResponse(new EmptyPayload(Type.SEQUENCE, timeTook(), shardFailures.values().toArray(new ShardSearchFailure[0])));
             return;
         }

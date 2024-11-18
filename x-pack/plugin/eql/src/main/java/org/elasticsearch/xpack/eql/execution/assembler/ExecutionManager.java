@@ -168,7 +168,8 @@ public class ExecutionManager {
             criteria.get(completionStage),
             matcher,
             listOfKeys,
-            cfg.allowPartialSearchResults()
+            cfg.allowPartialSearchResults(),
+            cfg.allowPartialSequenceResults()
         );
 
         return w;

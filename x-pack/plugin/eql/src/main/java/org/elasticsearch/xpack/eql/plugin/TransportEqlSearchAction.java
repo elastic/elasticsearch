@@ -236,6 +236,9 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 request.allowPartialSearchResults() == null
                     ? defaultAllowPartialSearchResults(clusterService)
                     : request.allowPartialSearchResults(),
+                request.allowPartialSequenceResults() == null
+                    ? defaultAllowPartialSequenceResults(clusterService)
+                    : request.allowPartialSequenceResults(),
                 clientId,
                 new TaskId(nodeId, task.getId()),
                 task
@@ -254,6 +257,13 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
             return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS.getDefault(Settings.EMPTY);
         }
         return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEARCH_RESULTS);
+    }
+
+    private static boolean defaultAllowPartialSequenceResults(ClusterService clusterService) {
+        if (clusterService.getClusterSettings() == null) {
+            return EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS.getDefault(Settings.EMPTY);
+        }
+        return clusterService.getClusterSettings().get(EqlPlugin.DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS);
     }
 
     static EqlSearchResponse createResponse(Results results, AsyncExecutionId id) {

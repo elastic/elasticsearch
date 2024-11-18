@@ -1,0 +1,25 @@
+// tag::cloud[]
+
+* {ref}/docs-delete.html[Delete unused data].
+* {cloud}/ec-customize-deployment-components.html[Increase the disk size on your Hot data and Content tier (scale up)]
+
+NOTE: If your {es} cluster is unhealthy and reports a status of red, then increasing the disk size of your Hot data and Content tier may fail. You might need to delete some data so the configuration can be edited. If you want to increase your disk size without deleting data, then {cloud}/ec-get-help.html[reach out to Elastic support] and we will assist you with scaling up.
+
+Also, for future prevention, you can do below:
+
+* {cloud}/ec-customize-deployment-components.html[Increase the disk size on your Hot data and Content tier (scale up)]
+* Enable <<xpack-autoscaling,autoscaling>> for clusters deployed using our {ess}, {ece}, and {eck} platforms.
+* Update related <<index-lifecycle-management,ILM policy>> to push indices through to later <<data-tiers,data tiers>>
+
+// end::cloud[]
+
+// tag::self-managed[]
+As a long-term solution, we recommend you do one of the following best suited 
+to your use case: 
+
+* Add nodes to the affected <<data-tiers,data tiers>>
+* Upgrade existing nodes to increase disk space
+* Delete unneeded indices using the <<indices-delete-index,delete index API>>
+* Update related <<index-lifecycle-management,ILM policy>> to push indices through to later <<data-tiers,data tiers>>
+
+// end::self-managed[]

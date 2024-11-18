@@ -10,16 +10,13 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -134,7 +131,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
         public final MetadataFieldMapper build(MapperBuilderContext context) {
             return build();
         }
-
 
         public final void parseMetadataField(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             final Parameter<?>[] params = getParameters();

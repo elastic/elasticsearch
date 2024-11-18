@@ -226,12 +226,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                     )
                 );
             } else if (RERANKER_ID.equals(modelId)) {
-                rerankerCase(                            inferenceEntityId,
-                    taskType,
-                    config,
-                    serviceSettingsMap,
-                    chunkingSettings,
-                    modelListener);
+                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, chunkingSettings, modelListener);
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, modelListener);
             }

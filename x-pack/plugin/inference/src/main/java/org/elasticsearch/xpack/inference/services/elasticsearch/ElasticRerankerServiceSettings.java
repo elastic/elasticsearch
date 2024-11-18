@@ -9,18 +9,14 @@ package org.elasticsearch.xpack.inference.services.elasticsearch;
 
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
-import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 
 import java.io.IOException;
-import java.util.Arrays;
 import java.util.Map;
 
 public class ElasticRerankerServiceSettings extends ElasticsearchInternalServiceSettings {
 
     public static final String NAME = "elastic_reranker_service_settings";
-
 
     public ElasticRerankerServiceSettings(ElasticsearchInternalServiceSettings other) {
         super(other);

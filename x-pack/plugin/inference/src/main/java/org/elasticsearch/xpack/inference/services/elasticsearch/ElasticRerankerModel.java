@@ -48,11 +48,7 @@ public class ElasticRerankerModel extends ElasticsearchInternalModel {
             public void onFailure(Exception e) {
                 if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
                     listener.onFailure(
-                        new ResourceNotFoundException(
-                            "Could not start the Elastic Reranker Endpoint due to [{}]",
-                            e,
-                            e.getMessage()
-                        )
+                        new ResourceNotFoundException("Could not start the Elastic Reranker Endpoint due to [{}]", e, e.getMessage())
                     );
                     return;
                 }

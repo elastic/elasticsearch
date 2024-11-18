@@ -85,9 +85,9 @@ tasks.named("thirdPartyAudit").configure {
 }
 
 tasks.named("test").configure {
-  systemProperty 'tests.gradle_index_compat_versions', BuildParams.bwcVersions.indexCompatible.join(',')
-  systemProperty 'tests.gradle_wire_compat_versions', BuildParams.bwcVersions.wireCompatible.join(',')
-  systemProperty 'tests.gradle_unreleased_versions', BuildParams.bwcVersions.unreleased.join(',')
+  systemProperty 'tests.gradle_index_compat_versions', buildParams.bwcVersions.indexCompatible.join(',')
+  systemProperty 'tests.gradle_wire_compat_versions', buildParams.bwcVersions.wireCompatible.join(',')
+  systemProperty 'tests.gradle_unreleased_versions', buildParams.bwcVersions.unreleased.join(',')
 }
 
 tasks.register("integTest", Test) {

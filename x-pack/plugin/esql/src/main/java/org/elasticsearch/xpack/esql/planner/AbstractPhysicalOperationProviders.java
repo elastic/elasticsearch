@@ -12,6 +12,7 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
+import org.elasticsearch.compute.aggregation.blockhash.ToBlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
@@ -27,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -123,7 +125,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                             // check if there's any alias used in grouping - no need for the final reduction since the intermediate data
                             // is in the output form
                             // if the group points to an alias declared in the aggregate, use the alias child as source
-                            else if (aggregatorMode == AggregatorMode.INITIAL || aggregatorMode == AggregatorMode.INTERMEDIATE) {
+                            else if (aggregatorMode.isOutputPartial()) {
                                 if (groupAttribute.semanticEquals(a.toAttribute())) {
                                     groupAttribute = attr;
                                     break;
@@ -138,7 +140,12 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 // knows that it should use a categorizing block hash.
                 // E.g. for `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)`, the `groupAttribute` will have type `Category`.
                 // We should put that info into the GroupSpec by other means.
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
+                // groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
+
+                var groupSpec = Alias.unwrap(group) instanceof GroupingFunction groupingFunction
+                    ? new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, groupingFunction)
+                    : new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, null);
+                groupSpecs.add(groupSpec);
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -172,6 +179,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
+                if (groupSpecs.stream().anyMatch(g -> g.groupingFunction != null)) {
+                    // TODO: DONT DO THIS, bucket should work: assert groupSpecs.size() == 1 : "Only one grouping function is supported";
+                    // Maybe ignore Bucket directly with instanceof
+                    // Maybe add some method to GroupingFunction to get the hash?
+                    // Maybe a method returning a Supplier of HashBlock?
+                }
+
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,
@@ -299,12 +313,17 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
     }
 
-    private record GroupSpec(Integer channel, Attribute attribute) {
+    private record GroupSpec(Integer channel, Attribute attribute, GroupingFunction groupingFunction) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
-            return new BlockHash.GroupSpec(channel, elementType());
+
+            return new BlockHash.GroupSpec(
+                channel,
+                elementType(),
+                groupingFunction instanceof ToBlockHash toBlockHash ? toBlockHash : null
+            );
         }
 
         ElementType elementType() {

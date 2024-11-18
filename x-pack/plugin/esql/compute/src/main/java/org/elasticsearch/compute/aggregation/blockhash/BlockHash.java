@@ -82,7 +82,11 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
-    public record GroupSpec(int channel, ElementType elementType) {}
+    public record GroupSpec(int channel, ElementType elementType, ToBlockHash toBlockHash) {
+        public GroupSpec(int channel, ElementType elementType) {
+            this(channel, elementType, null);
+        }
+    }
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
@@ -100,6 +104,14 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         int emitBatchSize,
         boolean allowBrokenOptimizations
     ) {
+        if (groups.stream().anyMatch(g -> g.toBlockHash != null)) {
+            if (groups.size() != 1) {
+                throw new IllegalArgumentException("only a single group can use a custom block hash");
+            }
+
+            return groups.get(0).toBlockHash.toBlockHash(blockFactory, groups.get(0).channel, aggregatorMode);
+        }
+
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), aggregatorMode, blockFactory);
         }

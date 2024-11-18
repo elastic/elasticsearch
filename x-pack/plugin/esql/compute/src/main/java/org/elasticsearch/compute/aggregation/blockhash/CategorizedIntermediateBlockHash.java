@@ -24,7 +24,7 @@ import java.util.Map;
 
 public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHash {
 
-    CategorizedIntermediateBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
+    public CategorizedIntermediateBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
         super(blockFactory, channel, outputPartial);
     }
 

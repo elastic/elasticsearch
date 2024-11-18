@@ -8,35 +8,65 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.lucene.document.Document;
+import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.search.Query;
+import org.apache.lucene.search.QueryCachingPolicy;
 import org.apache.lucene.search.ScoreDoc;
 import org.apache.lucene.search.TopDocs;
 import org.apache.lucene.search.TotalHits;
+import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.store.MockDirectoryWrapper;
+import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.lucene.search.TopDocsAndMaxScore;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
+import org.elasticsearch.index.mapper.IdLoader;
+import org.elasticsearch.index.mapper.MapperMetrics;
+import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
+import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.FetchSearchResult;
+import org.elasticsearch.search.fetch.FetchSubPhase;
+import org.elasticsearch.search.fetch.FetchSubPhaseProcessor;
 import org.elasticsearch.search.fetch.QueryFetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.fetch.StoredFieldsSpec;
+import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.ContextIndexSearcher;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.SearchProfileQueryPhaseResult;
 import org.elasticsearch.search.profile.SearchProfileShardResult;
 import org.elasticsearch.search.query.QuerySearchResult;
+import org.elasticsearch.search.query.SearchTimeoutException;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
+import org.elasticsearch.test.TestSearchContext;
 import org.elasticsearch.transport.Transport;
 
+import java.io.IOException;
+import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
@@ -748,5 +778,160 @@ public class FetchSearchPhaseTests extends ESTestCase {
 
     private static ProfileResult fetchProfile(boolean profiled) {
         return profiled ? new ProfileResult("fetch", "fetch", Map.of(), Map.of(), FETCH_PROFILE_TIME, List.of()) : null;
+    }
+
+    public void testFetchTimeoutWithPartialResults() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        w.addDocument(new Document());
+        w.addDocument(new Document());
+        w.addDocument(new Document());
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, true)) {
+            FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
+            fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null);
+            assertTrue(searchContext.queryResult().searchTimedOut());
+            assertEquals(1, searchContext.fetchResult().hits().getHits().length);
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
+    public void testFetchTimeoutNoPartialResults() throws IOException {
+        Directory dir = newDirectory();
+        RandomIndexWriter w = new RandomIndexWriter(random(), dir);
+        w.addDocument(new Document());
+        w.addDocument(new Document());
+        w.addDocument(new Document());
+        IndexReader r = w.getReader();
+        w.close();
+        ContextIndexSearcher contextIndexSearcher = createSearcher(r);
+
+        try (SearchContext searchContext = createSearchContext(contextIndexSearcher, false)) {
+            FetchPhase fetchPhase = createFetchPhase(contextIndexSearcher);
+            expectThrows(SearchTimeoutException.class, () -> fetchPhase.execute(searchContext, new int[] { 0, 1, 2 }, null));
+            assertNull(searchContext.fetchResult().hits());
+        } finally {
+            r.close();
+            dir.close();
+        }
+    }
+
+    private static ContextIndexSearcher createSearcher(IndexReader reader) throws IOException {
+        return new ContextIndexSearcher(reader, null, null, new QueryCachingPolicy() {
+            @Override
+            public void onUse(Query query) {}
+
+            @Override
+            public boolean shouldCache(Query query) {
+                return false;
+            }
+        }, randomBoolean());
+    }
+
+    private static FetchPhase createFetchPhase(ContextIndexSearcher contextIndexSearcher) {
+        return new FetchPhase(Collections.singletonList(fetchContext -> new FetchSubPhaseProcessor() {
+            boolean processCalledOnce = false;
+
+            @Override
+            public void setNextReader(LeafReaderContext readerContext) {}
+
+            @Override
+            public void process(FetchSubPhase.HitContext hitContext) {
+                // we throw only once one doc has been fetched, so we can test partial results are returned
+                if (processCalledOnce) {
+                    contextIndexSearcher.throwTimeExceededException();
+                } else {
+                    processCalledOnce = true;
+                }
+            }
+
+            @Override
+            public StoredFieldsSpec storedFieldsSpec() {
+                return StoredFieldsSpec.NO_REQUIREMENTS;
+            }
+        }));
+    }
+
+    private static SearchContext createSearchContext(ContextIndexSearcher contextIndexSearcher, boolean allowPartialResults) {
+        IndexSettings indexSettings = new IndexSettings(
+            IndexMetadata.builder("index")
+                .settings(Settings.builder().put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .creationDate(System.currentTimeMillis())
+                .build(),
+            Settings.EMPTY
+        );
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
+            @Override
+            public void onCache(ShardId shardId, Accountable accountable) {
+
+            }
+
+            @Override
+            public void onRemoval(ShardId shardId, Accountable accountable) {
+
+            }
+        });
+
+        SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            bitsetFilterCache,
+            null,
+            null,
+            MappingLookup.EMPTY,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            Collections.emptyMap(),
+            null,
+            MapperMetrics.NOOP
+        );
+        TestSearchContext searchContext = new TestSearchContext(searchExecutionContext, null, contextIndexSearcher) {
+            private final FetchSearchResult fetchSearchResult = new FetchSearchResult();
+            private final ShardSearchRequest request = new ShardSearchRequest(
+                OriginalIndices.NONE,
+                new SearchRequest().allowPartialSearchResults(allowPartialResults),
+                new ShardId("index", "indexUUID", 0),
+                0,
+                1,
+                AliasFilter.EMPTY,
+                1f,
+                0L,
+                null
+            );
+
+            @Override
+            public IdLoader newIdLoader() {
+                return new IdLoader.StoredIdLoader();
+            }
+
+            @Override
+            public FetchSearchResult fetchResult() {
+                return fetchSearchResult;
+            }
+
+            @Override
+            public ShardSearchRequest request() {
+                return request;
+            }
+        };
+        searchContext.addReleasable(searchContext.fetchResult()::decRef);
+        searchContext.setTask(new SearchShardTask(-1, "type", "action", "description", null, Collections.emptyMap()));
+        return searchContext;
     }
 }

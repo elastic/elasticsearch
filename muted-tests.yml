@@ -83,6 +83,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/114023
 - class: org.elasticsearch.xpack.sql.qa.security.JdbcSqlSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/112746
+- class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
+  method: testFeatureImportanceValues
+  issue: https://github.com/elastic/elasticsearch/issues/116564
 
 # Examples:
 #

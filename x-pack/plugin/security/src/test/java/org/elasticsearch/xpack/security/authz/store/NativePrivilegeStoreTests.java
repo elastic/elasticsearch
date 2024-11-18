@@ -363,9 +363,7 @@ public class NativePrivilegeStoreTests extends ESTestCase {
     public void testGetPrivilegesFailsAfterWaitOnUnavailableShardException() {
         when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(false).thenReturn(false);
 
-        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(
-            unavailableShardsException()
-        );
+        when(securityIndex.getUnavailableReason(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(unavailableShardsException());
         doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
             final var listener = (ActionListener<Void>) invocation.getArguments()[0];

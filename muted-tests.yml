@@ -223,12 +223,6 @@ tests:
 - class: org.elasticsearch.repositories.s3.RepositoryS3RestIT
   method: testReloadCredentialsFromKeystore
   issue: https://github.com/elastic/elasticsearch/issues/116811
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testClientConnectionCloseMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/116815
-- class: org.elasticsearch.http.netty4.Netty4IncrementalRequestHandlingIT
-  method: testServerExceptionMidStream
-  issue: https://github.com/elastic/elasticsearch/issues/116838
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/116851
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
@@ -246,12 +240,14 @@ tests:
 - class: org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests
   method: testFloatGetVectorValueAndGetMagnitude
   issue: https://github.com/elastic/elasticsearch/issues/116863
-- class: org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceReconcilerMetricsIT
-  method: testDesiredBalanceMetrics
-  issue: https://github.com/elastic/elasticsearch/issues/116870
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/116542
+- class: org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluatorTests
+  method: testTermQuery
+  issue: https://github.com/elastic/elasticsearch/issues/116879
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  issue: https://github.com/elastic/elasticsearch/issues/116899
 
 # Examples:
 #

@@ -1152,5 +1152,4 @@ As a workaround, to render non-ASCII characters, include an HTTP `Accept` header
 ----
 Accept: application/json; charset=utf-8
 ----
-// NOTCONSOLE
 ====

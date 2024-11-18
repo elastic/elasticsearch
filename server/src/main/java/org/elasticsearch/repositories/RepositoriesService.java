@@ -290,6 +290,10 @@ public class RepositoriesService extends AbstractLifecycleComponent implements C
                 if (repositoryMetadata.name().equals(request.name())) {
                     final RepositoryMetadata newRepositoryMetadata = new RepositoryMetadata(
                         request.name(),
+                        // Copy the UUID from the existing instance rather than resetting it back to MISSING_UUID which would force us to
+                        // re-read the RepositoryData to get it again. In principle the new RepositoryMetadata might point to a different
+                        // underlying repository at this point, but if so that'll cause things to fail in clear ways and eventually we'll
+                        // read the RepositoryData again and update the UUID in the RepositoryMetadata to match. See also #109936.
                         repositoryMetadata.uuid(),
                         request.type(),
                         request.settings()

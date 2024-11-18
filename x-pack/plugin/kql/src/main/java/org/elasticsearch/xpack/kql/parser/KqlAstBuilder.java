@@ -242,19 +242,19 @@ class KqlAstBuilder extends KqlBaseBaseVisitor<QueryBuilder> {
     }
 
     private static boolean isAndQuery(ParserRuleContext ctx) {
-        return switch (ctx) {
-            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.AND;
-            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.AND;
-            default -> false;
-        };
+        if (ctx instanceof KqlBaseParser.BooleanQueryContext booleanQueryCtx && booleanQueryCtx.operator.getType() == KqlBaseParser.AND) {
+            return true;
+        }
+        return ctx instanceof KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx
+            && booleanNestedCtx.operator.getType() == KqlBaseParser.AND;
     }
 
     private static boolean isOrQuery(ParserRuleContext ctx) {
-        return switch (ctx) {
-            case KqlBaseParser.BooleanQueryContext booleanQueryCtx -> booleanQueryCtx.operator.getType() == KqlBaseParser.OR;
-            case KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx -> booleanNestedCtx.operator.getType() == KqlBaseParser.OR;
-            default -> false;
-        };
+        if (ctx instanceof KqlBaseParser.BooleanQueryContext booleanQueryCtx && booleanQueryCtx.operator.getType() == KqlBaseParser.OR) {
+            return true;
+        }
+        return ctx instanceof KqlBaseParser.BooleanNestedQueryContext booleanNestedCtx
+            && booleanNestedCtx.operator.getType() == KqlBaseParser.OR;
     }
 
     private void withFields(KqlBaseParser.FieldNameContext ctx, BiConsumer<String, MappedFieldType> fieldConsummer) {

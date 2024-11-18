@@ -52,9 +52,9 @@ public class StYMaxTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point point) {
             return point.getY();
         }
-        var envelope = new SpatialEnvelopeVisitor();
-        if (geometry.visit(envelope)) {
-            return envelope.getResult().getMaxY();
+        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        if (envelope.isPresent()) {
+            return envelope.get().getMaxY();
         }
         throw new IllegalArgumentException("Geometry is empty");
     }

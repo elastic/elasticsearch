@@ -52,9 +52,9 @@ public class StYMinTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point point) {
             return point.getY();
         }
-        var envelope = new SpatialEnvelopeVisitor();
-        if (geometry.visit(envelope)) {
-            return envelope.getResult().getMinY();
+        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        if (envelope.isPresent()) {
+            return envelope.get().getMinY();
         }
         throw new IllegalArgumentException("Geometry is empty");
     }

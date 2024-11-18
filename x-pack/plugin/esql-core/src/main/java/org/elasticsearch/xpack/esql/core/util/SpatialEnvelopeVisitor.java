@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.core.util;
 
 import org.elasticsearch.geometry.Circle;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.GeometryCollection;
 import org.elasticsearch.geometry.GeometryVisitor;
 import org.elasticsearch.geometry.Line;
@@ -19,12 +20,22 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 
+import java.util.Optional;
+
 public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeException> {
 
     private double minX = Double.POSITIVE_INFINITY;
     private double minY = Double.POSITIVE_INFINITY;
     private double maxX = Double.NEGATIVE_INFINITY;
     private double maxY = Double.NEGATIVE_INFINITY;
+
+    public static Optional<Rectangle> visit(Geometry geometry) {
+        var visitor = new SpatialEnvelopeVisitor();
+        if (geometry.visit(visitor)) {
+            return Optional.of(visitor.getResult());
+        }
+        return Optional.empty();
+    }
 
     public Rectangle getResult() {
         return new Rectangle(minX, maxX, maxY, minY);

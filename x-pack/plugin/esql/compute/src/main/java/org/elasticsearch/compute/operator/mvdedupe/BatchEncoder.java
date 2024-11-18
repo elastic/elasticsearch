@@ -48,7 +48,7 @@ public abstract class BatchEncoder implements Releasable, Accountable {
             case INT -> new IntsDecoder();
             case LONG -> new LongsDecoder();
             case DOUBLE -> new DoublesDecoder();
-            case BYTES_REF, CATEGORY -> new BytesRefsDecoder();
+            case BYTES_REF -> new BytesRefsDecoder();
             case BOOLEAN -> new BooleansDecoder();
             case NULL -> new NullsDecoder();
             default -> throw new IllegalArgumentException("can't decode " + elementType);

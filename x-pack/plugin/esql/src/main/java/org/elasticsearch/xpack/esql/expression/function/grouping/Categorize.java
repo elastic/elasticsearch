@@ -99,7 +99,7 @@ public class Categorize extends GroupingFunction implements Validatable, ToBlock
 
     @Override
     public DataType dataType() {
-        return DataType.CATEGORY;
+        return DataType.KEYWORD;
     }
 
     @Override

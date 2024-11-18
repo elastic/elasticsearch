@@ -287,7 +287,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new LocalSourceOperator(input1),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
@@ -306,7 +306,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new LocalSourceOperator(input2),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    List.of(makeGroupSpec()),
                     AggregatorMode.INITIAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1)).groupingAggregatorFactory(AggregatorMode.INITIAL),
@@ -327,7 +327,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             new CannedSourceOperator(intermediateOutput.iterator()),
             List.of(
                 new HashAggregationOperator.HashAggregationOperatorFactory(
-                    List.of(new BlockHash.GroupSpec(0, ElementType.CATEGORY)),
+                    List.of(makeGroupSpec()),
                     AggregatorMode.FINAL,
                     List.of(
                         new SumLongAggregatorFunctionSupplier(List.of(1, 2)).groupingAggregatorFactory(AggregatorMode.FINAL),
@@ -397,5 +397,14 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             )
         );
         Releasables.close(() -> Iterators.map(finalOutput.iterator(), (Page p) -> p::releaseBlocks));
+    }
+
+    private BlockHash.GroupSpec makeGroupSpec() {
+        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF,
+            (blockFactory, channel, aggregatorMode) ->
+            aggregatorMode.isInputPartial()
+                ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
+                : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
+        );
     }
 }

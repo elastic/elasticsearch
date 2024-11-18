@@ -10,7 +10,7 @@ FROM sample_data
   | SORT count DESC, category
 ;
 
-count:long | sum:long |     avg:double     | count_distinct:long | category:category
+count:long | sum:long |     avg:double     | count_distinct:long | category:keyword
          3 |  7971589 | 2657196.3333333335 |                   3 | .*?Connected.+?to.*?
          3 | 14027356 | 4675785.333333333  |                   3 | .*?Connection.+?error.*?
          1 |  1232382 | 1232382.0          |                   1 | .*?Disconnected.*?
@@ -26,7 +26,7 @@ FROM sample_data
   | SORT category
 ;
 
-values:keyword                                                        |      top:long      | category:category
+values:keyword                                                        |      top:long      | category:keyword
 [Connected to 10.1.0.1, Connected to 10.1.0.2, Connected to 10.1.0.3] | [3450233, 2764889] | .*?Connected.+?to.*?
 [Connection error]                                                    | [8268153, 5033755] | .*?Connection.+?error.*?
 [Disconnected]                                                        |           1232382  | .*?Disconnected.*?
@@ -40,7 +40,7 @@ FROM sample_data_mv
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            7 | .*?Banana.*?
            3 | .*?Connected.+?to.*?
            3 | .*?Connection.+?error.*?
@@ -55,7 +55,7 @@ ROW message = ["connected to a", "connected to b", "disconnected"]
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            2 | .*?connected.+?to.*?
            1 | .*?disconnected.*?
 ;
@@ -69,7 +69,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            7 | .*?Banana.*?
            3 | .*?Connected.+?to.*?
            3 | .*?Connection.+?error.*?
@@ -85,7 +85,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            7 | .*?Banana.*?
            7 | .*?Bread.*?
 ;
@@ -98,7 +98,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            3 | .*?CONNECTED.+?TO.*?
            3 | .*?CONNECTION.+?ERROR.*?
            1 | .*?DISCONNECTED.*?
@@ -112,7 +112,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            3 | .*?Connected.+?to.+?banana.*?
            3 | .*?Connection.+?error.+?banana.*?
            1 | .*?Disconnected.+?banana.*?
@@ -126,7 +126,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            3 | .*?Connected.+?to.+?👍🏽😊.*?
            3 | .*?Connection.+?error.+?👍🏽😊.*?
            1 | .*?Disconnected.+?👍🏽😊.*?
@@ -141,7 +141,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            1 | .*?😊👍🏽.+?detcennocsiD.*?
            3 | .*?😊👍🏽.+?ot.+?detcennoC.*?
            3 | .*?😊👍🏽.+?rorre.+?noitcennoC.*?
@@ -156,7 +156,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
            3 | .*?connected.+?to.*?
            3 | .*?connection.+?error.*?
            1 | .*?disconnected.*?
@@ -171,7 +171,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
 ;
 
 on null string
@@ -183,7 +183,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
 ;
 
 filtering out all data
@@ -195,7 +195,7 @@ FROM sample_data
   | SORT category
 ;
 
-COUNT():long | category:category
+COUNT():long | category:keyword
 ;
 
 drop output columns

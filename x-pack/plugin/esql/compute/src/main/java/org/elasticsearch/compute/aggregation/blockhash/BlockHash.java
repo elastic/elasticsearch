@@ -152,9 +152,6 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
             case LONG -> new LongBlockHash(channel, blockFactory);
             case DOUBLE -> new DoubleBlockHash(channel, blockFactory);
             case BYTES_REF -> new BytesRefBlockHash(channel, blockFactory);
-            case CATEGORY -> aggregatorMode.isInputPartial()
-                ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
-                : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial());
             default -> throw new IllegalArgumentException("unsupported grouping element type [" + type + "]");
         };
     }

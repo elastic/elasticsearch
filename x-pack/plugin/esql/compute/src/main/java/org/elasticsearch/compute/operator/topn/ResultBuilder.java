@@ -47,7 +47,7 @@ interface ResultBuilder extends Releasable {
     ) {
         return switch (elementType) {
             case BOOLEAN -> new ResultBuilderForBoolean(blockFactory, encoder, inKey, positions);
-            case BYTES_REF, CATEGORY -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
+            case BYTES_REF -> new ResultBuilderForBytesRef(blockFactory, encoder, inKey, positions);
             case INT -> new ResultBuilderForInt(blockFactory, encoder, inKey, positions);
             case LONG -> new ResultBuilderForLong(blockFactory, encoder, inKey, positions);
             case FLOAT -> new ResultBuilderForFloat(blockFactory, encoder, inKey, positions);

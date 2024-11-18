@@ -168,7 +168,36 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 }
             });
         }
+    }
 
+    @After
+    public void reEnableWatcherService() throws Exception {
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "started":
+                        logger.info("Watcher service restarted following watcher test");
+                        break;
+                    case "stopping":
+                        throw new AssertionError("waiting until state reached started state");
+                    case "stopped":
+                        ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
+                            "watcher.start",
+                            emptyMap(),
+                            emptyList(),
+                            emptyMap()
+                        );
+                        boolean isAcknowledged = startResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        throw new AssertionError("waiting until state reached started state");
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
+                }
+            });
+        }
     }
 
     protected boolean isWatcherTest() {

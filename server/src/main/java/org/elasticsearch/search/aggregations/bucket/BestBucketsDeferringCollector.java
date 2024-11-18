@@ -233,14 +233,14 @@ public class BestBucketsDeferringCollector extends DeferringBucketCollector {
      * been collected directly.
      */
     @Override
-    public Aggregator wrap(final Aggregator in) {
+    public Aggregator wrap(final Aggregator in, BigArrays bigArrays) {
         return new WrappedAggregator(in) {
             @Override
             public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
                 if (selectedBuckets == null) {
                     throw new IllegalStateException("Collection has not been replayed yet.");
                 }
-                try (LongArray rebasedOrds = BigArrays.NON_RECYCLING_INSTANCE.newLongArray(owningBucketOrds.size())) {
+                try (LongArray rebasedOrds = bigArrays.newLongArray(owningBucketOrds.size())) {
                     for (long ordIdx = 0; ordIdx < owningBucketOrds.size(); ordIdx++) {
                         rebasedOrds.set(ordIdx, selectedBuckets.find(owningBucketOrds.get(ordIdx)));
                         if (rebasedOrds.get(ordIdx) == -1) {

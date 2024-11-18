@@ -66,7 +66,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
                 }
                 deferredAggregations.add(subAggregators[i]);
                 deferredAggregationNames.add(subAggregators[i].name());
-                subAggregators[i] = deferringCollector.wrap(subAggregators[i]);
+                subAggregators[i] = deferringCollector.wrap(subAggregators[i], bigArrays());
             } else {
                 collectors.add(subAggregators[i]);
             }

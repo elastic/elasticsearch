@@ -235,10 +235,7 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         return new SemanticQueryBuilder(this, noInferenceResults ? null : inferenceResultsSupplier, null, noInferenceResults);
     }
 
-    public static InferenceResults validateAndConvertInferenceResults(
-        InferenceServiceResults inferenceServiceResults,
-        String fieldName
-    ) {
+    public static InferenceResults validateAndConvertInferenceResults(InferenceServiceResults inferenceServiceResults, String fieldName) {
         if (inferenceServiceResults == null) {
             return null;
         }

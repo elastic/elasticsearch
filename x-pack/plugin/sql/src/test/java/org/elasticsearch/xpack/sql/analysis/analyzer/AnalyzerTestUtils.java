@@ -41,6 +41,6 @@ public final class AnalyzerTestUtils {
         IndexResolution resolution,
         Verifier verifier
     ) {
-        return new Analyzer(new AnalyzerContext(configuration, registry, resolution, null, false), verifier);
+        return new Analyzer(new AnalyzerContext(configuration, registry, resolution), verifier);
     }
 }

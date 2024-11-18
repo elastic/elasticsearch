@@ -26,10 +26,10 @@ public class S3HttpFixture extends ExternalResource {
 
     private HttpServer server;
 
-    private boolean enabled;
+    private final boolean enabled;
     private final String bucket;
     private final String basePath;
-    protected final String accessKey;
+    protected volatile String accessKey;
 
     public S3HttpFixture() {
         this(true);
@@ -97,5 +97,9 @@ public class S3HttpFixture extends ExternalResource {
         } catch (UnknownHostException e) {
             throw new RuntimeException(e);
         }
+    }
+
+    public void setAccessKey(String accessKey) {
+        this.accessKey = accessKey;
     }
 }

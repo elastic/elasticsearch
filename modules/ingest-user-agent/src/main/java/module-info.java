@@ -10,4 +10,5 @@
 module org.elasticsearch.ingest.useragent {
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
+    requires org.elasticsearch.base;
 }

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -170,7 +171,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataType.NULL
                 && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
         );
     }
 
@@ -878,8 +879,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -1084,8 +1084,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));

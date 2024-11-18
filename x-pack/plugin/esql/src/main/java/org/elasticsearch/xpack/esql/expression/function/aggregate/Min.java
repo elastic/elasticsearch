@@ -55,7 +55,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "text", "long", "version" },
+        returnType = { "boolean", "double", "integer", "long", "date", "ip", "keyword", "long", "version" },
         description = "The minimum value of a field.",
         isAggregation = true,
         examples = {
@@ -119,7 +119,7 @@ public class Min extends AggregateFunction implements ToAggregator, SurrogateExp
 
     @Override
     public DataType dataType() {
-        return field().dataType();
+        return field().dataType().noText();
     }
 
     @Override

@@ -55,7 +55,6 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -147,7 +146,6 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -2246,7 +2244,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();
@@ -2405,7 +2403,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentParsingProvider.EMPTY_INSTANCE,
                             FailureStoreMetrics.NOOP
                         ),
                         mockFeatureService,
@@ -2425,7 +2422,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
+                    new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
@@ -2493,7 +2490,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService

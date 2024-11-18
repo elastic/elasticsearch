@@ -19,8 +19,8 @@ esplugin {
 
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
-  api project(':libs:elasticsearch-grok')
-  api project(':libs:elasticsearch-dissect')
+  api project(':libs:grok')
+  api project(':libs:dissect')
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->

@@ -295,10 +295,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testServiceAccountApiKey() throws IOException {
-        @UpdateForV9(owner = UpdateForV9.Owner.SECURITY)
-        var originalClusterSupportsServiceAccounts = oldClusterHasFeature(RestTestLegacyFeatures.SERVICE_ACCOUNTS_SUPPORTED);
-        assumeTrue("no service accounts in versions before 7.13", originalClusterSupportsServiceAccounts);
-
         if (isRunningAgainstOldCluster()) {
             final Request createServiceTokenRequest = new Request("POST", "/_security/service/elastic/fleet-server/credential/token");
             final Response createServiceTokenResponse = client().performRequest(createServiceTokenRequest);
@@ -484,10 +480,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testTransformLegacyTemplateCleanup() throws Exception {
-        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING)
-        var originalClusterSupportsTransform = oldClusterHasFeature(RestTestLegacyFeatures.TRANSFORM_SUPPORTED);
-        assumeTrue("Before 7.2 transforms didn't exist", originalClusterSupportsTransform);
-
         if (isRunningAgainstOldCluster()) {
 
             // create the source index
@@ -562,9 +554,6 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
     }
 
     public void testSlmPolicyAndStats() throws IOException {
-        @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
-        var originalClusterSupportsSlm = oldClusterHasFeature(RestTestLegacyFeatures.SLM_SUPPORTED);
-
         SnapshotLifecyclePolicy slmPolicy = new SnapshotLifecyclePolicy(
             "test-policy",
             "test-policy",
@@ -573,7 +562,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             Collections.singletonMap("indices", Collections.singletonList("*")),
             null
         );
-        if (isRunningAgainstOldCluster() && originalClusterSupportsSlm) {
+        if (isRunningAgainstOldCluster()) {
             Request createRepoRequest = new Request("PUT", "_snapshot/test-repo");
             String repoCreateJson = "{" + " \"type\": \"fs\"," + " \"settings\": {" + "   \"location\": \"test-repo\"" + "  }" + "}";
             createRepoRequest.setJsonEntity(repoCreateJson);
@@ -587,7 +576,7 @@ public class FullClusterRestartIT extends AbstractXpackFullClusterRestartTestCas
             client().performRequest(createSlmPolicyRequest);
         }
 
-        if (isRunningAgainstOldCluster() == false && originalClusterSupportsSlm) {
+        if (isRunningAgainstOldCluster() == false) {
             Request getSlmPolicyRequest = new Request("GET", "_slm/policy/test-policy");
             Response response = client().performRequest(getSlmPolicyRequest);
             Map<String, Object> responseMap = entityAsMap(response);

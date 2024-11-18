@@ -282,30 +282,25 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     }
 
     private void setCurrentDesiredBalance(DesiredBalance newDesiredBalance) {
-        // Update current desired balance if the old value has not been changed already by master fail-over
-        final AtomicReference<DesiredBalance> oldDesiredBalance = new AtomicReference<>();
-        final DesiredBalance updatedDesiredBalance = currentDesiredBalanceRef.updateAndGet(current -> {
-            if (current != DesiredBalance.NOT_MASTER) {
-                oldDesiredBalance.set(current);
-                return newDesiredBalance;
-            } else {
-                return current;
+        while (true) {
+            final var oldDesiredBalance = currentDesiredBalanceRef.get();
+            if (oldDesiredBalance == DesiredBalance.NOT_MASTER) {
+                logger.debug("discard desired balance for [{}] since node is no longer master", newDesiredBalance.lastConvergedIndex());
+                return;
             }
-        });
 
-        if (updatedDesiredBalance == newDesiredBalance) {
-            assert oldDesiredBalance.get() != null;
-            if (logger.isTraceEnabled()) {
-                var diff = DesiredBalance.hasChanges(oldDesiredBalance.get(), newDesiredBalance)
-                    ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance.get(), newDesiredBalance)
-                    : "No changes";
-                logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
-            } else {
-                logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
+            if (currentDesiredBalanceRef.compareAndSet(oldDesiredBalance, newDesiredBalance)) {
+                if (logger.isTraceEnabled()) {
+                    var diff = DesiredBalance.hasChanges(oldDesiredBalance, newDesiredBalance)
+                        ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance, newDesiredBalance)
+                        : "No changes";
+                    logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
+                } else {
+                    logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
+                }
+                computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance, newDesiredBalance));
+                break;
             }
-            computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance.get(), newDesiredBalance));
-        } else {
-            logger.debug("discard desired balance for [{}]", newDesiredBalance.lastConvergedIndex());
         }
     }
 

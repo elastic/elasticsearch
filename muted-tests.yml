@@ -242,6 +242,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116879
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   issue: https://github.com/elastic/elasticsearch/issues/116899
+- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
+  method: testQueryBuilderBWC {p0=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/116989
 
 # Examples:
 #

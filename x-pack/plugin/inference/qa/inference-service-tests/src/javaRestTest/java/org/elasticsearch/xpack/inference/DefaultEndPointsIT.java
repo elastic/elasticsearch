@@ -53,7 +53,6 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultElser() throws IOException {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElasticsearchInternalService.DEFAULT_ELSER_ID);
         assertDefaultElserConfig(model);
 
@@ -84,7 +83,6 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
     public void testInferDeploysDefaultE5() throws IOException {
-        assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
         var model = getModel(ElasticsearchInternalService.DEFAULT_E5_ID);
         assertDefaultE5Config(model);
 

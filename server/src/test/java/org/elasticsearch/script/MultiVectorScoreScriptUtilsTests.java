@@ -35,19 +35,19 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
     public void testFloatMultiVectorClassBindings() throws IOException {
         String fieldName = "vector";
         int dims = 5;
-        float[][] docVectors = new float[][] {
-            { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f },
-            { 100.0f, 200.0f, -50.0f, 10.0f, -150.0f } };
-        List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
-        List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
+        float[][][] docVectors = new float[][][] {
+            { { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f }, { 100.0f, 200.0f, -50.0f, 10.0f, -150.0f } },
+            { { 42f, 12f, -1.0f, 0.0f, -1.0f } } };
+
+        List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
+        List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new FloatMultiDenseVectorDocValuesField(
                 MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersions.MINIMUM_COMPATIBLE),
                 "test",
                 ElementType.FLOAT,
-                dims,
-                IndexVersions.MINIMUM_COMPATIBLE
+                dims
             ),
             new FloatMultiDenseVectorDocValuesField(
                 MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersion.current()),

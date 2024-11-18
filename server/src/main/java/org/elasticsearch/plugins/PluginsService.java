@@ -93,6 +93,9 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final PluginsAndModules info;
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
+    private final Settings settings;
+    private final Path configPath;
+
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
     /**
@@ -101,7 +104,10 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param pluginsLoader the information required to complete loading of plugins
      */
     @SuppressWarnings("this-escape")
-    public PluginsService(PluginsLoader pluginsLoader) {
+    public PluginsService(Settings settings, Path configPath, PluginsLoader pluginsLoader) {
+        this.settings = settings;
+        this.configPath = configPath;
+
         Map<String, LoadedPlugin> loadedPlugins = loadPluginBundles(pluginsLoader);
 
         var modulesDescriptors = pluginsLoader.moduleDescriptors();
@@ -115,7 +121,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
         checkMandatoryPlugins(
             pluginDescriptors.stream().map(PluginDescriptor::getName).collect(Collectors.toSet()),
-            new HashSet<>(MANDATORY_SETTING.get(pluginsLoader.settings()))
+            new HashSet<>(MANDATORY_SETTING.get(settings))
         );
 
         // we don't log jars in lib/ we really shouldn't log modules,
@@ -228,7 +234,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private Map<String, LoadedPlugin> loadPluginBundles(PluginsLoader pluginsLoader) {
         Map<String, LoadedPlugin> loadedPlugins = new LinkedHashMap<>();
         for (LoadedPluginLayer loadedPluginLayer : pluginsLoader.loadPluginLayers().values()) {
-            loadBundle(loadedPluginLayer, loadedPlugins, pluginsLoader.settings(), pluginsLoader.configPath());
+            loadBundle(loadedPluginLayer, loadedPlugins, settings, configPath);
         }
 
         loadExtensions(loadedPlugins.values());

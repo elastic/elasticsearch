@@ -39,19 +39,16 @@ public class MockPluginsService extends PluginsService {
     /**
      * Constructs a new PluginService
      *
-     * @param settings         The settings of the system
-     * @param environment      The environment for the plugin
+     * @param pluginsLoader The {@link PluginsLoader} that loads Java module information
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
-    public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
-
-        final Path configPath = environment.configFile();
+    public MockPluginsService(PluginsLoader pluginsLoader, Collection<Class<? extends Plugin>> classpathPlugins) {
+        super(pluginsLoader);
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 
         for (Class<? extends Plugin> pluginClass : classpathPlugins) {
-            Plugin plugin = loadPlugin(pluginClass, settings, configPath);
+            Plugin plugin = loadPlugin(pluginClass, pluginsLoader.settings(), pluginsLoader.configPath());
             PluginDescriptor pluginInfo = new PluginDescriptor(
                 pluginClass.getName(),
                 "classpath plugin",

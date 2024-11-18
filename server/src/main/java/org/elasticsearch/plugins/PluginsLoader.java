@@ -11,7 +11,6 @@ package org.elasticsearch.plugins;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.jdk.JarHell;
@@ -87,9 +86,6 @@ public class PluginsLoader {
     private static final Logger logger = LogManager.getLogger(PluginsLoader.class);
     private static final Module serverModule = PluginsLoader.class.getModule();
 
-    private final Settings settings;
-    private final Path configPath;
-
     private final List<PluginDescriptor> moduleDescriptors;
     private final List<PluginDescriptor> pluginDescriptors;
     private final Map<String, LoadedPluginLayer> loadedPluginLayers;
@@ -97,14 +93,11 @@ public class PluginsLoader {
     /**
      * Constructs a new PluginsLoader
      *
-     * @param settings         The settings of the system
      * @param modulesDirectory The directory modules exist in, or null if modules should not be loaded from the filesystem
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     @SuppressWarnings("this-escape")
-    public PluginsLoader(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
-        this.settings = settings;
-        this.configPath = configPath;
+    public PluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
 
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         addServerExportsService(qualifiedExports);
@@ -144,14 +137,6 @@ public class PluginsLoader {
         }
 
         this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
-    }
-
-    public Settings settings() {
-        return settings;
-    }
-
-    public Path configPath() {
-        return configPath;
     }
 
     public List<PluginDescriptor> moduleDescriptors() {

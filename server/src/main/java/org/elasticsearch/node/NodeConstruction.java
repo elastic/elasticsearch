@@ -474,7 +474,7 @@ class NodeConstruction {
             (e, apmConfig) -> logger.error("failed to delete temporary APM config file [{}], reason: [{}]", apmConfig, e.getMessage())
         );
 
-        pluginsService = serviceProvider.newPluginService(initialEnvironment, envSettings);
+        pluginsService = serviceProvider.newPluginService(initialEnvironment, pluginsLoader);
         modules.bindToInstance(PluginsService.class, pluginsService);
         Settings settings = Node.mergePluginSettings(pluginsService.pluginMap(), envSettings);
 

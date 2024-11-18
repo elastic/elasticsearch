@@ -195,12 +195,9 @@ public final class FetchPhase {
             context.shardTarget(),
             context.searcher().getIndexReader(),
             docIdsToLoad,
-            context.request().allowPartialSearchResults()
+            context.request().allowPartialSearchResults(),
+            context.queryResult()
         );
-
-        if (docsIterator.isTimedOut()) {
-            context.queryResult().searchTimedOut(true);
-        }
 
         if (context.isCancelled()) {
             for (SearchHit hit : hits) {

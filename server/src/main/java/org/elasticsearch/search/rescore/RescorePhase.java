@@ -72,7 +72,11 @@ public class RescorePhase {
         } catch (IOException e) {
             throw new ElasticsearchException("Rescore Phase Failed", e);
         } catch (InternalTimeoutException e) {
-            InternalTimeoutException.handleTimeout(context);
+            InternalTimeoutException.handleTimeout(
+                context.request().allowPartialSearchResults(),
+                context.shardTarget(),
+                context.queryResult()
+            );
         }
     }
 

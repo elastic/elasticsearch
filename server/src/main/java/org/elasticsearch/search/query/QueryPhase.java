@@ -218,7 +218,11 @@ public class QueryPhase {
             queryResult.topDocs(queryPhaseResult.topDocsAndMaxScore(), queryPhaseResult.sortValueFormats());
             if (searcher.timeExceeded()) {
                 assert timeoutRunnable != null : "TimeExceededException thrown even though timeout wasn't set";
-                InternalTimeoutException.handleTimeout(searchContext);
+                InternalTimeoutException.handleTimeout(
+                    searchContext.request().allowPartialSearchResults(),
+                    searchContext.shardTarget(),
+                    searchContext.queryResult()
+                );
             }
             if (searchContext.terminateAfter() != SearchContext.DEFAULT_TERMINATE_AFTER) {
                 queryResult.terminatedEarly(queryPhaseResult.terminatedAfter());

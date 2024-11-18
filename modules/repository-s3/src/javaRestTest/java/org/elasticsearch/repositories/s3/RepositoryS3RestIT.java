@@ -51,6 +51,7 @@ public class RepositoryS3RestIT extends ESRestTestCase {
         return cluster.getHttpAddresses();
     }
 
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/116811")
     public void testReloadCredentialsFromKeystore() throws IOException {
         // Register repository (?verify=false because we don't have access to the blob store yet)
         final var repositoryName = randomIdentifier();

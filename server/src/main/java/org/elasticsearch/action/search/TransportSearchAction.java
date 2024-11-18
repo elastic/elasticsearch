@@ -61,7 +61,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
@@ -255,12 +254,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return indicesAndAliases.contains(ret.getParentDataStream().getName());
     }
 
-    Map<String, AliasFilter> buildIndexAliasFilters(ClusterState clusterState, Set<String> indicesAndAliases, Index[] concreteIndices) {
+    Map<String, AliasFilter> buildIndexAliasFilters(ProjectState projectState, Set<String> indicesAndAliases, Index[] concreteIndices) {
         final Map<String, AliasFilter> aliasFilterMap = new HashMap<>();
         for (Index index : concreteIndices) {
-            clusterState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
-            @FixForMultiProject
-            final ProjectState projectState = clusterState.projectState();
+            projectState.blocks().indexBlockedRaiseException(ClusterBlockLevel.READ, index.getName());
             AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, index.getName(), indicesAndAliases);
             assert aliasFilter != null;
             aliasFilterMap.put(index.getUUID(), aliasFilter);
@@ -348,7 +345,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             resolvedIndices = ResolvedIndices.resolveWithPIT(
                 original.pointInTimeBuilder(),
                 original.indicesOptions(),
-                clusterState,
+                projectState.metadata(),
                 namedWriteableRegistry
             );
         } else {
@@ -1247,7 +1244,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                 projectState.metadata(),
                 searchRequest.indices()
             );
-            aliasFilter = buildIndexAliasFilters(projectState.cluster(), indicesAndAliases, indices);
+            aliasFilter = buildIndexAliasFilters(projectState, indicesAndAliases, indices);
             aliasFilter.putAll(remoteAliasMap);
             localShardIterators = getLocalShardsIterator(
                 projectState,
@@ -1305,7 +1302,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         );
         final Executor asyncSearchExecutor = asyncSearchExecutor(concreteLocalIndices);
         final boolean preFilterSearchShards = shouldPreFilterSearchShards(
-            projectState.cluster(),
+            projectState,
             searchRequest,
             concreteLocalIndices,
             localShardIterators.size() + remoteShardIterators.size(),
@@ -1376,7 +1373,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
     }
 
     static boolean shouldPreFilterSearchShards(
-        ClusterState clusterState,
+        ProjectState projectState,
         SearchRequest searchRequest,
         String[] indices,
         int numShards,
@@ -1389,7 +1386,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         SearchSourceBuilder source = searchRequest.source();
         Integer preFilterShardSize = searchRequest.getPreFilterShardSize();
         if (preFilterShardSize == null) {
-            if (hasReadOnlyIndices(indices, clusterState) || hasPrimaryFieldSort(source)) {
+            if (hasReadOnlyIndices(indices, projectState) || hasPrimaryFieldSort(source)) {
                 preFilterShardSize = 1;
             } else {
                 preFilterShardSize = defaultPreFilterShardSize;
@@ -1398,8 +1395,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
         return preFilterShardSize < numShards && (SearchService.canRewriteToMatchNone(source) || hasPrimaryFieldSort(source));
     }
 
-    private static boolean hasReadOnlyIndices(String[] indices, ClusterState clusterState) {
-        var blocks = clusterState.blocks();
+    private static boolean hasReadOnlyIndices(String[] indices, ProjectState projectState) {
+        var blocks = projectState.blocks();
         if (blocks.global().isEmpty() && blocks.indices().isEmpty()) {
             // short circuit optimization because block check below is relatively expensive for many indices
             return false;

@@ -31,10 +31,12 @@ import org.elasticsearch.action.support.replication.ClusterStateCreationUtils;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.VersionInformation;
@@ -53,7 +55,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.set.Sets;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
@@ -1417,12 +1418,16 @@ public class TransportSearchActionTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).build();
+        final ProjectId projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        final ProjectState projectState = clusterState.projectState(projectId);
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, 128),
@@ -1431,7 +1436,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(129, 10000),
@@ -1445,7 +1450,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE),
@@ -1454,7 +1459,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE + 1, 10000),
@@ -1466,7 +1471,7 @@ public class TransportSearchActionTests extends ESTestCase {
             SearchRequest searchRequest = new SearchRequest().source(new SearchSourceBuilder().sort(SortBuilders.fieldSort("timestamp")));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1),
@@ -1475,7 +1480,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000),
@@ -1488,7 +1493,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 .scroll(TimeValue.timeValueMinutes(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE),
@@ -1497,7 +1502,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE + 1, 10000),
@@ -1522,12 +1527,17 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             }
         }
-        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT).blocks(blocksBuilder).build();
+        final ProjectId projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+        final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .blocks(blocksBuilder)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
+        final ProjectState projectState = clusterState.projectState(projectId);
         {
             SearchRequest searchRequest = new SearchRequest();
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1),
@@ -1536,7 +1546,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000),
@@ -1550,7 +1560,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1),
@@ -1559,7 +1569,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000),
@@ -1574,7 +1584,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.scroll(TimeValue.timeValueSeconds(5));
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1),
@@ -1583,7 +1593,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertTrue(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000),
@@ -1598,7 +1608,7 @@ public class TransportSearchActionTests extends ESTestCase {
             searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(2, DEFAULT_PRE_FILTER_SHARD_SIZE - 1),
@@ -1607,7 +1617,7 @@ public class TransportSearchActionTests extends ESTestCase {
             );
             assertFalse(
                 TransportSearchAction.shouldPreFilterSearchShards(
-                    clusterState,
+                    projectState,
                     searchRequest,
                     indices,
                     randomIntBetween(DEFAULT_PRE_FILTER_SHARD_SIZE - 1, 10000),
@@ -1621,13 +1631,13 @@ public class TransportSearchActionTests extends ESTestCase {
         final int numberOfShards = randomIntBetween(1, 5);
         final int numberOfReplicas = randomIntBetween(0, 2);
         final String[] indices = { "test-1", "test-2" };
+        final ProjectId project = randomProjectId();
         final ClusterState clusterState = ClusterStateCreationUtils.stateWithAssignedPrimariesAndReplicas(
+            project,
             indices,
             numberOfShards,
             numberOfReplicas
         );
-        @FixForMultiProject // proper support in ClusterStateCreationUtils
-        ProjectId project = Metadata.DEFAULT_PROJECT_ID;
         final IndexMetadata indexMetadata = clusterState.metadata().getProject(project).index("test-1");
         Map<ShardId, SearchContextIdForNode> contexts = new HashMap<>();
         Set<ShardId> relocatedContexts = new HashSet<>();

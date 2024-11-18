@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.logsdb;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.license.License;
@@ -23,6 +25,10 @@ import java.time.ZoneOffset;
 final class SyntheticSourceLicenseService {
 
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
+    private static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date";
+    private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
+    private static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+    private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2027, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**
      * A setting that determines whether source mode should always be stored source. Regardless of licence.
@@ -52,9 +58,8 @@ final class SyntheticSourceLicenseService {
     private volatile boolean syntheticSourceFallback;
 
     SyntheticSourceLicenseService(Settings settings) {
-        syntheticSourceFallback = FALLBACK_SETTING.get(settings);
-        // turn into a constant and allow overwriting via system property
-        this.cutoffDate = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        this.syntheticSourceFallback = FALLBACK_SETTING.get(settings);
+        this.cutoffDate = getCutoffDate();
     }
 
     /**
@@ -91,5 +96,19 @@ final class SyntheticSourceLicenseService {
 
     void setLicenseState(XPackLicenseState licenseState) {
         this.licenseState = licenseState;
+    }
+
+    private static long getCutoffDate() {
+        var value = System.getProperty(CUTOFF_DATE_SYS_PROP_NAME);
+        if (value != null) {
+            long cutoffDate =  LocalDateTime.parse(value).toInstant(ZoneOffset.UTC).toEpochMilli();
+            if (cutoffDate > MAX_CUTOFF_DATE) {
+                throw new IllegalArgumentException("Provided cutoff date is beyond max cutoff date");
+            }
+            LOGGER.warn("Configuring [{}] is only allowed with explicit approval from Elastic.", CUTOFF_DATE_SYS_PROP_NAME);
+            return cutoffDate;
+        } else {
+            return DEFAULT_CUTOFF_DATE;
+        }
     }
 }

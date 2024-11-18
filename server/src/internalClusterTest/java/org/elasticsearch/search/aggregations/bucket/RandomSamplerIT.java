@@ -135,8 +135,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
                                 .setShardSeed(42)
                         )
                 )
-                .toList()
-                .toArray(new SearchRequestBuilder[0])
+                .toArray(SearchRequestBuilder[]::new)
         );
     }
 
@@ -159,8 +158,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
                             .subAggregation(avg("mean_numeric").field(NUMERIC_VALUE))
                     )
                 )
-                .toList()
-                .toArray(new SearchRequestBuilder[0])
+                .toArray(SearchRequestBuilder[]::new)
         );
 
         sampledDocCount[0] /= NUM_SAMPLE_RUNS;
@@ -219,8 +217,7 @@ public class RandomSamplerIT extends ESIntegTestCase {
                             )
                     )
                 )
-                .toList()
-                .toArray(new SearchRequestBuilder[0])
+                .toArray(SearchRequestBuilder[]::new)
         );
 
         for (String key : sampledDocCount.keySet()) {

@@ -294,15 +294,15 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         });
 
         if (updatedDesiredBalance == newDesiredBalance) {
+            assert oldDesiredBalance.get() != null;
             if (logger.isTraceEnabled()) {
-                var diff = DesiredBalance.hasChanges(updatedDesiredBalance, newDesiredBalance)
-                    ? "Diff: " + DesiredBalance.humanReadableDiff(updatedDesiredBalance, newDesiredBalance)
+                var diff = DesiredBalance.hasChanges(oldDesiredBalance.get(), newDesiredBalance)
+                    ? "Diff: " + DesiredBalance.humanReadableDiff(oldDesiredBalance.get(), newDesiredBalance)
                     : "No changes";
                 logger.trace("Desired balance updated: {}. {}", newDesiredBalance, diff);
             } else {
                 logger.debug("Desired balance updated for [{}]", newDesiredBalance.lastConvergedIndex());
             }
-            assert oldDesiredBalance.get() != null;
             computedShardMovements.inc(DesiredBalance.shardMovements(oldDesiredBalance.get(), newDesiredBalance));
         } else {
             logger.debug("discard desired balance for [{}]", newDesiredBalance.lastConvergedIndex());

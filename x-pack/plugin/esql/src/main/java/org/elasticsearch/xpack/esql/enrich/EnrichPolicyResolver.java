@@ -17,13 +17,11 @@ import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.iterable.Iterables;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterAware;
@@ -54,7 +52,6 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
-import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -99,12 +96,12 @@ public class EnrichPolicyResolver {
     /**
      * Resolves a set of enrich policies
      *
-     * @param targetClusters     the target clusters; v1: cluster alias; v2: skip_unavailable setting (null for local cluster)
+     * @param targetClusters     the target clusters; key: cluster alias; value: skip_unavailable setting (null for local cluster)
      * @param unresolvedPolicies the unresolved policies
      * @param listener           notified with the enrich resolution
      */
     public void resolvePolicies(
-        List<Tuple<String, Boolean>> targetClusters,
+        Map<String, Boolean> targetClusters,
         Collection<UnresolvedPolicy> unresolvedPolicies,
         ActionListener<EnrichResolution> listener
     ) {
@@ -112,9 +109,10 @@ public class EnrichPolicyResolver {
             listener.onResponse(new EnrichResolution());
             return;
         }
-        final Set<Tuple<String, Boolean>> remotes = new HashSet<>(targetClusters);
-        final boolean includeLocal = remotes.removeIf(t -> t.v1().equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY));
-        lookupPolicies(remotes.stream().map(t -> t.v1()).toList(), includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
+        final Map<String, Boolean> remotes = new HashMap<>(targetClusters);
+        final boolean includeLocal = targetClusters.containsKey(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        remotes.remove(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+        lookupPolicies(remotes.keySet(), includeLocal, unresolvedPolicies, listener.map(lookupResponses -> {
             final EnrichResolution enrichResolution = new EnrichResolution();
 
             Map<String, LookupResponse> lookupResponsesToProcess = new HashMap<>();
@@ -124,8 +122,8 @@ public class EnrichPolicyResolver {
                 if (entry.getValue().connectionError != null) {
                     enrichResolution.addUnusableRemote(clusterAlias, entry.getValue().connectionError);
                     // remove unavailable cluster from the list of clusters which is used below to create the ResolvedEnrichPolicy
-                    boolean removed = remotes.removeIf(t -> t.v1().equals(clusterAlias));
-                    assert removed : "Remote " + clusterAlias + " was not removed from the remotes list.";
+                    Boolean removedVal = remotes.remove(clusterAlias);
+                    assert removedVal != null : "Remote " + clusterAlias + " was not removed from the remotes list.";
                 } else {
                     lookupResponsesToProcess.put(clusterAlias, entry.getValue());
                 }
@@ -165,20 +163,20 @@ public class EnrichPolicyResolver {
      * @param mode
      * @param includeLocal
      * @param remoteClusters
-     * @return Collection of Tuples where v1: String=clusterAlias, v2: Boolean=skipUnavailable setting
+     * @return Map where key: String=clusterAlias, value: Boolean=skipUnavailable setting
      */
-    private Collection<Tuple<String, Boolean>> calculateTargetClusters(
-        Enrich.Mode mode,
-        boolean includeLocal,
-        Set<Tuple<String, Boolean>> remoteClusters
-    ) {
+    private Map<String, Boolean> calculateTargetClusters(Enrich.Mode mode, boolean includeLocal, Map<String, Boolean> remoteClusters) {
         return switch (mode) {
-            case ANY -> CollectionUtils.appendToCopy(remoteClusters, new Tuple<>(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, null));
-            case COORDINATOR -> List.of(new Tuple<>(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, null));
-            case REMOTE -> includeLocal
-                ? CollectionUtils.appendToCopy(remoteClusters, new Tuple<>(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, null))
-                : remoteClusters;
+            case ANY -> copyAndAddLocalCluster(remoteClusters);
+            case COORDINATOR -> copyAndAddLocalCluster(Collections.emptyMap());
+            case REMOTE -> includeLocal ? copyAndAddLocalCluster(remoteClusters) : remoteClusters;
         };
+    }
+
+    private Map<String, Boolean> copyAndAddLocalCluster(Map<String, Boolean> remoteClusters) {
+        Map<String, Boolean> newMap = new HashMap<>(remoteClusters);
+        newMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, null);
+        return newMap;
     }
 
     /**
@@ -187,7 +185,7 @@ public class EnrichPolicyResolver {
      */
     private MergedPolicyLookupResult mergeLookupResults(
         UnresolvedPolicy unresolved,
-        Collection<Tuple<String, Boolean>> targetClusters,
+        Map<String, Boolean> targetClusters,
         Map<String, LookupResponse> lookupResults
     ) {
         String policyName = unresolved.name;
@@ -195,12 +193,14 @@ public class EnrichPolicyResolver {
             String error = "enrich policy [" + policyName + "] cannot be resolved since remote clusters are unavailable";
             return new MergedPolicyLookupResult(null, Collections.emptyMap(), error);
         }
+        // key for this map is cluster alias; a cluster will be in this map only if it has resolved the enrich policy/policies needed
         final Map<String, ResolvedEnrichPolicy> policies = new HashMap<>();
         final List<String> failures = new ArrayList<>(); // (fatal) failures on local or skip_unavailable=false remote
         final Map<String, Exception> remotesToBeSkipped = new HashMap<>(); // skip_unavailable=true remotes enrich policy failures
-        for (Tuple<String, Boolean> clusterInfo : targetClusters) {
-            String cluster = clusterInfo.v1();
-            boolean skipUnavailable = clusterInfo.v2() == null ? false : clusterInfo.v2();
+        for (Map.Entry<String, Boolean> clusterInfo : targetClusters.entrySet()) {
+            String cluster = clusterInfo.getKey();
+            // MP TODO: HMM: do we really need local cluster mapped to null then? Or can we just use "false"?
+            boolean skipUnavailable = clusterInfo.getValue() == null ? false : clusterInfo.getValue();
             LookupResponse lookupResult = lookupResults.get(cluster);
             if (lookupResult != null) {
                 assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";
@@ -225,30 +225,34 @@ public class EnrichPolicyResolver {
         if (targetClusters.size() != policies.size() + remotesToBeSkipped.size()) {
             final String reason;
             if (failures.isEmpty()) {
-                List<String> missingClusters = targetClusters.stream()
-                    .filter(t -> policies.containsKey(t.v1()) == false)
-                    .map(t -> t.v1())
+                List<String> missingClusters = targetClusters.keySet()
+                    .stream()
+                    .filter(c -> policies.containsKey(c) == false)
                     .sorted()
                     .toList();
-                reason = missingPolicyError(policyName, targetClusters.stream().map(t -> t.v1()).toList(), missingClusters);
+                // MP TODO: add assert that all of these are skip_un=false clusters, thus is fatal
+                reason = missingPolicyError(policyName, targetClusters.keySet(), missingClusters);
             } else {
                 reason = "failed to resolve enrich policy [" + policyName + "]; reason " + failures;
             }
             // return Tuple.tuple(null, reason);
             return new MergedPolicyLookupResult(null, remotesToBeSkipped, reason);
         } else if (targetClusters.size() == remotesToBeSkipped.size()) {
+            // MP TODO: this doesn't feel right to me - are we ever seeing this block get hit?
+            // no target cluster had an enrich policy and all are skip_unavailable=true
             return new MergedPolicyLookupResult(null, remotesToBeSkipped, null);
         }
 
         Map<String, EsField> mappings = new HashMap<>();
         Map<String, String> concreteIndices = new HashMap<>();
         ResolvedEnrichPolicy last = null;
+        // loop over clusters with a ResolvedEnrichPolicy - ensure no errors within the policy
         for (Map.Entry<String, ResolvedEnrichPolicy> e : policies.entrySet()) {
             ResolvedEnrichPolicy curr = e.getValue();
-            // MP TODO: I'm not sure this handling is right - do we need to NOT error if skip_un=true?
             if (last != null && last.matchField().equals(curr.matchField()) == false) {
                 String error = "enrich policy [" + policyName + "] has different match fields ";
                 error += "[" + last.matchField() + ", " + curr.matchField() + "] across clusters";
+                // MP TODO: handle skip_un here
                 return new MergedPolicyLookupResult(null, remotesToBeSkipped, error);
             }
             if (last != null && last.matchType().equals(curr.matchType()) == false) {

@@ -19,12 +19,12 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -73,6 +73,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -299,11 +300,15 @@ public class EsqlSession {
                 .toArray(String[]::new)
         ).keySet();
 
-        List<Tuple<String, Boolean>> targetClusters = new ArrayList<>();
-        for (String cluster : clusters) {
-            targetClusters.add(new Tuple<>(cluster, executionInfo.isSkipUnavailable(cluster)));
+        // key: cluster alias; value = skip_unavailable setting (null for local cluster)
+        Map<String, Boolean> targetClusters = new HashMap<>();
+        for (String alias : clusters) {
+            if (alias.equals(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY)) {
+                targetClusters.put(alias, null);
+            } else {
+                targetClusters.put(alias, executionInfo.isSkipUnavailable(alias));
+            }
         }
-
         enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()

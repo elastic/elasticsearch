@@ -83,6 +83,7 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOrig
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
     public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
 
     public static final String CONTENT_TYPE = "semantic_text";
 

@@ -511,7 +511,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         public QueryBuilder semanticQuery(
             InferenceResults inferenceResults,
-            SearchExecutionContext searchExecutionContext,
+            Integer requestSize,
             float boost,
             String queryName
         ) {
@@ -558,7 +558,6 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        Integer requestSize = searchExecutionContext.requestSize();
                         if (requestSize != null) {
                             // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
                             requestSize = Math.max(requestSize, DEFAULT_SIZE);

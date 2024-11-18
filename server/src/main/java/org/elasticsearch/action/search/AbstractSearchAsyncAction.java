@@ -40,6 +40,7 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -251,9 +252,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
-                if (pendingExecutions.released.compareAndSet(false, true)) {
+                int queuedItems = pendingExecutions.queuedItems.get();
+                if (queuedItems < maxConcurrentRequestsPerNode) {
                     pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
-                    pendingExecutions.flushQueue();
+                    try {
+                        pendingExecutions.flushQueue();
+                    } catch (Throwable e) {
+                        throw new AssertionError(e);
+                    }
                 }
             }
         }
@@ -298,7 +304,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 shard.getNodeId(),
                 n -> new PendingExecutions(maxConcurrentRequestsPerNode)
             );
-            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
+            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, LeakTracker.wrap(l)));
         } else {
             doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
         }
@@ -820,15 +826,20 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 executeAndRelease(task);
             } else {
                 queue.add(task);
-                if (queuedItems.incrementAndGet() >= permits && released.compareAndSet(false, true)) {
+                int queuedItemsCount = queuedItems.incrementAndGet();
+                if (queuedItemsCount == permits) {
                     semaphore.release(permits);
+                    for (int i = 0; i < permits; i++) {
+                        flushQueue();
+                    }
+                } else if (queuedItemsCount > permits) {
+                    flushQueue();
                 }
-                flushQueue();
             }
         }
 
         void flushQueue() {
-            while (semaphore.tryAcquire()) {
+            if (semaphore.tryAcquire()) {
                 var task = pollNextTaskOrReleasePermit();
                 if (task != null) {
                     executeAndRelease(task);

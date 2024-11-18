@@ -322,6 +322,7 @@ public class EsqlSession {
                         // for a CCS, if all clusters have been marked as SKIPPED, nothing to search so send a sentinel
                         // Exception to let the LogicalPlanActionListener decide how to proceed
                         finalListener.onFailure(new NoClustersToSearchException());
+                        return;
                     }
 
                     Set<String> newClusters = enrichPolicyResolver.groupIndicesPerCluster(
@@ -338,6 +339,7 @@ public class EsqlSession {
                             unresolvedPolicies,
                             new IndexResolutionWrappingListener(l, indexResolution)
                         );
+                        return;
                     }
                 }
                 // whatever tuple we have here (from CCS-special handling or from the original pre-analysis), pass it on to the next step

@@ -64,7 +64,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_SetsInputTypeToOverride_WhenFieldIsNullInModelTaskSettings_AndNullInRequestTaskSettings() {
-        var model = createModel("model", Boolean.FALSE, null);
+        var model = createModel("model", Boolean.FALSE, (InputType) null);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.SEARCH);
 
         var expectedModel = createModel("model", Boolean.FALSE, InputType.SEARCH);
@@ -80,7 +80,7 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_SetsInputType_FromRequest_IfValid_OverridingRequestTaskSettings() {
-        var model = createModel("model", Boolean.FALSE, null);
+        var model = createModel("model", Boolean.FALSE, (InputType) null);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, InputType.CLUSTERING), InputType.SEARCH);
 
         var expectedModel = createModel("model", Boolean.FALSE, InputType.SEARCH);
@@ -96,10 +96,10 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
     }
 
     public void testOverrideWith_DoesNotSetInputType_FromRequest_IfInputTypeIsInvalid() {
-        var model = createModel("model", Boolean.FALSE, null);
+        var model = createModel("model", Boolean.FALSE, (InputType) null);
         var overriddenModel = GoogleVertexAiEmbeddingsModel.of(model, getTaskSettingsMap(null, null), InputType.UNSPECIFIED);
 
-        var expectedModel = createModel("model", Boolean.FALSE, null);
+        var expectedModel = createModel("model", Boolean.FALSE, (InputType) null);
         MatcherAssert.assertThat(overriddenModel, is(expectedModel));
     }
 
@@ -133,6 +133,31 @@ public class GoogleVertexAiEmbeddingsModelTests extends ESTestCase {
             new GoogleVertexAiEmbeddingsServiceSettings(location, projectId, modelId, false, null, null, null, null),
             new GoogleVertexAiEmbeddingsTaskSettings(Boolean.FALSE, null),
             new GoogleVertexAiSecretSettings(new SecureString(serviceAccountJson.toCharArray()))
+        );
+    }
+
+    public static GoogleVertexAiEmbeddingsModel createModel(
+        String modelId,
+        @Nullable Boolean autoTruncate,
+        SimilarityMeasure similarityMeasure
+    ) {
+        return new GoogleVertexAiEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            new GoogleVertexAiEmbeddingsServiceSettings(
+                randomAlphaOfLength(8),
+                randomAlphaOfLength(8),
+                modelId,
+                false,
+                null,
+                null,
+                similarityMeasure,
+                null
+            ),
+            new GoogleVertexAiEmbeddingsTaskSettings(autoTruncate, randomFrom(InputType.INGEST, InputType.SEARCH)),
+            null,
+            new GoogleVertexAiSecretSettings(new SecureString(randomAlphaOfLength(8).toCharArray()))
         );
     }
 

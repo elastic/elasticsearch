@@ -121,7 +121,7 @@ public class EnrichPolicyResolver {
             for (Map.Entry<String, LookupResponse> entry : lookupResponses.entrySet()) {
                 String clusterAlias = entry.getKey();
                 if (entry.getValue().connectionError != null) {
-                    enrichResolution.addUnavailableCluster(clusterAlias, entry.getValue().connectionError);
+                    enrichResolution.addUnusableRemote(clusterAlias, entry.getValue().connectionError);
                     // remove unavailable cluster from the list of clusters which is used below to create the ResolvedEnrichPolicy
                     remoteClusters.remove(clusterAlias);
                 } else {

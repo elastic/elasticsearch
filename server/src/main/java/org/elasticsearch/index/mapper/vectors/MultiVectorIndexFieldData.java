@@ -55,7 +55,7 @@ public class MultiVectorIndexFieldData implements IndexFieldData<MultiVectorDVLe
 
     @Override
     public MultiVectorDVLeafFieldData load(LeafReaderContext context) {
-        return new MultiVectorDVLeafFieldData(context.reader(), fieldName, indexVersion, elementType, dims);
+        return new MultiVectorDVLeafFieldData(context.reader(), fieldName, elementType, dims);
     }
 
     @Override

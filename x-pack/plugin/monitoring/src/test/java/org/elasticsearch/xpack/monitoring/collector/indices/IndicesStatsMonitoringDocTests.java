@@ -53,6 +53,8 @@ public class IndicesStatsMonitoringDocTests extends BaseFilteredMonitoringDocTes
                 "dcvO5uZATE-EhIKc3tk9Bg",
                 null,
                 null,
+                null,
+                null,
                 new ShardStats[] {
                     // Primaries
                     new ShardStats(mockShardRouting(true), mockShardPath(), mockCommonStats(), null, null, null, false, 0),

@@ -2833,7 +2833,7 @@ public class ReservedRolesStoreTests extends ESTestCase {
             is(false)
         );
         assertThat(
-            superuserRole.remoteCluster().privilegeNames("*", TransportVersion.current()),
+            superuserRole.remoteCluster().collapseAndRemoveUnsupportedPrivileges("*", TransportVersion.current()),
             equalTo(RemoteClusterPermissions.getSupportedRemoteClusterPermissions().toArray(new String[0]))
         );
     }
@@ -3056,89 +3056,6 @@ public class ReservedRolesStoreTests extends ESTestCase {
 
         assertNoAccessAllowed(APMSystemRole, TestRestrictedIndices.SAMPLE_RESTRICTED_NAMES);
         assertNoAccessAllowed(APMSystemRole, XPackPlugin.ASYNC_RESULTS_INDEX + randomAlphaOfLengthBetween(0, 2));
-    }
-
-    public void testAPMUserRole() {
-        final TransportRequest request = mock(TransportRequest.class);
-        final Authentication authentication = AuthenticationTestHelper.builder().build();
-
-        final RoleDescriptor roleDescriptor = ReservedRolesStore.roleDescriptor("apm_user");
-        assertNotNull(roleDescriptor);
-        assertThat(roleDescriptor.getMetadata(), hasEntry("_reserved", true));
-
-        final String allowedApplicationActionPattern = "example/custom/action/*";
-        final String kibanaApplicationWithRandomIndex = "kibana-" + randomFrom(randomAlphaOfLengthBetween(8, 24), ".kibana");
-        Role role = Role.buildFromRoleDescriptor(
-            roleDescriptor,
-            new FieldPermissionsCache(Settings.EMPTY),
-            RESTRICTED_INDICES,
-            List.of(
-                new ApplicationPrivilegeDescriptor(
-                    kibanaApplicationWithRandomIndex,
-                    "reserved_ml_apm_user",
-                    Set.of(allowedApplicationActionPattern),
-                    Map.of()
-                )
-            )
-        );
-
-        assertThat(role.cluster().check(DelegatePkiAuthenticationAction.NAME, request, authentication), is(false));
-        assertThat(role.runAs().check(randomAlphaOfLengthBetween(1, 12)), is(false));
-
-        assertNoAccessAllowed(role, "foo");
-        assertNoAccessAllowed(role, "foo-apm");
-        assertNoAccessAllowed(role, "foo-logs-apm.bar");
-        assertNoAccessAllowed(role, "foo-logs-apm-bar");
-        assertNoAccessAllowed(role, "foo-traces-apm.bar");
-        assertNoAccessAllowed(role, "foo-traces-apm-bar");
-        assertNoAccessAllowed(role, "foo-metrics-apm.bar");
-        assertNoAccessAllowed(role, "foo-metrics-apm-bar");
-
-        assertOnlyReadAllowed(role, "logs-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "logs-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "traces-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "traces-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "metrics-apm." + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "metrics-apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, "apm-" + randomIntBetween(0, 5));
-        assertOnlyReadAllowed(role, AnomalyDetectorsIndexFields.RESULTS_INDEX_PREFIX + AnomalyDetectorsIndexFields.RESULTS_INDEX_DEFAULT);
-
-        assertOnlyReadAllowed(role, "observability-annotations");
-
-        assertThat(
-            role.application().grants(ApplicationPrivilegeTests.createPrivilege(kibanaApplicationWithRandomIndex, "app-foo", "foo"), "*"),
-            is(false)
-        );
-        assertThat(
-            role.application()
-                .grants(
-                    ApplicationPrivilegeTests.createPrivilege(
-                        kibanaApplicationWithRandomIndex,
-                        "app-reserved_ml_apm_user",
-                        allowedApplicationActionPattern
-                    ),
-                    "*"
-                ),
-            is(true)
-        );
-
-        final String otherApplication = "logstash-" + randomAlphaOfLengthBetween(8, 24);
-        assertThat(
-            role.application().grants(ApplicationPrivilegeTests.createPrivilege(otherApplication, "app-foo", "foo"), "*"),
-            is(false)
-        );
-        assertThat(
-            role.application()
-                .grants(
-                    ApplicationPrivilegeTests.createPrivilege(
-                        otherApplication,
-                        "app-reserved_ml_apm_user",
-                        allowedApplicationActionPattern
-                    ),
-                    "*"
-                ),
-            is(false)
-        );
     }
 
     public void testMachineLearningAdminRole() {

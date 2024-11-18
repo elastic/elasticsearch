@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -198,12 +199,18 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-        // install SM after natives, shutdown hooks, etc.
-        org.elasticsearch.bootstrap.Security.configure(
-            nodeEnv,
-            SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-            args.pidFile()
-        );
+        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
+            logger.info("Bootstrapping Entitlements");
+            EntitlementBootstrap.bootstrap();
+        } else {
+            // install SM after natives, shutdown hooks, etc.
+            logger.info("Bootstrapping java SecurityManager");
+            org.elasticsearch.bootstrap.Security.configure(
+                nodeEnv,
+                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
+                args.pidFile()
+            );
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {

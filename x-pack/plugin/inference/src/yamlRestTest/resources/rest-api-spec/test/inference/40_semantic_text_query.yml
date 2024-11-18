@@ -843,7 +843,7 @@ setup:
 ---
 "Query a field that uses the default ELSER 2 endpoint":
   - requires:
-      reason: "default ELSER 2 inference ID is behind a feature flag"
+      reason: "default ELSER 2 inference ID is enabled via a capability"
       test_runner_features: [capabilities]
       capabilities:
         - method: GET

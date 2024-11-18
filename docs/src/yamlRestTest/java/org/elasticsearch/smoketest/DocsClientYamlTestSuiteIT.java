@@ -140,6 +140,42 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         snapshotRepositoryPopulated = true;
     }
 
+    @Before
+    public void disableWatcherService() throws Exception { // To prevent watches actually executing during tests
+        if (isWatcherTest()) {
+            assertBusy(() -> {
+                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
+                String state = response.evaluate("stats.0.watcher_state");
+
+                switch (state) {
+                    case "started":
+                        ClientYamlTestResponse stopResponse = getAdminExecutionContext().callApi(
+                            "watcher.stop",
+                            emptyMap(),
+                            emptyList(),
+                            emptyMap()
+                        );
+                        boolean isAcknowledged = stopResponse.evaluate("acknowledged");
+                        assertThat(isAcknowledged, is(true));
+                        throw new AssertionError("waiting until started state reached stopped state");
+                    case "stopping":
+                        throw new AssertionError("waiting until stopping state reached stopped state");
+                    case "stopped":
+                        logger.info("Watcher service disabled for watcher test");
+                        break;
+                    default:
+                        throw new AssertionError("unknown state[" + state + "]");
+                }
+            });
+        }
+
+    }
+
+    protected boolean isWatcherTest() {
+        String testName = getTestName();
+        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
+    }
+
     @After
     public void cleanup() throws Exception {
         if (isMachineLearningTest() || isTransformTest()) {
@@ -242,46 +278,6 @@ public class DocsClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
                 getAdminExecutionContext().callApi("security.delete_user", singletonMap("username", user), emptyList(), emptyMap());
             }
         }
-    }
-
-    /**
-     * Re-enables watcher after every test just in case any test disables it.
-     */
-    @After
-    public void reenableWatcher() throws Exception {
-        if (isWatcherTest()) {
-            assertBusy(() -> {
-                ClientYamlTestResponse response = getAdminExecutionContext().callApi("watcher.stats", emptyMap(), emptyList(), emptyMap());
-                String state = response.evaluate("stats.0.watcher_state");
-
-                switch (state) {
-                    case "stopped":
-                        ClientYamlTestResponse startResponse = getAdminExecutionContext().callApi(
-                            "watcher.start",
-                            emptyMap(),
-                            emptyList(),
-                            emptyMap()
-                        );
-                        boolean isAcknowledged = startResponse.evaluate("acknowledged");
-                        assertThat(isAcknowledged, is(true));
-                        throw new AssertionError("waiting until stopped state reached started state");
-                    case "stopping":
-                        throw new AssertionError("waiting until stopping state reached stopped state to start again");
-                    case "starting":
-                        throw new AssertionError("waiting until starting state reached started state");
-                    case "started":
-                        // all good here, we are done
-                        break;
-                    default:
-                        throw new AssertionError("unknown state[" + state + "]");
-                }
-            });
-        }
-    }
-
-    protected boolean isWatcherTest() {
-        String testName = getTestName();
-        return testName != null && (testName.contains("watcher/") || testName.contains("watcher\\"));
     }
 
     /**

@@ -401,19 +401,23 @@ public class EsqlSession {
                 // here the requestFilter is set to null, performing the pre-analysis after the first step failed
                 preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l, matchFields, null, enrichResolution);
             })
-            .andThenAccept(tuple -> {
+            // .andThenAccept(tuple -> {
+            .<LogicalPlan>andThen((l, tuple) -> {
                 assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
                 LOGGER.debug("Analyzing the plan (second attempt, without filter)");
                 LogicalPlan plan;
                 try {
                     plan = analyzeAction.apply(tuple.v2(), tuple.v1());
                 } catch (Exception e) {
-                    finalListener.onFailure(e);
+                    // finalListener.onFailure(e);
+                    l.onFailure(e);
                     return;
                 }
                 LOGGER.debug("Analyzed plan (second attempt, without filter):\n{}", plan);
-                finalListener.onResponse(plan);
-            });
+                // finalListener.onResponse(plan);
+                l.onResponse(plan);
+            })
+            .addListener(finalListener);
     }
 
     private void preAnalyzeIndices(

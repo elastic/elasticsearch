@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'

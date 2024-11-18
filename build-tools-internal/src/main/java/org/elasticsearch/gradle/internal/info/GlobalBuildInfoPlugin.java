@@ -152,13 +152,6 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
             spec.getParameters().getBuildParams().set(buildParams);
         });
 
-        BuildParams.init(params -> {
-            params.reset();
-            params.setIsCi(
-                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
-            );
-        });
-
         // Enforce the minimum compiler version
         assertMinimumCompilerVersion(minimumCompilerVersion);
 

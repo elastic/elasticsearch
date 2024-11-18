@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.java'
 

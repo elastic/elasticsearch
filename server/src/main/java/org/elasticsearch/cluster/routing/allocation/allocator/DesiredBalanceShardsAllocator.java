@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.metrics.CounterMetric;
 import org.elasticsearch.common.metrics.MeanMetric;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -150,11 +151,19 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 computationsExecuted.inc();
 
                 final DesiredBalance currentDesiredBalance = currentDesiredBalanceRef.get();
-                // Update is either not successful or the node has concurrently stands down as master
+                // Update is either not necessary (due to no changes) or the node has concurrently stands down as master
                 if (currentDesiredBalance.lastConvergedIndex() != index) {
-                    assert currentDesiredBalance == DesiredBalance.NOT_MASTER || currentDesiredBalance == DesiredBalance.INITIAL
-                        : currentDesiredBalance;
-                    logger.debug("Desired balance computation for [{}] is discarded as master has changed", index);
+                    assert initialDesiredBalance.lastConvergedIndex() == index
+                        || currentDesiredBalance == DesiredBalance.NOT_MASTER
+                        || currentDesiredBalance == DesiredBalance.INITIAL : currentDesiredBalance + " vs " + initialDesiredBalance;
+                    logger.debug(
+                        () -> Strings.format(
+                            "Desired balance computation for [%s] is discarded. Current=[%s], Initial=[%s]",
+                            index,
+                            currentDesiredBalance,
+                            initialDesiredBalance
+                        )
+                    );
                 } else if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
                     logger.debug(
                         "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",

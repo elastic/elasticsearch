@@ -19,7 +19,6 @@ import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -71,9 +70,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
-    public static final String DEPRECATION_WARNING = "Configuring a synthetic source in _source mapping field is deprecated "
+    public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated "
         + "and will be removed in future versions. Use [index.mapping.source.mode] instead.";
-
 
     /** The source mode */
     public enum Mode {
@@ -160,16 +158,17 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Settings settings;
 
         private final IndexMode indexMode;
-        private boolean serializeMode = true;
+        private boolean serializeMode;
 
         private final boolean supportsNonDefaultParameterValues;
 
-        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
+        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams, boolean serializeMode) {
             super(Defaults.NAME);
             this.settings = settings;
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
+            this.serializeMode = serializeMode;
             this.mode = new Parameter<>(
                 "mode",
                 true,
@@ -185,11 +184,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         public Builder setSynthetic() {
             this.mode.setValue(Mode.SYNTHETIC);
-            return this;
-        }
-
-        Builder serializeMode(boolean serializeMode) {
-            this.serializeMode = serializeMode;
             return this;
         }
 
@@ -239,8 +233,9 @@ public class SourceFieldMapper extends MetadataFieldMapper {
                 throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
             }
 
-            // TODO: don't serialize if the _source.mode and index settings are the same
-            serializeMode = mode.isConfigured();
+            if (mode.isConfigured()) {
+                serializeMode = true;
+            }
 
             SourceFieldMapper sourceFieldMapper;
             if (isDefault()) {
@@ -312,11 +307,13 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
-            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK)
+            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
+            c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
         )
     ) {
         @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext) throws MapperParsingException {
+        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
+            throws MapperParsingException {
             assert name.equals(SourceFieldMapper.NAME) : name;
             if (parserContext.indexVersionCreated().after(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER) && node.containsKey("mode")) {
                 deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
@@ -362,7 +359,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    // nullable for bwc reasons -  TODO: fold this into serializeMode
+    // nullable for bwc reasons - TODO: fold this into serializeMode
     private final @Nullable Mode mode;
     private final boolean serializeMode;
     private final Explicit<Boolean> enabled;
@@ -453,7 +450,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, false).serializeMode(serializeMode).init(this);
+        return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
     }
 
     /**

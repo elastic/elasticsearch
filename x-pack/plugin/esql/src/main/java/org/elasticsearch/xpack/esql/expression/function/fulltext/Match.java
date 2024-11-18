@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.expression.function.fulltext;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -68,9 +69,11 @@ public class Match extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        InferenceResults inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         Match match = new Match(source, field, query);
-        match.setInferenceResults(inferenceResults);
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
+            match.setInferenceResults(in.readOptionalNamedWriteable(InferenceResults.class));
+        }
         return match;
     }
 
@@ -79,7 +82,9 @@ public class Match extends FullTextFunction implements Validatable {
         source().writeTo(out);
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
-        out.writeOptionalWriteable(inferenceResults);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
+            out.writeOptionalWriteable(inferenceResults);
+        }
     }
 
     @Override

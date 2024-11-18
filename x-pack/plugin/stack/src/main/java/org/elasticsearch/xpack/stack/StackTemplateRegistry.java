@@ -15,7 +15,6 @@ import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -49,7 +48,6 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     );
 
     private final ClusterService clusterService;
-    private final FeatureService featureService;
     private final Map<String, ComponentTemplate> componentTemplateConfigs;
     private volatile boolean stackTemplateEnabled;
 
@@ -112,12 +110,10 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        FeatureService featureService
+        NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
         this.componentTemplateConfigs = loadComponentTemplateConfigs();
     }

@@ -16,7 +16,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -26,7 +25,6 @@ import org.elasticsearch.rest.action.RestToXContentListener;
 import java.io.IOException;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestUtils.getMasterNodeTimeout;
@@ -37,18 +35,11 @@ public class RestClusterGetSettingsAction extends BaseRestHandler {
     private final Settings settings;
     private final ClusterSettings clusterSettings;
     private final SettingsFilter settingsFilter;
-    private final Predicate<NodeFeature> clusterSupportsFeature;
 
-    public RestClusterGetSettingsAction(
-        Settings settings,
-        ClusterSettings clusterSettings,
-        SettingsFilter settingsFilter,
-        Predicate<NodeFeature> clusterSupportsFeature
-    ) {
+    public RestClusterGetSettingsAction(Settings settings, ClusterSettings clusterSettings, SettingsFilter settingsFilter) {
         this.settings = settings;
         this.clusterSettings = clusterSettings;
         this.settingsFilter = settingsFilter;
-        this.clusterSupportsFeature = clusterSupportsFeature;
     }
 
     @Override

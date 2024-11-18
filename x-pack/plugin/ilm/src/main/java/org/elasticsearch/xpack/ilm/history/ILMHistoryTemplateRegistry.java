@@ -11,7 +11,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ClientHelper;
@@ -43,7 +42,6 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     public static final String ILM_TEMPLATE_NAME = "ilm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String ILM_POLICY_NAME = "ilm-history-ilm-policy";
-    private final FeatureService featureService;
 
     @Override
     protected boolean requiresMasterNode() {
@@ -55,13 +53,11 @@ public class ILMHistoryTemplateRegistry extends IndexTemplateRegistry {
     public ILMHistoryTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
         this.ilmHistoryEnabled = LifecycleSettings.LIFECYCLE_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 

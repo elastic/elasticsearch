@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
@@ -50,7 +49,6 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public static final String SLM_TEMPLATE_NAME = ".slm-history-" + INDEX_TEMPLATE_VERSION;
 
     public static final String SLM_POLICY_NAME = "slm-history-ilm-policy";
-    private final FeatureService featureService;
 
     @Override
     protected boolean requiresMasterNode() {
@@ -62,13 +60,11 @@ public class SnapshotLifecycleTemplateRegistry extends IndexTemplateRegistry {
     public SnapshotLifecycleTemplateRegistry(
         Settings nodeSettings,
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
         slmHistoryEnabled = SLM_HISTORY_INDEX_ENABLED_SETTING.get(nodeSettings);
     }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -149,17 +148,13 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
-    private final FeatureService featureService;
-
     public ConnectorTemplateRegistry(
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
     }
 
     @Override

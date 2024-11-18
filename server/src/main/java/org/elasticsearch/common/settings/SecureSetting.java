@@ -185,7 +185,7 @@ public abstract class SecureSetting<T> extends Setting<T> {
         @Override
         public SecureString get(Settings settings) {
             if (ALLOW_INSECURE_SETTINGS == false && exists(settings)) {
-                throw new IllegalArgumentException("Setting [" + name + "] is insecure and no longer supported");
+                throw new IllegalArgumentException("Setting [" + name + "] is insecure, use the elasticsearch keystore instead");
             }
             return super.get(settings);
         }

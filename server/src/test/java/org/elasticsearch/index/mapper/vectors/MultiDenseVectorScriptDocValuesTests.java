@@ -39,7 +39,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] expectedMagnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
 
-        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
         MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
             docValues,

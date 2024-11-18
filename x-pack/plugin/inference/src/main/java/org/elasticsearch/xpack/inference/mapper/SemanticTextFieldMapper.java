@@ -558,12 +558,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        if (requestSize != null) {
+                        Integer k = requestSize;
+                        if (k != null) {
                             // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
-                            requestSize = Math.max(requestSize, DEFAULT_SIZE);
+                            k = Math.max(k, DEFAULT_SIZE);
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, requestSize, null, null);
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

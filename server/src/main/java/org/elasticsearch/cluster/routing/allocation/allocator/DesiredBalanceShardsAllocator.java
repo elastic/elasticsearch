@@ -205,13 +205,6 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
         assert MasterService.assertMasterUpdateOrTestThread() : Thread.currentThread().getName();
         assert allocation.ignoreDisable() == false;
-
-        if (allocation.routingTable().indicesRouting().isEmpty()) {
-            logger.debug("No allocation needed for empty routing table");
-            listener.onResponse(null);
-            return;
-        }
-
         computationsSubmitted.inc();
 
         var index = indexGenerator.incrementAndGet();
@@ -219,6 +212,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         queue.add(index, listener);
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
+        if (allocation.routingTable().indicesRouting().isEmpty()) {
+            logger.debug("No reconciliation needed for empty routing table");
+            return;
+        }
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).

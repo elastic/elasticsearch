@@ -81,7 +81,9 @@ import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasItem;
+import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
 
@@ -918,18 +920,54 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
         }
     }
 
-    public void testNoAllocationForEmptyRoutingTable() {
+    public void testNotReconcileEagerlyForEmptyRoutingTable() {
         final var threadPool = new TestThreadPool(getTestName());
-        var clusterService = ClusterServiceUtils.createClusterService(ClusterState.EMPTY_STATE, threadPool);
+        final var clusterService = ClusterServiceUtils.createClusterService(ClusterState.EMPTY_STATE, threadPool);
+        final var clusterSettings = createBuiltInClusterSettings();
+        final var shardsAllocator = createShardsAllocator();
+        final var reconciliationTaskSubmitted = new AtomicBoolean();
         final var desiredBalanceShardsAllocator = new DesiredBalanceShardsAllocator(
-            createBuiltInClusterSettings(),
-            createShardsAllocator(),
+            shardsAllocator,
             threadPool,
             clusterService,
+            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator) {
+                @Override
+                public DesiredBalance compute(
+                    DesiredBalance previousDesiredBalance,
+                    DesiredBalanceInput desiredBalanceInput,
+                    Queue<List<MoveAllocationCommand>> pendingDesiredBalanceMoves,
+                    Predicate<DesiredBalanceInput> isFresh
+                ) {
+                    assertThat(previousDesiredBalance, sameInstance(DesiredBalance.INITIAL));
+                    return new DesiredBalance(desiredBalanceInput.index(), Map.of());
+                }
+            },
             (clusterState, rerouteStrategy) -> null,
             TelemetryProvider.NOOP,
             EMPTY_NODE_ALLOCATION_STATS
-        );
+        ) {
+
+            private ActionListener<Void> lastListener;
+
+            @Override
+            public void allocate(RoutingAllocation allocation, ActionListener<Void> listener) {
+                lastListener = listener;
+                super.allocate(allocation, listener);
+            }
+
+            @Override
+            protected void reconcile(DesiredBalance desiredBalance, RoutingAllocation allocation) {
+                fail("should not call reconcile");
+            }
+
+            @Override
+            protected void submitReconcileTask(DesiredBalance desiredBalance) {
+                assertThat(desiredBalance.lastConvergedIndex(), equalTo(0L));
+                reconciliationTaskSubmitted.set(true);
+                lastListener.onResponse(null);
+            }
+        };
+        assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.INITIAL));
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             desiredBalanceShardsAllocator.allocate(
@@ -943,7 +981,10 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 future
             );
             safeGet(future);
-            assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(0L));
+            assertThat(desiredBalanceShardsAllocator.getStats().computationSubmitted(), equalTo(1L));
+            assertThat(desiredBalanceShardsAllocator.getStats().computationExecuted(), equalTo(1L));
+            assertThat(reconciliationTaskSubmitted.get(), is(true));
+            assertThat(desiredBalanceShardsAllocator.getDesiredBalance().lastConvergedIndex(), equalTo(0L));
         } finally {
             clusterService.close();
             terminate(threadPool);

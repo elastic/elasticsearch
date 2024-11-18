@@ -24,6 +24,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.core.LocalStateCompositeXPackPlugin;
 import org.elasticsearch.xpack.core.XPackSettings;
@@ -604,6 +605,321 @@ public class CrossClustersEnrichIT extends AbstractMultiClustersTestCase {
             error.getMessage(),
             containsString("ENRICH with remote policy can't be executed after another ENRICH with coordinator policy")
         );
+    }
+
+    public void testWithHostsPolicyWithMissingEnrichPolicyOnSkipUnavailableTrueCluster() {
+        // delete enrich policies from cluster c1
+        for (String policy : List.of("hosts", "vendors")) {
+            assertAcked(
+                client("c1").execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy))
+            );
+        }
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, null)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(
+                    rows,
+                    equalTo(
+                        List.of(
+                            List.of(2L, "Android"),
+                            List.of(1L, "Linux"),
+                            List.of(1L, "MacOS"),
+                            List.of(4L, "Windows"),
+                            Arrays.asList(1L, (String) null)
+                        )
+                    )
+                );
+                assertFalse(resp.getExecutionInfo().isCrossClusterSearch());
+            }
+        }
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+        {
+            // since these two modes require the enrich policy on the remote cluster - c1 will be skipped
+            Enrich.Mode mode = randomFrom(Enrich.Mode.REMOTE, Enrich.Mode.ANY);
+            String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows.size(), greaterThanOrEqualTo(1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("c1", "c2")));
+                assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+                assertTrue(executionInfo.isCrossClusterSearch());
+                EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                // this test assumes (but does not set) skip_unavailable=true
+                assertThat(remote1.isSkipUnavailable(), equalTo(true));
+                assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remote1.getIndexExpression(), equalTo("events"));
+                assertThat(remote1.getTotalShards(), equalTo(0));
+                assertThat(remote1.getSuccessfulShards(), equalTo(0));
+                assertThat(remote1.getSkippedShards(), equalTo(0));
+                assertThat(remote1.getFailedShards(), equalTo(0));
+                assertThat(remote1.getFailures().size(), equalTo(1));
+                assertThat(remote1.getFailures().get(0).getCause().getMessage(), containsString("failed to resolve enrich policy [hosts]"));
+                EsqlExecutionInfo.Cluster remote2 = executionInfo.getCluster("c2");
+                assertThat(remote2.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remote2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(remote2.getIndexExpression(), equalTo("events"));
+                assertThat(remote2.getTotalShards(), equalTo(1));
+                assertThat(remote2.getSuccessfulShards(), equalTo(1));
+                assertThat(remote2.getSkippedShards(), equalTo(0));
+                assertThat(remote2.getFailedShards(), equalTo(0));
+                assertThat(remote2.getFailures().size(), equalTo(0));
+            }
+        }
+        {
+            Enrich.Mode mode = randomFrom(Enrich.Mode.REMOTE, Enrich.Mode.ANY);
+            // c1 queried by itself - should be skipped with "<no-fields>" column result
+            String query = "FROM c1:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows.size(), equalTo(0));
+                assertThat(resp.columns().size(), equalTo(1));
+                assertThat(resp.columns().get(0).name(), equalTo("<no-fields>"));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("c1")));
+                assertThat(executionInfo.overallTook().millis(), greaterThanOrEqualTo(0L));
+                assertTrue(executionInfo.isCrossClusterSearch());
+                EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                assertThat(remote1.getIndexExpression(), equalTo("events"));
+                assertThat(remote1.getTotalShards(), equalTo(0));
+                assertThat(remote1.getSuccessfulShards(), equalTo(0));
+                assertThat(remote1.getSkippedShards(), equalTo(0));
+                assertThat(remote1.getFailedShards(), equalTo(0));
+                assertThat(remote1.getFailures().size(), equalTo(1));
+                assertThat(remote1.getFailures().get(0).getCause().getMessage(), containsString("failed to resolve enrich policy [hosts]"));
+            }
+        }
+        {
+            // COORDINATOR modes requires the enrich policy only on the coordinator, so c1 should not be skipped
+            Enrich.Mode mode = Enrich.Mode.COORDINATOR;
+            String query = "FROM *:events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows.size(), greaterThanOrEqualTo(1));
+                assertThat(
+                    rows,
+                    equalTo(
+                        List.of(
+                            List.of(1L, "Android"),
+                            List.of(2L, "Linux"),
+                            List.of(4L, "MacOS"),
+                            List.of(3L, "Windows"),
+                            List.of(1L, "iOS"),
+                            Arrays.asList(2L, (String) null)
+                        )
+                    )
+                );
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of("c1", "c2")));
+                assertCCSExecutionInfoDetails(executionInfo);
+            }
+        }
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM *:events,events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows.size(), greaterThanOrEqualTo(1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "c1", "c2")));
+                if (mode == Enrich.Mode.COORDINATOR) {
+                    // COORDINATOR mode only requires the enrich policy on the local cluster
+                    assertCCSExecutionInfoDetails(executionInfo);
+                } else {
+                    EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                    assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(remote1.getFailures().size(), equalTo(1));
+                    assertThat(
+                        remote1.getFailures().get(0).getCause().getMessage(),
+                        containsString("failed to resolve enrich policy [hosts]")
+                    );
+                    EsqlExecutionInfo.Cluster remote2 = executionInfo.getCluster("c2");
+                    assertThat(remote2.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(remote2.getFailures().size(), equalTo(0));
+                    EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getFailures().size(), equalTo(0));
+                }
+            }
+        }
+        // delete enrich policies from cluster c2 also
+        for (String policy : List.of("hosts", "vendors")) {
+            assertAcked(
+                client("c2").execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, policy))
+            );
+        }
+        for (var mode : Enrich.Mode.values()) {
+            String query = "FROM *:events,events | eval ip= TO_STR(host) | " + enrichHosts(mode) + " | stats c = COUNT(*) by os | SORT os";
+            try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                List<List<Object>> rows = getValuesList(resp);
+                assertThat(rows.size(), greaterThanOrEqualTo(1));
+                EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "c1", "c2")));
+                if (mode == Enrich.Mode.COORDINATOR) {
+                    // COORDINATOR mode only requires the enrich policy on the local cluster
+                    assertCCSExecutionInfoDetails(executionInfo);
+                } else {
+                    EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                    assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(remote1.getFailures().size(), equalTo(1));
+                    assertThat(
+                        remote1.getFailures().get(0).getCause().getMessage(),
+                        containsString("failed to resolve enrich policy [hosts]")
+                    );
+                    EsqlExecutionInfo.Cluster remote2 = executionInfo.getCluster("c2");
+                    assertThat(remote2.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(remote2.getFailures().size(), equalTo(1));
+                    assertThat(
+                        remote1.getFailures().get(0).getCause().getMessage(),
+                        containsString("failed to resolve enrich policy [hosts]")
+                    );
+                    EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getFailures().size(), equalTo(0));
+                }
+            }
+        }
+    }
+
+    public void testRemoteHasOnePolicyButNotTheOther() {
+        // delete the hosts enrich policy from c1, but not the vendors policy
+        assertAcked(
+            client("c1").execute(DeleteEnrichPolicyAction.INSTANCE, new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "hosts"))
+        );
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+        {
+            for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
+                var query = String.format(Locale.ROOT, """
+                    FROM *:events,events
+                    | eval ip= TO_STR(host)
+                    | %s
+                    | %s
+                    | stats c = COUNT(*) by vendor
+                    | sort vendor
+                    """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
+                try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                    assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                    EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                    assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                    assertThat(executionInfo.clusterAliases(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "c1", "c2")));
+                    EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                    // this test assumes (but does not set) skip_unavailable=true
+                    assertThat(remote1.isSkipUnavailable(), equalTo(true));
+                    assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                    assertThat(remote1.getIndexExpression(), equalTo("events"));
+                    assertThat(remote1.getTotalShards(), equalTo(0));
+                    assertThat(remote1.getSuccessfulShards(), equalTo(0));
+                    assertThat(remote1.getSkippedShards(), equalTo(0));
+                    assertThat(remote1.getFailedShards(), equalTo(0));
+                    assertThat(remote1.getFailures().size(), equalTo(1));
+                    assertThat(
+                        remote1.getFailures().get(0).getCause().getMessage(),
+                        containsString("failed to resolve enrich policy [hosts]")
+                    );
+                    EsqlExecutionInfo.Cluster remote2 = executionInfo.getCluster("c2");
+                    assertThat(remote2.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(remote2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(remote2.getIndexExpression(), equalTo("events"));
+                    assertThat(remote2.getTotalShards(), equalTo(1));
+                    assertThat(remote2.getSuccessfulShards(), equalTo(1));
+                    assertThat(remote2.getSkippedShards(), equalTo(0));
+                    assertThat(remote2.getFailedShards(), equalTo(0));
+                    assertThat(remote2.getFailures().size(), equalTo(0));
+                    EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                    assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                    assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                    assertThat(localCluster.getIndexExpression(), equalTo("events"));
+                    assertThat(localCluster.getTotalShards(), equalTo(1));
+                    assertThat(localCluster.getSuccessfulShards(), equalTo(1));
+                    assertThat(localCluster.getSkippedShards(), equalTo(0));
+                    assertThat(localCluster.getFailedShards(), equalTo(0));
+                    assertThat(localCluster.getFailures().size(), equalTo(0));
+                }
+            }
+            // delete the vendors policy but not hosts from c2
+            assertAcked(
+                client("c2").execute(
+                    DeleteEnrichPolicyAction.INSTANCE,
+                    new DeleteEnrichPolicyAction.Request(TEST_REQUEST_TIMEOUT, "vendors")
+                )
+            );
+            {
+                for (Enrich.Mode hostMode : List.of(Enrich.Mode.ANY, Enrich.Mode.REMOTE)) {
+                    var query = String.format(Locale.ROOT, """
+                        FROM *:events,events
+                        | eval ip= TO_STR(host)
+                        | %s
+                        | %s
+                        | stats c = COUNT(*) by vendor
+                        | sort vendor
+                        """, enrichHosts(hostMode), enrichVendors(Enrich.Mode.REMOTE));
+                    try (EsqlQueryResponse resp = runQuery(query, requestIncludeMeta)) {
+                        assertThat(getValuesList(resp).size(), greaterThanOrEqualTo(1));
+                        EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+                        assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                        assertThat(executionInfo.clusterAliases(), equalTo(Set.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, "c1", "c2")));
+                        EsqlExecutionInfo.Cluster remote1 = executionInfo.getCluster("c1");
+                        // this test assumes (but does not set) skip_unavailable=true
+                        assertThat(remote1.isSkipUnavailable(), equalTo(true));
+                        assertThat(remote1.getTook().millis(), greaterThanOrEqualTo(0L));
+                        assertThat(remote1.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(remote1.getIndexExpression(), equalTo("events"));
+                        assertThat(remote1.getTotalShards(), equalTo(0));
+                        assertThat(remote1.getSuccessfulShards(), equalTo(0));
+                        assertThat(remote1.getSkippedShards(), equalTo(0));
+                        assertThat(remote1.getFailedShards(), equalTo(0));
+                        assertThat(remote1.getFailures().size(), equalTo(1));
+                        assertThat(
+                            remote1.getFailures().get(0).getCause().getMessage(),
+                            containsString("failed to resolve enrich policy [hosts]")
+                        );
+                        EsqlExecutionInfo.Cluster remote2 = executionInfo.getCluster("c2");
+                        // this test assumes (but does not set) skip_unavailable=true
+                        assertThat(remote2.isSkipUnavailable(), equalTo(true));
+                        assertThat(remote2.getTook().millis(), greaterThanOrEqualTo(0L));
+                        assertThat(remote2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+                        assertThat(remote2.getIndexExpression(), equalTo("events"));
+                        assertThat(remote2.getTotalShards(), equalTo(0));
+                        assertThat(remote2.getSuccessfulShards(), equalTo(0));
+                        assertThat(remote2.getSkippedShards(), equalTo(0));
+                        assertThat(remote2.getFailedShards(), equalTo(0));
+                        assertThat(remote2.getFailures().size(), equalTo(1));
+                        assertThat(
+                            remote2.getFailures().get(0).getCause().getMessage(),
+                            containsString("failed to resolve enrich policy [vendors]")
+                        );
+                        EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+                        assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                        assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                        assertThat(localCluster.getIndexExpression(), equalTo("events"));
+                        assertThat(localCluster.getTotalShards(), equalTo(1));
+                        assertThat(localCluster.getSuccessfulShards(), equalTo(1));
+                        assertThat(localCluster.getSkippedShards(), equalTo(0));
+                        assertThat(localCluster.getFailedShards(), equalTo(0));
+                        assertThat(localCluster.getFailures().size(), equalTo(0));
+                    }
+                }
+            }
+        }
     }
 
     protected EsqlQueryResponse runQuery(String query, Boolean ccsMetadataInResponse) {

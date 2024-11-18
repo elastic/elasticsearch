@@ -19,6 +19,7 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
@@ -292,11 +293,17 @@ public class EsqlSession {
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
-        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
+        final Set<String> clusters = enrichPolicyResolver.groupIndicesPerCluster(
             preAnalysis.indices.stream()
                 .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index())))
                 .toArray(String[]::new)
         ).keySet();
+
+        List<Tuple<String, Boolean>> targetClusters = new ArrayList<>();
+        for (String cluster : clusters) {
+            targetClusters.add(new Tuple<>(cluster, executionInfo.isSkipUnavailable(cluster)));
+        }
+
         enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()
@@ -324,16 +331,17 @@ public class EsqlSession {
                     // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
                     // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
                     // TODO: add a test for this
-                    if (targetClusters.containsAll(newClusters) == false
-                        // do not bother with a re-resolution if only remotes were requested and all were offline
-                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
-                        enrichPolicyResolver.resolvePolicies(
-                            newClusters,
-                            unresolvedPolicies,
-                            ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
-                        );
-                        return;
-                    }
+                    // MP TODO: deal with this later in this PR
+                    // if (clusters.containsAll(newClusters) == false
+                    // // do not bother with a re-resolution if only remotes were requested and all were offline
+                    // && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+                    // enrichPolicyResolver.resolvePolicies(
+                    // newClusters,
+                    // unresolvedPolicies,
+                    // ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
+                    // );
+                    // return;
+                    // }
                 }
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
             }), matchFields);

@@ -328,9 +328,10 @@ class KibanaOwnedReservedRoleDescriptors {
                 // action
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(
-                        ".logs-endpoint.diagnostic.collection-*",
                         "logs-apm-*",
                         "logs-apm.*-*",
+                        "logs-cloud_security_posture.findings-*",
+                        "logs-cloud_security_posture.vulnerabilities-*",
                         "metrics-apm-*",
                         "metrics-apm.*-*",
                         "traces-apm-*",

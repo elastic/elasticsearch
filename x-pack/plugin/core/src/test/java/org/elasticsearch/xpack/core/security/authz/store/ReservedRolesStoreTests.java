@@ -1688,6 +1688,9 @@ public class ReservedRolesStoreTests extends ESTestCase {
                 kibanaRole.indices().allowedIndicesMatcher("indices:monitor/" + randomAlphaOfLengthBetween(3, 8)).test(indexAbstraction),
                 is(true)
             );
+
+            // Ensure privileges necessary for ILM policies in Cloud Security Posture Package
+            assertThat(kibanaRole.indices().allowedIndicesMatcher(TransportDeleteIndexAction.TYPE.name()).test(indexAbstraction), is(true));
         });
 
         // cloud_defend

@@ -76,11 +76,13 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
     }
 
     public void testAuthenticateThrowsOnUnsupportedMinVersions() throws IOException {
-        when(clusterService.state().getMinTransportVersion()).thenReturn(TransportVersionUtils.randomVersionBetween(
+        when(clusterService.state().getMinTransportVersion()).thenReturn(
+            TransportVersionUtils.randomVersionBetween(
                 random(),
                 TransportVersions.MINIMUM_COMPATIBLE,
                 TransportVersionUtils.getPreviousVersion(TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY)
-            ));
+            )
+        );
         final var authcContext = mock(Authenticator.Context.class, Mockito.RETURNS_DEEP_STUBS);
         when(authcContext.getThreadContext()).thenReturn(threadContext);
         final var crossClusterAccessHeaders = new CrossClusterAccessHeaders(
@@ -93,12 +95,14 @@ public class CrossClusterAccessAuthenticationServiceTests extends ESTestCase {
         when(auditableRequest.exceptionProcessingRequest(any(), any())).thenAnswer(
             i -> new ElasticsearchSecurityException("potato", (Exception) i.getArguments()[0])
         );
-        doAnswer(invocationOnMock -> new Authenticator.Context(
+        doAnswer(
+            invocationOnMock -> new Authenticator.Context(
                 threadContext,
                 auditableRequest,
                 mock(Realms.class),
                 (AuthenticationToken) invocationOnMock.getArguments()[2]
-        )).when(authenticationService).newContext(anyString(), any(), any());
+            )
+        ).when(authenticationService).newContext(anyString(), any(), any());
 
         final PlainActionFuture<Authentication> future = new PlainActionFuture<>();
         crossClusterAccessAuthenticationService.authenticate("action", mock(TransportRequest.class), future);

@@ -467,7 +467,7 @@ public class CoordinationState {
             logger.debug(
                 "handleCommit: ignored commit request due to term mismatch "
                     + "(expected: [term {} version {}], actual: [term {} version {}])",
-                getLastAcceptedTerm(),
+                getCurrentTerm(),
                 getLastAcceptedVersion(),
                 applyCommit.getTerm(),
                 applyCommit.getVersion()

@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
 
+import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
 import org.elasticsearch.cluster.InternalClusterInfoService;
@@ -68,6 +69,7 @@ public class DesiredBalanceReconcilerMetricsIT extends ESIntegTestCase {
         final var infoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.setUpdateFrequency(infoService, TimeValue.timeValueMillis(200));
         assertNotNull("info should not be null", ClusterInfoServiceUtils.refresh(infoService));
+        ClusterRerouteUtils.reroute(client()); // ensure we leverage the latest cluster info
 
         final var telemetryPlugin = getTelemetryPlugin(internalCluster().getMasterName());
         telemetryPlugin.collect();

@@ -19,7 +19,6 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.index.RandomIndexWriter;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -283,13 +282,7 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
                 getPlugins().stream().filter(p -> p instanceof MapperPlugin).map(p -> (MapperPlugin) p).collect(toList())
             ).getMapperRegistry();
 
-            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {}
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {}
-            });
+            BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
 
             var mapperService = new MapperService(
                 () -> TransportVersion.current(),
@@ -762,17 +755,11 @@ public abstract class MapperServiceTestCase extends FieldTypeTestCase {
         IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
         final SimilarityService similarityService = new SimilarityService(indexSettings, null, Map.of());
         final long nowInMillis = randomNonNegativeLong();
-        return new SearchExecutionContext(0, 0, indexSettings, new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {
-
-            }
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {
-
-            }
-        }),
+        return new SearchExecutionContext(
+            0,
+            0,
+            indexSettings,
+            new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP),
             (ft, fdc) -> ft.fielddataBuilder(fdc).build(new IndexFieldDataCache.None(), new NoneCircuitBreakerService()),
             mapperService,
             mapperService.mappingLookup(),

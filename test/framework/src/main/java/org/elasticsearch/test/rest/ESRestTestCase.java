@@ -820,7 +820,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy",
-            "behavioral_analytics-events-default_policy"
+            "behavioral_analytics-events-default_policy",
+            "logs-apm.app_logs-default_policy",
+            "logs-apm.error_logs-default_policy",
+            "metrics-apm.app_metrics-default_policy",
+            "metrics-apm.internal_metrics-default_policy",
+            "metrics-apm.service_destination_10m_metrics-default_policy",
+            "metrics-apm.service_destination_1m_metrics-default_policy",
+            "metrics-apm.service_destination_60m_metrics-default_policy",
+            "metrics-apm.service_summary_10m_metrics-default_policy",
+            "metrics-apm.service_summary_1m_metrics-default_policy",
+            "metrics-apm.service_summary_60m_metrics-default_policy",
+            "metrics-apm.service_transaction_10m_metrics-default_policy",
+            "metrics-apm.service_transaction_1m_metrics-default_policy",
+            "metrics-apm.service_transaction_60m_metrics-default_policy",
+            "metrics-apm.transaction_10m_metrics-default_policy",
+            "metrics-apm.transaction_1m_metrics-default_policy",
+            "metrics-apm.transaction_60m_metrics-default_policy",
+            "traces-apm.rum_traces-default_policy",
+            "traces-apm.sampled_traces-default_policy",
+            "traces-apm.traces-default_policy"
         );
     }
 

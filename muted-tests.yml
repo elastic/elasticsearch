@@ -205,6 +205,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116373
 - class: org.elasticsearch.kibana.KibanaThreadPoolIT
   method: testBlockedThreadPoolsRejectUserRequests
   issue: https://github.com/elastic/elasticsearch/issues/113939
@@ -226,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.TextEmbeddingCrudIT
   method: testPutE5Small_withPlatformSpecificVariant
   issue: https://github.com/elastic/elasticsearch/issues/113950
-- class: org.elasticsearch.upgrades.UpgradeClusterClientYamlTestSuiteIT
-  method: test {p0=mixed_cluster/80_transform_jobs_crud/Test GET, start, and stop old cluster batch transforms}
-  issue: https://github.com/elastic/elasticsearch/issues/115319
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/rest-api/usage/line_38}
   issue: https://github.com/elastic/elasticsearch/issues/113694
@@ -260,12 +260,6 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSnapshotRestore {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/111799
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111774
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSnapshotRestore {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/111777
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=search/380_sort_segments_on_timestamp/Test that index segments are NOT sorted on timestamp field when @timestamp field is dynamically added}
   issue: https://github.com/elastic/elasticsearch/issues/116221
@@ -290,17 +284,12 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.search.basic.SearchWhileRelocatingIT
-  method: testSearchAndRelocateConcurrentlyRandomReplicas
-  issue: https://github.com/elastic/elasticsearch/issues/116145
 - class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
   method: testHasPrivilegesOtherThanIndex
   issue: https://github.com/elastic/elasticsearch/issues/116376
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/116434
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/116444
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -330,12 +319,44 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116593
 - class: org.elasticsearch.xpack.kql.query.KqlQueryBuilderTests
   issue: https://github.com/elastic/elasticsearch/issues/116487
-- class: org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionsTests
-  method: testCollapseAndRemoveUnsupportedPrivileges
-  issue: https://github.com/elastic/elasticsearch/issues/116520
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoTile
   issue: https://github.com/elastic/elasticsearch/issues/115717
+- class: org.elasticsearch.search.StressSearchServiceReaperIT
+  method: testStressReaper
+  issue: https://github.com/elastic/elasticsearch/issues/115816
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/116542
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  issue: https://github.com/elastic/elasticsearch/issues/116817
+- class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
+  method: testGeoShapeGeoHex
+  issue: https://github.com/elastic/elasticsearch/issues/115705
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+  method: testRandomDirectoryIOExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/114824
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testRerank {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/116973
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/116974
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/116975
 
 # Examples:
 #

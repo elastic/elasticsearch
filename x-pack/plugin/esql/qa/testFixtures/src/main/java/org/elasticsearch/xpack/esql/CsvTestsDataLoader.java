@@ -75,6 +75,10 @@ public class CsvTestsDataLoader {
     private static final TestsDataset DECADES = new TestsDataset("decades");
     private static final TestsDataset AIRPORTS = new TestsDataset("airports");
     private static final TestsDataset AIRPORTS_MP = AIRPORTS.withIndex("airports_mp").withData("airports_mp.csv");
+    private static final TestsDataset AIRPORTS_NO_DOC_VALUES = new TestsDataset("airports_no_doc_values").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED = new TestsDataset("airports_not_indexed").withData("airports.csv");
+    private static final TestsDataset AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES = new TestsDataset("airports_not_indexed_nor_doc_values")
+        .withData("airports.csv");
     private static final TestsDataset AIRPORTS_WEB = new TestsDataset("airports_web");
     private static final TestsDataset DATE_NANOS = new TestsDataset("date_nanos");
     private static final TestsDataset COUNTRIES_BBOX = new TestsDataset("countries_bbox");
@@ -109,6 +113,9 @@ public class CsvTestsDataLoader {
         Map.entry(DECADES.indexName, DECADES),
         Map.entry(AIRPORTS.indexName, AIRPORTS),
         Map.entry(AIRPORTS_MP.indexName, AIRPORTS_MP),
+        Map.entry(AIRPORTS_NO_DOC_VALUES.indexName, AIRPORTS_NO_DOC_VALUES),
+        Map.entry(AIRPORTS_NOT_INDEXED.indexName, AIRPORTS_NOT_INDEXED),
+        Map.entry(AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES.indexName, AIRPORTS_NOT_INDEXED_NOR_DOC_VALUES),
         Map.entry(AIRPORTS_WEB.indexName, AIRPORTS_WEB),
         Map.entry(COUNTRIES_BBOX.indexName, COUNTRIES_BBOX),
         Map.entry(COUNTRIES_BBOX_WEB.indexName, COUNTRIES_BBOX_WEB),

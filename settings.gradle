@@ -4,9 +4,6 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -89,10 +86,6 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
-  'distribution:tools:entitlement-agent',
-  'distribution:tools:entitlement-agent:impl',
-  'distribution:tools:entitlement-bridge',
-  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',

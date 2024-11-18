@@ -567,7 +567,7 @@ public class IpFieldMapper extends FieldMapper {
 
     private void indexValue(DocumentParserContext context, InetAddress address) {
         if (dimension) {
-            context.getDimensions().addIp(fieldType().name(), address).validate(context.indexSettings());
+            context.getRoutingFields().addIp(fieldType().name(), address);
         }
         if (indexed) {
             Field field = new InetAddressPoint(fieldType().name(), address);

@@ -28,7 +28,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.gateway.GatewayService;
-import org.elasticsearch.health.HealthFeatures;
 
 import java.util.List;
 import java.util.stream.Stream;
@@ -137,7 +136,7 @@ public class HealthMetadataService {
 
     private boolean canPostClusterStateUpdates(ClusterState state) {
         // Wait until every node in the cluster supports health checks
-        return isMaster && state.clusterRecovered() && featureService.clusterHasFeature(state, HealthFeatures.SUPPORTS_HEALTH);
+        return isMaster && state.clusterRecovered();
     }
 
     private void updateOnClusterStateChange(ClusterChangedEvent event) {

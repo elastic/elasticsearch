@@ -117,6 +117,8 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
+        sub.setScorer(scorer);
+
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = aggCtx.getLeafReaderContext().reader().getLiveDocs();
         try {

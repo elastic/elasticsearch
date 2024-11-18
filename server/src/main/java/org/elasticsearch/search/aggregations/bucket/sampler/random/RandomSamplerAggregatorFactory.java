@@ -87,11 +87,10 @@ public class RandomSamplerAggregatorFactory extends AggregatorFactory {
                 shardSeed == null ? context.shardRandomSeed() : shardSeed
             );
             BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
-                .add(context.query(), BooleanClause.Occur.FILTER)
+                .add(context.query(), BooleanClause.Occur.MUST)
                 .build();
-            weight = context.searcher().createWeight(context.searcher().rewrite(booleanQuery), ScoreMode.COMPLETE_NO_SCORES, 1f);
+            weight = context.searcher().createWeight(context.searcher().rewrite(booleanQuery), ScoreMode.COMPLETE, 1f);
         }
         return weight;
     }
-
 }

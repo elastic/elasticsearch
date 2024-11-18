@@ -35,10 +35,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     );
 
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final NodeFeature DATA_STREAMS_SUPPORTED = new NodeFeature("data_stream.supported");
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final NodeFeature NEW_DATA_STREAMS_INDEX_NAME_FORMAT = new NodeFeature("data_stream.new_index_name_format");
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature DISABLE_FIELD_NAMES_FIELD_REMOVED = new NodeFeature("disable_of_field_names_field_removed");
 
     @Override
@@ -46,8 +42,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
         return Map.ofEntries(
             entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
             entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
-            entry(DATA_STREAMS_SUPPORTED, Version.V_7_9_0),
-            entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
             entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0)
         );
     }

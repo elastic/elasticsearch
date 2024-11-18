@@ -37,7 +37,7 @@ import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class InstrumenterImpl implements Instrumenter {
 
-    private static final String checkerClass;
+    private static final String checkerClassDescriptor;
     private static final String handleClass;
     static {
         int javaVersion = Runtime.version().feature();
@@ -47,8 +47,9 @@ public class InstrumenterImpl implements Instrumenter {
         } else {
             classNamePrefix = "";
         }
-        checkerClass = "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
+        String checkerClass = "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
         handleClass = checkerClass + "Handle";
+        checkerClassDescriptor = Type.getObjectType(checkerClass).getDescriptor();
     }
 
     /**
@@ -290,7 +291,7 @@ public class InstrumenterImpl implements Instrumenter {
             INVOKESTATIC,
             handleClass,
             "instance",
-            "()L" + checkerClass + ";",
+            "()" + checkerClassDescriptor,
             false
         );
     }

@@ -18,6 +18,7 @@ import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesFiel
 import org.elasticsearch.script.field.vectors.MultiDenseVector;
 import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
@@ -28,12 +29,16 @@ import static org.hamcrest.Matchers.containsString;
 
 public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
+    @BeforeClass
+    public static void setup() {
+        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+    }
+
     public void testFloatGetVectorValueAndGetMagnitude() throws IOException {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] expectedMagnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
 
-        IndexVersion indexVersion = IndexVersion.current();
         BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
         MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
@@ -64,7 +69,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] expectedMagnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
 
-        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, IndexVersion.current());
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(expectedMagnitudes);
         MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
             docValues,
@@ -91,10 +96,9 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testFloatMetadataAndIterator() throws IOException {
         int dims = 3;
-        IndexVersion indexVersion = IndexVersion.current();
         float[][][] vectors = new float[][][] { fill(new float[3][dims], ElementType.FLOAT), fill(new float[2][dims], ElementType.FLOAT) };
         float[][] magnitudes = new float[][] { new float[3], new float[2] };
-        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, indexVersion);
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
 
         MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
@@ -120,10 +124,9 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
 
     public void testByteMetadataAndIterator() throws IOException {
         int dims = 3;
-        IndexVersion indexVersion = IndexVersion.current();
         float[][][] vectors = new float[][][] { fill(new float[3][dims], ElementType.BYTE), fill(new float[2][dims], ElementType.BYTE) };
         float[][] magnitudes = new float[][] { new float[3], new float[2] };
-        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, indexVersion);
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
         MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
             docValues,
@@ -159,7 +162,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
-        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, IndexVersion.current());
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
         MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
             docValues,
@@ -183,7 +186,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
-        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, IndexVersion.current());
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
         MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
             docValues,
@@ -207,7 +210,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
-        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT, IndexVersion.current());
+        BinaryDocValues docValues = wrap(vectors, ElementType.FLOAT);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
         MultiDenseVectorDocValuesField field = new FloatMultiDenseVectorDocValuesField(
             docValues,
@@ -233,7 +236,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         int dims = 3;
         float[][][] vectors = { { { 1, 1, 1 }, { 1, 1, 2 }, { 1, 1, 3 } }, { { 1, 0, 2 } } };
         float[][] magnitudes = { { 1.7320f, 2.4495f, 3.3166f }, { 2.2361f } };
-        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE, IndexVersion.current());
+        BinaryDocValues docValues = wrap(vectors, ElementType.BYTE);
         BinaryDocValues magnitudeValues = wrap(magnitudes);
         MultiDenseVectorDocValuesField field = new ByteMultiDenseVectorDocValuesField(
             docValues,
@@ -303,7 +306,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
         };
     }
 
-    public static BinaryDocValues wrap(float[][][] vectors, ElementType elementType, IndexVersion indexVersion) {
+    public static BinaryDocValues wrap(float[][][] vectors, ElementType elementType) {
         return new BinaryDocValues() {
             int idx = -1;
             int maxIdx = vectors.length;
@@ -313,7 +316,7 @@ public class MultiDenseVectorScriptDocValuesTests extends ESTestCase {
                 if (idx >= maxIdx) {
                     throw new IllegalStateException("max index exceeded");
                 }
-                return mockEncodeDenseVector(vectors[idx], elementType, indexVersion);
+                return mockEncodeDenseVector(vectors[idx], elementType, IndexVersion.current());
             }
 
             @Override

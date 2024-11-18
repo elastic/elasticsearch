@@ -45,8 +45,6 @@ public interface TestClustersAware extends Task {
             dependsOn(cluster.getPluginAndModuleConfigurations());
         }
         getClusters().add(cluster);
-        cluster.freeze();
-
     }
 
     default void useCluster(Provider<ElasticsearchCluster> cluster) {

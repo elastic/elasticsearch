@@ -279,7 +279,7 @@ public class CircuitBreakerTests extends ESTestCase {
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
-        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {

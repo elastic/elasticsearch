@@ -510,13 +510,17 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         testTelemetryPlugin.collect();
         assertThat(
-            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits.total")
-                .getLong(),
+            getSingleRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.low_watermark_splits.total"
+            ).getLong(),
             equalTo(0L)
         );
         assertThat(
-            getSingleRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits.total")
-                .getLong(),
+            getSingleRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.high_watermark_splits.total"
+            ).getLong(),
             equalTo(0L)
         );
 
@@ -529,13 +533,17 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         testTelemetryPlugin.collect();
         assertThat(
-            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits.total")
-                .getLong(),
+            getLatestRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.low_watermark_splits.total"
+            ).getLong(),
             equalTo(1L)
         );
         assertThat(
-            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits.total")
-                .getLong(),
+            getLatestRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.high_watermark_splits.total"
+            ).getLong(),
             equalTo(0L)
         );
 
@@ -631,13 +639,17 @@ public class NodeIndexingMetricsIT extends ESIntegTestCase {
 
         testTelemetryPlugin.collect();
         assertThat(
-            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.low_watermark_splits.total")
-                .getLong(),
+            getLatestRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.low_watermark_splits.total"
+            ).getLong(),
             equalTo(0L)
         );
         assertThat(
-            getLatestRecordedMetric(testTelemetryPlugin::getLongAsyncCounterMeasurement, "es.indexing.high_watermark_splits.total")
-                .getLong(),
+            getLatestRecordedMetric(
+                testTelemetryPlugin::getLongAsyncCounterMeasurement,
+                "es.indexing.coordinating.high_watermark_splits.total"
+            ).getLong(),
             equalTo(1L)
         );
 

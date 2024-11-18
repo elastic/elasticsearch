@@ -97,7 +97,10 @@ public class StYMin extends UnaryScalarFunction {
         if (geometry instanceof Point point) {
             return point.getY();
         }
-        var envelope = geometry.visit(new SpatialEnvelopeVisitor());
-        return envelope.getMinY();
+        var envelope = new SpatialEnvelopeVisitor();
+        if (geometry.visit(envelope)) {
+            return envelope.getResult().getMinY();
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of geometry");
     }
 }

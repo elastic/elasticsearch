@@ -9,5 +9,5 @@ Determines the minimum bounding box of the supplied geometry.
 FROM airport_city_boundaries
 | WHERE abbrev == "CPH"
 | EVAL envelope = ST_ENVELOPE(city_boundary)
-| KEEP abbrev, airport, xmin, xmax, ymin, ymax
+| KEEP abbrev, airport, envelope
 ```

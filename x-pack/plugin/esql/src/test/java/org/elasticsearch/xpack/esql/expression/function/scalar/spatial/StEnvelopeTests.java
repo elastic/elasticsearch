@@ -53,8 +53,11 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = geometry.visit(new SpatialEnvelopeVisitor());
-        return UNSPECIFIED.asWkb(envelope);
+        var envelope = new SpatialEnvelopeVisitor();
+        if (geometry.visit(envelope)) {
+            return UNSPECIFIED.asWkb(envelope.getResult());
+        }
+        throw new IllegalArgumentException("Geometry is empty");
     }
 
     @Override

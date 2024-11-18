@@ -52,8 +52,11 @@ public class StXMinTests extends AbstractScalarFunctionTestCase {
         if (geometry instanceof Point point) {
             return point.getX();
         }
-        var envelope = geometry.visit(new SpatialEnvelopeVisitor());
-        return envelope.getMinX();
+        var envelope = new SpatialEnvelopeVisitor();
+        if (geometry.visit(envelope)) {
+            return envelope.getResult().getMinX();
+        }
+        throw new IllegalArgumentException("Geometry is empty");
     }
 
     @Override

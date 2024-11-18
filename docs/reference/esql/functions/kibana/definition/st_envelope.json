@@ -54,7 +54,7 @@
     }
   ],
   "examples" : [
-    "FROM airport_city_boundaries\n| WHERE abbrev == \"CPH\"\n| EVAL envelope = ST_ENVELOPE(city_boundary)\n| KEEP abbrev, airport, xmin, xmax, ymin, ymax"
+    "FROM airport_city_boundaries\n| WHERE abbrev == \"CPH\"\n| EVAL envelope = ST_ENVELOPE(city_boundary)\n| KEEP abbrev, airport, envelope"
   ],
   "preview" : false,
   "snapshot_only" : false

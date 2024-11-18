@@ -113,7 +113,10 @@ public class StEnvelope extends UnaryScalarFunction {
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = geometry.visit(new SpatialEnvelopeVisitor());
-        return UNSPECIFIED.asWkb(envelope);
+        var envelope = new SpatialEnvelopeVisitor();
+        if (geometry.visit(envelope)) {
+            return UNSPECIFIED.asWkb(envelope.getResult());
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of geometry");
     }
 }

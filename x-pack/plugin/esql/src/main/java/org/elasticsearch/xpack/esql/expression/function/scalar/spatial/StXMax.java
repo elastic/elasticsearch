@@ -97,7 +97,10 @@ public class StXMax extends UnaryScalarFunction {
         if (geometry instanceof Point point) {
             return point.getX();
         }
-        var envelope = geometry.visit(new SpatialEnvelopeVisitor());
-        return envelope.getMaxX();
+        var envelope = new SpatialEnvelopeVisitor();
+        if (geometry.visit(envelope)) {
+            return envelope.getResult().getMaxX();
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of geometry");
     }
 }

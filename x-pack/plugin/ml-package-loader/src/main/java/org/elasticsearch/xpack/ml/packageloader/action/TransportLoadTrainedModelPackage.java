@@ -94,13 +94,8 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        if (existingDownloadInProgress(request.getModelId(), request.isWaitForCompletion(), listener)) {
+        if (handleDownloadInProgress(request.getModelId(), request.isWaitForCompletion(), listener)) {
             logger.debug("Existing download of model [{}] in progress", request.getModelId());
-
-            if (request.isWaitForCompletion() == false) {
-                listener.onResponse(AcknowledgedResponse.TRUE);
-            }
-
             // download in progress, nothing to do
             return;
         }
@@ -149,7 +144,7 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
      * @param listener Model download listener
      * @return True if a download task is in progress
      */
-    synchronized boolean existingDownloadInProgress(
+    synchronized boolean handleDownloadInProgress(
         String modelId,
         boolean isWaitForCompletion,
         ActionListener<AcknowledgedResponse> listener
@@ -167,8 +162,9 @@ public class TransportLoadTrainedModelPackage extends TransportMasterNodeAction<
 
         if (inProgress != null) {
             if (isWaitForCompletion == false) {
-                // Not waiting for the download to complete, it is enough that
-                // the download is in progress
+                // Not waiting for the download to complete, it is enough that the download is in progress
+                // Respond now not when the download completes
+                listener.onResponse(AcknowledgedResponse.TRUE);
                 return true;
             }
             // Otherwise register a task removed listener which is called

@@ -155,18 +155,18 @@ public class TransportLoadTrainedModelPackageTests extends ESTestCase {
             mock(CircuitBreakerService.class)
         );
 
-        assertTrue(action.existingDownloadInProgress(modelId, true, ActionListener.noop()));
+        assertTrue(action.handleDownloadInProgress(modelId, true, ActionListener.noop()));
         verify(taskManager).registerRemovedTaskListener(any());
         assertThat(action.taskRemovedListenersByModelId.entrySet(), hasSize(1));
         assertThat(action.taskRemovedListenersByModelId.get(modelId), hasSize(1));
 
         // With wait for completion == false no new removed listener will be added
-        assertTrue(action.existingDownloadInProgress(modelId, false, ActionListener.noop()));
+        assertTrue(action.handleDownloadInProgress(modelId, false, ActionListener.noop()));
         verify(taskManager, times(1)).registerRemovedTaskListener(any());
         assertThat(action.taskRemovedListenersByModelId.entrySet(), hasSize(1));
         assertThat(action.taskRemovedListenersByModelId.get(modelId), hasSize(1));
 
-        assertFalse(action.existingDownloadInProgress("no-task-for-this-one", randomBoolean(), ActionListener.noop()));
+        assertFalse(action.handleDownloadInProgress("no-task-for-this-one", randomBoolean(), ActionListener.noop()));
     }
 
     private void assertUploadCallsOnFailure(Exception exception, String message, RestStatus status, Level level) throws Exception {

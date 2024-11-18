@@ -18,7 +18,7 @@ public record DownloadTaskRemovedListener(ModelDownloadTask trackedTask, ActionL
 
     @Override
     public void onRemoved(Task task) {
-        if (task.getId() == trackedTask.getId() && task.getAction().equals(trackedTask.getAction())) {
+        if (task.getId() == trackedTask.getId()) {
             if (trackedTask.getTaskException() == null) {
                 listener.onResponse(AcknowledgedResponse.TRUE);
             } else {

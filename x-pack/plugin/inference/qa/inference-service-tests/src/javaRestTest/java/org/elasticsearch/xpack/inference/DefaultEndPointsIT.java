@@ -117,7 +117,7 @@ public class DefaultEndPointsIT extends InferenceBaseRestTest {
         );
     }
 
-    public void testMultipleInferencesTiggeringDownloadAndDeploy() throws InterruptedException {
+    public void testMultipleInferencesTriggeringDownloadAndDeploy() throws InterruptedException {
         assumeTrue("Default config requires a feature flag", DefaultElserFeatureFlag.isEnabled());
 
         int numParallelRequests = 4;

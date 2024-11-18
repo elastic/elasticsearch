@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.nio.charset.StandardCharsets;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
 
 public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
@@ -38,7 +39,7 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getXContentType());
+        assertThat(configuration.getConfigAsMap(), anEmptyMap());
 
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
@@ -81,8 +82,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
         assertEquals(xContentType.canonical(), parsed.getXContentType());
+        assertThat(parsed.getId(), equalTo("1"));
         assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
-        assertEquals("1", parsed.getId());
     }
 
     public void testGetVersion() {

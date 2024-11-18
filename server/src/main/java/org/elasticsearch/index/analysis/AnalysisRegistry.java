@@ -725,7 +725,6 @@ public final class AnalysisRegistry implements Closeable {
         }
         NamedAnalyzer analyzer;
         if (analyzerF instanceof NamedAnalyzer namedAnalyzer) {
-            // if we got a named analyzer back, use it...
             analyzer = overridePositionIncrementGap(namedAnalyzer, overridePositionIncrementGap);
         } else {
             analyzer = new NamedAnalyzer(name, analyzerFactory.scope(), analyzerF, overridePositionIncrementGap);
@@ -736,7 +735,6 @@ public final class AnalysisRegistry implements Closeable {
 
     private static NamedAnalyzer overridePositionIncrementGap(NamedAnalyzer analyzer, int overridePositionIncrementGap) {
         if (overridePositionIncrementGap >= 0 && analyzer.getPositionIncrementGap(analyzer.name()) != overridePositionIncrementGap) {
-            // unless the positionIncrementGap needs to be overridden
             analyzer = new NamedAnalyzer(analyzer, overridePositionIncrementGap);
         }
         return analyzer;

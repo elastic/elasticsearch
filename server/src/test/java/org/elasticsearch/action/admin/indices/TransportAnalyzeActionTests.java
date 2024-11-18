@@ -251,7 +251,7 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         assertEquals("<ALPHANUM>", tokens.get(3).getType());
     }
 
-    public void testMultiTextRequest() throws IOException {
+    public void testAnalyzerWithTwoTextsAndNoIndexName() throws IOException {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
 
         for (String analyzer : Arrays.asList("standard", "simple", "stop", "keyword", "whitespace", "classic")) {

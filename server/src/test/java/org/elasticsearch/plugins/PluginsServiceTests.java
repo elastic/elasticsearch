@@ -876,17 +876,17 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     public void testToModuleName() {
-        assertThat(PluginsService.toModuleName("module.name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name1"), equalTo("module.name1"));
-        assertThat(PluginsService.toModuleName("1module-name"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module-name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module!@#name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("!module-name!"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("module_name"), equalTo("module_name"));
-        assertThat(PluginsService.toModuleName("-module-name-"), equalTo("module.name"));
-        assertThat(PluginsService.toModuleName("_module_name"), equalTo("_module_name"));
-        assertThat(PluginsService.toModuleName("_"), equalTo("_"));
+        assertThat(PluginsLoader.toModuleName("module.name"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("module-name"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("module-name1"), equalTo("module.name1"));
+        assertThat(PluginsLoader.toModuleName("1module-name"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("module-name!"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("module!@#name!"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("!module-name!"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("module_name"), equalTo("module_name"));
+        assertThat(PluginsLoader.toModuleName("-module-name-"), equalTo("module.name"));
+        assertThat(PluginsLoader.toModuleName("_module_name"), equalTo("_module_name"));
+        assertThat(PluginsLoader.toModuleName("_"), equalTo("_"));
     }
 
     static final class Loader extends ClassLoader {
@@ -896,16 +896,17 @@ public class PluginsServiceTests extends ESTestCase {
     }
 
     // Closes the URLClassLoaders and UberModuleClassloaders of plugins loaded by the given plugin service.
+    // We can use the direct ClassLoader from the plugin because tests do not use any parent SPI ClassLoaders.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.loader() instanceof URLClassLoader urlClassLoader) {
+            if (lp.instance().getClass().getClassLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
             }
-            if (lp.loader() instanceof UberModuleClassLoader loader) {
+            if (lp.instance().getClass().getClassLoader() instanceof UberModuleClassLoader loader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
                 } catch (Exception e) {

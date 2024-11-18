@@ -61,24 +61,12 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * A loaded plugin is one for which Elasticsearch has successfully constructed an instance of the plugin's class
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
-     * @param loader   The classloader for the plugin
-     * @param layer   The module layer for the plugin
      */
-    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance, ClassLoader loader, ModuleLayer layer) {
+    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance) {
 
         LoadedPlugin {
             Objects.requireNonNull(descriptor);
             Objects.requireNonNull(instance);
-            Objects.requireNonNull(loader);
-            Objects.requireNonNull(layer);
-        }
-
-        /**
-         * Creates a loaded <i>classpath plugin</i>. A <i>classpath plugin</i> is a plugin loaded
-         * by the system classloader and defined to the unnamed module of the boot layer.
-         */
-        LoadedPlugin(PluginDescriptor descriptor, Plugin instance) {
-            this(descriptor, instance, PluginsService.class.getClassLoader(), ModuleLayer.boot());
         }
     }
 
@@ -400,17 +388,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
                 throw new IllegalStateException("Plugin [" + name + "] cannot extend non-extensible plugin [" + extendedPluginName + "]");
             }
-            assert extendedPlugin.loader() != null : "All non-classpath plugins should be loaded with a classloader";
             extendedPlugins.add(extendedPlugin);
             logger.debug(
-                () -> "Loading bundle: " + name + ", ext plugins: " + extendedPlugins.stream().map(lp -> lp.descriptor().getName()).toList()
+                () -> "Loading plugin bundle: "
+                    + name
+                    + ", ext plugins: "
+                    + extendedPlugins.stream().map(lp -> lp.descriptor().getName()).toList()
             );
         }
 
         PluginBundle pluginBundle = loadedPluginLayer.pluginBundle();
         ClassLoader pluginClassLoader = loadedPluginLayer.pluginClassLoader();
-        ClassLoader spiClassLoader = loadedPluginLayer.spiClassLoader();
-        ModuleLayer spiModuleLayer = loadedPluginLayer.spiModuleLayer();
 
         // reload SPI with any new services from the plugin
         reloadLuceneSPI(loadedPluginLayer.pluginClassLoader());
@@ -451,7 +439,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
                 plugin = loadPlugin(pluginClass, settings, configPath);
             }
-            loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin, spiClassLoader, spiModuleLayer));
+            loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin));
         } finally {
             privilegedSetContextClassLoader(cl);
         }

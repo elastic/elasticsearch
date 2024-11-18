@@ -41,6 +41,7 @@ import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.index.IndexWriterConfig;
 import org.apache.lucene.index.SegmentCommitInfo;
 import org.apache.lucene.index.SegmentInfos;
+import org.apache.lucene.store.IOContext;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
@@ -468,7 +469,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
             var directory = IndexBlobStoreCacheDirectory.unwrapDirectory(testHarness.indexingDirectory);
             var blobs = ObjectStoreService.listBlobs(primaryTerm, directory.getBlobContainer(primaryTerm));
             assertThat(blobs.size(), equalTo(nbBlobs));
-            assertThat(ObjectStoreService.readLatestBcc(directory, blobs), equalTo(latestBcc));
+            assertThat(ObjectStoreService.readLatestBcc(directory, IOContext.DEFAULT, blobs), equalTo(latestBcc));
 
             long writeCount = computeCacheWriteCounts(latestBcc, latestBccLength, regionSize.getBytes());
             assertTrue(TestThreadPool.terminate(testHarness.threadPool, 10L, TimeUnit.SECONDS));

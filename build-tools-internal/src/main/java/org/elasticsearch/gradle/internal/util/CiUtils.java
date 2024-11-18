@@ -7,17 +7,12 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.indices;
+package org.elasticsearch.gradle.internal.util;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.features.FeatureSpecification;
-import org.elasticsearch.features.NodeFeature;
+public class CiUtils {
 
-import java.util.Map;
-
-public class IndicesFeatures implements FeatureSpecification {
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.of(IndicesService.SUPPORTS_AUTO_PUT, Version.V_8_8_0);
+    static String safeName(String input) {
+        return input.replaceAll("[^a-zA-Z0-9_\\-\\.]+", " ").trim().replaceAll(" ", "_").toLowerCase();
     }
+
 }

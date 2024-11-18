@@ -68,7 +68,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression

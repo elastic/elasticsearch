@@ -13,10 +13,8 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.simdvec.ESVectorUtil;
 
-import java.util.Iterator;
-
 public class BitMultiDenseVector extends ByteMultiDenseVector {
-    public BitMultiDenseVector(Iterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+    public BitMultiDenseVector(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
         super(vectorValues, magnitudesBytes, numVecs, dims);
     }
 
@@ -35,6 +33,7 @@ public class BitMultiDenseVector extends ByteMultiDenseVector {
 
     @Override
     public float maxSimDotProduct(float[][] query) {
+        vectorValues.reset();
         float[] sums = new float[query.length];
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
@@ -51,6 +50,7 @@ public class BitMultiDenseVector extends ByteMultiDenseVector {
 
     @Override
     public float maxSimDotProduct(byte[][] query) {
+        vectorValues.reset();
         float[] sums = new float[query.length];
         if (query[0].length == dims) {
             while (vectorValues.hasNext()) {
@@ -76,6 +76,7 @@ public class BitMultiDenseVector extends ByteMultiDenseVector {
 
     @Override
     public float maxSimInvHamming(byte[][] query) {
+        vectorValues.reset();
         int bitCount = this.getDims();
         float[] sums = new float[query.length];
         while (vectorValues.hasNext()) {

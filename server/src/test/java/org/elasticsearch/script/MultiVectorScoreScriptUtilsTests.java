@@ -9,8 +9,8 @@
 
 package org.elasticsearch.script;
 
+import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
 import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests;
 import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimDotProduct;
@@ -36,25 +36,31 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         String fieldName = "vector";
         int dims = 5;
         float[][][] docVectors = new float[][][] {
-            { { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f }, { 100.0f, 200.0f, -50.0f, 10.0f, -150.0f } },
-            { { 42f, 12f, -1.0f, 0.0f, -1.0f } } };
+            { { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f }, { 100.0f, 200.0f, -50.0f, 10.0f, -150.0f } } };
+        float[][] docMagnitudes = new float[][] { { 0.0f, 0.0f } };
+        for (int i = 0; i < docVectors.length; i++) {
+            for (int j = 0; j < docVectors[i].length; j++) {
+                docMagnitudes[i][j] = (float) Math.sqrt(VectorUtil.dotProduct(docVectors[i][j], docVectors[i][j]));
+            }
+        }
 
         List<List<Number>> queryVector = List.of(Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f));
         List<List<Number>> invalidQueryVector = List.of(Arrays.asList(0.5, 111.3));
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersions.MINIMUM_COMPATIBLE),
+                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
                 dims
             ),
             new FloatMultiDenseVectorDocValuesField(
                 MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
-                dims,
-                IndexVersion.current()
+                dims
             )
         );
         for (MultiDenseVectorDocValuesField field : fields) {
@@ -65,21 +71,11 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
             // Test max similarity dot product
             MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            float maxSimDotProductExpected = 65425.6249f; // Adjust this value based on expected max similarity
+            float maxSimDotProductExpected = 111933.625f; // Adjust this value based on expected max similarity
             assertEquals(
                 "maxSimDotProduct result is not equal to the expected value!",
                 maxSimDotProductExpected,
                 maxSimDotProduct.maxSimDotProduct(),
-                0.001
-            );
-
-            // Test max similarity inverse hamming
-            MaxSimInvHamming maxSimInvHamming = new MaxSimInvHamming(scoreScript, queryVector, fieldName);
-            float maxSimInvHammingExpected = 13.0f; // Adjust this value based on expected max similarity
-            assertEquals(
-                "maxSimInvHamming result is not equal to the expected value!",
-                maxSimInvHammingExpected,
-                maxSimInvHamming.maxSimInvHamming(),
                 0.001
             );
 
@@ -93,87 +89,35 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
                 containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
             );
             e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
+            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
             // Check scripting infrastructure integration
-            assertEquals(65425.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
-            assertEquals(13.0, new MaxSimInvHamming(scoreScript, queryVector, fieldName).maxSimInvHamming(), 0.001);
+            assertEquals(111933.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(
                 IllegalArgumentException.class,
                 () -> new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct()
             );
-            assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
-        }
-    }
-
-    public void testFloatMultiVectorClassBindings() throws IOException {
-        String fieldName = "vector";
-        int dims = 5;
-        float[] docVector = new float[] { 230.0f, 300.33f, -34.8988f, 15.555f, -200.0f };
-        List<Number> queryVector = Arrays.asList(0.5f, 111.3f, -13.0f, 14.8f, -156.0f);
-        List<Number> invalidQueryVector = Arrays.asList(0.5, 111.3);
-
-        List<MultiDenseVectorDocValuesField> fields = List.of(
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.MINIMUM_COMPATIBLE),
-                "test",
-                ElementType.FLOAT,
-                dims,
-                IndexVersions.MINIMUM_COMPATIBLE
-            ),
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
-                "test",
-                ElementType.FLOAT,
-                dims,
-                IndexVersion.current()
-            )
-        );
-        for (MultiDenseVectorDocValuesField field : fields) {
-            field.setNextDocId(0);
-
-            ScoreScript scoreScript = mock(ScoreScript.class);
-            when(scoreScript.field("vector")).thenAnswer(mock -> field);
-
-            // Check each function rejects query vectors with the wrong dimension
-            IllegalArgumentException e = expectThrows(
-                IllegalArgumentException.class,
-                () -> new MaxSimDotProduct(scoreScript, invalidQueryVector, fieldName)
-            );
-            assertThat(
-                e.getMessage(),
-                containsString("query vector has a different number of dimensions [2] than the document vectors [5]")
-            );
-            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, queryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
-
-            e = expectThrows(IllegalArgumentException.class, () -> new MaxSimInvHamming(scoreScript, invalidQueryVector, fieldName));
-            assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
-
-            // Check scripting infrastructure integration
-            MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            assertEquals(65425.6249, maxSimDotProduct.maxSimDotProduct(), 0.001);
-            when(scoreScript._getDocId()).thenReturn(1);
-            e = expectThrows(IllegalArgumentException.class, maxSimDotProduct::maxSimDotProduct);
-            assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
+            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
         }
     }
 
     public void testByteMultiVectorClassBindings() throws IOException {
         String fieldName = "vector";
         int dims = 5;
-        float[] docVector = new float[] { 1, 127, -128, 5, -10 };
-        List<Number> queryVector = Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4);
-        List<Number> invalidQueryVector = Arrays.asList((byte) 1, (byte) 1);
-        String hexidecimalString = HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 });
+        float[][] docVector = new float[][] { { 1, 127, -128, 5, -10 } };
+        float[][] magnitudes = new float[][] { { 0 } };
+        for (int i = 0; i < docVector.length; i++) {
+            magnitudes[i][0] = (float) Math.sqrt(VectorUtil.dotProduct(docVector[i], docVector[i]));
+        }
+        List<List<Number>> queryVector = List.of(Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4));
+        List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
+        List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 1, 125, -12, 2, 4 }));
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "test",
                 ElementType.BYTE,
                 dims
@@ -203,28 +147,31 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             // Check scripting infrastructure integration
             assertEquals(17382.0, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
             assertEquals(17382.0, new MaxSimDotProduct(scoreScript, hexidecimalString, fieldName).maxSimDotProduct(), 0.001);
-            assertEquals(13.0, new MaxSimInvHamming(scoreScript, queryVector, fieldName).hamming(), 0.001);
-            assertEquals(13.0, new MaxSimInvHamming(scoreScript, hexidecimalString, fieldName).hamming(), 0.001);
+            assertEquals(0.675, new MaxSimInvHamming(scoreScript, queryVector, fieldName).maxSimInvHamming(), 0.001);
+            assertEquals(0.675, new MaxSimInvHamming(scoreScript, hexidecimalString, fieldName).maxSimInvHamming(), 0.001);
             MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(IllegalArgumentException.class, maxSimDotProduct::maxSimDotProduct);
-            assertEquals("A document doesn't have a value for a vector field!", e.getMessage());
+            assertEquals("A document doesn't have a value for a multi-vector field!", e.getMessage());
         }
     }
 
     public void testBitMultiVectorClassBindingsDotProduct() throws IOException {
         String fieldName = "vector";
         int dims = 8;
-        float[] docVector = new float[] { 124 };
+        float[][] docVector = new float[][] { { 124 } };
         // 124 in binary is b01111100
-        List<Number> queryVector = Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4, (byte) 1, (byte) 125, (byte) -12);
-        List<Number> floatQueryVector = Arrays.asList(1.4f, -1.4f, 0.42f, 0.0f, 1f, -1f, -0.42f, 1.2f);
-        List<Number> invalidQueryVector = Arrays.asList((byte) 1, (byte) 1);
-        String hexidecimalString = HexFormat.of().formatHex(new byte[] { 124 });
+        List<List<Number>> queryVector = List.of(
+            Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4, (byte) 1, (byte) 125, (byte) -12)
+        );
+        List<List<Number>> floatQueryVector = List.of(Arrays.asList(1.4f, -1.4f, 0.42f, 0.0f, 1f, -1f, -0.42f, 1.2f));
+        List<List<Number>> invalidQueryVector = List.of(Arrays.asList((byte) 1, (byte) 1));
+        List<String> hexidecimalString = List.of(HexFormat.of().formatHex(new byte[] { 124 }));
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new BitMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BIT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 5 } }),
                 "test",
                 ElementType.BIT,
                 dims
@@ -277,29 +224,27 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
     public void testByteVsFloatSimilarity() throws IOException {
         int dims = 5;
-        float[] docVector = new float[] { 1f, 127f, -128f, 5f, -10f };
-        List<Number> listFloatVector = Arrays.asList(1f, 125f, -12f, 2f, 4f);
-        List<Number> listByteVector = Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4);
-        float[] floatVector = new float[] { 1f, 125f, -12f, 2f, 4f };
-        byte[] byteVector = new byte[] { (byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4 };
+        float[][] docVector = new float[][] { { 1f, 127f, -128f, 5f, -10f } };
+        float[][] magnitudes = new float[][] { { 0 } };
+        for (int i = 0; i < docVector.length; i++) {
+            magnitudes[i][0] = (float) Math.sqrt(VectorUtil.dotProduct(docVector[i], docVector[i]));
+        }
+        List<List<Number>> listFloatVector = List.of(Arrays.asList(1f, 125f, -12f, 2f, 4f));
+        List<List<Number>> listByteVector = List.of(Arrays.asList((byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4));
+        float[][] floatVector = new float[][] { { 1f, 125f, -12f, 2f, 4f } };
+        byte[][] byteVector = new byte[][] { { (byte) 1, (byte) 125, (byte) -12, (byte) 2, (byte) 4 } };
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersions.MINIMUM_COMPATIBLE),
-                "field0",
-                ElementType.FLOAT,
-                dims,
-                IndexVersions.MINIMUM_COMPATIBLE
-            ),
-            new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "field1",
                 ElementType.FLOAT,
-                dims,
-                IndexVersion.current()
+                dims
             ),
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "field3",
                 ElementType.BYTE,
                 dims
@@ -316,16 +261,14 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             assertEquals(field.getName(), dotProductExpected, maxSimDotProduct.maxSimDotProduct(), 0.001);
             maxSimDotProduct = new MaxSimDotProduct(scoreScript, listByteVector, "vector");
             assertEquals(field.getName(), dotProductExpected, maxSimDotProduct.maxSimDotProduct(), 0.001);
-            assertEquals(field.getName(), dotProductExpected, field.get().maxSimDotProduct(listFloatVector), 0.001);
-            assertEquals(field.getName(), dotProductExpected, field.get().maxSimDotProduct(listByteVector), 0.001);
             switch (field.getElementType()) {
                 case BYTE -> {
-                    assertEquals(field.getName(), dotProductExpected, field.get().maxSimDotProduct(byteVector));
+                    assertEquals(field.getName(), dotProductExpected, field.get().maxSimDotProduct(byteVector), 0.001);
                     UnsupportedOperationException e = expectThrows(
                         UnsupportedOperationException.class,
                         () -> field.get().maxSimDotProduct(floatVector)
                     );
-                    assertThat(e.getMessage(), containsString("use [int maxSimDotProduct(byte[] queryVector)] instead"));
+                    assertThat(e.getMessage(), containsString("use [float maxSimDotProduct(byte[][] queryVector)] instead"));
                 }
                 case FLOAT -> {
                     assertEquals(field.getName(), dotProductExpected, field.get().maxSimDotProduct(floatVector), 0.001);
@@ -333,7 +276,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
                         UnsupportedOperationException.class,
                         () -> field.get().maxSimDotProduct(byteVector)
                     );
-                    assertThat(e.getMessage(), containsString("use [double maxSimDotProduct(float[] queryVector)] instead"));
+                    assertThat(e.getMessage(), containsString("use [float maxSimDotProduct(float[][] queryVector)] instead"));
                 }
             }
         }
@@ -343,13 +286,14 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
         String fieldName = "vector";
         int dims = 1;
         float[] docVector = new float[] { 0 };
-        List<Number> greaterThanVector = List.of(128);
-        List<Number> lessThanVector = List.of(-129);
-        List<Number> decimalVector = List.of(0.5);
+        List<List<Number>> greaterThanVector = List.of(List.of(128));
+        List<List<Number>> lessThanVector = List.of(List.of(-129));
+        List<List<Number>> decimalVector = List.of(List.of(0.5));
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 1 } }),
                 "test",
                 ElementType.BYTE,
                 dims
@@ -366,9 +310,9 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
             e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(scoreScript, greaterThanVector, fieldName));
             assertEquals(
-                e.getMessage(),
                 "element_type [byte] vectors only support integers between [-128, 127] but found [128.0] at dim [0]; "
-                    + "Preview of invalid vector: [128.0]"
+                    + "Preview of invalid vector: [128.0]",
+                e.getMessage()
             );
 
             e = expectThrows(IllegalArgumentException.class, () -> new MaxSimDotProduct(scoreScript, lessThanVector, fieldName));

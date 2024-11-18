@@ -17,15 +17,15 @@ import java.util.Iterator;
 
 public class ByteMultiDenseVector implements MultiDenseVector {
 
-    protected final Iterator<byte[]> vectorValues;
+    protected final VectorIterator<byte[]> vectorValues;
     protected final int numVecs;
     protected final int dims;
 
-    private Iterator<float[]> floatDocVectors;
+    private VectorIterator<float[]> floatDocVectors;
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
 
-    public ByteMultiDenseVector(Iterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+    public ByteMultiDenseVector(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
         assert magnitudesBytes.length == numVecs * Float.BYTES;
         this.vectorValues = vectorValues;
         this.numVecs = numVecs;
@@ -40,6 +40,7 @@ public class ByteMultiDenseVector implements MultiDenseVector {
 
     @Override
     public float maxSimDotProduct(byte[][] query) {
+        vectorValues.reset();
         float[] sums = new float[query.length];
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
@@ -56,11 +57,13 @@ public class ByteMultiDenseVector implements MultiDenseVector {
 
     @Override
     public float maxSimInvHamming(byte[][] query) {
+        vectorValues.reset();
+        int bitCount = dims * Byte.SIZE;
         float[] sums = new float[query.length];
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
-                sums[i] += ((dims - VectorUtil.xorBitCount(vv, query[i])) / (float) dims);
+                sums[i] += ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount);
             }
         }
         float max = -Float.MAX_VALUE;
@@ -72,10 +75,7 @@ public class ByteMultiDenseVector implements MultiDenseVector {
 
     @Override
     public Iterator<float[]> getVectors() {
-        if (floatDocVectors == null) {
-            floatDocVectors = new ByteToFloatIteratorWrapper(vectorValues, dims);
-        }
-        return floatDocVectors;
+        return new ByteToFloatIteratorWrapper(vectorValues.copy(), dims);
     }
 
     @Override

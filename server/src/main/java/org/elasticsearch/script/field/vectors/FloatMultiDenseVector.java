@@ -22,9 +22,9 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     private float[] magnitudesArray = null;
     private final int dims;
     private final int numVectors;
-    private final Iterator<float[]> vectorValues;
+    private final VectorIterator<float[]> vectorValues;
 
-    public FloatMultiDenseVector(Iterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
+    public FloatMultiDenseVector(VectorIterator<float[]> decodedDocVector, BytesRef magnitudes, int numVectors, int dims) {
         assert magnitudes.length == numVectors * Float.BYTES;
         this.vectorValues = decodedDocVector;
         this.magnitudes = magnitudes;
@@ -34,6 +34,7 @@ public class FloatMultiDenseVector implements MultiDenseVector {
 
     @Override
     public float maxSimDotProduct(float[][] query) {
+        vectorValues.reset();
         float[] sums = new float[query.length];
         while (vectorValues.hasNext()) {
             float[] vv = vectorValues.next();
@@ -60,7 +61,7 @@ public class FloatMultiDenseVector implements MultiDenseVector {
 
     @Override
     public Iterator<float[]> getVectors() {
-        return vectorValues;
+        return vectorValues.copy();
     }
 
     @Override

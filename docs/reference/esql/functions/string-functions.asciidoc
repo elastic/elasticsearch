@@ -8,6 +8,8 @@
 {esql} supports these string functions:
 
 // tag::string_list[]
+* <<esql-bit_length>>
+* <<esql-byte_length>>
 * <<esql-concat>>
 * <<esql-ends_with>>
 * <<esql-from_base64>>
@@ -30,6 +32,8 @@
 * <<esql-trim>>
 // end::string_list[]
 
+include::layout/bit_length.asciidoc[]
+include::layout/byte_length.asciidoc[]
 include::layout/concat.asciidoc[]
 include::layout/ends_with.asciidoc[]
 include::layout/from_base64.asciidoc[]

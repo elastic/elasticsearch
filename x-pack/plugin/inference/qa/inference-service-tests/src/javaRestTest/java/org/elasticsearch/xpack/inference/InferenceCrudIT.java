@@ -44,18 +44,18 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
+        int numModels = 11;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        int numSparseModels = 6;
         assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        int numDenseModels = 5;
         assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
@@ -135,9 +135,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     public void testGetServicesWithoutTaskType() throws IOException {
         List<Object> services = getAllServices();
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(19));
-        } else {
             assertThat(services.size(), equalTo(18));
+        } else {
+            assertThat(services.size(), equalTo(17));
         }
 
         String[] providers = new String[services.size()];
@@ -160,7 +160,6 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
                 "googleaistudio",
                 "googlevertexai",
                 "hugging_face",
-                "hugging_face_elser",
                 "mistral",
                 "openai",
                 "streaming_completion_test_service",
@@ -259,9 +258,9 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
 
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
-            assertThat(services.size(), equalTo(6));
-        } else {
             assertThat(services.size(), equalTo(5));
+        } else {
+            assertThat(services.size(), equalTo(4));
         }
 
         String[] providers = new String[services.size()];
@@ -272,9 +271,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
 
         Arrays.sort(providers);
 
-        var providerList = new ArrayList<>(
-            Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "hugging_face_elser", "test_service")
-        );
+        var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
         if (ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()) {
             providerList.add(1, "elastic");
         }

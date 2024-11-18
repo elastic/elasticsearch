@@ -1,0 +1,5 @@
+pr: 116964
+summary: "Support ST_ENVELOPE and related ST_XMIN, etc"
+area: "ES|QL, Geo"
+type: feature
+issues: []

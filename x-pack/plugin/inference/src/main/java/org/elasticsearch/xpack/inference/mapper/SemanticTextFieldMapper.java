@@ -509,12 +509,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
-        public QueryBuilder semanticQuery(
-            InferenceResults inferenceResults,
-            Integer requestSize,
-            float boost,
-            String queryName
-        ) {
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;

@@ -15,7 +15,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -131,7 +130,6 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
         """;
 
     public void testTsdbDataStream() throws Exception {
-        assumeTrue("TSDB was GA-ed in 8.7.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE));
         String dataStreamName = "k8s";
         if (isOldCluster()) {
             final String INDEX_TEMPLATE = """
@@ -156,11 +154,6 @@ public class TsdbIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testTsdbDataStreamWithComponentTemplate() throws Exception {
-        assumeTrue(
-            "TSDB was GA-ed in 8.7.0 and bug was fixed in 8.11.0",
-            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_GENERALLY_AVAILABLE)
-                && (oldClusterHasFeature(RestTestLegacyFeatures.TSDB_EMPTY_TEMPLATE_FIXED) == false)
-        );
         String dataStreamName = "template-with-component-template";
         if (isOldCluster()) {
             final String COMPONENT_TEMPLATE = """

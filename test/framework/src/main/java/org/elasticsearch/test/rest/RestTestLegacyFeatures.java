@@ -25,9 +25,6 @@ import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPO
  * production code anymore.
  */
 public class RestTestLegacyFeatures implements FeatureSpecification {
-    public static final NodeFeature ML_STATE_RESET_FALLBACK_ON_DISABLED = new NodeFeature("ml.state_reset_fallback_on_disabled");
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final NodeFeature COMPONENT_TEMPLATE_SUPPORTED = new NodeFeature("indices.component_template_supported");
     public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
 
     /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
@@ -44,8 +41,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
 
     // QA - rolling upgrade tests
     public static final NodeFeature DESIRED_NODE_API_SUPPORTED = new NodeFeature("desired_node_supported");
-    public static final NodeFeature SECURITY_UPDATE_API_KEY = new NodeFeature("security.api_key_update");
-    public static final NodeFeature SECURITY_BULK_UPDATE_API_KEY = new NodeFeature("security.api_key_bulk_update");
 
     public static final NodeFeature TSDB_NEW_INDEX_FORMAT = new NodeFeature("indices.tsdb_new_format");
     public static final NodeFeature TSDB_GENERALLY_AVAILABLE = new NodeFeature("indices.tsdb_supported");
@@ -98,10 +93,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.ofEntries(
-            entry(COMPONENT_TEMPLATE_SUPPORTED, Version.V_7_8_0),
-            entry(ML_STATE_RESET_FALLBACK_ON_DISABLED, Version.V_8_7_0),
-            entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
-            entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
             entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
             entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
             entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),

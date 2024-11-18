@@ -151,17 +151,13 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                 computationsExecuted.inc();
 
                 final DesiredBalance currentDesiredBalance = currentDesiredBalanceRef.get();
-                // Update is either not necessary (due to no changes) or the node has concurrently stands down as master
-                if (currentDesiredBalance.lastConvergedIndex() != index) {
-                    assert initialDesiredBalance.lastConvergedIndex() == currentDesiredBalance.lastConvergedIndex() // no change
-                        || currentDesiredBalance == DesiredBalance.NOT_MASTER
-                        || currentDesiredBalance == DesiredBalance.INITIAL : currentDesiredBalance + " vs " + initialDesiredBalance;
+                if (currentDesiredBalance == DesiredBalance.NOT_MASTER || currentDesiredBalance == DesiredBalance.INITIAL) {
                     logger.debug(
                         () -> Strings.format(
-                            "Desired balance computation for [%s] is discarded. Current=[%s], Initial=[%s]",
+                            "Desired balance computation for [%s] is discarded since master has concurrently changed. "
+                                + "Current desiredBalance=[%s]",
                             index,
-                            currentDesiredBalance,
-                            initialDesiredBalance
+                            currentDesiredBalance
                         )
                     );
                 } else if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {

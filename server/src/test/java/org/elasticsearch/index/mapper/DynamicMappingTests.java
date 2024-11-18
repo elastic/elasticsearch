@@ -597,6 +597,23 @@ public class DynamicMappingTests extends MapperServiceTestCase {
         assertThat(((FieldMapper) update.getRoot().getMapper("quux")).fieldType().typeName(), equalTo("float"));
     }
 
+    public void testDateDetectionEnabled() throws Exception {
+        MapperService mapperService = createMapperService(topMapping(b -> b.field("date_detection", true)));
+
+        ParsedDocument doc = mapperService.documentMapper().parse(source(b -> {
+            b.field("date", "2024-11-18");
+            b.field("no_date", "128.0.");
+        }));
+        assertNotNull(doc.dynamicMappingsUpdate());
+        merge(mapperService, dynamicMapping(doc.dynamicMappingsUpdate()));
+
+        Mapper mapper = mapperService.documentMapper().mappers().getMapper("date");
+        assertThat(mapper.typeName(), equalTo("date"));
+
+        mapper = mapperService.documentMapper().mappers().getMapper("no_date");
+        assertThat(mapper.typeName(), equalTo("text"));
+    }
+
     public void testNumericDetectionEnabled() throws Exception {
         MapperService mapperService = createMapperService(topMapping(b -> b.field("numeric_detection", true)));
 

@@ -27,7 +27,6 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     private static final Logger logger = Logging.getLogger(TestClustersRegistry.class);
     private static final String TESTCLUSTERS_INSPECT_FAILURE = "testclusters.inspect.failure";
     private final Boolean allowClusterToSurvive = Boolean.valueOf(System.getProperty(TESTCLUSTERS_INSPECT_FAILURE, "false"));
-    private final Map<ElasticsearchCluster, Integer> claimsInventory = new HashMap<>();
     private final Set<ElasticsearchCluster> runningClusters = new HashSet<>();
     private final Map<String, Process> nodeProcesses = new HashMap<>();
 
@@ -35,10 +34,8 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
     public abstract ProviderFactory getProviderFactory();
 
     public void claimCluster(ElasticsearchCluster cluster) {
-        int claim = claimsInventory.getOrDefault(cluster, cluster.getClaims()) + 1;
-        claimsInventory.put(cluster, claim);
-        cluster.setClaims(claim);
-        if (claim > 1) {
+        int claims = cluster.addClaim();
+        if (claims > 1) {
             cluster.setShared(true);
         }
     }
@@ -82,9 +79,7 @@ public abstract class TestClustersRegistry implements BuildService<BuildServiceP
                 runningClusters.remove(cluster);
             }
         } else {
-            int currentClaims = claimsInventory.getOrDefault(cluster, cluster.getClaims()) - 1;
-            claimsInventory.put(cluster, currentClaims);
-            cluster.setClaims(currentClaims);
+            int currentClaims = cluster.removeClaim();
             if (currentClaims <= 0 && runningClusters.contains(cluster)) {
                 cluster.stop(false);
                 runningClusters.remove(cluster);

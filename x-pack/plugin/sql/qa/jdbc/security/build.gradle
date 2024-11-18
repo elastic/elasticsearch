@@ -58,7 +58,7 @@ subprojects {
       project.gradle.sharedServices,
       TestClustersPlugin.REGISTRY_SERVICE_NAME
     )
-    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
+    project.getProviders().of(TestClusterValueSource.class) {
       it.parameters.path.set(clusterPath)
       it.parameters.clusterName.set("javaRestTest")
       it.parameters.service = serviceProvider

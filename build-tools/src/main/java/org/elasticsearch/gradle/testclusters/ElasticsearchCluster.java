@@ -415,6 +415,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
+        nodes.whenObjectAdded(node -> { throw new IllegalStateException("Cannot add nodes to test cluster after is has been frozen"); });
     }
 
     private void checkFrozen() {
@@ -670,12 +671,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return "cluster{" + path + ":" + clusterName + "}";
     }
 
-    @Internal
-    public int getClaims() {
-        return claims;
+    int addClaim() {
+        return ++this.claims;
     }
 
-    public void setClaims(int claims) {
-        this.claims = claims;
+    int removeClaim() {
+        return --this.claims;
     }
 }

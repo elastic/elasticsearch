@@ -45,6 +45,7 @@ public interface TestClustersAware extends Task {
             dependsOn(cluster.getPluginAndModuleConfigurations());
         }
         getClusters().add(cluster);
+        cluster.freeze();
 
     }
 

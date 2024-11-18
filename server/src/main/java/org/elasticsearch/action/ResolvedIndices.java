@@ -126,7 +126,7 @@ public class ResolvedIndices {
     /**
      * Get the search context ID.
      * Returns a non-null value only when the instance is created using
-     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ClusterState, NamedWriteableRegistry)}.
+     * {@link ResolvedIndices#resolveWithPIT(PointInTimeBuilder, IndicesOptions, ProjectMetadata, NamedWriteableRegistry)}.
      *
      * @return The search context ID
      */
@@ -188,20 +188,6 @@ public class ResolvedIndices {
             localIndices,
             resolveLocalIndexMetadata(concreteLocalIndices, projectMetadata, true)
         );
-    }
-
-    /**
-     * @see #resolveWithPIT(PointInTimeBuilder, IndicesOptions, ProjectMetadata, NamedWriteableRegistry)
-     */
-    @Deprecated
-    @FixForMultiProject
-    public static ResolvedIndices resolveWithPIT(
-        PointInTimeBuilder pit,
-        IndicesOptions indicesOptions,
-        ClusterState clusterState,
-        NamedWriteableRegistry namedWriteableRegistry
-    ) {
-        return resolveWithPIT(pit, indicesOptions, clusterState.metadata().getProject(), namedWriteableRegistry);
     }
 
     /**

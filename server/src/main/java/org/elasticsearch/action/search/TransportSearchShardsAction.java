@@ -136,7 +136,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                     searchRequest.indices()
                 );
                 final Map<String, AliasFilter> aliasFilters = transportSearchAction.buildIndexAliasFilters(
-                    project.cluster(),
+                    project,
                     indicesAndAliases,
                     concreteIndices
                 );

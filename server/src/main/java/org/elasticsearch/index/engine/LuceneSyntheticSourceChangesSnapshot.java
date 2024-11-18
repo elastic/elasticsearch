@@ -114,8 +114,7 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
     private void loadNextBatch() throws IOException {
         List<SearchRecord> documentsToLoad = new ArrayList<>();
         long accumulatedSize = 0;
-        boolean reachedMemoryLimit = false;
-        while (reachedMemoryLimit == false) {
+        while (accumulatedSize < maxMemorySizeInBytes) {
             if (pendingDocs.isEmpty()) {
                 ScoreDoc[] topDocs = nextTopDocs().scoreDocs;
                 if (topDocs.length == 0) {
@@ -127,9 +126,6 @@ public class LuceneSyntheticSourceChangesSnapshot extends SearchBasedChangesSnap
             document.doc().shardIndex = documentsToLoad.size();
             documentsToLoad.add(document);
             accumulatedSize += document.size();
-            if (accumulatedSize > maxMemorySizeInBytes) {
-                reachedMemoryLimit = true;
-            }
         }
 
         for (var op : loadDocuments(documentsToLoad)) {

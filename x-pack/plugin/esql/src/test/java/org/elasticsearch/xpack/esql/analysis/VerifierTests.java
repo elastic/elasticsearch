@@ -1283,10 +1283,7 @@ public class VerifierTests extends ESTestCase {
         );
         assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
         assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
-        assertEquals(
-            "1:35: [KQL] function cannot be used after MV_EXPAND",
-            error("from test | mv_expand last_name | where kql(\"Anna\")")
-        );
+        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
         assertEquals(
             "1:45: [KQL] function cannot be used after RENAME",
             error("from test | rename last_name as full_name | where kql(\"Anna\")")
@@ -1297,10 +1294,7 @@ public class VerifierTests extends ESTestCase {
         );
 
         // Some combination of processing commands
-        assertEquals(
-            "1:38: [KQL] function cannot be used after LIMIT",
-            error("from test | keep emp_no | limit 10 | where kql(\"Anna\")")
-        );
+        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
         assertEquals(
             "1:46: [KQL] function cannot be used after MV_EXPAND",
             error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")

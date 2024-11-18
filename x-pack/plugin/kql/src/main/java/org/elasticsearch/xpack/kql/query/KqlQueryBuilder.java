@@ -17,6 +17,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryRewriteContext;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
@@ -26,6 +27,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.kql.parser.KqlParser;
 import org.elasticsearch.xpack.kql.parser.KqlParsingContext;
+import org.elasticsearch.xpack.kql.parser.KqlParsingException;
 
 import java.io.IOException;
 import java.time.ZoneId;
@@ -151,12 +153,16 @@ public class KqlQueryBuilder extends AbstractQueryBuilder<KqlQueryBuilder> {
 
     @Override
     protected QueryBuilder doIndexMetadataRewrite(QueryRewriteContext context) throws IOException {
-        KqlParser parser = new KqlParser();
-        QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));
+        try {
+            KqlParser parser = new KqlParser();
+            QueryBuilder rewrittenQuery = parser.parseKqlQuery(query, createKqlParserContext(context));
 
-        log.trace(() -> Strings.format("KQL query %s translated to Query DSL: %s", query, Strings.toString(rewrittenQuery)));
+            log.trace(() -> Strings.format("KQL query %s translated to Query DSL: %s", query, Strings.toString(rewrittenQuery)));
 
-        return rewrittenQuery;
+            return rewrittenQuery;
+        } catch (KqlParsingException e) {
+            throw new QueryShardException(context, "Failed to parse KQL query [{}]", e, query);
+        }
     }
 
     @Override

@@ -209,9 +209,6 @@ tests:
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694
-- class: org.elasticsearch.snapshots.SnapshotShutdownIT
-  method: testRestartNodeDuringSnapshot
-  issue: https://github.com/elastic/elasticsearch/issues/116730
 - class: org.elasticsearch.xpack.security.authc.ldap.ActiveDirectoryGroupsResolverTests
   issue: https://github.com/elastic/elasticsearch/issues/116182
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT

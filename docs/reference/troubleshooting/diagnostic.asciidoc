@@ -11,7 +11,7 @@ It works against all {es} versions.
 This information can be used to troubleshoot problems with your cluster. For examples of issues that you can troubleshoot using Support Diagnostic tool output, refer to https://www.elastic.co/blog/why-does-elastic-support-keep-asking-for-diagnostic-files[the Elastic blog].
 
 You can generate diagnostic information using this tool before you contact https://support.elastic.co[Elastic Support] or 
-https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time. 
+https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time. See this https://www.youtube.com/watch?v=Bb6SaqhqYHw[Capture an {es} diagnostic video] for an example walkthrough.
 
 [discrete]
 [[diagnostic-tool-requirements]]

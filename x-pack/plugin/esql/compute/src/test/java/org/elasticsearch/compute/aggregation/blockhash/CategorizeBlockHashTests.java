@@ -400,9 +400,10 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     private BlockHash.GroupSpec makeGroupSpec() {
-        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF,
-            (blockFactory, channel, aggregatorMode) ->
-            aggregatorMode.isInputPartial()
+        return new BlockHash.GroupSpec(
+            0,
+            ElementType.BYTES_REF,
+            (blockFactory, channel, aggregatorMode) -> aggregatorMode.isInputPartial()
                 ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
                 : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
         );

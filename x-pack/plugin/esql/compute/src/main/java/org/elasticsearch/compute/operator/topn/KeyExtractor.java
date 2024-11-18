@@ -25,9 +25,9 @@ interface KeyExtractor {
 
     static KeyExtractor extractorFor(ElementType elementType, TopNEncoder encoder, boolean ascending, byte nul, byte nonNul, Block block) {
         // NOCOMMIT: there's some mixup between blocks of ByteRef and Category
-//        if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
-//            throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
-//        }
+        // if (false == (elementType == block.elementType() || ElementType.NULL == block.elementType())) {
+        // throw new IllegalArgumentException("Expected [" + elementType + "] but was [" + block.elementType() + "]");
+        // }
         return switch (block.elementType()) {
             case BOOLEAN -> KeyExtractorForBoolean.extractorFor(encoder, ascending, nul, nonNul, (BooleanBlock) block);
             case BYTES_REF -> KeyExtractorForBytesRef.extractorFor(encoder, ascending, nul, nonNul, (BytesRefBlock) block);

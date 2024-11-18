@@ -1726,6 +1726,68 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testCategorizeSingleGrouping() {
+        query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
+        query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("from test | STATS COUNT(*) BY CATEGORIZE(first_name), emp_no")
+        );
+        assertEquals(
+            "1:39: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY emp_no, CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:35: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY a = CATEGORIZE(first_name), b = emp_no")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings\n"
+                + "line 1:55: cannot use CATEGORIZE grouping function [CATEGORIZE(last_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(last_name)")
+        );
+        assertEquals(
+            "1:31: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] with multiple groupings",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name), CATEGORIZE(first_name)")
+        );
+    }
+
+    public void testCategorizeNestedGrouping() {
+        query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
+
+        assertEquals(
+            "1:40: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY MV_COUNT(CATEGORIZE(first_name))")
+        );
+        assertEquals(
+            "1:31: CATEGORIZE grouping function [CATEGORIZE(first_name)] can't be used within other expressions",
+            error("FROM test | STATS COUNT(*) BY CATEGORIZE(first_name)::datetime")
+        );
+    }
+
+    public void testCategorizeWithinAggregations() {
+        query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
+
+        assertEquals(
+            "1:25: cannot use CATEGORIZE grouping function [CATEGORIZE(first_name)] within the aggregations",
+            error("FROM test | STATS COUNT(CATEGORIZE(first_name)) BY CATEGORIZE(first_name)")
+        );
+
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS COUNT(cat) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:30: cannot reference CATEGORIZE grouping function [cat] within the aggregations",
+            error("FROM test | STATS SUM(LENGTH(cat::keyword) + LENGTH(last_name)) BY cat = CATEGORIZE(first_name)")
+        );
+        assertEquals(
+            "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
+            error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
+        );
+    }
+
     private void query(String query) {
         defaultAnalyzer.analyze(parser.createStatement(query));
     }

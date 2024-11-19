@@ -81,8 +81,8 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
 
     @Override
     protected QueryList queryList(TransportRequest request, SearchExecutionContext context, Block inputBlock, DataType inputDataType) {
-        validateTypes(inputDataType, context.getFieldType(request.matchField));
         MappedFieldType fieldType = context.getFieldType(request.matchField);
+        validateTypes(inputDataType, fieldType);
         return switch (request.matchType) {
             case "match", "range" -> termQueryList(fieldType, context, inputBlock, inputDataType);
             case "geo_match" -> QueryList.geoShapeQueryList(fieldType, context, inputBlock);
@@ -91,19 +91,17 @@ public class EnrichLookupService extends AbstractLookupService<EnrichLookupServi
     }
 
     private static void validateTypes(DataType inputDataType, MappedFieldType fieldType) {
-        if (inputDataType == DataType.UNSUPPORTED) {
-            throw new EsqlIllegalArgumentException("ENRICH cannot match on unsupported input data type");
-        }
-        if (fieldType == null) {
-            throw new EsqlIllegalArgumentException("ENRICH cannot match on non-existent field");
-        }
         if (fieldType instanceof RangeFieldMapper.RangeFieldType rangeType) {
+            // For range policy types, the ENRICH index field type will be one of a list of supported range types,
+            // which need to match the input data type (eg. ip-range -> ip, date-range -> date, etc.)
             if (rangeTypesCompatible(rangeType.rangeType(), inputDataType) == false) {
                 throw new EsqlIllegalArgumentException(
                     "ENRICH range and input types are incompatible: range[" + rangeType.rangeType() + "], input[" + inputDataType + "]"
                 );
             }
         }
+        // For match policies, the ENRICH index field will always be KEYWORD, and input type will be converted to KEYWORD.
+        // For geo_match, type validation is done earlier, in the Analyzer.
     }
 
     private static boolean rangeTypesCompatible(RangeType rangeType, DataType inputDataType) {

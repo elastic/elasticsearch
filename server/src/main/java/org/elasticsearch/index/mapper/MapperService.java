@@ -661,13 +661,20 @@ public class MapperService extends AbstractIndexComponent implements Closeable {
     private boolean assertSerialization(DocumentMapper mapper, MergeReason reason) {
         // capture the source now, it may change due to concurrent parsing
         final CompressedXContent mappingSource = mapper.mappingSource();
-        Mapping newMapping = parseMapping(mapper.type(), reason, mappingSource);
-        if (newMapping.toCompressedXContent().equals(mappingSource) == false) {
+        final CompressedXContent newSource = parseMapping(mapper.type(), reason, mappingSource).toCompressedXContent();
+        if (newSource.equals(mappingSource) == false) {
+            if (indexVersionCreated.before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+                String s1 = newSource.string().replace("\"_source\":{\"mode\":\"synthetic\"}", "\"_source\":{}");
+                String s2 = mappingSource.string().replace("\"_source\":{\"mode\":\"synthetic\"}", "\"_source\":{}");
+                if (s1.equals(s2)) {
+                    return true;
+                }
+            }
             throw new AssertionError(
                 "Mapping serialization result is different from source. \n--> Source ["
                     + mappingSource
                     + "]\n--> Result ["
-                    + newMapping.toCompressedXContent()
+                    + newSource
                     + "]"
             );
         }

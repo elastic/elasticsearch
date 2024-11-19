@@ -6,27 +6,27 @@
  */
 
 package org.elasticsearch.xpack.inference.external.action.ibmwatsonx;
-
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxEmbeddingsRequestManager;
+import org.elasticsearch.xpack.inference.external.http.sender.IbmWatsonxRerankRequestManager;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsModel;
-
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
 
 public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
-
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
     public IbmWatsonxActionCreator(Sender sender, ServiceComponents serviceComponents) {
+        // TODO Batching - accept a class that can handle batching
         this.sender = Objects.requireNonNull(sender);
         this.serviceComponents = Objects.requireNonNull(serviceComponents);
     }
@@ -39,6 +39,17 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
             getEmbeddingsRequestManager(model, serviceComponents.truncator(), serviceComponents.threadPool()),
             failedToSendRequestErrorMessage
         );
+    }
+
+    @Override
+    public ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
+        var overriddenModel = IbmWatsonxRerankModel.of(model, taskSettings);
+        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
+        var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
+            overriddenModel.getServiceSettings().uri(),
+            "Ibm Watsonx rerank"
+        );
+        return new SenderExecutableAction(sender, requestCreator, failedToSendRequestErrorMessage);
     }
 
     protected IbmWatsonxEmbeddingsRequestManager getEmbeddingsRequestManager(

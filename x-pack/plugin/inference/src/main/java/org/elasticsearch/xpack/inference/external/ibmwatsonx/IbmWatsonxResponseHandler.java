@@ -18,8 +18,15 @@ import static org.elasticsearch.core.Strings.format;
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
 
-    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
+    private final boolean canHandleStreamingResponse;
+
+    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponse) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
+        this.canHandleStreamingResponse = canHandleStreamingResponse;
+    }
+
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponse;
     }
 
     /**

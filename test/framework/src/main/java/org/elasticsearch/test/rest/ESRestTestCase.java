@@ -415,8 +415,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             logger.warn(
                 "This test is running on the legacy test framework; historical features from production code will not be available. "
                     + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification such as {}.",
-                RestTestLegacyFeatures.class.getCanonicalName()
+                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification."
             );
         }
         return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());

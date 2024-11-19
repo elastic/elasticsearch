@@ -10,7 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.FlagEntitlement;
+import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 /**
@@ -28,6 +28,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void checkSystemExit(Class<?> callerClass, int status) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT);
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
     }
 }

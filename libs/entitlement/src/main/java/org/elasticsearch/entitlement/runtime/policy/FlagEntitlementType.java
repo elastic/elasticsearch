@@ -9,23 +9,6 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
-public class FlagEntitlement implements Entitlement {
-    private final FlagEntitlementType flagEntitlementType;
-
-    public FlagEntitlement(FlagEntitlementType flagEntitlementType) {
-        this.flagEntitlementType = flagEntitlementType;
-    }
-
-    public FlagEntitlementType type() {
-        return flagEntitlementType;
-    }
-
-    public enum FlagEntitlementType {
-        SYSTEM_EXIT;
-    }
-
-    @Override
-    public String toString() {
-        return "FlagEntitlement{Type=" + flagEntitlementType + '}';
-    }
+public enum FlagEntitlementType {
+    SYSTEM_EXIT;
 }

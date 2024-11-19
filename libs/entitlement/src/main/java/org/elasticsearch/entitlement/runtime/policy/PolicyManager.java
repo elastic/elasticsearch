@@ -38,14 +38,14 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
     }
 
-    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlement.FlagEntitlementType type) {
+    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlementType type) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
 
         // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
-        if (requestingModule == System.class.getModule() && type == FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT) {
+        if (requestingModule == System.class.getModule() && type == FlagEntitlementType.SYSTEM_EXIT) {
             logger.debug("Allowed: caller in module {} has entitlement SYSTEM_EXIT", System.class.getModule().getName());
             return;
         }

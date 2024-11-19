@@ -16,7 +16,6 @@ import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.FlagEntitlement;
 import org.elasticsearch.entitlement.runtime.policy.Policy;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 import org.elasticsearch.entitlement.runtime.policy.PolicyParser;
@@ -75,10 +74,7 @@ public class EntitlementInitialization {
 
         // TODO: What should the name be?
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var elasticsearchPolicy = new Policy(
-            "elasticsearch",
-            List.of(new Scope("org.elasticsearch.server", List.of(new FlagEntitlement(FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT))))
-        );
+        var elasticsearchPolicy = new Policy("elasticsearch", List.of());
         return new PolicyManager(elasticsearchPolicy, pluginPolicies, EntitlementBootstrap.pluginResolver);
     }
 

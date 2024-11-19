@@ -19,7 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.rank.rrf.RRFRankBuilder.DEFAULT_RANK_CONSTANT;
+import static org.elasticsearch.xpack.rank.rrf.RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
 
 /**
  * {@code RRFRankDoc} supports additional ranking information

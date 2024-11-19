@@ -17,8 +17,6 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -63,31 +61,8 @@ public class GetFieldMappingsResponseTests extends AbstractWireSerializingTestCa
         FieldMappingMetadata fieldMappingMetadata = new FieldMappingMetadata("my field", new BytesArray("{}"));
         mappings.put("index", Collections.singletonMap("field", fieldMappingMetadata));
         GetFieldMappingsResponse response = new GetFieldMappingsResponse(mappings);
-        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, "true"));
+        ToXContent.Params params = new ToXContent.MapParams(Collections.singletonMap("include_type_name", "true"));
 
-        // v7 with include_type_name attaches _doc
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-            response.toXContent(builder, params);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                @SuppressWarnings("unchecked")
-                Map<String, Map<String, Map<String, Object>>> index = (Map<String, Map<String, Map<String, Object>>>) parser.map()
-                    .get("index");
-                assertThat(index.get("mappings"), hasKey(MapperService.SINGLE_MAPPING_NAME));
-                assertThat(index.get("mappings").get(MapperService.SINGLE_MAPPING_NAME), hasKey("field"));
-            }
-        }
-
-        // v7 with no include_type_name do not attach _doc
-        try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_7)) {
-            response.toXContent(builder, ToXContent.EMPTY_PARAMS);
-
-            try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                @SuppressWarnings("unchecked")
-                Map<String, Map<String, Object>> index = (Map<String, Map<String, Object>>) parser.map().get("index");
-                assertThat(index.get("mappings"), hasKey("field"));
-            }
-        }
         // v8 does not have _doc, even when include_type_name is present
         // (although this throws unconsumed parameter exception in RestGetFieldMappingsAction)
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent, RestApiVersion.V_8)) {

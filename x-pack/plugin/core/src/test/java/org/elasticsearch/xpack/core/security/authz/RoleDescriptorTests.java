@@ -45,10 +45,12 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.SECURITY_ROLE_DESCRIPTION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptor.WORKFLOWS_RESTRICTION_VERSION;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivileges;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomIndicesPrivilegesBuilder;
 import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomRemoteClusterPermissions;
+import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
 import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -540,6 +542,34 @@ public class RoleDescriptorTests extends ESTestCase {
             () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q4), XContentType.JSON)
         );
         assertThat(illegalArgumentException.getMessage(), containsString("remote cluster groups must not be null or empty"));
+
+        // one invalid privilege
+        String q5 = """
+            {
+              "remote_cluster": [
+                {
+                  "privileges": [
+                      "monitor_stats", "read_pipeline"
+                  ],
+                  "clusters": [
+                      "*"
+                  ]
+                }
+              ]
+            }""";
+
+        ElasticsearchParseException parseException = expectThrows(
+            ElasticsearchParseException.class,
+            () -> RoleDescriptor.parserBuilder().build().parse("test", new BytesArray(q5), XContentType.JSON)
+        );
+        assertThat(
+            parseException.getMessage(),
+            containsString(
+                "failed to parse remote_cluster for role [test]. "
+                    + "[monitor_enrich, monitor_stats] are the only values allowed for [privileges] within [remote_cluster]. "
+                    + "Found [monitor_stats, read_pipeline]"
+            )
+        );
     }
 
     public void testParsingFieldPermissionsUsesCache() throws IOException {
@@ -589,9 +619,9 @@ public class RoleDescriptorTests extends ESTestCase {
     public void testSerializationForCurrentVersion() throws Exception {
         final TransportVersion version = TransportVersionUtils.randomCompatibleVersion(random());
         final boolean canIncludeRemoteIndices = version.onOrAfter(TransportVersions.V_8_8_0);
-        final boolean canIncludeRemoteClusters = version.onOrAfter(TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS);
+        final boolean canIncludeRemoteClusters = version.onOrAfter(ROLE_REMOTE_CLUSTER_PRIVS);
         final boolean canIncludeWorkflows = version.onOrAfter(WORKFLOWS_RESTRICTION_VERSION);
-        final boolean canIncludeDescription = version.onOrAfter(TransportVersions.SECURITY_ROLE_DESCRIPTION);
+        final boolean canIncludeDescription = version.onOrAfter(SECURITY_ROLE_DESCRIPTION);
         logger.info("Testing serialization with version {}", version);
         BytesStreamOutput output = new BytesStreamOutput();
         output.setTransportVersion(version);
@@ -667,9 +697,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithRemoteClusterWithElderVersion() throws IOException {
-        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.ROLE_REMOTE_CLUSTER_PRIVS
-        );
+        final TransportVersion versionBeforeRemoteCluster = TransportVersionUtils.getPreviousVersion(ROLE_REMOTE_CLUSTER_PRIVS);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_7_17_0,
@@ -815,9 +843,7 @@ public class RoleDescriptorTests extends ESTestCase {
     }
 
     public void testSerializationWithDescriptionAndUnsupportedVersions() throws IOException {
-        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(
-            TransportVersions.SECURITY_ROLE_DESCRIPTION
-        );
+        final TransportVersion versionBeforeRoleDescription = TransportVersionUtils.getPreviousVersion(SECURITY_ROLE_DESCRIPTION);
         final TransportVersion version = TransportVersionUtils.randomVersionBetween(
             random(),
             TransportVersions.V_7_17_0,

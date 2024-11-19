@@ -12,6 +12,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 
 public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression> {
@@ -23,6 +24,16 @@ public class FoldNull extends OptimizerRules.OptimizerExpressionRule<Expression>
     @Override
     public Expression rule(Expression e) {
         Expression result = tryReplaceIsNullIsNotNull(e);
+
+        // convert an aggregate null filter into a false
+        // perform this early to prevent the rule from converting the null filter into nullifying the whole expression
+        // P.S. this could be done inside the Aggregate but this place better centralizes the logic
+        if (e instanceof AggregateFunction agg) {
+            if (Expressions.isNull(agg.filter())) {
+                return agg.withFilter(Literal.of(agg.filter(), false));
+            }
+        }
+
         if (result != e) {
             return result;
         } else if (e instanceof In in) {

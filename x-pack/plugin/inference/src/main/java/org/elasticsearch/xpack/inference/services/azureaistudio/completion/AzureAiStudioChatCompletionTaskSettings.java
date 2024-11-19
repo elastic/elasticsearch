@@ -20,6 +20,7 @@ import org.elasticsearch.xpack.inference.services.azureaistudio.AzureAiStudioCon
 import org.elasticsearch.xpack.inference.services.azureopenai.embeddings.AzureOpenAiEmbeddingsTaskSettings;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -145,6 +146,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public boolean isEmpty() {
+        return temperature == null && topP == null && doSample == null && maxNewTokens == null;
+    }
+
+    @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalDouble(temperature);
         out.writeOptionalDouble(topP);
@@ -174,6 +180,20 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
     }
 
     @Override
+    public String toString() {
+        return "AzureAiStudioChatCompletionTaskSettings{"
+            + "temperature="
+            + temperature
+            + ", topP="
+            + topP
+            + ", doSample="
+            + doSample
+            + ", maxNewTokens="
+            + maxNewTokens
+            + '}';
+    }
+
+    @Override
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
@@ -189,4 +209,11 @@ public class AzureAiStudioChatCompletionTaskSettings implements TaskSettings {
         return Objects.hash(temperature, topP, doSample, maxNewTokens);
     }
 
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureAiStudioChatCompletionRequestTaskSettings requestSettings = AzureAiStudioChatCompletionRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, requestSettings);
+    }
 }

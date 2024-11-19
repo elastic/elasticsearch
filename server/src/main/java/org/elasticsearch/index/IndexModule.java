@@ -18,7 +18,6 @@ import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.search.similarities.BM25Similarity;
 import org.apache.lucene.search.similarities.Similarity;
 import org.apache.lucene.store.Directory;
-import org.apache.lucene.store.MMapDirectory;
 import org.apache.lucene.util.Constants;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.client.internal.Client;
@@ -168,7 +167,7 @@ public final class IndexModule {
     private final Map<String, TriFunction<Settings, IndexVersion, ScriptService, Similarity>> similarities = new HashMap<>();
     private final Map<String, IndexStorePlugin.DirectoryFactory> directoryFactories;
     private final SetOnce<BiFunction<IndexSettings, IndicesQueryCache, QueryCache>> forceQueryCacheProvider = new SetOnce<>();
-    private final List<SearchOperationListener> searchOperationListeners = new ArrayList<>();
+    private final List<SearchOperationListener> searchOperationListeners;
     private final List<IndexingOperationListener> indexOperationListeners = new ArrayList<>();
     private final IndexNameExpressionResolver expressionResolver;
     private final AtomicBoolean frozen = new AtomicBoolean(false);
@@ -195,11 +194,14 @@ public final class IndexModule {
         final IndexNameExpressionResolver expressionResolver,
         final Map<String, IndexStorePlugin.RecoveryStateFactory> recoveryStateFactories,
         final SlowLogFieldProvider slowLogFieldProvider,
-        final MapperMetrics mapperMetrics
+        final MapperMetrics mapperMetrics,
+        final List<SearchOperationListener> searchOperationListeners
     ) {
         this.indexSettings = indexSettings;
         this.analysisRegistry = analysisRegistry;
         this.engineFactory = Objects.requireNonNull(engineFactory);
+        // Need to have a mutable arraylist for plugins to add listeners to it
+        this.searchOperationListeners = new ArrayList<>(searchOperationListeners);
         this.searchOperationListeners.add(new SearchSlowLog(indexSettings, slowLogFieldProvider));
         this.indexOperationListeners.add(new IndexingSlowLog(indexSettings, slowLogFieldProvider));
         this.directoryFactories = Collections.unmodifiableMap(directoryFactories);
@@ -451,7 +453,7 @@ public final class IndexModule {
     }
 
     public static Type defaultStoreType(final boolean allowMmap) {
-        if (allowMmap && Constants.JRE_IS_64BIT && MMapDirectory.UNMAP_SUPPORTED) {
+        if (allowMmap && Constants.JRE_IS_64BIT) {
             return Type.HYBRIDFS;
         } else {
             return Type.NIOFS;

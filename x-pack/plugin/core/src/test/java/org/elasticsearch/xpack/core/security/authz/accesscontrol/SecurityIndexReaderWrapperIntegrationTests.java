@@ -193,7 +193,7 @@ public class SecurityIndexReaderWrapperIntegrationTests extends AbstractBuilderT
             int expectedHitCount = valuesHitCount[i];
             logger.info("Going to verify hit count with query [{}] with expected total hits [{}]", parsedQuery.query(), expectedHitCount);
 
-            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager());
+            Integer totalHits = indexSearcher.search(new MatchAllDocsQuery(), new TotalHitCountCollectorManager(indexSearcher.getSlices()));
             assertThat(totalHits, equalTo(expectedHitCount));
             assertThat(wrappedDirectoryReader.numDocs(), equalTo(expectedHitCount));
         }

@@ -159,10 +159,11 @@ node.
 <5> The decider which led to the `no` decision for the node.
 <6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. In this example, a newly created index has <<indices-get-settings,an index setting>> that requires that it only be allocated to a node named `nonexistent_node`, which does not exist, so the index is unable to allocate.
 
+[[maximum-number-of-retries-exceeded]]
 ====== Maximum number of retries exceeded
 
 The following response contains an allocation explanation for an unassigned
-primary shard that has reached the maximum number of allocation retry attempts. 
+primary shard that has reached the maximum number of allocation retry attempts.
 
 [source,js]
 ----
@@ -195,7 +196,7 @@ primary shard that has reached the maximum number of allocation retry attempts.
         {
           "decider": "max_retry",
           "decision" : "NO",
-          "explanation": "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [/_cluster/reroute?retry_failed=true] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2024-07-30T21:04:12.166Z], failed_attempts[5], failed_nodes[[mEKjwwzLT1yJVb8UxT6anw]], delayed=false, details[failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException], allocation_status[deciders_no]]]"
+          "explanation": "shard has exceeded the maximum number of retries [5] on failed allocation attempts - manually call [POST /_cluster/reroute?retry_failed] to retry, [unassigned_info[[reason=ALLOCATION_FAILED], at[2024-07-30T21:04:12.166Z], failed_attempts[5], failed_nodes[[mEKjwwzLT1yJVb8UxT6anw]], delayed=false, details[failed shard on node [mEKjwwzLT1yJVb8UxT6anw]: failed recovery, failure RecoveryFailedException], allocation_status[deciders_no]]]"
         }
       ]
     }
@@ -203,10 +204,13 @@ primary shard that has reached the maximum number of allocation retry attempts.
 }
 ----
 // NOTCONSOLE
+When Elasticsearch is unable to allocate a shard, it will attempt to retry allocation up to
+the maximum number of retries allowed. After this, Elasticsearch will stop attempting to
+allocate the shard in order to prevent infinite retries which may impact cluster
+performance. Run the <<cluster-reroute,cluster reroute>> API to retry allocation, which
+will allocate the shard if the issue preventing allocation has been resolved.
 
-If decider message indicates a transient allocation issue, use 
-<<cluster-reroute,the cluster reroute API>> to retry allocation. 
-
+[[no-valid-shard-copy]]
 ====== No valid shard copy
 
 The following response contains an allocation explanation for an unassigned
@@ -334,7 +338,7 @@ queued to allocate but currently waiting on other queued shards.
 ----
 // NOTCONSOLE
 
-This is a transient message that might appear when a large amount of shards are allocating. 
+This is a transient message that might appear when a large amount of shards are allocating.
 
 ===== Assigned shard
 
@@ -437,7 +441,7 @@ cluster balance.
 ===== No arguments
 
 If you call the API with no arguments, {es} retrieves an allocation explanation
-for an arbitrary unassigned primary or replica shard, returning any unassigned primary shards first. 
+for an arbitrary unassigned primary or replica shard, returning any unassigned primary shards first.
 
 [source,console]
 ----

@@ -39,7 +39,6 @@ import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -272,9 +271,22 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals(
-                "cannot specify a compound retriever and [allow_partial_search_results]",
+                "cannot specify [test_compound_retriever_builder] and [allow_partial_search_results]",
                 validationErrors.validationErrors().get(0)
             );
+        }
+        {
+            // scroll and compound retriever
+            SearchRequest searchRequest = createSearchRequest().source(
+                new SearchSourceBuilder().retriever(new TestCompoundRetrieverBuilder(randomIntBetween(1, 10)))
+            );
+            searchRequest.allowPartialSearchResults(false);
+            searchRequest.scroll(TimeValue.timeValueMinutes(1));
+            searchRequest.requestCache(false);
+            ActionRequestValidationException validationErrors = searchRequest.validate();
+            assertNotNull(validationErrors);
+            assertEquals(1, validationErrors.validationErrors().size());
+            assertEquals("cannot specify [test_compound_retriever_builder] and [scroll]", validationErrors.validationErrors().get(0));
         }
         {
             // allow_partial_results and non-compound retriever
@@ -437,33 +449,6 @@ public class SearchRequestTests extends AbstractSearchTestCase {
             assertNotNull(validationErrors);
             assertEquals(1, validationErrors.validationErrors().size());
             assertEquals("using [point in time] is not allowed in a scroll context", validationErrors.validationErrors().get(0));
-        }
-        {
-            // Minimum compatible shard node version with ccs_minimize_roundtrips
-            SearchRequest searchRequest;
-            boolean isMinCompatibleShardVersion = randomBoolean();
-            if (isMinCompatibleShardVersion) {
-                searchRequest = new SearchRequest(VersionUtils.randomVersion(random()));
-            } else {
-                searchRequest = new SearchRequest();
-            }
-
-            boolean shouldSetCcsMinimizeRoundtrips = randomBoolean();
-            if (shouldSetCcsMinimizeRoundtrips) {
-                searchRequest.setCcsMinimizeRoundtrips(true);
-            }
-            ActionRequestValidationException validationErrors = searchRequest.validate();
-
-            if (isMinCompatibleShardVersion && shouldSetCcsMinimizeRoundtrips) {
-                assertNotNull(validationErrors);
-                assertEquals(1, validationErrors.validationErrors().size());
-                assertEquals(
-                    "[ccs_minimize_roundtrips] cannot be [true] when setting a minimum compatible shard version",
-                    validationErrors.validationErrors().get(0)
-                );
-            } else {
-                assertNull(validationErrors);
-            }
         }
         {
             SearchRequest searchRequest = new SearchRequest().source(

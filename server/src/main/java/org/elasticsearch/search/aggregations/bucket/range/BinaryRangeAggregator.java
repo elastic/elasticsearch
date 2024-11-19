@@ -14,6 +14,7 @@ import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.index.fielddata.FieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.search.DocValueFormat;
@@ -157,7 +158,8 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
                 this.collector = (doc, bucket) -> {
                     if (values.advanceExact(doc)) {
                         int lo = 0;
-                        for (long ord = values.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = values.nextOrd()) {
+                        for (int i = 0; i < values.docValueCount(); i++) {
+                            long ord = values.nextOrd();
                             lo = collect(doc, ord, bucket, lo);
                         }
                     }
@@ -358,7 +360,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             ranges.length,

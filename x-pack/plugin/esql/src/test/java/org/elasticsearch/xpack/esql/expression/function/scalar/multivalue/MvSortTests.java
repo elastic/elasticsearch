@@ -110,6 +110,20 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
             );
         }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.DATE_NANOS, DataType.KEYWORD), () -> {
+            List<Long> field = randomList(1, 10, () -> randomLong());
+            BytesRef order = new BytesRef("DESC");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.DATE_NANOS, "field"),
+                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
+                ),
+                "MvSortLong[field=Attribute[channel=0], order=false]",
+                DataType.DATE_NANOS,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted(Collections.reverseOrder()).toList())
+            );
+        }));
     }
 
     private static void doubles(List<TestCaseSupplier> suppliers) {
@@ -153,6 +167,20 @@ public class MvSortTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvSortBytesRef[field=Attribute[channel=0], order=true]",
                 DataType.TEXT,
+                equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.SEMANTIC_TEXT, DataType.KEYWORD), () -> {
+            List<Object> field = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            BytesRef order = new BytesRef("ASC");
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field, DataType.SEMANTIC_TEXT, "field"),
+                    new TestCaseSupplier.TypedData(order, DataType.KEYWORD, "order").forceLiteral()
+                ),
+                "MvSortBytesRef[field=Attribute[channel=0], order=true]",
+                DataType.SEMANTIC_TEXT,
                 equalTo(field.size() == 1 ? field.iterator().next() : field.stream().sorted().toList())
             );
         }));

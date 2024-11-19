@@ -101,7 +101,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
         this.modelId = in.readOptionalString();
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.rateLimitSettings = new RateLimitSettings(in);
         } else {
             this.rateLimitSettings = DEFAULT_RATE_LIMIT_SETTINGS;
@@ -172,7 +172,7 @@ public class CohereRerankServiceSettings extends FilteredXContentObject implemen
 
         out.writeOptionalString(modelId);
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_RATE_LIMIT_SETTINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
         }
     }

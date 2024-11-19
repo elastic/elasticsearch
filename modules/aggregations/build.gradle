@@ -28,7 +28,7 @@ restResources {
   }
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
@@ -48,4 +48,6 @@ dependencies {
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("aggregations/date_agg_per_day_of_week/Date aggregartion per day of week", "week-date behaviour has changed")
+  task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
+  task.skipTest("aggregations/percentiles_hdr_metric/Negative values test", "returned exception has changed")
 })

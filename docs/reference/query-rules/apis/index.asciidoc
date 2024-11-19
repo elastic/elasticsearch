@@ -23,6 +23,7 @@ Use the following APIs to manage query rulesets:
 * <<put-query-rule>>
 * <<get-query-rule>>
 * <<delete-query-rule>>
+* preview:[] <<test-query-ruleset>>
 
 include::put-query-ruleset.asciidoc[]
 include::get-query-ruleset.asciidoc[]
@@ -31,4 +32,5 @@ include::delete-query-ruleset.asciidoc[]
 include::put-query-rule.asciidoc[]
 include::get-query-rule.asciidoc[]
 include::delete-query-rule.asciidoc[]
+include::test-query-ruleset.asciidoc[]
 

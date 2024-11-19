@@ -28,7 +28,7 @@ import java.util.Objects;
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 
-public class Aggregate extends UnaryPlan implements Stats {
+public class Aggregate extends UnaryPlan {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         LogicalPlan.class,
         "Aggregate",
@@ -41,7 +41,7 @@ public class Aggregate extends UnaryPlan implements Stats {
         METRICS;
 
         static void writeType(StreamOutput out, AggregateType type) throws IOException {
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 out.writeString(type.name());
             } else if (type != STANDARD) {
                 throw new IllegalStateException("cluster is not ready to support aggregate type [" + type + "]");
@@ -49,7 +49,7 @@ public class Aggregate extends UnaryPlan implements Stats {
         }
 
         static AggregateType readType(StreamInput in) throws IOException {
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ADD_AGGREGATE_TYPE)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
                 return AggregateType.valueOf(in.readString());
             } else {
                 return STANDARD;
@@ -60,6 +60,7 @@ public class Aggregate extends UnaryPlan implements Stats {
     private final AggregateType aggregateType;
     private final List<Expression> groupings;
     private final List<? extends NamedExpression> aggregates;
+
     private List<Attribute> lazyOutput;
 
     public Aggregate(
@@ -109,7 +110,10 @@ public class Aggregate extends UnaryPlan implements Stats {
         return new Aggregate(source(), newChild, aggregateType, groupings, aggregates);
     }
 
-    @Override
+    public Aggregate with(List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
+        return with(child(), newGroupings, newAggregates);
+    }
+
     public Aggregate with(LogicalPlan child, List<Expression> newGroupings, List<? extends NamedExpression> newAggregates) {
         return new Aggregate(source(), child, aggregateType(), newGroupings, newAggregates);
     }
@@ -163,7 +167,13 @@ public class Aggregate extends UnaryPlan implements Stats {
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        return Expressions.references(groupings).combine(Expressions.references(aggregates));
+        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
+        for (Expression grouping : groupings) {
+            if (grouping instanceof Alias) {
+                result.remove(((Alias) grouping).toAttribute());
+            }
+        }
+        return result;
     }
 
     @Override

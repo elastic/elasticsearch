@@ -93,7 +93,7 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         }
     }
 
-    record FieldTypeGenerator(DynamicMapping dynamicMapping) implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
+    record FieldTypeGenerator() implements DataSourceRequest<DataSourceResponse.FieldTypeGenerator> {
         public DataSourceResponse.FieldTypeGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
@@ -120,6 +120,12 @@ public interface DataSourceRequest<TResponse extends DataSourceResponse> {
         implements
             DataSourceRequest<DataSourceResponse.ObjectMappingParametersGenerator> {
         public DataSourceResponse.ObjectMappingParametersGenerator accept(DataSourceHandler handler) {
+            return handler.handle(this);
+        }
+    }
+
+    record DynamicMappingGenerator() implements DataSourceRequest<DataSourceResponse.DynamicMappingGenerator> {
+        public DataSourceResponse.DynamicMappingGenerator accept(DataSourceHandler handler) {
             return handler.handle(this);
         }
     }

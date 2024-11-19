@@ -47,13 +47,6 @@ import java.util.stream.Collectors;
  */
 public abstract class BaseRestHandler implements RestHandler {
 
-    /**
-     * Parameter that controls whether certain REST apis should include type names in their requests or responses.
-     * Note: This parameter is only available through compatible rest api for {@link RestApiVersion#V_7}.
-     */
-    public static final String INCLUDE_TYPE_NAME_PARAMETER = "include_type_name";
-    public static final boolean DEFAULT_INCLUDE_TYPE_NAME_POLICY = false;
-
     public static final Setting<Boolean> MULTI_ALLOW_EXPLICIT_INDEX = Setting.boolSetting(
         "rest.action.multi.allow_explicit_index",
         true,
@@ -132,6 +125,7 @@ public abstract class BaseRestHandler implements RestHandler {
             if (request.isStreamedContent()) {
                 assert action instanceof RequestBodyChunkConsumer;
                 var chunkConsumer = (RequestBodyChunkConsumer) action;
+
                 request.contentStream().setHandler(new HttpBody.ChunkHandler() {
                     @Override
                     public void onNext(ReleasableBytesReference chunk, boolean isLast) {
@@ -217,6 +211,15 @@ public abstract class BaseRestHandler implements RestHandler {
     }
 
     public interface RequestBodyChunkConsumer extends RestChannelConsumer {
+
+        /**
+         * Handle one chunk of the request body. The handler <b>must</b> close the chunk once it is no longer
+         * needed to avoid leaking.
+         *
+         * @param channel The rest channel associated to the request
+         * @param chunk The chunk of request body that is ready for processing
+         * @param isLast Whether the chunk is the last one of the request
+         */
         void handleChunk(RestChannel channel, ReleasableBytesReference chunk, boolean isLast);
 
         /**

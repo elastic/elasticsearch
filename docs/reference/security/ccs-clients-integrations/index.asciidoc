@@ -13,6 +13,7 @@ be secured as well, or at least communicate with the cluster in a secured way:
 * <<hadoop, Apache Hadoop>>
 * {auditbeat-ref}/securing-auditbeat.html[Auditbeat]
 * {filebeat-ref}/securing-filebeat.html[Filebeat]
+* {fleet-guide}/secure.html[{fleet} & {agent}]
 * {heartbeat-ref}/securing-heartbeat.html[Heartbeat]
 * {kibana-ref}/using-kibana-with-security.html[{kib}]
 * {logstash-ref}/ls-security.html[Logstash]

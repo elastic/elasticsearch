@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.versionfield.Version;
 import java.math.BigInteger;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.test.ESTestCase.randomBoolean;
 import static org.elasticsearch.test.ESTestCase.randomList;
@@ -37,56 +38,36 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0 <= max && 0 >= min && includeZero) {
-            cases.add(new TypedDataSupplier("<0 ints>", () -> randomList(minRows, maxRows, () -> 0), DataType.INTEGER, false, true));
+            addSuppliers(cases, minRows, maxRows, "0 int", DataType.INTEGER, () -> 0);
         }
 
         if (max != 0) {
-            cases.add(
-                new TypedDataSupplier("<" + max + " ints>", () -> randomList(minRows, maxRows, () -> max), DataType.INTEGER, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, max + " int", DataType.INTEGER, () -> max);
         }
 
         if (min != 0 && min != max) {
-            cases.add(
-                new TypedDataSupplier("<" + min + " ints>", () -> randomList(minRows, maxRows, () -> min), DataType.INTEGER, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, min + " int", DataType.INTEGER, () -> min);
         }
 
         int lower = Math.max(min, 1);
         int upper = Math.min(max, Integer.MAX_VALUE);
         if (lower < upper) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<positive ints>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomIntBetween(lower, upper)),
-                    DataType.INTEGER,
-                    false,
-                    true
-                )
-            );
+            addSuppliers(cases, minRows, maxRows, "positive int", DataType.INTEGER, () -> ESTestCase.randomIntBetween(lower, upper));
         }
 
         int lower1 = Math.max(min, Integer.MIN_VALUE);
         int upper1 = Math.min(max, -1);
         if (lower1 < upper1) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<negative ints>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomIntBetween(lower1, upper1)),
-                    DataType.INTEGER,
-                    false,
-                    true
-                )
-            );
+            addSuppliers(cases, minRows, maxRows, "negative int", DataType.INTEGER, () -> ESTestCase.randomIntBetween(lower1, upper1));
         }
 
         if (min < 0 && max > 0) {
-            cases.add(new TypedDataSupplier("<random ints>", () -> randomList(minRows, maxRows, () -> {
+            addSuppliers(cases, minRows, maxRows, "random int", DataType.INTEGER, () -> {
                 if (includeZero) {
                     return ESTestCase.randomIntBetween(min, max);
                 }
                 return randomBoolean() ? ESTestCase.randomIntBetween(min, -1) : ESTestCase.randomIntBetween(1, max);
-            }), DataType.INTEGER, false, true));
+            });
         }
 
         return cases;
@@ -96,56 +77,36 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0 <= max && 0 >= min && includeZero) {
-            cases.add(new TypedDataSupplier("<0 longs>", () -> randomList(minRows, maxRows, () -> 0L), DataType.LONG, false, true));
+            addSuppliers(cases, minRows, maxRows, "0 long", DataType.LONG, () -> 0L);
         }
 
         if (max != 0) {
-            cases.add(
-                new TypedDataSupplier("<" + max + " longs>", () -> randomList(minRows, maxRows, () -> max), DataType.LONG, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, max + " long", DataType.LONG, () -> max);
         }
 
         if (min != 0 && min != max) {
-            cases.add(
-                new TypedDataSupplier("<" + min + " longs>", () -> randomList(minRows, maxRows, () -> min), DataType.LONG, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, min + " long", DataType.LONG, () -> min);
         }
 
         long lower = Math.max(min, 1);
         long upper = Math.min(max, Long.MAX_VALUE);
         if (lower < upper) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<positive longs>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomLongBetween(lower, upper)),
-                    DataType.LONG,
-                    false,
-                    true
-                )
-            );
+            addSuppliers(cases, minRows, maxRows, "positive long", DataType.LONG, () -> ESTestCase.randomLongBetween(lower, upper));
         }
 
         long lower1 = Math.max(min, Long.MIN_VALUE);
         long upper1 = Math.min(max, -1);
         if (lower1 < upper1) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<negative longs>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomLongBetween(lower1, upper1)),
-                    DataType.LONG,
-                    false,
-                    true
-                )
-            );
+            addSuppliers(cases, minRows, maxRows, "negative long", DataType.LONG, () -> ESTestCase.randomLongBetween(lower1, upper1));
         }
 
         if (min < 0 && max > 0) {
-            cases.add(new TypedDataSupplier("<random longs>", () -> randomList(minRows, maxRows, () -> {
+            addSuppliers(cases, minRows, maxRows, "random long", DataType.LONG, () -> {
                 if (includeZero) {
                     return ESTestCase.randomLongBetween(min, max);
                 }
                 return randomBoolean() ? ESTestCase.randomLongBetween(min, -1) : ESTestCase.randomLongBetween(1, max);
-            }), DataType.LONG, false, true));
+            });
         }
 
         return cases;
@@ -156,29 +117,20 @@ public final class MultiRowTestCaseSupplier {
 
         // Zero
         if (BigInteger.ZERO.compareTo(max) <= 0 && BigInteger.ZERO.compareTo(min) >= 0 && includeZero) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<0 unsigned longs>",
-                    () -> randomList(minRows, maxRows, () -> BigInteger.ZERO),
-                    DataType.UNSIGNED_LONG,
-                    false,
-                    true
-                )
-            );
+            addSuppliers(cases, minRows, maxRows, "0 unsigned long", DataType.UNSIGNED_LONG, () -> BigInteger.ZERO);
         }
 
         // Small values, less than Long.MAX_VALUE
         BigInteger lower1 = min.max(BigInteger.ONE);
         BigInteger upper1 = max.min(BigInteger.valueOf(Long.MAX_VALUE));
         if (lower1.compareTo(upper1) < 0) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<small unsigned longs>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1)),
-                    DataType.UNSIGNED_LONG,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "small unsigned long",
+                DataType.UNSIGNED_LONG,
+                () -> ESTestCase.randomUnsignedLongBetween(lower1, upper1)
             );
         }
 
@@ -186,14 +138,13 @@ public final class MultiRowTestCaseSupplier {
         BigInteger lower2 = min.max(BigInteger.valueOf(Long.MAX_VALUE).add(BigInteger.ONE));
         BigInteger upper2 = max.min(ESTestCase.UNSIGNED_LONG_MAX);
         if (lower2.compareTo(upper2) < 0) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<big unsigned longs>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2)),
-                    DataType.UNSIGNED_LONG,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "big unsigned long",
+                DataType.UNSIGNED_LONG,
+                () -> ESTestCase.randomUnsignedLongBetween(lower2, upper2)
             );
         }
 
@@ -204,85 +155,77 @@ public final class MultiRowTestCaseSupplier {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
         if (0d <= max && 0d >= min && includeZero) {
-            cases.add(new TypedDataSupplier("<0 doubles>", () -> randomList(minRows, maxRows, () -> 0d), DataType.DOUBLE, false, true));
-            cases.add(new TypedDataSupplier("<-0 doubles>", () -> randomList(minRows, maxRows, () -> -0d), DataType.DOUBLE, false, true));
+            addSuppliers(cases, minRows, maxRows, "0 double", DataType.DOUBLE, () -> 0d);
+            addSuppliers(cases, minRows, maxRows, "-0 double", DataType.DOUBLE, () -> -0d);
         }
 
         if (max != 0d) {
-            cases.add(
-                new TypedDataSupplier("<" + max + " doubles>", () -> randomList(minRows, maxRows, () -> max), DataType.DOUBLE, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, max + " double", DataType.DOUBLE, () -> max);
         }
 
         if (min != 0d && min != max) {
-            cases.add(
-                new TypedDataSupplier("<" + min + " doubles>", () -> randomList(minRows, maxRows, () -> min), DataType.DOUBLE, false, true)
-            );
+            addSuppliers(cases, minRows, maxRows, min + " double", DataType.DOUBLE, () -> min);
         }
 
         double lower1 = Math.max(min, 0d);
         double upper1 = Math.min(max, 1d);
         if (lower1 < upper1) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<small positive doubles>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomDoubleBetween(lower1, upper1, true)),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "small positive double",
+                DataType.DOUBLE,
+                () -> ESTestCase.randomDoubleBetween(lower1, upper1, true)
             );
         }
 
         double lower2 = Math.max(min, -1d);
         double upper2 = Math.min(max, 0d);
         if (lower2 < upper2) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<small negative doubles>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomDoubleBetween(lower2, upper2, true)),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "small negative double",
+                DataType.DOUBLE,
+                () -> ESTestCase.randomDoubleBetween(lower2, upper2, true)
             );
         }
 
         double lower3 = Math.max(min, 1d);
         double upper3 = Math.min(max, Double.MAX_VALUE);
         if (lower3 < upper3) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<big positive doubles>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomDoubleBetween(lower3, upper3, true)),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "big positive double",
+                DataType.DOUBLE,
+                () -> ESTestCase.randomDoubleBetween(lower3, upper3, true)
             );
         }
 
         double lower4 = Math.max(min, -Double.MAX_VALUE);
         double upper4 = Math.min(max, -1d);
         if (lower4 < upper4) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<big negative doubles>",
-                    () -> randomList(minRows, maxRows, () -> ESTestCase.randomDoubleBetween(lower4, upper4, true)),
-                    DataType.DOUBLE,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "big negative double",
+                DataType.DOUBLE,
+                () -> ESTestCase.randomDoubleBetween(lower4, upper4, true)
             );
         }
 
         if (min < 0 && max > 0) {
-            cases.add(new TypedDataSupplier("<random doubles>", () -> randomList(minRows, maxRows, () -> {
+            addSuppliers(cases, minRows, maxRows, "random double", DataType.DOUBLE, () -> {
                 if (includeZero) {
                     return ESTestCase.randomDoubleBetween(min, max, true);
                 }
                 return randomBoolean() ? ESTestCase.randomDoubleBetween(min, -1, true) : ESTestCase.randomDoubleBetween(1, max, true);
-            }), DataType.DOUBLE, false, true));
+            });
         }
 
         return cases;
@@ -291,149 +234,126 @@ public final class MultiRowTestCaseSupplier {
     public static List<TypedDataSupplier> dateCases(int minRows, int maxRows) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
-        cases.add(
-            new TypedDataSupplier(
-                "<1970-01-01T00:00:00Z dates>",
-                () -> randomList(minRows, maxRows, () -> 0L),
-                DataType.DATETIME,
-                false,
-                true
-            )
+        addSuppliers(cases, minRows, maxRows, "1970-01-01T00:00:00Z date", DataType.DATETIME, () -> 0L);
+
+        // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
+        addSuppliers(cases, minRows, maxRows, "random date", DataType.DATETIME, () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11));
+
+        // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "far future date",
+            DataType.DATETIME,
+            () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE)
         );
 
-        cases.add(
-            new TypedDataSupplier(
-                "<random dates>",
-                // 1970-01-01T00:00:00Z - 2286-11-20T17:46:40Z
-                () -> randomList(minRows, maxRows, () -> ESTestCase.randomLongBetween(0, 10 * (long) 10e11)),
-                DataType.DATETIME,
-                false,
-                true
-            )
-        );
-
-        cases.add(
-            new TypedDataSupplier(
-                "<far future dates>",
-                // 2286-11-20T17:46:40Z - +292278994-08-17T07:12:55.807Z
-                () -> randomList(minRows, maxRows, () -> ESTestCase.randomLongBetween(10 * (long) 10e11, Long.MAX_VALUE)),
-                DataType.DATETIME,
-                false,
-                true
-            )
-        );
-
-        cases.add(
-            new TypedDataSupplier(
-                "<near the end of time dates>",
-                // very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
-                () -> randomList(minRows, maxRows, () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE)),
-                DataType.DATETIME,
-                false,
-                true
-            )
+        // Very close to +292278994-08-17T07:12:55.807Z, the maximum supported millis since epoch
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "near the end of time date",
+            DataType.DATETIME,
+            () -> ESTestCase.randomLongBetween(Long.MAX_VALUE / 100 * 99, Long.MAX_VALUE)
         );
 
         return cases;
     }
 
     public static List<TypedDataSupplier> booleanCases(int minRows, int maxRows) {
-        return List.of(
-            new TypedDataSupplier("<true booleans>", () -> randomList(minRows, maxRows, () -> true), DataType.BOOLEAN, false, true),
-            new TypedDataSupplier("<false booleans>", () -> randomList(minRows, maxRows, () -> false), DataType.BOOLEAN, false, true),
-            new TypedDataSupplier(
-                "<random booleans>",
-                () -> randomList(minRows, maxRows, ESTestCase::randomBoolean),
-                DataType.BOOLEAN,
-                false,
-                true
-            )
-        );
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(cases, minRows, maxRows, "true boolean", DataType.BOOLEAN, () -> true);
+        addSuppliers(cases, minRows, maxRows, "false boolean", DataType.BOOLEAN, () -> false);
+        addSuppliers(cases, minRows, maxRows, "random boolean", DataType.BOOLEAN, ESTestCase::randomBoolean);
+
+        return cases;
     }
 
     public static List<TypedDataSupplier> ipCases(int minRows, int maxRows) {
-        return List.of(
-            new TypedDataSupplier(
-                "<127.0.0.1 ips>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))),
-                DataType.IP,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<v4 ips>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(true)))),
-                DataType.IP,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<v6 ips>",
-                () -> randomList(minRows, maxRows, () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(false)))),
-                DataType.IP,
-                false,
-                true
-            )
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "127.0.0.1 ip",
+            DataType.IP,
+            () -> new BytesRef(InetAddressPoint.encode(InetAddresses.forString("127.0.0.1")))
         );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "random v4 ip",
+            DataType.IP,
+            () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(true)))
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "random v6 ip",
+            DataType.IP,
+            () -> new BytesRef(InetAddressPoint.encode(ESTestCase.randomIp(false)))
+        );
+
+        return cases;
     }
 
     public static List<TypedDataSupplier> versionCases(int minRows, int maxRows) {
-        return List.of(
-            new TypedDataSupplier(
-                "<major versions>",
-                () -> randomList(minRows, maxRows, () -> new Version(Integer.toString(ESTestCase.between(0, 100))).toBytesRef()),
-                DataType.VERSION,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<major.minor versions>",
-                () -> randomList(
-                    minRows,
-                    maxRows,
-                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()
-                ),
-                DataType.VERSION,
-                false,
-                true
-            ),
-            new TypedDataSupplier(
-                "<major.minor.patch versions>",
-                () -> randomList(
-                    minRows,
-                    maxRows,
-                    () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100))
-                        .toBytesRef()
-                ),
-                DataType.VERSION,
-                false,
-                true
-            )
+        List<TypedDataSupplier> cases = new ArrayList<>();
+
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "major version",
+            DataType.VERSION,
+            () -> new Version(Integer.toString(ESTestCase.between(0, 100))).toBytesRef()
         );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "major.minor version",
+            DataType.VERSION,
+            () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "major.minor.patch version",
+            DataType.VERSION,
+            () -> new Version(ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100) + "." + ESTestCase.between(0, 100)).toBytesRef()
+        );
+
+        return cases;
     }
 
     public static List<TypedDataSupplier> geoPointCases(int minRows, int maxRows, boolean withAltitude) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
-        cases.add(
-            new TypedDataSupplier(
-                "<no alt geo_points>",
-                () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))),
-                DataType.GEO_POINT,
-                false,
-                true
-            )
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<no alt geo_point>",
+            DataType.GEO_POINT,
+            () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))
         );
 
         if (withAltitude) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<with alt geo_points>",
-                    () -> randomList(minRows, maxRows, () -> GEO.asWkb(GeometryTestUtils.randomPoint(false))),
-                    DataType.GEO_POINT,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "<with alt geo_point>",
+                DataType.GEO_POINT,
+                () -> GEO.asWkb(GeometryTestUtils.randomPoint(true))
             );
         }
 
@@ -443,25 +363,23 @@ public final class MultiRowTestCaseSupplier {
     public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, boolean withAltitude) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
-        cases.add(
-            new TypedDataSupplier(
-                "<no alt cartesian_points>",
-                () -> randomList(minRows, maxRows, () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(false))),
-                DataType.CARTESIAN_POINT,
-                false,
-                true
-            )
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "<no alt cartesian_point>",
+            DataType.CARTESIAN_POINT,
+            () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(false))
         );
 
         if (withAltitude) {
-            cases.add(
-                new TypedDataSupplier(
-                    "<with alt cartesian_points>",
-                    () -> randomList(minRows, maxRows, () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(true))),
-                    DataType.CARTESIAN_POINT,
-                    false,
-                    true
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                maxRows,
+                "<with alt cartesian_point>",
+                DataType.CARTESIAN_POINT,
+                () -> CARTESIAN.asWkb(ShapeTestUtils.randomPoint(true))
             );
         }
 
@@ -471,59 +389,64 @@ public final class MultiRowTestCaseSupplier {
     public static List<TypedDataSupplier> stringCases(int minRows, int maxRows, DataType type) {
         List<TypedDataSupplier> cases = new ArrayList<>();
 
-        cases.addAll(
-            List.of(
-                new TypedDataSupplier(
-                    "<empty " + type + "s>",
-                    () -> randomList(minRows, maxRows, () -> new BytesRef("")),
-                    type,
-                    false,
-                    true
-                ),
-                new TypedDataSupplier(
-                    "<short alpha " + type + "s>",
-                    () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))),
-                    type,
-                    false,
-                    true
-                ),
-                new TypedDataSupplier(
-                    "<short unicode " + type + "s>",
-                    () -> randomList(minRows, maxRows, () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))),
-                    type,
-                    false,
-                    true
-                )
-            )
+        addSuppliers(cases, minRows, maxRows, "empty " + type, type, () -> new BytesRef(""));
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "short alpha " + type,
+            type,
+            () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(1, 30))
+        );
+        addSuppliers(
+            cases,
+            minRows,
+            maxRows,
+            "short unicode " + type,
+            type,
+            () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(1, 30))
         );
 
         if (minRows <= 100) {
             var longStringsMaxRows = Math.min(maxRows, 100);
 
-            cases.addAll(
-                List.of(
-                    new TypedDataSupplier(
-                        "<long alpha " + type + "s>",
-                        () -> randomList(minRows, longStringsMaxRows, () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 1000))),
-                        type,
-                        false,
-                        true
-                    ),
-                    new TypedDataSupplier(
-                        "<long unicode " + type + "s>",
-                        () -> randomList(
-                            minRows,
-                            longStringsMaxRows,
-                            () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 1000))
-                        ),
-                        type,
-                        false,
-                        true
-                    )
-                )
+            addSuppliers(
+                cases,
+                minRows,
+                longStringsMaxRows,
+                "long alpha " + type,
+                type,
+                () -> new BytesRef(ESTestCase.randomAlphaOfLengthBetween(300, 1000))
+            );
+            addSuppliers(
+                cases,
+                minRows,
+                longStringsMaxRows,
+                "long unicode " + type,
+                type,
+                () -> new BytesRef(ESTestCase.randomRealisticUnicodeOfLengthBetween(300, 1000))
             );
         }
 
         return cases;
+    }
+
+    private static <T> void addSuppliers(
+        List<TypedDataSupplier> cases,
+        int minRows,
+        int maxRows,
+        String name,
+        DataType type,
+        Supplier<T> valueSupplier
+    ) {
+        if (minRows <= 1 && maxRows >= 1) {
+            cases.add(new TypedDataSupplier("<single " + name + ">", () -> randomList(1, 1, valueSupplier), type, false, true));
+        }
+
+        if (maxRows > 1) {
+            cases.add(
+                new TypedDataSupplier("<" + name + "s>", () -> randomList(Math.max(2, minRows), maxRows, valueSupplier), type, false, true)
+            );
+        }
     }
 }

@@ -16,7 +16,7 @@ import java.util.Arrays;
 import java.util.Objects;
 import java.util.Set;
 
-public class PrevalidateShardPathRequest extends BaseNodesRequest<PrevalidateShardPathRequest> {
+public class PrevalidateShardPathRequest extends BaseNodesRequest {
 
     private final Set<ShardId> shardIds;
 

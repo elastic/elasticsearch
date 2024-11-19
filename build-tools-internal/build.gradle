@@ -258,9 +258,6 @@ tasks.named('licenseHeaders').configure {
  *****************************************************************************/
 
 repositories {
-  maven {
-    url 'https://jitpack.io'
-  }
   mavenCentral()
   gradlePluginPortal()
 }
@@ -382,6 +379,18 @@ tasks.register("bootstrapPerformanceTests", Copy) {
 
 tasks.named("jar") {
   exclude("classpath.index")
+}
+
+spotless {
+  java {
+
+    // workaround for https://github.com/diffplug/spotless/issues/2317
+    //toggleOffOn()
+    target project.fileTree("src/main/java") {
+      include '**/*.java'
+      exclude '**/DockerBase.java'
+    }
+  }
 }
 
 def resolveMainWrapperVersion() {

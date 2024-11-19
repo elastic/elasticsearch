@@ -769,7 +769,7 @@ process where command_line regex "^.*?net.exe"
 regexSingleArgInsensitive
 process where command_line regex~ "^.*?net.exe"
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiArg
@@ -781,7 +781,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe")
 regexMultiArgInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe")
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiMultiArgVariant
@@ -793,7 +793,7 @@ process where command_line regex ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\
 regexMultiMultiArgVariantInsensitive
 process where command_line regex~ ("^.*?net.exe", "net\\.exe", "C:\\\\Windows\\\\system32\\\\net1\\s+")
 ;
-"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","flags_value":255,"case_insensitive":true
+"regexp":{"command_line":{"value":"^.*?net.exe|net\\.exe|C:\\\\Windows\\\\system32\\\\net1\\s+","flags_value":65791,"case_insensitive":true
 ;
 
 regexMultiArgWithScript

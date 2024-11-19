@@ -329,6 +329,25 @@ include::repository-shared-settings.asciidoc[]
     `1000` which is the maximum number supported by the https://docs.aws.amazon.com/AmazonS3/latest/API/API_ListMultipartUploads.html[AWS
     ListMultipartUploads API]. If set to `0`, {es} will not attempt to clean up dangling multipart uploads.
 
+`throttled_delete_retry.delay_increment`::
+
+    (<<time-units,time value>>) This value is used as the delay before the first retry and the amount the delay is incremented by on each subsequent retry. Default is 50ms, minimum is 0ms.
+
+`throttled_delete_retry.maximum_delay`::
+
+    (<<time-units,time value>>) This is the upper bound on how long the delays between retries will grow to. Default is 5s, minimum is 0ms.
+
+`throttled_delete_retry.maximum_number_of_retries`::
+
+    (integer) Sets the number times to retry a throttled snapshot deletion. Defaults to `10`, minimum value is `0` which
+    will disable retries altogether. Note that if retries are enabled in the Azure client, each of these retries
+    comprises that many client-level retries.
+
+`get_register_retry_delay`
+
+    (<<time-units,time value>>) Sets the time to wait before trying again if an attempt to read a
+    <<repository-s3-linearizable-registers,linearizable register>> fails. Defaults to `5s`.
+
 NOTE: The option of defining client settings in the repository settings as
 documented below is considered deprecated, and will be removed in a future
 version.

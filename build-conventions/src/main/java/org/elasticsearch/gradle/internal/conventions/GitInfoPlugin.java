@@ -44,7 +44,7 @@ class GitInfoPlugin implements Plugin<Project> {
         gitInfo.disallowChanges();
         gitInfo.finalizeValueOnRead();
 
-        revision = gitInfo.map(info -> info.getRevision() == null ? info.getRevision() : "master");
+        revision = gitInfo.map(info -> info.getRevision() == null ? info.getRevision() : "main");
     }
 
     public Property<GitInfo> getGitInfo() {

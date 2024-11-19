@@ -28,8 +28,18 @@ public class InferenceFeatures implements FeatureSpecification {
             RandomRankRetrieverBuilder.RANDOM_RERANKER_RETRIEVER_SUPPORTED,
             SemanticTextFieldMapper.SEMANTIC_TEXT_SEARCH_INFERENCE_ID,
             SemanticQueryBuilder.SEMANTIC_TEXT_INNER_HITS,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_DEFAULT_ELSER_2,
             TextSimilarityRankRetrieverBuilder.TEXT_SIMILARITY_RERANKER_COMPOSITION_SUPPORTED
         );
     }
 
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(
+            SemanticTextFieldMapper.SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX
+        );
+    }
 }

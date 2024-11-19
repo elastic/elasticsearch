@@ -26,8 +26,8 @@ public class CaseInsensitiveWildcardQuery extends AutomatonQuery {
         super(term, toCaseInsensitiveWildcardAutomaton(term));
     }
 
-    public CaseInsensitiveWildcardQuery(Term term, int determinizeWorkLimit, boolean isBinary, RewriteMethod rewriteMethod) {
-        super(term, toCaseInsensitiveWildcardAutomaton(term), determinizeWorkLimit, isBinary, rewriteMethod);
+    public CaseInsensitiveWildcardQuery(Term term, boolean isBinary, RewriteMethod rewriteMethod) {
+        super(term, toCaseInsensitiveWildcardAutomaton(term), isBinary, rewriteMethod);
     }
 
     @Override

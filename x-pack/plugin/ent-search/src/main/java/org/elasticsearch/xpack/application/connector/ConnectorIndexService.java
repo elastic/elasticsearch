@@ -1073,7 +1073,7 @@ public class ConnectorIndexService {
         final List<ConnectorSearchResult> connectorResults = Arrays.stream(response.getHits().getHits())
             .map(ConnectorIndexService::hitToConnector)
             .toList();
-        return new ConnectorIndexService.ConnectorResult(connectorResults, (int) response.getHits().getTotalHits().value);
+        return new ConnectorIndexService.ConnectorResult(connectorResults, (int) response.getHits().getTotalHits().value());
     }
 
     private static ConnectorSearchResult hitToConnector(SearchHit searchHit) {
@@ -1115,7 +1115,7 @@ public class ConnectorIndexService {
             client.search(searchRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(SearchResponse searchResponse) {
-                    boolean indexNameIsInUse = searchResponse.getHits().getTotalHits().value > 0L;
+                    boolean indexNameIsInUse = searchResponse.getHits().getTotalHits().value() > 0L;
                     listener.onResponse(indexNameIsInUse);
                 }
 

@@ -8,6 +8,9 @@ When this happens, {ilm-init} moves the index to an `ERROR` step.
 If {ilm-init} cannot resolve the error automatically, execution is halted  
 until you resolve the underlying issues with the policy, index, or cluster.
 
+See this https://www.youtube.com/watch?v=VCIqkji3IwY[{ilm-init} health video] 
+for example troubleshooting walkthrough.
+
 For example, you might have a `shrink-index` policy that shrinks an index to four shards once it
 is at least five days old: 
 
@@ -183,6 +186,8 @@ The rollover action then manages setting and updating the alias to
 
 Do not explicitly configure this same alias in the aliases section of an index template.
 
+See this https://www.youtube.com/watch?v=Ww5POq4zZtY[resolving `duplicate alias` video] for an example troubleshooting walkthrough.
+
 [discrete]
 ==== index.lifecycle.rollover_alias [x] does not point to index [y]
 
@@ -191,6 +196,8 @@ Either the index is using the wrong alias or the alias does not exist.
 Check the `index.lifecycle.rollover_alias` <<indices-get-settings, index setting>>.
 To see what aliases are configured, use <<cat-alias, _cat/aliases>>.
 
+See this https://www.youtube.com/watch?v=NKSe67x7aw8[resolving `not point to index` video] for an example troubleshooting walkthrough.
+
 [discrete]
 ==== Setting [index.lifecycle.rollover_alias] for index [y] is empty or not defined
 
@@ -198,12 +205,16 @@ The `index.lifecycle.rollover_alias` setting must be configured for the rollover
 
 Update the index settings to set `index.lifecycle.rollover_alias`.
 
+See this https://www.youtube.com/watch?v=LRpMC2GS_FQ[resolving `empty or not defined` video] for an example troubleshooting walkthrough.
+
 [discrete]
 ==== Alias [x] has more than one write index [y,z]
 
 Only one index can be designated as the write index for a particular alias.
 
 Use the <<indices-aliases, aliases>> API to set `is_write_index:false` for all but one index.
+
+See this https://www.youtube.com/watch?v=jCUvZCT5Hm4[resolving `more than one write index` video] for an example troubleshooting walkthrough.
 
 [discrete]
 ==== index name [x] does not match pattern ^.*-\d+
@@ -213,6 +224,8 @@ The most common problem is that the index name does not contain trailing digits.
 For example, `my-index` does not match the pattern requirement.
 
 Append a numeric value to the index name, for example `my-index-000001`.
+
+See this https://www.youtube.com/watch?v=9sp1zF6iL00[resolving `does not match pattern` video] for an example troubleshooting walkthrough.
 
 [discrete]
 ==== CircuitBreakingException: [x] data too large, data for [y]
@@ -227,8 +240,7 @@ For more information, see <<circuit-breaker-errors>>.
 
 This indicates that the cluster is running out of disk space.
 This can happen when you don't have {ilm} set up to roll over from hot to warm nodes.
-
-Consider adding nodes, upgrading your hardware, or deleting unneeded indices.
+For more information, see <<fix-watermark-errors,Fix watermark errors>>.
 
 [discrete]
 ==== security_exception: action [<action-name>] is unauthorized for user [<user-name>] with roles [<role-name>], this action is granted by the index privileges [manage_follow_index,manage,all]

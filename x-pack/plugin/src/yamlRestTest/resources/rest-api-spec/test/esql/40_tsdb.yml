@@ -178,11 +178,19 @@ cast counter then filter:
 
 ---
 sort on counter without cast:
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sorting_on_source_and_counters_forbidden]
+      reason: "Sorting on counters shouldn't have been possible"
   - do:
-      catch: bad_request
+      catch: /cannot sort on counter_long/
       esql.query:
         body:
-          query: 'from test |  KEEP k8s.pod.network.tx | sort @k8s.pod.network.tx | limit 1'
+          query: 'from test |  KEEP k8s.pod.network.tx | sort k8s.pod.network.tx | limit 1'
 
 ---
 cast then sort on counter:

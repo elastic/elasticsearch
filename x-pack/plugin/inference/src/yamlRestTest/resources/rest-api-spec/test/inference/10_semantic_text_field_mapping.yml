@@ -343,3 +343,31 @@ setup:
                           inference_id: sparse-inference-id
                         another_field:
                           type: keyword
+
+---
+"Cannot be in an object field with subobjects disabled":
+  - requires:
+      cluster_features: "semantic_text.in_object_field_fix"
+      reason: object field fix added in 8.16.0 & 8.15.4
+
+  - do:
+      catch: bad_request
+      indices.create:
+        index: test-subobjects-index
+        body:
+          mappings:
+            properties:
+              level_1:
+                type: object
+                properties:
+                  level_2:
+                    type: object
+                    subobjects: false
+                    properties:
+                      sparse_field:
+                        type: semantic_text
+                        inference_id: sparse-inference-id
+
+  - match: { error.type: illegal_argument_exception }
+  - match: { error.reason: "semantic_text field [level_1.level_2.sparse_field] cannot be in an object field with
+                            subobjects disabled" }

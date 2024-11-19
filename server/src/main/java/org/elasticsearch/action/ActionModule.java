@@ -243,6 +243,7 @@ import org.elasticsearch.indices.store.TransportNodesListShardStoreMetadata;
 import org.elasticsearch.injection.guice.AbstractModule;
 import org.elasticsearch.injection.guice.TypeLiteral;
 import org.elasticsearch.injection.guice.multibindings.MapBinder;
+import org.elasticsearch.monitor.metrics.IndexModeStatsActionType;
 import org.elasticsearch.persistent.CompletionPersistentTaskAction;
 import org.elasticsearch.persistent.RemovePersistentTaskAction;
 import org.elasticsearch.persistent.StartPersistentTaskAction;
@@ -352,9 +353,7 @@ import org.elasticsearch.rest.action.admin.indices.RestResolveIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestRolloverIndexAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateIndexTemplateAction;
 import org.elasticsearch.rest.action.admin.indices.RestSimulateTemplateAction;
-import org.elasticsearch.rest.action.admin.indices.RestSyncedFlushAction;
 import org.elasticsearch.rest.action.admin.indices.RestUpdateSettingsAction;
-import org.elasticsearch.rest.action.admin.indices.RestUpgradeActionDeprecated;
 import org.elasticsearch.rest.action.admin.indices.RestValidateQueryAction;
 import org.elasticsearch.rest.action.cat.AbstractCatAction;
 import org.elasticsearch.rest.action.cat.RestAliasAction;
@@ -630,6 +629,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportNodesFeaturesAction.TYPE, TransportNodesFeaturesAction.class);
         actions.register(RemoteClusterNodesAction.TYPE, RemoteClusterNodesAction.TransportAction.class);
         actions.register(TransportNodesStatsAction.TYPE, TransportNodesStatsAction.class);
+        actions.register(IndexModeStatsActionType.TYPE, IndexModeStatsActionType.TransportAction.class);
         actions.register(TransportNodesUsageAction.TYPE, TransportNodesUsageAction.class);
         actions.register(TransportNodesHotThreadsAction.TYPE, TransportNodesHotThreadsAction.class);
         actions.register(TransportListTasksAction.TYPE, TransportListTasksAction.class);
@@ -853,7 +853,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterStateAction(settingsFilter, threadPool));
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
-        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter, clusterSupportsFeature));
+        registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
         registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
@@ -916,7 +916,6 @@ public class ActionModule extends AbstractModule {
 
         registerHandler.accept(new RestRefreshAction());
         registerHandler.accept(new RestFlushAction());
-        registerHandler.accept(new RestSyncedFlushAction());
         registerHandler.accept(new RestForceMergeAction());
         registerHandler.accept(new RestClearIndicesCacheAction());
         registerHandler.accept(new RestResolveClusterAction());
@@ -1002,8 +1001,6 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestCatComponentTemplateAction());
         registerHandler.accept(new RestAnalyzeIndexDiskUsageAction());
         registerHandler.accept(new RestFieldUsageStatsAction());
-
-        registerHandler.accept(new RestUpgradeActionDeprecated());
 
         // Desired nodes
         registerHandler.accept(new RestGetDesiredNodesAction());

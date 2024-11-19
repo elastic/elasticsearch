@@ -13,7 +13,7 @@ consumption, use the
 <<ml-get-job-stats,get anomaly detection job statistics API>>.
 ====
 
-Returns configuration and usage information about {anomaly-jobs}.
+Returns configuration and usage information about {ml-docs}/ml-ad-overview.html[{anomaly-jobs}].
 
 [[cat-anomaly-detectors-request]]
 ==== {api-request-title}

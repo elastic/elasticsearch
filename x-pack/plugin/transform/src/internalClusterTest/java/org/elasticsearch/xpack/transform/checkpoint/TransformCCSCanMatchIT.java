@@ -197,15 +197,13 @@ public class TransformCCSCanMatchIT extends AbstractMultiClustersTestCase {
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             true,
             0,
-            // All but 2 shards are skipped. TBH I don't know why this 2 shards are not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 2
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
         testSearchAction(
             QueryBuilders.rangeQuery("@timestamp").from(100_000_000),  // This query matches no documents
             false,
             0,
-            // All but 1 shards are skipped. TBH I don't know why this 1 shard is not skipped
-            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards - 1
+            oldLocalNumShards + newLocalNumShards + oldRemoteNumShards + newRemoteNumShards
         );
     }
 

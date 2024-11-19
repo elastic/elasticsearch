@@ -253,35 +253,17 @@ public class DiskThresholdDeciderIT extends DiskUsageIntegTestCase {
     }
 
     /**
-     * Index documents until all the shards are at least WATERMARK_BYTES in size, and return the one with the smallest size
+     * Index documents until all the shards are at least WATERMARK_BYTES in size.
+     * @return the shard sizes.
      */
     private ShardSizes createReasonableSizedShards(final String indexName) {
-        while (true) {
-            indexRandom(false, indexName, scaledRandomIntBetween(100, 10000));
-            forceMerge();
-            refresh();
-
-            final ShardStats[] shardStates = indicesAdmin().prepareStats(indexName)
-                .clear()
-                .setStore(true)
-                .setTranslog(true)
-                .get()
-                .getShards();
-
-            var smallestShardSize = Arrays.stream(shardStates)
-                .mapToLong(it -> it.getStats().getStore().sizeInBytes())
-                .min()
-                .orElseThrow(() -> new AssertionError("no shards"));
-
-            if (smallestShardSize > WATERMARK_BYTES) {
-                var shardSizes = Arrays.stream(shardStates)
-                    .map(it -> new ShardSize(removeIndexUUID(it.getShardRouting().shardId()), it.getStats().getStore().sizeInBytes()))
-                    .sorted(Comparator.comparing(ShardSize::size))
-                    .toList();
-                logger.info("Created shards with sizes {}", shardSizes);
-                return new ShardSizes(shardSizes);
-            }
-        }
+        ShardStats[] shardStats = indexAllShardsToAnEqualOrGreaterMinimumSize(indexName, WATERMARK_BYTES);
+        var shardSizes = Arrays.stream(shardStats)
+            .map(it -> new ShardSize(removeIndexUUID(it.getShardRouting().shardId()), it.getStats().getStore().sizeInBytes()))
+            .sorted(Comparator.comparing(ShardSize::size))
+            .toList();
+        logger.info("Created shards with sizes {}", shardSizes);
+        return new ShardSizes(shardSizes);
     }
 
     private record ShardSizes(List<ShardSize> sizes) {

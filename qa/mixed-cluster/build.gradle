@@ -10,7 +10,6 @@
 
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -61,8 +60,10 @@ excludeList.add('cluster.desired_nodes/20_dry_run/Test validation works for dry 
 // Excluded because they create dot-prefixed indices on older versions
 excludeList.add('indices.resolve_index/20_resolve_system_index/*')
 
-BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
+// Excluded because the error has changed
+excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 
+buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of
      the nodes has a different minor.  */
@@ -71,6 +72,7 @@ BuildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       numberOfNodes = 4
       setting 'path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       setting 'xpack.security.enabled', 'false'
+      setting "xpack.license.self_generated.type", "trial"
       /* There is a chance we have more master changes than "normal", so to avoid this test from failing,
        we increase the threshold (as this purpose of this test isn't to test that specific indicator). */
       if (bwcVersion.onOrAfter(Version.fromString("8.4.0"))) {

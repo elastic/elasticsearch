@@ -35,11 +35,17 @@ public final class EnrichResolution {
 
     }
 
+    // created for testing
+    public boolean hasErrors() {
+        return errors.size() > 0;
+    }
+
     public String getError(String policyName, Enrich.Mode mode) {
         final String error = errors.get(new Key(policyName, mode));
         if (error != null) {
             return error;
         } else {
+            // TODO: I don't understand this code - why not just return null? Why is it wrong to call this when there's no errors?
             assert false : "unresolved enrich policy [" + policyName + "] mode [" + mode + "]";
             return "unresolved enrich policy [" + policyName + "] mode [" + mode + "]";
         }

@@ -162,7 +162,9 @@ public class TransportSimulateTemplateAction extends TransportMasterNodeReadActi
         overlapping.putAll(
             findConflictingV1Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
         );
-        overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(
+            findConflictingV2Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
+        );
 
         Template template = TransportSimulateIndexTemplateAction.resolveTemplate(
             matchingTemplate,

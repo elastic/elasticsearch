@@ -165,7 +165,9 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         overlapping.putAll(
             findConflictingV1Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
         );
-        overlapping.putAll(findConflictingV2Templates(tempClusterState, matchingTemplate, templateV2.indexPatterns()));
+        overlapping.putAll(
+            findConflictingV2Templates(tempClusterState.metadata().getProject(), matchingTemplate, templateV2.indexPatterns())
+        );
 
         if (request.includeDefaults()) {
             listener.onResponse(

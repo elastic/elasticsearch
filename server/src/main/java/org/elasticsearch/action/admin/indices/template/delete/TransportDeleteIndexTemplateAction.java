@@ -20,6 +20,7 @@ import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.injection.guice.Inject;
@@ -36,6 +37,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
     private static final Logger logger = LogManager.getLogger(TransportDeleteIndexTemplateAction.class);
 
     private final MetadataIndexTemplateService indexTemplateService;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportDeleteIndexTemplateAction(
@@ -44,6 +46,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
         ThreadPool threadPool,
         MetadataIndexTemplateService indexTemplateService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -57,6 +60,7 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.indexTemplateService = indexTemplateService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -71,7 +75,8 @@ public class TransportDeleteIndexTemplateAction extends AcknowledgedTransportMas
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        indexTemplateService.removeTemplates(request.name(), request.masterNodeTimeout(), new ActionListener<>() {
+        final var projectId = projectResolver.getProjectId();
+        indexTemplateService.removeTemplates(projectId, request.name(), request.masterNodeTimeout(), new ActionListener<>() {
             @Override
             public void onResponse(AcknowledgedResponse response) {
                 listener.onResponse(response);

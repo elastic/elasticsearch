@@ -200,6 +200,7 @@ public class MetadataIndexTemplateService {
     }
 
     public void removeTemplates(
+        final ProjectId projectId,
         final String templatePattern,
         final TimeValue timeout,
         final ActionListener<AcknowledgedResponse> listener
@@ -208,7 +209,8 @@ public class MetadataIndexTemplateService {
             @Override
             public ClusterState execute(ClusterState currentState) {
                 Set<String> templateNames = new HashSet<>();
-                for (Map.Entry<String, IndexTemplateMetadata> cursor : currentState.metadata().getProject().templates().entrySet()) {
+                var project = currentState.metadata().getProject(projectId);
+                for (Map.Entry<String, IndexTemplateMetadata> cursor : project.templates().entrySet()) {
                     String templateName = cursor.getKey();
                     if (Regex.simpleMatch(templatePattern, templateName)) {
                         templateNames.add(templateName);
@@ -222,12 +224,12 @@ public class MetadataIndexTemplateService {
                     }
                     throw new IndexTemplateMissingException(templatePattern);
                 }
-                Metadata.Builder metadata = Metadata.builder(currentState.metadata());
+                ProjectMetadata.Builder metadata = ProjectMetadata.builder(project);
                 for (String templateName : templateNames) {
                     logger.info("removing template [{}]", templateName);
                     metadata.removeTemplate(templateName);
                 }
-                return ClusterState.builder(currentState).metadata(metadata).build();
+                return ClusterState.builder(currentState).putProjectMetadata(metadata).build();
             }
         }, timeout);
     }
@@ -936,11 +938,11 @@ public class MetadataIndexTemplateService {
      * with the given template's index patterns.
      */
     public static Map<String, List<String>> findConflictingV2Templates(
-        final ClusterState state,
+        final ProjectMetadata project,
         final String candidateName,
         final List<String> indexPatterns
     ) {
-        return findConflictingV2Templates(state.metadata().getProject(), candidateName, indexPatterns, false, 0L);
+        return findConflictingV2Templates(project, candidateName, indexPatterns, false, 0L);
     }
 
     /**
@@ -1111,7 +1113,12 @@ public class MetadataIndexTemplateService {
             .collect(Collectors.toSet());
     }
 
-    public void putTemplate(final PutRequest request, final TimeValue timeout, final ActionListener<AcknowledgedResponse> listener) {
+    public void putTemplate(
+        final ProjectId projectId,
+        final PutRequest request,
+        final TimeValue timeout,
+        final ActionListener<AcknowledgedResponse> listener
+    ) {
         Settings.Builder updatedSettingsBuilder = Settings.builder();
         updatedSettingsBuilder.put(request.settings).normalizePrefix(IndexMetadata.INDEX_SETTING_PREFIX);
         request.settings(updatedSettingsBuilder.build());
@@ -1140,7 +1147,7 @@ public class MetadataIndexTemplateService {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     validateTemplate(request.settings, request.mappings, indicesService);
-                    return innerPutTemplate(currentState, request, templateBuilder);
+                    return innerPutTemplate(currentState.projectState(projectId), request, templateBuilder);
                 }
             },
             timeout
@@ -1149,20 +1156,20 @@ public class MetadataIndexTemplateService {
 
     // Package visible for testing
     static ClusterState innerPutTemplate(
-        final ClusterState currentState,
+        final ProjectState currentState,
         PutRequest request,
         IndexTemplateMetadata.Builder templateBuilder
     ) {
         // Flag for whether this is updating an existing template or adding a new one
         // TODO: in 8.0+, only allow updating index templates, not adding new ones
-        boolean isUpdate = currentState.metadata().getProject().templates().containsKey(request.name);
+        boolean isUpdate = currentState.metadata().templates().containsKey(request.name);
         if (request.create && isUpdate) {
             throw new IllegalArgumentException("index_template [" + request.name + "] already exists");
         }
         boolean isUpdateAndPatternsAreUnchanged = isUpdate
-            && currentState.metadata().getProject().templates().get(request.name).patterns().equals(request.indexPatterns);
+            && currentState.metadata().templates().get(request.name).patterns().equals(request.indexPatterns);
 
-        Map<String, List<String>> overlaps = findConflictingV2Templates(currentState, request.name, request.indexPatterns);
+        Map<String, List<String>> overlaps = findConflictingV2Templates(currentState.metadata(), request.name, request.indexPatterns);
         if (overlaps.size() > 0) {
             // Be less strict (just a warning) if we're updating an existing template or this is a match-all template
             if (isUpdateAndPatternsAreUnchanged || request.indexPatterns.stream().anyMatch(Regex::isMatchAllPattern)) {
@@ -1220,16 +1227,14 @@ public class MetadataIndexTemplateService {
             templateBuilder.putAlias(aliasMetadata);
         }
         IndexTemplateMetadata template = templateBuilder.build();
-        IndexTemplateMetadata existingTemplate = currentState.metadata().getProject().templates().get(request.name);
+        IndexTemplateMetadata existingTemplate = currentState.metadata().templates().get(request.name);
         if (template.equals(existingTemplate)) {
             // The template is unchanged, therefore there is no need for a cluster state update
-            return currentState;
+            return currentState.cluster();
         }
 
-        Metadata.Builder builder = Metadata.builder(currentState.metadata()).put(template);
-
         logger.info("adding template [{}] for index patterns {}", request.name, request.indexPatterns);
-        return ClusterState.builder(currentState).metadata(builder).build();
+        return currentState.updatedState(builder -> builder.put(template));
     }
 
     /**

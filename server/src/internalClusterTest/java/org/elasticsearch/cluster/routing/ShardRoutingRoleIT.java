@@ -17,8 +17,10 @@ import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsGroup;
 import org.elasticsearch.action.admin.cluster.shards.ClusterSearchShardsRequest;
 import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShardsAction;
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
+import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
 import org.elasticsearch.action.search.SearchRequestBuilder;
+import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.ClusterChangedEvent;
@@ -543,7 +545,11 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                     }
                 }
                 BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
-                return prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true);
+                try {
+                    return prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true);
+                } finally {
+                    client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId));
+                }
             }).toArray(SearchRequestBuilder[]::new));
 
             // search-shards API

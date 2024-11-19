@@ -270,12 +270,12 @@ public class IndexingPressure {
         long currentUsage = (currentCombinedCoordinatingAndPrimaryBytes.get() + currentReplicaBytes.get());
         if (currentUsage >= highWatermark && size >= highWatermarkSize) {
             highWaterMarkSplits.getAndIncrement();
-            logger.trace(() -> Strings.format("Split bulk due to high watermark: currentUsage [%d] and size [%d]", currentUsage, size));
+            logger.trace(() -> Strings.format("Split bulk due to high watermark: current bytes [%d] and size [%d]", currentUsage, size));
             return (true);
         }
         if (currentUsage >= lowWatermark && size >= lowWatermarkSize) {
             lowWaterMarkSplits.getAndIncrement();
-            logger.trace(() -> Strings.format("Split bulk due to low watermark: currentUsage [%d] and size [%d]", currentUsage, size));
+            logger.trace(() -> Strings.format("Split bulk due to low watermark: current bytes [%d] and size [%d]", currentUsage, size));
             return (true);
         }
         return (false);

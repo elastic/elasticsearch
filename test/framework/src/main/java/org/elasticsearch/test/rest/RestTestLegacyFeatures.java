@@ -17,7 +17,6 @@ import org.elasticsearch.features.NodeFeature;
 import java.util.Map;
 
 import static java.util.Map.entry;
-import static org.elasticsearch.cluster.ClusterState.VERSION_INTRODUCING_TRANSPORT_VERSIONS;
 
 /**
  * This class groups historical features that have been removed from the production codebase, but are still used by the test
@@ -29,15 +28,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature COMPONENT_TEMPLATE_SUPPORTED = new NodeFeature("indices.component_template_supported");
     public static final NodeFeature ML_NEW_MEMORY_FORMAT = new NodeFeature("ml.new_memory_format");
-
-    /** These are "pure test" features: normally we would not need them, and test for TransportVersion/fallback to Version (see for example
-     * {@code ESRestTestCase#minimumTransportVersion()}. However, some tests explicitly check and validate the content of a response, so
-     * we need these features to support them.
-     */
-    public static final NodeFeature TRANSPORT_VERSION_SUPPORTED = new NodeFeature("transport_version_supported");
-    public static final NodeFeature STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION = new NodeFeature(
-        "state.transport_version_to_nodes_version"
-    );
 
     // Ref: https://github.com/elastic/elasticsearch/pull/86416
     public static final NodeFeature ML_MEMORY_OVERHEAD_FIXED = new NodeFeature("ml.memory_overhead_fixed");
@@ -88,8 +78,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature NEW_DATA_STREAMS_INDEX_NAME_FORMAT = new NodeFeature("data_stream.new_index_name_format");
     @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
-    public static final NodeFeature DISABLE_FIELD_NAMES_FIELD_REMOVED = new NodeFeature("disable_of_field_names_field_removed");
-    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final NodeFeature ML_NLP_SUPPORTED = new NodeFeature("ml.nlp_supported");
 
     // YAML
@@ -103,8 +91,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SECURITY_UPDATE_API_KEY, Version.V_8_4_0),
             entry(SECURITY_BULK_UPDATE_API_KEY, Version.V_8_5_0),
             entry(ML_NEW_MEMORY_FORMAT, Version.V_8_11_0),
-            entry(TRANSPORT_VERSION_SUPPORTED, VERSION_INTRODUCING_TRANSPORT_VERSIONS),
-            entry(STATE_REPLACED_TRANSPORT_VERSION_WITH_NODES_VERSION, Version.V_8_11_0),
             entry(ML_MEMORY_OVERHEAD_FIXED, Version.V_8_2_1),
             entry(REST_ELASTIC_PRODUCT_HEADER_PRESENT, Version.V_8_0_1),
             entry(DESIRED_NODE_API_SUPPORTED, Version.V_8_1_0),
@@ -125,7 +111,6 @@ public class RestTestLegacyFeatures implements FeatureSpecification {
             entry(SLM_SUPPORTED, Version.V_7_4_0),
             entry(DATA_STREAMS_SUPPORTED, Version.V_7_9_0),
             entry(NEW_DATA_STREAMS_INDEX_NAME_FORMAT, Version.V_7_11_0),
-            entry(DISABLE_FIELD_NAMES_FIELD_REMOVED, Version.V_8_0_0),
             entry(ML_NLP_SUPPORTED, Version.V_8_0_0)
         );
     }

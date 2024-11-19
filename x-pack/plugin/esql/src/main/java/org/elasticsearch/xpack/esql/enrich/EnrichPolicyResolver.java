@@ -130,7 +130,6 @@ public class EnrichPolicyResolver {
             }
 
             for (UnresolvedPolicy unresolved : unresolvedPolicies) {
-                // MP TODO: change mergeLookupResults to return MergedPolicyLookupResult
                 MergedPolicyLookupResult resolved = mergeLookupResults(
                     unresolved,
                     calculateTargetClusters(unresolved.mode, includeLocal, remotes),
@@ -230,16 +229,14 @@ public class EnrichPolicyResolver {
                     .filter(c -> policies.containsKey(c) == false)
                     .sorted()
                     .toList();
-                // MP TODO: add assert that all of these are skip_un=false clusters, thus is fatal
                 reason = missingPolicyError(policyName, targetClusters.keySet(), missingClusters);
             } else {
                 reason = "failed to resolve enrich policy [" + policyName + "]; reason " + failures;
             }
-            // return Tuple.tuple(null, reason);
             return new MergedPolicyLookupResult(null, remotesToBeSkipped, reason);
-        } else if (targetClusters.size() == remotesToBeSkipped.size()) {
-            // MP TODO: this doesn't feel right to me - are we ever seeing this block get hit?
-            // no target cluster had an enrich policy and all are skip_unavailable=true
+        } else if (policies.isEmpty()) {
+            // no target cluster had a valid enrich policy and all are skip_unavailable=true
+            assert targetClusters.values().stream().allMatch(b -> b == Boolean.TRUE) : "Not all target clusters are skip_unavailable=true";
             return new MergedPolicyLookupResult(null, remotesToBeSkipped, null);
         }
 
@@ -252,7 +249,6 @@ public class EnrichPolicyResolver {
             if (last != null && last.matchField().equals(curr.matchField()) == false) {
                 String error = "enrich policy [" + policyName + "] has different match fields ";
                 error += "[" + last.matchField() + ", " + curr.matchField() + "] across clusters";
-                // MP TODO: handle skip_un here
                 return new MergedPolicyLookupResult(null, remotesToBeSkipped, error);
             }
             if (last != null && last.matchType().equals(curr.matchType()) == false) {
@@ -274,7 +270,6 @@ public class EnrichPolicyResolver {
                 if (old != null && old.getDataType().equals(field.getDataType()) == false) {
                     String error = "field [" + m.getKey() + "] of enrich policy [" + policyName + "] has different data types ";
                     error += "[" + old.getDataType() + ", " + field.getDataType() + "] across clusters";
-                    // TODO: we should return remotesToBeSkipped here (and other error paths), right?
                     return new MergedPolicyLookupResult(null, remotesToBeSkipped, error);
                 }
             }
@@ -287,7 +282,6 @@ public class EnrichPolicyResolver {
                 if (diff.isEmpty() == false) {
                     String detailed = "these fields are missing in some policies: " + diff;
                     String fullMessage = "enrich policy [" + policyName + "] has different enrich fields across clusters; " + detailed;
-                    // TODO: we should return remotesToBeSkipped here (and other error paths), right?
                     return new MergedPolicyLookupResult(null, remotesToBeSkipped, fullMessage);
                 }
             }

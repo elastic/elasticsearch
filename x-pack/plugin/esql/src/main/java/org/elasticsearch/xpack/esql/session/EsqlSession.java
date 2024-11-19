@@ -315,10 +315,8 @@ public class EsqlSession {
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            Map<String, Exception> unavailableClusters = enrichResolution.unusableRemotes();
-            preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
-                // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
-                // resolution to updateExecutionInfo
+            Map<String, Exception> unusableRemotes = enrichResolution.unusableRemotes();
+            preAnalyzeIndices(parsed, executionInfo, unusableRemotes, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
                     EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());

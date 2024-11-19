@@ -42,10 +42,6 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testUpgradeDesiredNodes() throws Exception {
-        assertUpgradedNodesCanReadDesiredNodes();
-    }
-
-    private void assertUpgradedNodesCanReadDesiredNodes() throws Exception {
         if (isMixedCluster() || isUpgradedCluster()) {
             final Map<String, Object> desiredNodes = getLatestDesiredNodes();
             final String historyId = extractValue(desiredNodes, "history_id");

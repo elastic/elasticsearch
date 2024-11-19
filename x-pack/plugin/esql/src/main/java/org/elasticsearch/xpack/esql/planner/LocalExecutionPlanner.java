@@ -489,7 +489,8 @@ public class LocalExecutionPlanner {
                 enrichIndex,
                 enrich.matchType(),
                 enrich.policyMatchField(),
-                enrich.enrichFields()
+                enrich.enrichFields(),
+                enrich.source()
             ),
             layout
         );

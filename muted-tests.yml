@@ -217,9 +217,6 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
-- class: org.elasticsearch.repositories.s3.RepositoryS3RestIT
-  method: testReloadCredentialsFromKeystore
-  issue: https://github.com/elastic/elasticsearch/issues/116811
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/116851
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
@@ -242,6 +239,12 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116879
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   issue: https://github.com/elastic/elasticsearch/issues/116899
+- class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
+  method: testQueryBuilderBWC {p0=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/116989
+- class: org.elasticsearch.upgrades.QueryBuilderBWCIT
+  method: testQueryBuilderBWC {cluster=UPGRADED}
+  issue: https://github.com/elastic/elasticsearch/issues/116990
 
 # Examples:
 #

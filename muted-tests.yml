@@ -17,9 +17,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110408"
-  method: "testCreateAndRestorePartialSearchableSnapshot"
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
@@ -284,9 +281,6 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests
-  method: testHasPrivilegesOtherThanIndex
-  issue: https://github.com/elastic/elasticsearch/issues/116376
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/116434
@@ -328,8 +322,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/116542
-- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/116817
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHex
   issue: https://github.com/elastic/elasticsearch/issues/115705
@@ -339,11 +331,17 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
   issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/116945
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues}
   issue: https://github.com/elastic/elasticsearch/issues/116945
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
@@ -357,6 +355,9 @@ tests:
 - class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
   method: testCohereEmbeddings {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/116975
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/117027
 
 # Examples:
 #

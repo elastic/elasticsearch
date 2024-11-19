@@ -38,6 +38,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeSinkOperator;
 import org.elasticsearch.compute.operator.exchange.ExchangeSourceOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperatorStatus;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.RestController;
@@ -45,6 +46,7 @@ import org.elasticsearch.rest.RestHandler;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.FixedExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.core.XPackPlugin;
 import org.elasticsearch.xpack.core.action.XPackInfoFeatureAction;
 import org.elasticsearch.xpack.core.action.XPackUsageFeatureAction;
 import org.elasticsearch.xpack.esql.EsqlInfoTransportAction;
@@ -116,7 +118,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         BlockFactory blockFactory = new BlockFactory(circuitBreaker, bigArrays, maxPrimitiveArrayBlockSize);
         setupSharedSecrets();
         return List.of(
-            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry()),
+            new PlanExecutor(new IndexResolver(services.client()), services.telemetryProvider().getMeterRegistry(), getLicenseState()),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory
         );
@@ -129,6 +131,11 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         } catch (IllegalAccessException e) {
             throw new AssertionError(e);
         }
+    }
+
+    // to be overriden by tests
+    protected XPackLicenseState getLicenseState() {
+        return XPackPlugin.getSharedLicenseState();
     }
 
     /**

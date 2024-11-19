@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
@@ -83,9 +84,11 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 public class Verifier {
 
     private final Metrics metrics;
+    private final XPackLicenseState licenseState;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState) {
         this.metrics = metrics;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -204,6 +207,10 @@ public class Verifier {
         checkRemoteEnrich(plan, failures);
         checkMetadataScoreNameReserved(plan, failures);
         checkScoreManipulationBetweenMultipleFulltextExpressions(plan, failures);
+
+        if (failures.isEmpty()) {
+            checkLicense(plan, licenseState, failures);
+        }
 
         // gather metrics
         if (failures.isEmpty()) {
@@ -589,6 +596,14 @@ public class Verifier {
             Failure f = validateBinaryComparison(bc);
             if (f != null) {
                 failures.add(f);
+            }
+        });
+    }
+
+    private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
+        plan.forEachExpressionDown(Function.class, p -> {
+            if (p.checkLicense(licenseState) == false) {
+                failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));
             }
         });
     }

@@ -14,7 +14,10 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
-import java.util.*;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     private final CustomSyntheticSourceFieldLookup customSyntheticSourceFieldLookup;
@@ -162,7 +165,8 @@ class SyntheticSourceDocumentParserListener implements DocumentParserListener {
     }
 
     private void addIgnoredSourceValue(StoredValue storedValue, String fullPath, LuceneDocument luceneDocument) {
-        var values = ignoredSourceValues.computeIfAbsent(luceneDocument, ld -> new HashMap<>()).computeIfAbsent(fullPath, p -> new ArrayList<>());
+        var values = ignoredSourceValues.computeIfAbsent(luceneDocument, ld -> new HashMap<>())
+            .computeIfAbsent(fullPath, p -> new ArrayList<>());
 
         values.add(storedValue);
     }

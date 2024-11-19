@@ -20,7 +20,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
@@ -43,8 +42,6 @@ public class DesiredNodesUpgradeIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testUpgradeDesiredNodes() throws Exception {
-        assumeTrue("Desired nodes was introduced in 8.1", oldClusterHasFeature(RestTestLegacyFeatures.DESIRED_NODE_API_SUPPORTED));
-
         assertUpgradedNodesCanReadDesiredNodes();
     }
 

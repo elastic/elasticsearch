@@ -9,6 +9,8 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automata;
+import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
@@ -34,6 +36,8 @@ import static org.hamcrest.Matchers.is;
 public class WildcardExpressionResolverTests extends ESTestCase {
 
     private static final Predicate<String> NONE = name -> false;
+    private static final Automaton NONE_AUTOMATON = Automata.makeEmpty();
+
 
     public void testConvertWildcardsJustIndicesTests() {
         Metadata.Builder mdBuilder = Metadata.builder()
@@ -356,7 +360,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 true,
                 SystemIndexAccessLevel.NONE,
-                NONE,
+                NONE_AUTOMATON,
                 NONE
             );
 
@@ -381,7 +385,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 true,
                 SystemIndexAccessLevel.NONE,
-                NONE,
+                NONE_AUTOMATON,
                 NONE
             );
 
@@ -686,7 +690,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 true,
                 SystemIndexAccessLevel.NONE,
-                NONE,
+                NONE_AUTOMATON,
                 NONE
             );
 
@@ -743,7 +747,7 @@ public class WildcardExpressionResolverTests extends ESTestCase {
                 false,
                 true,
                 SystemIndexAccessLevel.NONE,
-                NONE,
+                NONE_AUTOMATON,
                 NONE
             );
 

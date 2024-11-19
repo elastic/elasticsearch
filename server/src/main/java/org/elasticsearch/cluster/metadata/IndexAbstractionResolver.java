@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -161,7 +162,7 @@ public class IndexAbstractionResolver {
             case NONE:
                 return false;
             case RESTRICTED:
-                return resolver.getSystemIndexAccessPredicate().test(indexAbstraction.getName());
+                return new CharacterRunAutomaton(resolver.getSystemIndexAccessAutomaton()).run(indexAbstraction.getName());
             case BACKWARDS_COMPATIBLE_ONLY:
                 return resolver.getNetNewSystemIndexPredicate().test(indexAbstraction.getName());
             default:

@@ -33,7 +33,6 @@ import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
-import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.plugins.SystemIndexPlugin;
@@ -146,7 +145,7 @@ public class SystemIndices {
     private final Predicate<String> systemDataStreamPredicate;
     private final SystemIndexDescriptor[] indexDescriptors;
     private final Map<String, SystemDataStreamDescriptor> dataStreamDescriptors;
-    private final Map<String, CharacterRunAutomaton> productToSystemIndicesMatcher;
+    private final Map<String, Automaton> productToSystemIndicesMatcher;
     private final ExecutorSelector executorSelector;
 
     /**
@@ -229,7 +228,7 @@ public class SystemIndices {
         }
     }
 
-    private static Map<String, CharacterRunAutomaton> getProductToSystemIndicesMap(Map<String, Feature> featureDescriptors) {
+    private static Map<String, Automaton> getProductToSystemIndicesMap(Map<String, Feature> featureDescriptors) {
         Map<String, Automaton> productToSystemIndicesMap = new HashMap<>();
         for (Feature feature : featureDescriptors.values()) {
             feature.getIndexDescriptors().forEach(systemIndexDescriptor -> {
@@ -263,7 +262,7 @@ public class SystemIndices {
             .collect(
                 Collectors.toUnmodifiableMap(
                     Entry::getKey,
-                    entry -> new CharacterRunAutomaton(Operations.determinize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT))
+                    entry -> Operations.determinize(entry.getValue(), Operations.DEFAULT_DETERMINIZE_WORK_LIMIT)
                 )
             );
     }
@@ -380,16 +379,16 @@ public class SystemIndices {
      * @param threadContext the threadContext containing headers used for system index access
      * @return Predicate to check external system index names with
      */
-    public Predicate<String> getProductSystemIndexNamePredicate(ThreadContext threadContext) {
+    public Automaton getProductSystemIndexNameAutomaton(ThreadContext threadContext) {
         final String product = threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY);
         if (product == null) {
-            return Predicates.never();
+            return Automata.makeEmpty();
         }
-        final CharacterRunAutomaton automaton = productToSystemIndicesMatcher.get(product);
+        final Automaton automaton = productToSystemIndicesMatcher.get(product);
         if (automaton == null) {
-            return Predicates.never();
+            return Automata.makeEmpty();
         }
-        return automaton::run;
+        return automaton;
     }
 
     /**
@@ -492,7 +491,7 @@ public class SystemIndices {
                 if (accessLevel == SystemIndexAccessLevel.NONE) {
                     throw dataStreamAccessException(null, dataStreamName);
                 } else if (accessLevel == SystemIndexAccessLevel.RESTRICTED) {
-                    if (getProductSystemIndexNamePredicate(threadContext).test(dataStreamName) == false) {
+                    if (new CharacterRunAutomaton(getProductSystemIndexNameAutomaton(threadContext)).run(dataStreamName) == false) {
                         throw dataStreamAccessException(
                             threadContext.getHeader(EXTERNAL_SYSTEM_INDEX_ACCESS_CONTROL_HEADER_KEY),
                             dataStreamName

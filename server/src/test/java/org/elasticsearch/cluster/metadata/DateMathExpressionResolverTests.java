@@ -9,6 +9,7 @@
 
 package org.elasticsearch.cluster.metadata;
 
+import org.apache.lucene.util.automaton.Automata;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.cluster.ClusterName;
@@ -199,7 +200,7 @@ public class DateMathExpressionResolverTests extends ESTestCase {
             this.context.getOptions(),
             now.toInstant().toEpochMilli(),
             SystemIndexAccessLevel.NONE,
-            name -> false,
+            Automata.makeEmpty(),
             name -> false
         );
         List<String> results = DateMathExpressionResolver.resolve(

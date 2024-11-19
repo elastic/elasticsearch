@@ -229,7 +229,7 @@ public final class RestClientBuilder {
         }
 
         // best effort to ensure that it looks like "/base/path" rather than "/base/path/"
-        if (cleanPathPrefix.endsWith("/") && cleanPathPrefix.length() > 1) {
+        if (cleanPathPrefix.endsWith("/")) {
             cleanPathPrefix = cleanPathPrefix.substring(0, cleanPathPrefix.length() - 1);
 
             if (cleanPathPrefix.endsWith("/")) {

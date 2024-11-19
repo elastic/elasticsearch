@@ -10,16 +10,17 @@ package org.elasticsearch.action.admin.indices.template.get;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -28,9 +29,10 @@ import org.elasticsearch.transport.TransportService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAction<GetIndexTemplatesRequest, GetIndexTemplatesResponse> {
+public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadProjectAction<
+    GetIndexTemplatesRequest,
+    GetIndexTemplatesResponse> {
 
     @Inject
     public TransportGetIndexTemplatesAction(
@@ -38,6 +40,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -47,6 +50,7 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
             threadPool,
             actionFilters,
             GetIndexTemplatesRequest::new,
+            projectResolver,
             indexNameExpressionResolver,
             GetIndexTemplatesResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -62,33 +66,27 @@ public class TransportGetIndexTemplatesAction extends TransportMasterNodeReadAct
     protected void masterOperation(
         Task task,
         GetIndexTemplatesRequest request,
-        ClusterState state,
+        ProjectState state,
         ActionListener<GetIndexTemplatesResponse> listener
     ) {
-        @FixForMultiProject // this will do weird things if there's multiple templates with the same name
         List<IndexTemplateMetadata> results;
 
         // If we did not ask for a specific name, then we return all templates
         if (request.names().length == 0) {
-            results = state.metadata()
-                .projects()
-                .values()
-                .stream()
-                .flatMap(p -> p.templates().values().stream())
-                .collect(Collectors.toCollection(ArrayList::new));
+            results = new ArrayList<>(state.metadata().templates().values());
         } else {
             results = new ArrayList<>();
         }
 
         for (String name : request.names()) {
             if (Regex.isSimpleMatchPattern(name)) {
-                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().getProject().templates().entrySet()) {
+                for (Map.Entry<String, IndexTemplateMetadata> entry : state.metadata().templates().entrySet()) {
                     if (Regex.simpleMatch(name, entry.getKey())) {
                         results.add(entry.getValue());
                     }
                 }
-            } else if (state.metadata().getProject().templates().containsKey(name)) {
-                results.add(state.metadata().getProject().templates().get(name));
+            } else if (state.metadata().templates().containsKey(name)) {
+                results.add(state.metadata().templates().get(name));
             }
         }
 

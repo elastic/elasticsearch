@@ -93,7 +93,6 @@ tasks.named("yamlRestTest").configure {
     'indices.get_mapping/40_aliases/Getting mapping for aliases should return the real index as key', // aliases do not work
     'indices.get_mapping/50_wildcard_expansion/*', // index close does not work
     'indices.get_settings/20_aliases/Getting settings for aliases should return the real index as key', // aliases do not work
-    'indices.get_template/*/*',
     'indices.open/*/*',
     'indices.open/*/*/*',
     'indices.put_alias/*/*',
@@ -101,7 +100,6 @@ tasks.named("yamlRestTest").configure {
     'indices.put_index_template/15_composition/Using deprecated component templates and pipelines in index template',
     'indices.put_mapping/*/*',
     'indices.put_settings/*/*',
-    'indices.put_template/*/*',
     'indices.recovery/*/*',
     'indices.resolve_cluster/*/*',
     'indices.rollover/*/*',

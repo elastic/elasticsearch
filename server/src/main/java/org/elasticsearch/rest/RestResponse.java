@@ -22,6 +22,7 @@ import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -146,12 +147,12 @@ public final class RestResponse implements Releasable {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
 
-        if (channel.detailedErrorsEnabled() == false) {
+        if (channel.request().getRestApiVersion() == RestApiVersion.V_8 && channel.detailedErrorsEnabled() == false) {
             deprecationLogger.warn(
                 DeprecationCategory.API,
                 "http_detailed_errors",
-                "The JSON format of non-detailed errors will change in Elasticsearch 9.0 to match the JSON structure"
-                    + " used for detailed errors. To keep using the existing format, use the V8 REST API."
+                "The JSON format of non-detailed errors has changed in Elasticsearch 9.0 to match the JSON structure"
+                    + " used for detailed errors."
             );
         }
 

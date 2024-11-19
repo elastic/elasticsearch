@@ -470,6 +470,7 @@ create an index with time_series index mode and synthetic source:
       indices.get_settings:
         index: "test_time_series_index_mode_synthetic"
   - match: { test_time_series_index_mode_synthetic.settings.index.mode: time_series }
+  - match: { test_time_series_index_mode_synthetic.settings.index.mapping.source.mode: synthetic }
 
 ---
 create an index with logsdb index mode and synthetic source:

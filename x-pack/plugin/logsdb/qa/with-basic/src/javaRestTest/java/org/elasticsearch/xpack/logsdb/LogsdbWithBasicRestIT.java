@@ -85,20 +85,14 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
 
     public void testLogsdbOverrideSyntheticSourceModeInMapping() throws IOException {
         final String index = "test-index";
-        Request request = new Request("PUT", "/" + index);
-        request.setJsonEntity("""
+        String mapping = """
             {
-                "settings": {
-                    "index.mode": "logsdb"
-                },
-                "mappings": {
-                    "_source": {
-                        "mode": "synthetic"
-                    }
+                "_source": {
+                    "mode": "synthetic"
                 }
             }
-            """);
-        assertOK(client().performRequest(request));
+            """;
+        createIndex(index, Settings.builder().put("index.mode", "logsdb").build(), mapping);
         var settings = (Map<?, ?>) ((Map<?, ?>) getIndexSettings(index).get(index)).get("settings");
         assertEquals("logsdb", settings.get("index.mode"));
         assertEquals(SourceFieldMapper.Mode.STORED.toString(), settings.get("index.mapping.source.mode"));

@@ -158,7 +158,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Settings settings;
 
         private final IndexMode indexMode;
-        private boolean serializeMode = false;
+        private boolean serializeMode;
 
         private final boolean supportsNonDefaultParameterValues;
 
@@ -301,8 +301,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
-
-        return resolveStaticInstance(settingSourceMode);
+        if (c.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+            return resolveStaticInstance(settingSourceMode);
+        } else {
+            return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true);
+        }
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),

@@ -34,9 +34,6 @@ public class FeatureService {
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
 
-    public static final Version CLUSTER_FEATURES_ADDED_VERSION = Version.V_8_12_0;
-
-    private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Map<String, NodeFeature> nodeFeatures;
 
     /**
@@ -47,13 +44,12 @@ public class FeatureService {
 
         var featureData = FeatureData.createFromSpecifications(specs);
         nodeFeatures = featureData.getNodeFeatures();
-        historicalFeatures = featureData.getHistoricalFeatures();
 
         logger.info("Registered local node features {}", nodeFeatures.keySet().stream().sorted().toList());
     }
 
     /**
-     * The non-historical features supported by this node.
+     * The features supported by this node.
      * @return Map of {@code feature-id} to its declaring {@code NodeFeature} object.
      */
     public Map<String, NodeFeature> getNodeFeatures() {
@@ -65,11 +61,6 @@ public class FeatureService {
      */
     @SuppressForbidden(reason = "We need basic feature information from cluster state")
     public boolean clusterHasFeature(ClusterState state, NodeFeature feature) {
-        if (state.clusterFeatures().clusterHasFeature(feature)) {
-            return true;
-        }
-
-        var features = historicalFeatures.floorEntry(state.getNodes().getMinNodeVersion());
-        return features != null && features.getValue().contains(feature.id());
+        return state.clusterFeatures().clusterHasFeature(feature);
     }
 }

@@ -21,10 +21,10 @@ import org.gradle.api.tasks.TaskProvider;
 import java.util.Map;
 
 /**
- * Extracts historical feature metadata into a machine-readable format for use in backward compatibility testing.
+ * Extracts cluster feature metadata into a machine-readable format for use in backward compatibility testing.
  */
-public class HistoricalFeaturesMetadataPlugin implements Plugin<Project> {
-    public static final String HISTORICAL_FEATURES_JSON = "historical-features.json";
+public class ClusterFeaturesMetadataPlugin implements Plugin<Project> {
+    public static final String CLUSTER_FEATURES_JSON = "cluster-features.json";
     public static final String FEATURES_METADATA_TYPE = "features-metadata-json";
     public static final String FEATURES_METADATA_CONFIGURATION = "featuresMetadata";
 
@@ -40,13 +40,13 @@ public class HistoricalFeaturesMetadataPlugin implements Plugin<Project> {
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet mainSourceSet = sourceSets.getByName(SourceSet.MAIN_SOURCE_SET_NAME);
 
-        TaskProvider<HistoricalFeaturesMetadataTask> generateTask = project.getTasks()
-            .register("generateHistoricalFeaturesMetadata", HistoricalFeaturesMetadataTask.class, task -> {
+        TaskProvider<ClusterFeaturesMetadataTask> generateTask = project.getTasks()
+            .register("generateClusterFeaturesMetadata", ClusterFeaturesMetadataTask.class, task -> {
                 task.setClasspath(
                     featureMetadataExtractorConfig.plus(mainSourceSet.getRuntimeClasspath())
                         .plus(project.getConfigurations().getByName(CompileOnlyResolvePlugin.RESOLVEABLE_COMPILE_ONLY_CONFIGURATION_NAME))
                 );
-                task.getOutputFile().convention(project.getLayout().getBuildDirectory().file(HISTORICAL_FEATURES_JSON));
+                task.getOutputFile().convention(project.getLayout().getBuildDirectory().file(CLUSTER_FEATURES_JSON));
             });
 
         Configuration featuresMetadataArtifactConfig = project.getConfigurations().create(FEATURES_METADATA_CONFIGURATION, c -> {

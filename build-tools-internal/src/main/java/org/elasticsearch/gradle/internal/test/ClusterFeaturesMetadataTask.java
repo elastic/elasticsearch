@@ -26,7 +26,7 @@ import org.gradle.workers.WorkerExecutor;
 import javax.inject.Inject;
 
 @CacheableTask
-public abstract class HistoricalFeaturesMetadataTask extends DefaultTask {
+public abstract class ClusterFeaturesMetadataTask extends DefaultTask {
     private FileCollection classpath;
 
     @OutputFile
@@ -46,30 +46,30 @@ public abstract class HistoricalFeaturesMetadataTask extends DefaultTask {
 
     @TaskAction
     public void execute() {
-        getWorkerExecutor().noIsolation().submit(HistoricalFeaturesMetadataWorkAction.class, params -> {
+        getWorkerExecutor().noIsolation().submit(ClusterFeaturesMetadataWorkAction.class, params -> {
             params.getClasspath().setFrom(getClasspath());
             params.getOutputFile().set(getOutputFile());
         });
     }
 
-    public interface HistoricalFeaturesWorkParameters extends WorkParameters {
+    public interface ClusterFeaturesWorkParameters extends WorkParameters {
         ConfigurableFileCollection getClasspath();
 
         RegularFileProperty getOutputFile();
     }
 
-    public abstract static class HistoricalFeaturesMetadataWorkAction implements WorkAction<HistoricalFeaturesWorkParameters> {
+    public abstract static class ClusterFeaturesMetadataWorkAction implements WorkAction<ClusterFeaturesWorkParameters> {
         private final ExecOperations execOperations;
 
         @Inject
-        public HistoricalFeaturesMetadataWorkAction(ExecOperations execOperations) {
+        public ClusterFeaturesMetadataWorkAction(ExecOperations execOperations) {
             this.execOperations = execOperations;
         }
 
         @Override
         public void execute() {
             LoggedExec.javaexec(execOperations, spec -> {
-                spec.getMainClass().set("org.elasticsearch.extractor.features.HistoricalFeaturesMetadataExtractor");
+                spec.getMainClass().set("org.elasticsearch.extractor.features.ClusterFeaturesMetadataExtractor");
                 spec.classpath(getParameters().getClasspath());
                 spec.args(getParameters().getOutputFile().get().getAsFile().getAbsolutePath());
             });

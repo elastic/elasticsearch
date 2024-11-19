@@ -207,10 +207,7 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
             }
         }
 
-        var features = Stream.concat(
-            new EsqlFeatures().getFeatures().stream(),
-            new EsqlFeatures().getHistoricalFeatures().keySet().stream()
-        ).map(NodeFeature::id).collect(Collectors.toSet());
+        var features = new EsqlFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet());
 
         for (String feature : testCase.requiredCapabilities) {
             var esqlFeature = "esql." + feature;

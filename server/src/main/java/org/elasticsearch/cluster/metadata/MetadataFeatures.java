@@ -17,7 +17,6 @@ import java.util.Map;
 import java.util.Set;
 
 public class MetadataFeatures implements FeatureSpecification {
-    @Override
     public Map<NodeFeature, Version> getHistoricalFeatures() {
         return Map.of(
             DesiredNode.RANGE_FLOAT_PROCESSORS_SUPPORTED,

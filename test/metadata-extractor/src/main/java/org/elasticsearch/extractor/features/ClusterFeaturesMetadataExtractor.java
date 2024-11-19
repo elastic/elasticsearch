@@ -12,6 +12,7 @@ package org.elasticsearch.extractor.features;
 import org.elasticsearch.Version;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.LogConfigurator;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.xcontent.XContentGenerator;
@@ -32,7 +33,7 @@ import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Stream;
 
-public class HistoricalFeaturesMetadataExtractor {
+public class ClusterFeaturesMetadataExtractor {
     private final ClassLoader classLoader;
 
     static {
@@ -40,7 +41,7 @@ public class HistoricalFeaturesMetadataExtractor {
         LogConfigurator.configureESLogging();
     }
 
-    public HistoricalFeaturesMetadataExtractor(ClassLoader classLoader) {
+    public ClusterFeaturesMetadataExtractor(ClassLoader classLoader) {
         this.classLoader = classLoader;
     }
 
@@ -56,7 +57,7 @@ public class HistoricalFeaturesMetadataExtractor {
             printUsageAndExit();
         }
 
-        new HistoricalFeaturesMetadataExtractor(HistoricalFeaturesMetadataExtractor.class.getClassLoader()).generateMetadataFile(
+        new ClusterFeaturesMetadataExtractor(ClusterFeaturesMetadataExtractor.class.getClassLoader()).generateMetadataFile(
             outputFile
         );
     }
@@ -67,13 +68,7 @@ public class HistoricalFeaturesMetadataExtractor {
             XContentGenerator generator = JsonXContent.jsonXContent.createGenerator(os)
         ) {
             generator.writeStartObject();
-            extractHistoricalFeatureMetadata((historical, names) -> {
-                generator.writeFieldName("historical_features");
-                generator.writeStartObject();
-                for (Map.Entry<NodeFeature, Version> entry : historical.entrySet()) {
-                    generator.writeStringField(entry.getKey().id(), entry.getValue().toString());
-                }
-                generator.writeEndObject();
+            extractHistoricalFeatureMetadata(names -> {
                 generator.writeFieldName("feature_names");
                 generator.writeStartArray();
                 for (var entry : names) {
@@ -87,22 +82,20 @@ public class HistoricalFeaturesMetadataExtractor {
         }
     }
 
-    void extractHistoricalFeatureMetadata(CheckedBiConsumer<Map<NodeFeature, Version>, Set<String>, IOException> metadataConsumer)
+    void extractHistoricalFeatureMetadata(CheckedConsumer<Set<String>, IOException> metadataConsumer)
         throws IOException {
-        Map<NodeFeature, Version> historicalFeatures = new HashMap<>();
         Set<String> featureNames = new HashSet<>();
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {
-            historicalFeatures.putAll(featureSpecification.getHistoricalFeatures());
             Stream.concat(featureSpecification.getFeatures().stream(), featureSpecification.getTestFeatures().stream())
                 .map(NodeFeature::id)
                 .forEach(featureNames::add);
         }
-        metadataConsumer.accept(historicalFeatures, featureNames);
+        metadataConsumer.accept(featureNames);
     }
 
     private static void printUsageAndExit() {
-        System.err.println("Usage: HistoricalFeaturesMetadataExtractor <output file>");
+        System.err.println("Usage: ClusterFeaturesMetadataExtractor <output file>");
         System.exit(1);
     }
 }

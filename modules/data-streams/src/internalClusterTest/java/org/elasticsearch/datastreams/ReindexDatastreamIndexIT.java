@@ -54,7 +54,28 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
             .actionGet();
 
         // verify that dest still exists, but is now empty
+        assertTrue(indexExists(destIndex));
         assertHitCount(prepareSearch(destIndex).setSize(0), 0);
+    }
+
+    public void testDestIndexContainsDocs() throws Exception {
+        // empty source index
+        var numDocs = randomIntBetween(1, 100);
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+        indexDocs(sourceIndex, numDocs);
+
+        // dest index with docs
+        var expectedDestIndexName = TransportReindexDataStreamIndexAction.generateDestIndexName(sourceIndex);
+
+        // call reindex
+        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
+        indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
+
+        // verify that dest contains docs
+        assertEquals(expectedDestIndexName, response.getDestIndex());
+        assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
 
     static void indexDocs(String index, int numDocs) {

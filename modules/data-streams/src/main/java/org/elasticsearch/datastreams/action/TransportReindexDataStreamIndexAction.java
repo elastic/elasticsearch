@@ -10,6 +10,7 @@ package org.elasticsearch.datastreams.action;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
@@ -27,6 +28,8 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
@@ -78,6 +81,7 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         "index.version.upgraded"
     );
 
+    private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
     private final ClusterService clusterService;
     private final Client client;
 
@@ -119,6 +123,7 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         }
 
         SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDestIfExists(destIndexName, l))
+            // TODO add write block to source
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(sourceIndex, destIndexName, l))
@@ -128,42 +133,35 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
     }
 
     private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("Attempting to delete index [{}]", destIndexName);
-        var ignoreUnavailable = IndicesOptions.fromOptions(true, false, false, false);
-        var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(ignoreUnavailable)
+        logger.info("Attempting to delete index [{}]", destIndexName);
+        var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
 
         client.admin().indices().delete(deleteIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged() == false) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException("Could not delete index [{}]", RestStatus.INTERNAL_SERVER_ERROR, destIndexName)
-                );
-            } else {
+            if (response.isAcknowledged()) {
                 delegate.onResponse(null);
             }
+            throw new ElasticsearchException("Failed to acknowledge delete of index [{}]", destIndexName);
         }));
     }
 
     private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
-        logger.debug("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
+        logger.info("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
         var settings = getPreSettings(sourceIndex);
         var createIndexRequest = new CreateIndexRequest(destIndexName, settings);
 
         // TODO will create fail if exists ?
         client.admin().indices().create(createIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged() == false) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException("Could not create index [{}]", RestStatus.INTERNAL_SERVER_ERROR, destIndexName)
-                );
-            } else {
+            if (response.isAcknowledged()) {
                 delegate.onResponse(null);
             }
+            throw new ElasticsearchException("Could not create index [{}]", destIndexName);
         }));
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
-        logger.debug("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
+        logger.info("Reindex to destination index [{}] from source index [{}]", destIndexName, sourceIndexName);
         var reindexRequest = new ReindexRequest();
         reindexRequest.setSourceIndices(sourceIndexName);
         reindexRequest.getSearchRequest().allowPartialSearchResults(false);
@@ -173,7 +171,7 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
     }
 
     private void updateSettings(IndexMetadata sourceIndex, String destIndexName, ActionListener<AcknowledgedResponse> listener) {
-        logger.debug("Adding settings from source index that could not be added before reindex");
+        logger.info("Adding settings from source index that could not be added before reindex");
 
         Settings postSettings = getPostSettings(sourceIndex);
         if (postSettings.isEmpty()) {

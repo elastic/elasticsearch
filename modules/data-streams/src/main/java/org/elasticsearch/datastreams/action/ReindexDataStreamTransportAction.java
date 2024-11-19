@@ -33,6 +33,7 @@ import org.elasticsearch.transport.TransportService;
  */
 public class ReindexDataStreamTransportAction extends HandledTransportAction<ReindexDataStreamRequest, ReindexDataStreamResponse> {
     private final PersistentTasksService persistentTasksService;
+    private final TransportService transportService;
 
     @Inject
     public ReindexDataStreamTransportAction(
@@ -48,12 +49,16 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             ReindexDataStreamRequest::new,
             transportService.getThreadPool().executor(ThreadPool.Names.GENERIC)
         );
+        this.transportService = transportService;
         this.persistentTasksService = persistentTasksService;
     }
 
     @Override
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<ReindexDataStreamResponse> listener) {
-        ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(request.getSourceDataStream());
+        ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
+            request.getSourceDataStream(),
+            transportService.getThreadPool().absoluteTimeInMillis()
+        );
         try {
             String persistentTaskId = getPersistentTaskId(request.getSourceDataStream());
             persistentTasksService.sendStartRequest(

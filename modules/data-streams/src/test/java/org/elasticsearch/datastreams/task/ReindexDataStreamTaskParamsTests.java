@@ -31,12 +31,19 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
 
     @Override
     protected ReindexDataStreamTaskParams createTestInstance() {
-        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50));
+        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50), randomLong());
     }
 
     @Override
     protected ReindexDataStreamTaskParams mutateInstance(ReindexDataStreamTaskParams instance) {
-        return createTestInstance();
+        String sourceDataStream = instance.sourceDataStream();
+        long startTime = randomLong();
+        switch (randomIntBetween(0, 1)) {
+            case 0 -> sourceDataStream = randomAlphaOfLength(50);
+            case 1 -> startTime = randomLong();
+            default -> throw new UnsupportedOperationException();
+        }
+        return new ReindexDataStreamTaskParams(sourceDataStream, startTime);
     }
 
     @Override
@@ -50,7 +57,9 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
             builder.humanReadable(true);
             params.toXContent(builder, EMPTY_PARAMS);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
-                assertThat(parser.map(), equalTo(Map.of("source_data_stream", params.getSourceDataStream())));
+                Map<String, Object> parserMap = parser.map();
+                assertThat(parserMap.get("source_data_stream"), equalTo(params.sourceDataStream()));
+                assertThat(((Number) parserMap.get("start_time")).longValue(), equalTo(params.startTime()));
             }
         }
     }

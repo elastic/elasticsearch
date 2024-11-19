@@ -47,7 +47,16 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         PersistentTasksCustomMetadata.PersistentTask<ReindexDataStreamTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
-        return new ReindexDataStreamTask(threadPool, id, type, action, "id=" + taskInProgress.getId(), parentTaskId, headers);
+        return new ReindexDataStreamTask(
+            taskInProgress.getParams().startTime(),
+            threadPool,
+            id,
+            type,
+            action,
+            "id=" + taskInProgress.getId(),
+            parentTaskId,
+            headers
+        );
     }
 
     @Override

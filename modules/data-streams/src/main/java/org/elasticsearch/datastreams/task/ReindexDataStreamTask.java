@@ -22,6 +22,7 @@ import java.util.Map;
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
+    private final long persistentTaskStartTime;
     private final ThreadPool threadPool;
     private boolean complete = false;
     private Exception exception;
@@ -31,6 +32,7 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private Map<String, Exception> errors = new HashMap<>();
 
     public ReindexDataStreamTask(
+        long persistentTaskStartTime,
         ThreadPool threadPool,
         long id,
         String type,
@@ -40,12 +42,13 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         Map<String, String> headers
     ) {
         super(id, type, action, description, parentTask, headers);
+        this.persistentTaskStartTime = persistentTaskStartTime;
         this.threadPool = threadPool;
     }
 
     @Override
     public ReindexDataStreamStatus getStatus() {
-        return new ReindexDataStreamStatus(complete, exception, sucesses, inProgress, pending, errors);
+        return new ReindexDataStreamStatus(persistentTaskStartTime, complete, exception, sucesses, inProgress, pending, errors);
     }
 
     @Override

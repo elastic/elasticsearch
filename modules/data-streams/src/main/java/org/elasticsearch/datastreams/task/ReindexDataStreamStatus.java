@@ -20,6 +20,7 @@ import java.util.Map;
 import java.util.Objects;
 
 public record ReindexDataStreamStatus(
+    long persistentTaskStartTime,
     boolean complete,
     Exception exception,
     List<String> successes,
@@ -38,6 +39,7 @@ public record ReindexDataStreamStatus(
 
     public ReindexDataStreamStatus(StreamInput in) throws IOException {
         this(
+            in.readLong(),
             in.readBoolean(),
             in.readException(),
             in.readCollectionAsList(StreamInput::readString),
@@ -54,6 +56,7 @@ public record ReindexDataStreamStatus(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
+        out.writeLong(persistentTaskStartTime);
         out.writeBoolean(complete);
         out.writeException(exception);
         out.writeStringCollection(successes);
@@ -65,6 +68,7 @@ public record ReindexDataStreamStatus(
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
+        builder.field("start_time", persistentTaskStartTime);
         builder.field("complete", complete);
         addIndexList(builder, "successes", successes);
         addIndexList(builder, "in_progress", inProgress);

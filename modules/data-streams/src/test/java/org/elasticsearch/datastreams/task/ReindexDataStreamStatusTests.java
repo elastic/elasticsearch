@@ -34,7 +34,15 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
 
     @Override
     protected ReindexDataStreamStatus createTestInstance() {
-        return new ReindexDataStreamStatus(randomBoolean(), nullableTestException(), randomList(), randomList(), randomList(), randomMap());
+        return new ReindexDataStreamStatus(
+            randomLong(),
+            randomBoolean(),
+            nullableTestException(),
+            randomList(),
+            randomList(),
+            randomList(),
+            randomMap()
+        );
     }
 
     private Exception nullableTestException() {
@@ -70,25 +78,28 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
 
     @Override
     protected ReindexDataStreamStatus mutateInstance(ReindexDataStreamStatus instance) throws IOException {
+        long startTime = instance.persistentTaskStartTime();
         boolean complete = instance.complete();
         Exception exception = instance.exception();
         List<String> successes = instance.successes();
         List<String> inProgress = instance.inProgress();
         List<String> pending = instance.pending();
         Map<String, Exception> errors = instance.errors();
-        switch (randomIntBetween(0, 4)) {
-            case 0 -> complete = complete == false;
-            case 1 -> successes = randomList(successes.size() + 1);
-            case 2 -> inProgress = randomList(inProgress.size() + 1);
-            case 3 -> pending = randomList(pending.size() + 1);
-            case 4 -> errors = randomMap(errors.size() + 1);
+        switch (randomIntBetween(0, 5)) {
+            case 0 -> startTime = randomLong();
+            case 1 -> complete = complete == false;
+            case 2 -> successes = randomList(successes.size() + 1);
+            case 3 -> inProgress = randomList(inProgress.size() + 1);
+            case 4 -> pending = randomList(pending.size() + 1);
+            case 5 -> errors = randomMap(errors.size() + 1);
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamStatus(complete, exception, successes, inProgress, pending, errors);
+        return new ReindexDataStreamStatus(startTime, complete, exception, successes, inProgress, pending, errors);
     }
 
     public void testToXContent() throws IOException {
         ReindexDataStreamStatus status = new ReindexDataStreamStatus(
+            1234L,
             true,
             new ElasticsearchException("the whole task failed"),
             List.of("index1", "index2"),
@@ -104,6 +115,8 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
                     parser.map(),
                     equalTo(
                         Map.of(
+                            "start_time",
+                            1234,
                             "complete",
                             true,
                             "exception",

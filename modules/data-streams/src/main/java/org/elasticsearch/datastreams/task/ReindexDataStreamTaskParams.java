@@ -23,20 +23,22 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public record ReindexDataStreamTaskParams(String sourceDataStream) implements PersistentTaskParams {
+public record ReindexDataStreamTaskParams(String sourceDataStream, long startTime) implements PersistentTaskParams {
     public static final String NAME = ReindexDataStreamTask.TASK_NAME;
     private static final String SOURCE_DATA_STREAM_FIELD = "source_data_stream";
+    private static final String START_TIME_FIELD = "start_time";
     private static final ConstructingObjectParser<ReindexDataStreamTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new ReindexDataStreamTaskParams((String) args[0])
+        args -> new ReindexDataStreamTaskParams((String) args[0], (long) args[1])
     );
     static {
         PARSER.declareString(constructorArg(), new ParseField(SOURCE_DATA_STREAM_FIELD));
+        PARSER.declareLong(constructorArg(), new ParseField(START_TIME_FIELD));
     }
 
     public ReindexDataStreamTaskParams(StreamInput in) throws IOException {
-        this(in.readString());
+        this(in.readString(), in.readLong());
     }
 
     @Override
@@ -52,11 +54,12 @@ public record ReindexDataStreamTaskParams(String sourceDataStream) implements Pe
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sourceDataStream);
+        out.writeLong(startTime);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(SOURCE_DATA_STREAM_FIELD, sourceDataStream).endObject();
+        return builder.startObject().field(SOURCE_DATA_STREAM_FIELD, sourceDataStream).field(START_TIME_FIELD, startTime).endObject();
     }
 
     public String getSourceDataStream() {

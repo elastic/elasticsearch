@@ -9,12 +9,14 @@
 
 package org.elasticsearch.search.aggregations.bucket.sampler.random;
 
+import org.apache.lucene.search.BooleanClause;
+import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.Bits;
-import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -34,14 +36,13 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
     private final int seed;
     private final Integer shardSeed;
     private final double probability;
-    private final CheckedSupplier<Weight, IOException> weightSupplier;
+    private Weight weight;
 
     RandomSamplerAggregator(
         String name,
         int seed,
         Integer shardSeed,
         double probability,
-        CheckedSupplier<Weight, IOException> weightSupplier,
         AggregatorFactories factories,
         AggregationContext context,
         Aggregator parent,
@@ -56,8 +57,31 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
                 RandomSamplerAggregationBuilder.NAME + " aggregation [" + name + "] must have sub aggregations configured"
             );
         }
-        this.weightSupplier = weightSupplier;
         this.shardSeed = shardSeed;
+    }
+
+    /**
+     * This creates the query weight which will be used in the aggregator.
+     *
+     * This weight is a boolean query between {@link RandomSamplingQuery} and the configured top level query of the search. This allows
+     * the aggregation to iterate the documents directly, thus sampling in the background instead of the foreground.
+     * @return weight to be used, is cached for additional usages
+     * @throws IOException when building the weight or queries fails;
+     */
+    private Weight getWeight() throws IOException {
+        if (weight == null) {
+            RandomSamplingQuery query = new RandomSamplingQuery(
+                probability,
+                seed,
+                shardSeed == null ? context.shardRandomSeed() : shardSeed
+            );
+            ScoreMode scoreMode = scoreMode();
+            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
+                .add(context.query(), scoreMode.needsScores() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER)
+                .build();
+            weight = context.searcher().createWeight(context.searcher().rewrite(booleanQuery), scoreMode, 1f);
+        }
+        return weight;
     }
 
     @Override
@@ -112,7 +136,7 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
             };
         }
         // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
-        Scorer scorer = weightSupplier.get().scorer(aggCtx.getLeafReaderContext());
+        Scorer scorer = getWeight().scorer(aggCtx.getLeafReaderContext());
         // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;

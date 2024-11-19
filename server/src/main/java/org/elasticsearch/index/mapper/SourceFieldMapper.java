@@ -193,7 +193,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
 
         private boolean isDefault() {
-            return serializeMode == false && enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
+            return enabled.get().value() && includes.getValue().isEmpty() && excludes.getValue().isEmpty();
         }
 
         @Override
@@ -232,19 +232,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (sourceMode == Mode.SYNTHETIC && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
                 throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
             }
-
             if (mode.isConfigured()) {
                 serializeMode = true;
             }
-
-            SourceFieldMapper sourceFieldMapper;
-            if (isDefault()) {
+            final SourceFieldMapper sourceFieldMapper;
+            if (isDefault() && sourceMode == null) {
                 // Needed for bwc so that "mode" is not serialized in case of a standard index with stored source.
-                if (sourceMode == null) {
-                    sourceFieldMapper = DEFAULT;
-                } else {
-                    sourceFieldMapper = resolveStaticInstance(sourceMode);
-                }
+                sourceFieldMapper = DEFAULT;
+            } else if (isDefault() && serializeMode == false && sourceMode != null) {
+                sourceFieldMapper = resolveStaticInstance(sourceMode);
             } else {
                 sourceFieldMapper = new SourceFieldMapper(
                     sourceMode,

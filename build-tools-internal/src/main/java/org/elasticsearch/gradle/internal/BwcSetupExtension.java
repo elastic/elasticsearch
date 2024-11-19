@@ -13,7 +13,6 @@ import org.apache.commons.io.FileUtils;
 import org.elasticsearch.gradle.LoggedExec;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.Action;
 import org.gradle.api.GradleException;
 import org.gradle.api.Project;
@@ -47,6 +46,7 @@ public class BwcSetupExtension {
     private final ProviderFactory providerFactory;
     private final JavaToolchainService toolChainService;
     private final Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo;
+    private final Boolean isCi;
 
     private Provider<File> checkoutDir;
 
@@ -56,7 +56,8 @@ public class BwcSetupExtension {
         ProviderFactory providerFactory,
         JavaToolchainService toolChainService,
         Provider<BwcVersions.UnreleasedVersionInfo> unreleasedVersionInfo,
-        Provider<File> checkoutDir
+        Provider<File> checkoutDir,
+        Boolean isCi
     ) {
         this.project = project;
         this.objectFactory = objectFactory;
@@ -64,6 +65,7 @@ public class BwcSetupExtension {
         this.toolChainService = toolChainService;
         this.unreleasedVersionInfo = unreleasedVersionInfo;
         this.checkoutDir = checkoutDir;
+        this.isCi = isCi;
     }
 
     TaskProvider<LoggedExec> bwcTask(String name, Action<LoggedExec> configuration) {
@@ -80,7 +82,8 @@ public class BwcSetupExtension {
             toolChainService,
             name,
             configuration,
-            useUniqueUserHome
+            useUniqueUserHome,
+            isCi
         );
     }
 
@@ -93,7 +96,8 @@ public class BwcSetupExtension {
         JavaToolchainService toolChainService,
         String name,
         Action<LoggedExec> configAction,
-        boolean useUniqueUserHome
+        boolean useUniqueUserHome,
+        boolean isCi
     ) {
         return project.getTasks().register(name, LoggedExec.class, loggedExec -> {
             loggedExec.dependsOn("checkoutBwcBranch");
@@ -104,7 +108,7 @@ public class BwcSetupExtension {
                 spec.getParameters().getCheckoutDir().set(checkoutDir);
             }).flatMap(s -> getJavaHome(objectFactory, toolChainService, Integer.parseInt(s))));
 
-            if (BuildParams.isCi() && OS.current() != OS.WINDOWS) {
+            if (isCi && OS.current() != OS.WINDOWS) {
                 // TODO: Disabled for now until we can figure out why files are getting corrupted
                 // loggedExec.getEnvironment().put("GRADLE_RO_DEP_CACHE", System.getProperty("user.home") + "/gradle_ro_cache");
             }

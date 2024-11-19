@@ -91,13 +91,6 @@ mapped_nested: { NOT(mapped_string:foo AND mapped_string_2:foo bar) }
 mapped_nested: { NOT mapped_string:foo AND NOT mapped_string_2:foo bar }
 mapped_nested: { (NOT mapped_string:foo) AND (NOT mapped_string_2:foo bar) }
 mapped_nested: { NOT(mapped_string:foo) AND NOT(mapped_string_2:foo bar) }
-mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar AND foo bar }
-mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar OR foo bar }
-mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar OR foo bar }
-mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar AND foo bar }
-mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
-mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
-mapped_nested: { mapped_string:foo OR (mapped_string_2:foo bar OR foo bar) }
 mapped_nested: { mapped_str*:foo }
 mapped_nested: { mapped_nested : { mapped_string:foo AND mapped_int < 3 } AND mapped_string_2:foo bar }
 mapped_nested: { mapped_nested.mapped_string:foo AND mapped_string_2:foo bar }

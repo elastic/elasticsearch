@@ -11,7 +11,6 @@ package org.elasticsearch.datastreams.action;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
@@ -28,17 +27,15 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.index.Index;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
 import org.elasticsearch.index.reindex.ReindexAction;
 import org.elasticsearch.index.reindex.ReindexRequest;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
+import java.util.Locale;
 import java.util.Set;
 
 public class TransportReindexDataStreamIndexAction extends HandledTransportAction<
@@ -122,8 +119,8 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
             );
         }
 
-        SubscribableListener.<AcknowledgedResponse>newForked(l -> deleteDestIfExists(destIndexName, l))
-            // TODO add write block to source
+        SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l))
+            .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
             .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(sourceIndex, destIndexName, l))
@@ -132,17 +129,20 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
             .addListener(listener);
     }
 
+    private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
+        logger.info("Setting read only on source index [{}]", sourceIndexName);
+        final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
+        var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);
+        var errorMessage = String.format(Locale.ROOT, "Could not set read-only on source index [%s]", sourceIndexName);
+        client.admin().indices().updateSettings(updateSettingsRequest, failIfNotAcknowledged(listener, errorMessage));
+    }
+
     private void deleteDestIfExists(String destIndexName, ActionListener<AcknowledgedResponse> listener) {
         logger.info("Attempting to delete index [{}]", destIndexName);
         var deleteIndexRequest = new DeleteIndexRequest(destIndexName).indicesOptions(IGNORE_MISSING_OPTIONS)
             .masterNodeTimeout(TimeValue.MAX_VALUE);
-
-        client.admin().indices().delete(deleteIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                delegate.onResponse(null);
-            }
-            throw new ElasticsearchException("Failed to acknowledge delete of index [{}]", destIndexName);
-        }));
+        var errorMessage = String.format(Locale.ROOT, "Failed to acknowledge delete of index [%s]", destIndexName);
+        client.admin().indices().delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
@@ -152,12 +152,8 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         var createIndexRequest = new CreateIndexRequest(destIndexName, settings);
 
         // TODO will create fail if exists ?
-        client.admin().indices().create(createIndexRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged()) {
-                delegate.onResponse(null);
-            }
-            throw new ElasticsearchException("Could not create index [{}]", destIndexName);
-        }));
+        var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
+        client.admin().indices().create(createIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
     private void reindex(String sourceIndexName, String destIndexName, ActionListener<BulkByScrollResponse> listener) {
@@ -179,21 +175,9 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
             return;
         }
 
-        var updateSettingsRequest = new UpdateSettingsRequest();
-        updateSettingsRequest.indices(destIndexName);
-        updateSettingsRequest.settings(postSettings);
-
-        client.admin().indices().updateSettings(updateSettingsRequest, listener.delegateFailureAndWrap((delegate, response) -> {
-            if (response.isAcknowledged() == false) {
-                delegate.onFailure(
-                    new ElasticsearchStatusException(
-                        "Could not update settings on index [{}]",
-                        RestStatus.INTERNAL_SERVER_ERROR,
-                        destIndexName
-                    )
-                );
-            }
-        }));
+        var updateSettingsRequest = new UpdateSettingsRequest(postSettings, destIndexName);
+        var errorMessage = String.format(Locale.ROOT, "Could not update settings on index [%s]", destIndexName);
+        client.admin().indices().updateSettings(updateSettingsRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
     // Filter source index settings to subset of settings that can be included during reindex
@@ -210,5 +194,17 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
 
     public static String generateDestIndexName(String sourceIndex) {
         return "upgrade-" + sourceIndex;
+    }
+
+    private static <U extends AcknowledgedResponse> ActionListener<U> failIfNotAcknowledged(
+        ActionListener<U> listener,
+        String errorMessage
+    ) {
+        return listener.delegateFailureAndWrap((delegate, response) -> {
+            if (response.isAcknowledged()) {
+                delegate.onResponse(null);
+            }
+            throw new ElasticsearchException(errorMessage);
+        });
     }
 }

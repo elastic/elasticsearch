@@ -15,6 +15,7 @@ import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.ReindexDataStreamIndexAction;
 import org.elasticsearch.action.index.IndexRequest;
+import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.datastreams.action.TransportReindexDataStreamIndexAction;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -29,6 +30,7 @@ import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
+import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
@@ -50,12 +52,24 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
-        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet();
 
         // verify that dest still exists, but is now empty
         assertTrue(indexExists(destIndex));
         assertHitCount(prepareSearch(destIndex).setSize(0), 0);
+    }
+
+    public void testDestIndexNameSet() throws Exception {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+
+        // call reindex
+        var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
+
+        var expectedDestIndexName = TransportReindexDataStreamIndexAction.generateDestIndexName(sourceIndex);
+        assertEquals(expectedDestIndexName, response.getDestIndex());
     }
 
     public void testDestIndexContainsDocs() throws Exception {
@@ -65,18 +79,33 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
         indexDocs(sourceIndex, numDocs);
 
-        // dest index with docs
-        var expectedDestIndexName = TransportReindexDataStreamIndexAction.generateDestIndexName(sourceIndex);
-
         // call reindex
         var response = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
             .actionGet();
         indicesAdmin().refresh(new RefreshRequest(response.getDestIndex())).actionGet();
 
         // verify that dest contains docs
-        assertEquals(expectedDestIndexName, response.getDestIndex());
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
+
+    public void testWriteBlockAddedToSource() throws Exception {
+        // empty source index
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
+
+        // call reindex
+        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet();
+
+        // assert that write to source fails
+        var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
+        assertThrows(ClusterBlockException.class, () -> client().index(indexReq).actionGet());
+        assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
+    }
+
+    // TODO test that does fail on create if index exists. (Not sure how to do this since relies on race condition)
+    // Even though we delete the dest index, it could be created by another thread after the delete.
+    // Subsequent operations should not fail if it does exist
 
     static void indexDocs(String index, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();

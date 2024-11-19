@@ -12,6 +12,7 @@ package org.elasticsearch.script.field.vectors;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 
+import java.util.Arrays;
 import java.util.Iterator;
 
 import static org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder.getMultiMagnitudes;
@@ -35,18 +36,19 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     @Override
     public float maxSimDotProduct(float[][] query) {
         vectorValues.reset();
-        float[] sums = new float[query.length];
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, -Float.MAX_VALUE);
         while (vectorValues.hasNext()) {
             float[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
-                sums[i] += VectorUtil.dotProduct(query[i], vv);
+                maxes[i] = Math.max(maxes[i], VectorUtil.dotProduct(query[i], vv));
             }
         }
-        float max = -Float.MAX_VALUE;
-        for (float s : sums) {
-            max = Math.max(max, s);
+        float sum = 0;
+        for (float m : maxes) {
+            sum += m;
         }
-        return max;
+        return sum;
     }
 
     @Override

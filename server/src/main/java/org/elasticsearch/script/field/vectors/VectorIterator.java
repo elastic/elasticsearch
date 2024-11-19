@@ -15,4 +15,56 @@ public interface VectorIterator<E> extends Iterator<E> {
     Iterator<E> copy();
 
     void reset();
+
+    static VectorIterator<float[]> from(float[][] vectors) {
+        return new VectorIterator<>() {
+            private int i = 0;
+
+            @Override
+            public boolean hasNext() {
+                return i < vectors.length;
+            }
+
+            @Override
+            public float[] next() {
+                return vectors[i++];
+            }
+
+            @Override
+            public Iterator<float[]> copy() {
+                return from(vectors);
+            }
+
+            @Override
+            public void reset() {
+                i = 0;
+            }
+        };
+    }
+
+    static VectorIterator<byte[]> from(byte[][] vectors) {
+        return new VectorIterator<>() {
+            private int i = 0;
+
+            @Override
+            public boolean hasNext() {
+                return i < vectors.length;
+            }
+
+            @Override
+            public byte[] next() {
+                return vectors[i++];
+            }
+
+            @Override
+            public Iterator<byte[]> copy() {
+                return from(vectors);
+            }
+
+            @Override
+            public void reset() {
+                i = 0;
+            }
+        };
+    }
 }

@@ -10,8 +10,8 @@
 package org.elasticsearch.script;
 
 import org.apache.lucene.util.VectorUtil;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.ElementType;
+import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.MultiDenseVectorScriptDocValuesTests;
 import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimDotProduct;
 import org.elasticsearch.script.MultiVectorScoreScriptUtils.MaxSimInvHamming;
@@ -20,6 +20,7 @@ import org.elasticsearch.script.field.vectors.ByteMultiDenseVectorDocValuesField
 import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesField;
 import org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField;
 import org.elasticsearch.test.ESTestCase;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -31,6 +32,11 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
+
+    @BeforeClass
+    public static void setup() {
+        assumeTrue("Requires multi-dense vector support", MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled());
+    }
 
     public void testFloatMultiVectorClassBindings() throws IOException {
         String fieldName = "vector";
@@ -49,14 +55,14 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
                 MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
                 dims
             ),
             new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(docVectors, ElementType.FLOAT),
                 MultiDenseVectorScriptDocValuesTests.wrap(docMagnitudes),
                 "test",
                 ElementType.FLOAT,
@@ -71,7 +77,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
             // Test max similarity dot product
             MaxSimDotProduct maxSimDotProduct = new MaxSimDotProduct(scoreScript, queryVector, fieldName);
-            float maxSimDotProductExpected = 111933.625f; // Adjust this value based on expected max similarity
+            float maxSimDotProductExpected = 65425.625f; // Adjust this value based on expected max similarity
             assertEquals(
                 "maxSimDotProduct result is not equal to the expected value!",
                 maxSimDotProductExpected,
@@ -92,7 +98,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             assertThat(e.getMessage(), containsString("hamming distance is only supported for byte or bit vectors"));
 
             // Check scripting infrastructure integration
-            assertEquals(111933.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
+            assertEquals(65425.6249, new MaxSimDotProduct(scoreScript, queryVector, fieldName).maxSimDotProduct(), 0.001);
             when(scoreScript._getDocId()).thenReturn(1);
             e = expectThrows(
                 IllegalArgumentException.class,
@@ -116,7 +122,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
                 MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "test",
                 ElementType.BYTE,
@@ -170,7 +176,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new BitMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BIT),
                 MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 5 } }),
                 "test",
                 ElementType.BIT,
@@ -236,14 +242,14 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new FloatMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.FLOAT, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.FLOAT),
                 MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "field1",
                 ElementType.FLOAT,
                 dims
             ),
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { docVector }, ElementType.BYTE),
                 MultiDenseVectorScriptDocValuesTests.wrap(magnitudes),
                 "field3",
                 ElementType.BYTE,
@@ -292,7 +298,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
 
         List<MultiDenseVectorDocValuesField> fields = List.of(
             new ByteMultiDenseVectorDocValuesField(
-                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE, IndexVersion.current()),
+                MultiDenseVectorScriptDocValuesTests.wrap(new float[][][] { { docVector } }, ElementType.BYTE),
                 MultiDenseVectorScriptDocValuesTests.wrap(new float[][] { { 1 } }),
                 "test",
                 ElementType.BYTE,

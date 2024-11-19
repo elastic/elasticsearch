@@ -13,6 +13,7 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.VectorUtil;
 import org.elasticsearch.index.mapper.vectors.VectorEncoderDecoder;
 
+import java.util.Arrays;
 import java.util.Iterator;
 
 public class ByteMultiDenseVector implements MultiDenseVector {
@@ -21,7 +22,6 @@ public class ByteMultiDenseVector implements MultiDenseVector {
     protected final int numVecs;
     protected final int dims;
 
-    private VectorIterator<float[]> floatDocVectors;
     private float[] magnitudes;
     private final BytesRef magnitudesBytes;
 
@@ -41,36 +41,38 @@ public class ByteMultiDenseVector implements MultiDenseVector {
     @Override
     public float maxSimDotProduct(byte[][] query) {
         vectorValues.reset();
-        float[] sums = new float[query.length];
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, -Float.MAX_VALUE);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
-                sums[i] += VectorUtil.dotProduct(query[i], vv);
+                maxes[i] = Math.max(maxes[i], VectorUtil.dotProduct(query[i], vv));
             }
         }
-        float max = -Float.MAX_VALUE;
-        for (float s : sums) {
-            max = Math.max(max, s);
+        float sum = 0;
+        for (float m : maxes) {
+            sum += m;
         }
-        return max;
+        return sum;
     }
 
     @Override
     public float maxSimInvHamming(byte[][] query) {
         vectorValues.reset();
         int bitCount = dims * Byte.SIZE;
-        float[] sums = new float[query.length];
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, -Float.MAX_VALUE);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
-                sums[i] += ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount);
+                maxes[i] = Math.max(maxes[i], ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount));
             }
         }
-        float max = -Float.MAX_VALUE;
-        for (float s : sums) {
-            max = Math.max(max, s);
+        float sum = 0;
+        for (float m : maxes) {
+            sum += m;
         }
-        return max;
+        return sum;
     }
 
     @Override

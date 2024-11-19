@@ -13,6 +13,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.CollectionTerminatedException;
 import org.apache.lucene.search.DocIdSetIterator;
+import org.apache.lucene.search.Query;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
@@ -24,6 +25,7 @@ import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.CardinalityUpperBound;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.LeafBucketCollector;
+import org.elasticsearch.search.aggregations.LeafBucketCollectorBase;
 import org.elasticsearch.search.aggregations.bucket.BucketsAggregator;
 import org.elasticsearch.search.aggregations.bucket.SingleBucketAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
@@ -70,16 +72,16 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
      */
     private Weight getWeight() throws IOException {
         if (weight == null) {
-            RandomSamplingQuery query = new RandomSamplingQuery(
-                probability,
-                seed,
-                shardSeed == null ? context.shardRandomSeed() : shardSeed
-            );
             ScoreMode scoreMode = scoreMode();
-            BooleanQuery booleanQuery = new BooleanQuery.Builder().add(query, BooleanClause.Occur.FILTER)
-                .add(context.query(), scoreMode.needsScores() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER)
-                .build();
-            weight = context.searcher().createWeight(context.searcher().rewrite(booleanQuery), scoreMode, 1f);
+            BooleanQuery.Builder fullQuery = new BooleanQuery.Builder().add(
+                context.query(),
+                scoreMode.needsScores() ? BooleanClause.Occur.MUST : BooleanClause.Occur.FILTER
+            );
+            if (probability < 1.0) {
+                Query sampleQuery = new RandomSamplingQuery(probability, seed, shardSeed == null ? context.shardRandomSeed() : shardSeed);
+                fullQuery.add(sampleQuery, BooleanClause.Occur.FILTER);
+            }
+            weight = context.searcher().createWeight(context.searcher().rewrite(fullQuery.build()), scoreMode, 1f);
         }
         return weight;
     }
@@ -125,23 +127,25 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         if (sub.isNoop()) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
-        // No sampling is being done, collect all docs
-        if (probability >= 1.0) {
-            grow(1);
-            return new LeafBucketCollector() {
-                @Override
-                public void collect(int doc, long owningBucketOrd) throws IOException {
-                    collectExistingBucket(sub, doc, 0);
-                }
-            };
-        }
-        // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
+
         Scorer scorer = getWeight().scorer(aggCtx.getLeafReaderContext());
         // This means there are no docs to iterate, possibly due to the fields not existing
         if (scorer == null) {
             return LeafBucketCollector.NO_OP_COLLECTOR;
         }
         sub.setScorer(scorer);
+
+        // No sampling is being done, collect all docs
+        // TODO know when sampling would be much slower and skip sampling: https://github.com/elastic/elasticsearch/issues/84353
+        if (probability >= 1.0) {
+            grow(1);
+            return new LeafBucketCollectorBase(sub, null) {
+                @Override
+                public void collect(int doc, long owningBucketOrd) throws IOException {
+                    collectExistingBucket(sub, doc, 0);
+                }
+            };
+        }
 
         final DocIdSetIterator docIt = scorer.iterator();
         final Bits liveDocs = aggCtx.getLeafReaderContext().reader().getLiveDocs();
@@ -162,5 +166,4 @@ public class RandomSamplerAggregator extends BucketsAggregator implements Single
         // Since we have done our own collection, there is nothing for the leaf collector to do
         return LeafBucketCollector.NO_OP_COLLECTOR;
     }
-
 }

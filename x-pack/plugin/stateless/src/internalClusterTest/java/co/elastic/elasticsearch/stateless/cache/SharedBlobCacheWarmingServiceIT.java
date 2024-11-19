@@ -56,7 +56,6 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.index.IndexService;
-import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.engine.EngineConfig;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -185,12 +184,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     public void testCacheIsWarmedBeforeIndexingShardRelocation_AfterHandoff() {
         startMasterOnlyNode();
 
-        var cacheSettings = Settings.builder()
+        var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .build();
-        var indexNodeA = startIndexNode(cacheSettings);
+        var indexNodeA = startIndexNode(nodeSettings);
 
         final String indexName = randomIdentifier();
         assertAcked(
@@ -200,8 +200,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    // Causes extra reads when randomly enabled by the test framework, so it is disabled in this test, see ES-9898
-                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
@@ -209,10 +207,14 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         indexDocs(indexName, randomIntBetween(100, 10000));
         refresh(indexName);
 
-        var indexNodeB = startIndexNode(cacheSettings);
+        var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
         failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB, Type.INDEXING);
+
+        final var waitForWarmingsCompleted = new CountDownLatch(2);
+        runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, ActionListener.releasing(waitForWarmingsCompleted::countDown));
+        runOnWarmingComplete(indexNodeB, Type.INDEXING, ActionListener.releasing(waitForWarmingsCompleted::countDown));
 
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
@@ -240,6 +242,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             );
             ensureGreen(indexName);
             assertThat(findIndexShard(resolveIndex(indexName), 0).routingEntry().currentNodeId(), equalTo(getNodeId(indexNodeB)));
+            safeAwait(waitForWarmingsCompleted);
         },
             SharedBlobCacheWarmingService.class,
             expectCacheWarmingCompleteEvent(Type.INDEXING_EARLY),
@@ -251,12 +254,13 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
     public void testCacheIsWarmedBeforeIndexingShardRelocation_Initial() {
         startMasterOnlyNode();
 
-        var cacheSettings = Settings.builder()
+        var nodeSettings = Settings.builder()
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .build();
-        var indexNodeA = startIndexNode(cacheSettings);
+        var indexNodeA = startIndexNode(nodeSettings);
 
         final String indexName = randomIdentifier();
         assertAcked(
@@ -266,8 +270,6 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
                     .put(MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY.getKey(), 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
                     .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                    // Causes extra reads when randomly enabled by the test framework, so it is disabled in this test, see ES-9898
-                    .put(IndexSettings.BLOOM_FILTER_ID_FIELD_ENABLED_SETTING.getKey(), false)
                     .put(EngineConfig.USE_COMPOUND_FILE, randomBoolean())
             )
         );
@@ -275,7 +277,7 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         indexDocs(indexName, randomIntBetween(100, 10000));
         flushAndRefresh(indexName);
 
-        var indexNodeB = startIndexNode(cacheSettings);
+        var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
         // Block start-relocation action until warming is complete (ensure warming entirely precedes shard-relocation)

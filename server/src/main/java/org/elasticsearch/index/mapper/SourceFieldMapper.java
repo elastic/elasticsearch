@@ -158,11 +158,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Settings settings;
 
         private final IndexMode indexMode;
-        private boolean serializeMode;
+        private boolean serializeMode = false;
 
         private final boolean supportsNonDefaultParameterValues;
 
-        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams, boolean serializeMode) {
+        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
             super(Defaults.NAME);
             this.settings = settings;
             this.indexMode = indexMode;
@@ -184,6 +184,11 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
         public Builder setSynthetic() {
             this.mode.setValue(Mode.SYNTHETIC);
+            return this;
+        }
+
+        Builder setSerializeMode(boolean serializeMode) {
+            this.serializeMode = serializeMode;
             return this;
         }
 
@@ -307,8 +312,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
-            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
-            c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK)
         )
     ) {
         @Override
@@ -450,7 +454,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
+        return new Builder(null, Settings.EMPTY, false).setSerializeMode(serializeMode).init(this);
     }
 
     /**

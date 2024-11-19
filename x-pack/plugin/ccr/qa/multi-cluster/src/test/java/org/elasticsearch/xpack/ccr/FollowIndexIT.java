@@ -395,7 +395,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             }
             assertBusy(() -> {
                 verifyDocuments(client(), followIndexName, numDocs);
-                assertMap(getIndexMappingAsMap(followIndexName), matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic")));
                 if (overrideNumberOfReplicas) {
                     assertMap(getIndexSettingsAsMap(followIndexName), matchesMap().extraOk().entry("index.number_of_replicas", "0"));
                 } else {

@@ -1141,7 +1141,7 @@ To detect a server timeout, check the `timed_out` field of the JSON response.
 [%collapsible]
 ====
 *Details* +
-The `Content-Type` response header no longer specifies the charset. This information is not required when transferring JSON data, as UTF is the default encoding.
+The `Content-Type` response header no longer specifies the charset. This information is not required when transferring JSON data, because JSON text is always encoded in Unicode, with UTF-8 being the default encoding.
 
 *Impact* +
 Some applications and utilities, such as PowerShell's https://learn.microsoft.com/en-us/powershell/module/microsoft.powershell.utility/invoke-restmethod[Invoke-RestMethod], must receive charset information to display data correctly. If your application or utility relies on charset information in the `Content-Type` response header, UTF-8 encoded characters will be rendered incorrectly in the response body.

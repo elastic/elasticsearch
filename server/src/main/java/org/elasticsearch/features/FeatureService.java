@@ -9,7 +9,6 @@
 
 package org.elasticsearch.features;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.logging.LogManager;
@@ -17,8 +16,6 @@ import org.elasticsearch.logging.Logger;
 
 import java.util.List;
 import java.util.Map;
-import java.util.NavigableMap;
-import java.util.Set;
 
 /**
  * Manages information on the features supported by nodes in the cluster.

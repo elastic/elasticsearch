@@ -9,9 +9,6 @@
 
 package org.elasticsearch.features;
 
-import org.elasticsearch.Version;
-
-import java.util.Map;
 import java.util.Set;
 
 /**

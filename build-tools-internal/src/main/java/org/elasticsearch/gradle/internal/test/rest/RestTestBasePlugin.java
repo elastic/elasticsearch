@@ -20,8 +20,8 @@ import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.distribution.ElasticsearchDistributionTypes;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
 import org.elasticsearch.gradle.internal.InternalDistributionDownloadPlugin;
-import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin;
+import org.elasticsearch.gradle.internal.test.ErrorReportingTestListener;
 import org.elasticsearch.gradle.plugin.BasePluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginBuildPlugin;
 import org.elasticsearch.gradle.plugin.PluginPropertiesExtension;
@@ -135,10 +135,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                 c.setCanBeConsumed(false);
                 c.setCanBeResolved(true);
                 c.attributes(
-                    a -> a.attribute(
-                        ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE,
-                        ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE
-                    )
+                    a -> a.attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
                 );
                 c.defaultDependencies(
                     d -> d.add(project.getDependencies().project(Map.of("path", ":distribution", "configuration", "featuresMetadata")))

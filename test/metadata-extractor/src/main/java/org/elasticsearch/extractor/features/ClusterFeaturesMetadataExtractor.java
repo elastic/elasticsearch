@@ -9,8 +9,6 @@
 
 package org.elasticsearch.extractor.features;
 
-import org.elasticsearch.Version;
-import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.features.FeatureSpecification;
@@ -26,9 +24,7 @@ import java.nio.file.InvalidPathException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardOpenOption;
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.stream.Stream;
@@ -57,9 +53,7 @@ public class ClusterFeaturesMetadataExtractor {
             printUsageAndExit();
         }
 
-        new ClusterFeaturesMetadataExtractor(ClusterFeaturesMetadataExtractor.class.getClassLoader()).generateMetadataFile(
-            outputFile
-        );
+        new ClusterFeaturesMetadataExtractor(ClusterFeaturesMetadataExtractor.class.getClassLoader()).generateMetadataFile(outputFile);
     }
 
     public void generateMetadataFile(Path outputFile) {
@@ -68,7 +62,7 @@ public class ClusterFeaturesMetadataExtractor {
             XContentGenerator generator = JsonXContent.jsonXContent.createGenerator(os)
         ) {
             generator.writeStartObject();
-            extractHistoricalFeatureMetadata(names -> {
+            extractClusterFeaturesMetadata(names -> {
                 generator.writeFieldName("feature_names");
                 generator.writeStartArray();
                 for (var entry : names) {
@@ -82,8 +76,7 @@ public class ClusterFeaturesMetadataExtractor {
         }
     }
 
-    void extractHistoricalFeatureMetadata(CheckedConsumer<Set<String>, IOException> metadataConsumer)
-        throws IOException {
+    void extractClusterFeaturesMetadata(CheckedConsumer<Set<String>, IOException> metadataConsumer) throws IOException {
         Set<String> featureNames = new HashSet<>();
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {

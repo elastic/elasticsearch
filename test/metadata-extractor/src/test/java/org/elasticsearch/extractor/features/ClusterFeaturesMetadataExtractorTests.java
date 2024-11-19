@@ -38,7 +38,7 @@ public class ClusterFeaturesMetadataExtractorTests extends ESTestCase {
     public void testExtractHistoricalMetadata() throws IOException {
         ClusterFeaturesMetadataExtractor extractor = new ClusterFeaturesMetadataExtractor(this.getClass().getClassLoader());
         Set<String> featureNamesSet = new HashSet<>();
-        extractor.extractHistoricalFeatureMetadata(featureNamesSet::addAll);
+        extractor.extractClusterFeaturesMetadata(featureNamesSet::addAll);
         assertThat(featureNamesSet, not(empty()));
         assertThat(featureNamesSet, hasItem("test_features_enabled"));
 

@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
@@ -44,13 +45,18 @@ public class PlanExecutor {
     private final Client client;
     private final ClusterService clusterService;
 
-    public PlanExecutor(IndexResolver indexResolver, MeterRegistry meterRegistry, Client client, ClusterService clusterService) {
+    public PlanExecutor(
+            IndexResolver indexResolver,
+            MeterRegistry meterRegistry,
+            XPackLicenseState licenseState,
+            Client client,
+            ClusterService clusterService) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();
         this.mapper = new Mapper();
         this.metrics = new Metrics(functionRegistry);
-        this.verifier = new Verifier(metrics);
+        this.verifier = new Verifier(metrics, licenseState);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
         this.client = client;
         this.clusterService = clusterService;

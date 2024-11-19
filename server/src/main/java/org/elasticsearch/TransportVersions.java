@@ -200,7 +200,9 @@ public class TransportVersions {
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_00_0);
     public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_00_0);
-    public static final TransportVersion ESQL_MATCH_WITH_SEMANTIC_TEXT = def(8_794_00_0);
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS_REVERT = def(8_794_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
+    public static final TransportVersion ESQL_MATCH_WITH_SEMANTIC_TEXT = def(8_796_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

@@ -172,7 +172,7 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         if (in.getTransportVersion().onOrAfter(TransportVersions.INGEST_PIPELINE_CONFIGURATION_AS_MAP)) {
             config = in.readGenericMap();
         } else {
-            final BytesReference bytes = in.readBytesReference();
+            final BytesReference bytes = in.readSlicedBytesReference();
             final XContentType type = in.readEnum(XContentType.class);
             config = XContentHelper.convertToMap(bytes, true, type).v2();
         }

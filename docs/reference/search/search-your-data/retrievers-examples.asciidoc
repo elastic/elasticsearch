@@ -181,8 +181,8 @@ Which would return the following response based on the final rrf score for each 
 ==== Example: Grouping results by year with `collapse`
 
 In our result set, we have many documents with the same `year` value. We can clean this
-up using the `collapse` parameter with our retriever. This enables grouping results by
-any field and returns only the highest-scoring document from each group. In this example
+up using the `collapse` parameter with our retriever. This, as with the standard <<collapse-search-results, collapse>> feature,
+enables grouping results by any field and returns only the highest-scoring document from each group. In this example
 we'll collapse our results based on the `year` field.
 
 [source,console]
@@ -383,7 +383,7 @@ GET /retrievers_example/_search
 ----
 // TEST[continued]
 
-This would highlight the `text` field, base on the matches produced by the `standard` retriever. The highlighted snippets
+This would highlight the `text` field, based on the matches produced by the `standard` retriever. The highlighted snippets
 would then be included in the response as usual, i.e. under each search hit.
 
 [source,console-result]
@@ -533,6 +533,9 @@ POST /retrievers_example_nested/_refresh
 ----
 // TEST[continued]
 
+Then, let's run an `rrf` retriever query, where we also want to compute <<inner-hits, inner hits>> for the `nested_field.nested_vector`
+field, based on the `knn` query specified.
+
 [source,console]
 ----
 GET /retrievers_example_nested/_search
@@ -591,8 +594,6 @@ GET /retrievers_example_nested/_search
 This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
 The response would look like the following:
 
-Note:: if using more than one `inner_hits` we currently need to provide custom names for each `inner_hits` so that they
-are unique across all retrievers within the request.
 
 [source,console-result]
 ----
@@ -758,6 +759,8 @@ are unique across all retrievers within the request.
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 
+Note:: if using more than one `inner_hits` we currently need to provide custom names for each `inner_hits` so that they
+are unique across all retrievers within the request.
 
 [discrete]
 [[retrievers-examples-rrf-and-aggregations]]

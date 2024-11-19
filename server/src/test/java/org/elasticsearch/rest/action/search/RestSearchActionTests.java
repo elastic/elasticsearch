@@ -75,7 +75,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             Map.of("Content-Type", contentTypeHeader, "Accept", contentTypeHeader)
         ).withMethod(RestRequest.Method.GET).withPath("/some_index/_search").withParams(params).build();
 
-        action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, true, 1), verifyingClient);
     }
 
     public void testValidateSearchRequest() {

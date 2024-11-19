@@ -29,6 +29,9 @@
       "returnType" : "boolean"
     }
   ],
+  "examples" : [
+    "FROM books \n| WHERE KQL(\"author: Faulkner\")\n| KEEP book_no, author \n| SORT book_no \n| LIMIT 5;"
+  ],
   "preview" : true,
   "snapshot_only" : true
 }

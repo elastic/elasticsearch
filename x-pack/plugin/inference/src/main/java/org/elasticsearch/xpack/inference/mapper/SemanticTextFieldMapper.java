@@ -77,7 +77,6 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFEREN
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.INFERENCE_ID_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.MODEL_SETTINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.SEARCH_INFERENCE_ID_FIELD;
-import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getChunksFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getEmbeddingsFieldName;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOriginalTextFieldName;
@@ -392,16 +391,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     public Object getOriginalValue(Map<String, Object> sourceAsMap) {
-        Object fieldValue = sourceAsMap.get(fullPath());
-        if (fieldValue == null) {
-            return null;
-        } else if (fieldValue instanceof Map<?, ?> == false) {
-            // Don't try to further validate the non-map value, that will be handled when the source is fully parsed
-            return fieldValue;
-        }
-
-        Map<String, Object> fieldValueMap = XContentMapValues.nodeMapValue(fieldValue, "Field [" + fullPath() + "]");
-        return XContentMapValues.extractValue(TEXT_FIELD, fieldValueMap);
+        return XContentMapValues.extractValue(getOriginalTextFieldName(fullPath()), sourceAsMap);
     }
 
     @Override

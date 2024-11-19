@@ -1308,8 +1308,8 @@ public class VerifierTests extends ESTestCase {
             error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
         );
         assertEquals(
-            "1:54: [KQL] function cannot be used after KEEP",
-            error("from test | rename last_name as name | keep emp_no | where kql(\"Anna\")")
+            "1:54: [KQL] function cannot be used after DROP",
+            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
         );
     }
 

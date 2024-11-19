@@ -12,7 +12,6 @@ import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.ToBlockHash;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.operator.AggregationOperator;
 import org.elasticsearch.compute.operator.HashAggregationOperator.HashAggregationOperatorFactory;
@@ -28,7 +27,6 @@ import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
-import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.planner.LocalExecutionPlanner.LocalExecutionPlannerContext;
@@ -136,16 +134,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                // TODO: currently, for CATEGORIZE this constructs a GroupSpec with type Category. That's how the hash aggregation later
-                // knows that it should use a categorizing block hash.
-                // E.g. for `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)`, the `groupAttribute` will have type `Category`.
-                // We should put that info into the GroupSpec by other means.
-                // groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute));
-
-                var groupSpec = Alias.unwrap(group) instanceof GroupingFunction groupingFunction
-                    ? new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, groupingFunction)
-                    : new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, null);
-                groupSpecs.add(groupSpec);
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, group));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -306,17 +295,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         }
     }
 
-    private record GroupSpec(Integer channel, Attribute attribute, GroupingFunction groupingFunction) {
+    private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {
                 throw new EsqlIllegalArgumentException("planned to use ordinals but tried to use the hash instead");
             }
 
-            return new BlockHash.GroupSpec(
-                channel,
-                elementType(),
-                groupingFunction instanceof ToBlockHash toBlockHash ? toBlockHash : null
-            );
+            return new BlockHash.GroupSpec(channel, elementType(), Alias.unwrap(expression) instanceof Categorize);
         }
 
         ElementType elementType() {

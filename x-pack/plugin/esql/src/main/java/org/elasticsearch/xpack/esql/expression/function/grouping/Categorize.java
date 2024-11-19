@@ -10,12 +10,6 @@ package org.elasticsearch.xpack.esql.expression.function.grouping;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.compute.aggregation.AggregatorMode;
-import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.CategorizeRawBlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.CategorizedIntermediateBlockHash;
-import org.elasticsearch.compute.aggregation.blockhash.ToBlockHash;
-import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.xpack.esql.capabilities.Validatable;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -49,7 +43,7 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  *
  * TODO(jan, nik): fix this
  */
-public class Categorize extends GroupingFunction implements Validatable, ToBlockHash {
+public class Categorize extends GroupingFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "Categorize",
@@ -119,12 +113,5 @@ public class Categorize extends GroupingFunction implements Validatable, ToBlock
     @Override
     public String toString() {
         return "Categorize{field=" + field + "}";
-    }
-
-    @Override
-    public BlockHash toBlockHash(BlockFactory blockFactory, int channel, AggregatorMode aggregatorMode) {
-        return aggregatorMode.isInputPartial()
-            ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
-            : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial());
     }
 }

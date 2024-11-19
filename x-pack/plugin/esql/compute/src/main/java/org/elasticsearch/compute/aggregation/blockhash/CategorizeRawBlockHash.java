@@ -30,7 +30,7 @@ import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     private final CategorizeEvaluator evaluator;
 
-    public CategorizeRawBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
+    CategorizeRawBlockHash(int channel, BlockFactory blockFactory, boolean outputPartial) {
         super(blockFactory, channel, outputPartial);
         CategorizationAnalyzer analyzer = new CategorizationAnalyzer(
             // TODO: should be the same analyzer as used in Production

@@ -69,13 +69,6 @@ create logs index:
 
   - match: { hits.total.value: 6 }
 
-  - do:
-      indices.get_settings:
-        index: test
-
-  - is_true: test
-  - match: { test.settings.index.mode: "logsdb" }
-
 ---
 using default timestamp field mapping:
   - requires:

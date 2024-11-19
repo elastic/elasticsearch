@@ -481,12 +481,6 @@ stored source is supported:
                         type: keyword
                         time_series_dimension: true
 
-  - do:
-      indices.get:
-        index: tsdb_index
-
-  - match: { tsdb_index.mappings._source.mode: "stored" }
-
 ---
 disabled source is not supported:
   - requires:

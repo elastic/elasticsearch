@@ -1842,9 +1842,8 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        }
-        if (isSyntheticSourceConfiguredInMapping(mapping) && minimumIndexVersion().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
-            request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)) {
+            request.setOptions(expectVersionSpecificWarnings(v -> v.compatible(SourceFieldMapper.DEPRECATION_WARNING)));
         }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {

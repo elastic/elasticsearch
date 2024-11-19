@@ -33,6 +33,7 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.env.BuildVersion;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
+import org.elasticsearch.reservedstate.service.FileSettingsService.FileSettingsHealthIndicatorService;
 import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
@@ -78,6 +79,8 @@ import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
 
 public class FileSettingsServiceTests extends ESTestCase {
     private static final Logger logger = LogManager.getLogger(FileSettingsServiceTests.class);
@@ -86,6 +89,7 @@ public class FileSettingsServiceTests extends ESTestCase {
     private ReservedClusterStateService controller;
     private ThreadPool threadpool;
     private FileSettingsService fileSettingsService;
+    private FileSettingsHealthIndicatorService healthIndicatorService;
 
     @Before
     public void setUp() throws Exception {
@@ -131,7 +135,8 @@ public class FileSettingsServiceTests extends ESTestCase {
                 List.of(new ReservedClusterSettingsAction(clusterSettings))
             )
         );
-        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env));
+        healthIndicatorService = mock(FileSettingsHealthIndicatorService.class);
+        fileSettingsService = spy(new FileSettingsService(clusterService, controller, env, healthIndicatorService));
     }
 
     @After
@@ -162,6 +167,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertTrue(fileSettingsService.watching());
         fileSettingsService.stop();
         assertFalse(fileSettingsService.watching());
+        verifyNoInteractions(healthIndicatorService);
     }
 
     public void testOperatorDirName() {
@@ -208,6 +214,10 @@ public class FileSettingsServiceTests extends ESTestCase {
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
         // assert we never notified any listeners of successful application of file based settings
         assertFalse(settingsChanged.get());
+
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred();
+        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     @SuppressWarnings("unchecked")
@@ -232,6 +242,10 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileOnServiceStart();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION), any());
+
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).successOccurred();
+        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     @SuppressWarnings("unchecked")
@@ -267,6 +281,10 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(fileSettingsService, times(1)).processFileChanges();
         verify(controller, times(1)).process(any(), any(XContentParser.class), eq(ReservedStateVersionCheck.HIGHER_VERSION_ONLY), any());
+
+        verify(healthIndicatorService, times(2)).changeOccurred();
+        verify(healthIndicatorService, times(2)).successOccurred();
+        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     @SuppressWarnings("unchecked")
@@ -321,6 +339,11 @@ public class FileSettingsServiceTests extends ESTestCase {
         // Note: the name "processFileOnServiceStart" is a bit misleading because it is not
         // referring to fileSettingsService.start(). Rather, it is referring to the initialization
         // of the watcher thread itself, which occurs asynchronously when clusterChanged is first called.
+
+        verify(healthIndicatorService, times(2)).changeOccurred();
+        verify(healthIndicatorService, times(1)).successOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred();
+        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     private static void awaitOrBust(CyclicBarrier barrier) {
@@ -373,6 +396,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         fileSettingsService.close();
         // let the deadlocked thread end, so we can cleanly exit the test
         deadThreadLatch.countDown();
+
+        verify(healthIndicatorService, times(1)).changeOccurred();
+        verifyNoMoreInteractions(healthIndicatorService);
     }
 
     public void testHandleSnapshotRestoreClearsMetadata() throws Exception {

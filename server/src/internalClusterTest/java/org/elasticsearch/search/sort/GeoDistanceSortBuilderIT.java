@@ -34,6 +34,7 @@ import static org.elasticsearch.search.sort.SortBuilders.fieldSort;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertOrderedSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSortValues;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.closeTo;
@@ -292,49 +293,22 @@ public class GeoDistanceSortBuilderIT extends ESIntegTestCase {
 
         String hashPoint = "s037ms06g7h0";
 
-        GeoDistanceSortBuilder geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, hashPoint);
-
-        assertResponse(
-            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(2, 2));
-
-        assertResponse(
-            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        geoDistanceSortBuilder = new GeoDistanceSortBuilder(LOCATION_FIELD, 2, 2);
-
-        assertResponse(
-            prepareSearch().setQuery(matchAllQuery()).addSort(geoDistanceSortBuilder.sortMode(SortMode.MIN).order(SortOrder.ASC)),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        assertResponse(
+        assertResponses(
+            response -> checkCorrectSortOrderForGeoSort(response),
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, hashPoint).sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, new GeoPoint(2, 2)).sortMode(SortMode.MIN).order(SortOrder.ASC)),
+            prepareSearch().setQuery(matchAllQuery())
+                .addSort(new GeoDistanceSortBuilder(LOCATION_FIELD, 2, 2).sortMode(SortMode.MIN).order(SortOrder.ASC)),
             prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0))),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        assertResponse(
             prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, "s037ms06g7h0"))),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        assertResponse(
             prepareSearch().setSource(new SearchSourceBuilder().sort(SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0))),
-            response -> checkCorrectSortOrderForGeoSort(response)
-        );
-
-        assertResponse(
             prepareSearch().setSource(
                 new SearchSourceBuilder().sort(
                     SortBuilders.geoDistanceSort(LOCATION_FIELD, 2.0, 2.0).validation(GeoValidationMethod.COERCE)
                 )
-            ),
-            response -> checkCorrectSortOrderForGeoSort(response)
+            )
         );
     }
 

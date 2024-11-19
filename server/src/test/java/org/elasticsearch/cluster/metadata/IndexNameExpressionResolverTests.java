@@ -1421,11 +1421,11 @@ public class IndexNameExpressionResolverTests extends ESTestCase {
         assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all")), equalTo(true));
     }
 
-    public void testIsNoneIndices() {
+    public void testIsAllIndicesExplicitAllPlusOther() {
         assertThat(IndexNameExpressionResolver.isAllIndices(List.of("_all", "other")), equalTo(false));
     }
 
-    public void testIsAllIndicesExplicitAllPlusOther() {
+    public void testIsNoneIndices() {
         assertThat(IndexNameExpressionResolver.isNoneExpression(new String[] { "*", "-*" }), equalTo(true));
     }
 

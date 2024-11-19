@@ -9,6 +9,6 @@ preview::["Do not use on production environments. This functionality is in techn
 [.text-center]
 image::esql/functions/signature/match_operator.svg[Embedded,opts=inline]
 
-Supported types:
-
 include::types/match.asciidoc[]
+
+

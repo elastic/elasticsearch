@@ -29,7 +29,20 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
     private final List<Attribute> output;
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, List<Attribute> joinFields) {
-        this(source, left, right, new JoinConfig(new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList()), emptyList());
+        this(source, left, right, new UsingJoinType(LEFT, joinFields), emptyList(), emptyList(), emptyList(), emptyList());
+    }
+
+    public LookupJoin(
+        Source source,
+        LogicalPlan left,
+        LogicalPlan right,
+        JoinType type,
+        List<Attribute> joinFields,
+        List<Attribute> leftFields,
+        List<Attribute> rightFields,
+        List<Attribute> output
+    ) {
+        this(source, left, right, new JoinConfig(type, joinFields, leftFields, rightFields), output);
     }
 
     public LookupJoin(Source source, LogicalPlan left, LogicalPlan right, JoinConfig joinConfig, List<Attribute> output) {
@@ -60,7 +73,17 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
     @Override
     protected NodeInfo<Join> info() {
-        return NodeInfo.create(this, LookupJoin::new, left(), right(), config(), output);
+        return NodeInfo.create(
+            this,
+            LookupJoin::new,
+            left(),
+            right(),
+            config().type(),
+            config().matchFields(),
+            config().leftFields(),
+            config().rightFields(),
+            output
+        );
     }
 
     @Override

@@ -148,7 +148,6 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -2248,7 +2247,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();

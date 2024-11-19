@@ -40,57 +40,51 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
     }
 
     public void testInitiallyGreen() {
-        assertEquals(new HealthIndicatorResult(
-            "file_settings",
-            GREEN,
-            NO_CHANGES_SYMPTOM,
-            HealthIndicatorDetails.EMPTY,
-            List.of(),
-            List.of()
-        ), healthIndicatorService.calculate(false, null));
+        assertEquals(
+            new HealthIndicatorResult("file_settings", GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
+            healthIndicatorService.calculate(false, null)
+        );
     }
 
     public void testGreenYellowYellowGreen() {
         healthIndicatorService.changeOccurred();
         // This is a strange case: a change occurred, but neither success nor failure have been reported yet.
         // While the change is still in progress, we don't change the status.
-        assertEquals(new HealthIndicatorResult(
-            "file_settings",
-            GREEN,
-            SUCCESS_SYMPTOM,
-            HealthIndicatorDetails.EMPTY,
-            List.of(),
-            List.of()
-        ), healthIndicatorService.calculate(false, null));
+        assertEquals(
+            new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
+            healthIndicatorService.calculate(false, null)
+        );
 
         healthIndicatorService.failureOccurred();
-        assertEquals(new HealthIndicatorResult(
-            "file_settings",
-            YELLOW,
-            FAILURE_SYMPTOM,
-            new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L)),
-            STALE_SETTINGS_IMPACT,
-            List.of()
-        ), healthIndicatorService.calculate(false, null));
+        assertEquals(
+            new HealthIndicatorResult(
+                "file_settings",
+                YELLOW,
+                FAILURE_SYMPTOM,
+                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L)),
+                STALE_SETTINGS_IMPACT,
+                List.of()
+            ),
+            healthIndicatorService.calculate(false, null)
+        );
 
         healthIndicatorService.failureOccurred();
-        assertEquals(new HealthIndicatorResult(
-            "file_settings",
-            YELLOW,
-            FAILURE_SYMPTOM,
-            new SimpleHealthIndicatorDetails(Map.of("failure_streak", 2L)),
-            STALE_SETTINGS_IMPACT,
-            List.of()
-        ), healthIndicatorService.calculate(false, null));
+        assertEquals(
+            new HealthIndicatorResult(
+                "file_settings",
+                YELLOW,
+                FAILURE_SYMPTOM,
+                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 2L)),
+                STALE_SETTINGS_IMPACT,
+                List.of()
+            ),
+            healthIndicatorService.calculate(false, null)
+        );
 
         healthIndicatorService.successOccurred();
-        assertEquals(new HealthIndicatorResult(
-            "file_settings",
-            GREEN,
-            SUCCESS_SYMPTOM,
-            HealthIndicatorDetails.EMPTY,
-            List.of(),
-            List.of()
-        ), healthIndicatorService.calculate(false, null));
+        assertEquals(
+            new HealthIndicatorResult("file_settings", GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of()),
+            healthIndicatorService.calculate(false, null)
+        );
     }
 }

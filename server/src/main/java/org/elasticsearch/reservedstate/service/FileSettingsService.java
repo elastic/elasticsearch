@@ -75,7 +75,12 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      * @param environment we need the environment to pull the location of the config and operator directories
      * @param healthIndicatorService tracks the success or failure of file-based settings
      */
-    public FileSettingsService(ClusterService clusterService, ReservedClusterStateService stateService, Environment environment, FileSettingsHealthIndicatorService healthIndicatorService) {
+    public FileSettingsService(
+        ClusterService clusterService,
+        ReservedClusterStateService stateService,
+        Environment environment,
+        FileSettingsHealthIndicatorService healthIndicatorService
+    ) {
         super(clusterService, environment.configFile().toAbsolutePath().resolve(OPERATOR_DIRECTORY).resolve(SETTINGS_FILE_NAME));
         this.stateService = stateService;
         this.healthIndicatorService = healthIndicatorService;
@@ -247,23 +252,11 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
         @Override
         public HealthIndicatorResult calculate(boolean verbose, int maxAffectedResourcesCount, HealthInfo healthInfo) {
             if (0 == changeCount.get()) {
-                return createIndicator(
-                    GREEN,
-                    NO_CHANGES_SYMPTOM,
-                    HealthIndicatorDetails.EMPTY,
-                    List.of(),
-                    List.of()
-                );
+                return createIndicator(GREEN, NO_CHANGES_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             }
             long numFailures = failureStreak.get();
             if (0 == numFailures) {
-                return createIndicator(
-                    GREEN,
-                    SUCCESS_SYMPTOM,
-                    HealthIndicatorDetails.EMPTY,
-                    List.of(),
-                    List.of()
-                );
+                return createIndicator(GREEN, SUCCESS_SYMPTOM, HealthIndicatorDetails.EMPTY, List.of(), List.of());
             } else {
                 return createIndicator(
                     YELLOW,

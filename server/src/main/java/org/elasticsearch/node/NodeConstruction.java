@@ -1306,7 +1306,8 @@ class NodeConstruction {
         ThreadPool threadPool,
         TelemetryProvider telemetryProvider,
         RepositoriesService repositoriesService,
-        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService) {
+        FileSettingsHealthIndicatorService fileSettingsHealthIndicatorService
+    ) {
 
         MasterHistoryService masterHistoryService = new MasterHistoryService(transportService, threadPool, clusterService);
         CoordinationDiagnosticsService coordinationDiagnosticsService = new CoordinationDiagnosticsService(

@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.is;
 
@@ -172,8 +173,13 @@ public class CrossClusterEsqlRCS2UnavailableRemotesIT extends AbstractRemoteClus
             assertThat((int) remoteClusterDetails.get("took"), greaterThan(0));
             assertThat(remoteClusterDetails.get("status"), is("skipped"));
 
-        } catch (ResponseException r) {
-            throw new AssertionError(r);
+            ArrayList<?> remoteClusterFailures = (ArrayList<?>) remoteClusterDetails.get("failures");
+            assertThat(remoteClusterFailures.size(), equalTo(1));
+            Map<String, ?> failuresMap = (Map<String, ?>) remoteClusterFailures.get(0);
+
+            Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
+            assertThat(reason.get("type").toString(), equalTo("connect_transport_exception"));
+            assertThat(reason.get("reason").toString(), containsString("Unable to connect to [my_remote_cluster]"));
         } finally {
             fulfillingCluster.start();
             closeFulfillingClusterClient();

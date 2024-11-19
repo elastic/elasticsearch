@@ -62,7 +62,7 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                         evals.add(catAs);
                         evalNames.put(catAs.name(), attr);
                         Categorize replacement = cat.replaceChildren(List.of(attr));
-                        newGroupings.set(i, replacement);
+                        newGroupings.set(i, as.replaceChild(replacement));
                         ReferenceAttribute ref = new ReferenceAttribute(
                             as.source(),
                             as.name(),
@@ -100,11 +100,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         int[] counter = new int[] { 0 };
         // for the aggs make sure to unwrap the agg function and check the existing groupings
         for (NamedExpression agg : aggs) {
-            NamedExpression r = replacedAggs.get(agg);
-            if (r != null) {
-                aggsChanged.set(true);
-                agg = r;
-            }
             NamedExpression a = (NamedExpression) agg.transformDown(Alias.class, as -> {
                 // if the child is a nested expression
                 Expression child = as.child();

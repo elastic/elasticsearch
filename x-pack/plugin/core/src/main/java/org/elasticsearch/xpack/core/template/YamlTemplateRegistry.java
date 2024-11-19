@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.template;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
@@ -22,7 +23,10 @@ import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
+import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.yaml.YamlXContent;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
+import org.elasticsearch.xpack.core.ilm.LifecyclePolicyUtils;
 
 import java.io.IOException;
 import java.util.Collections;
@@ -48,6 +52,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
     private final Map<String, ComponentTemplate> componentTemplates;
     private final Map<String, ComposableIndexTemplate> composableIndexTemplates;
     private final List<IngestPipelineConfig> ingestPipelines;
+    private final List<LifecyclePolicy> lifecyclePolicies;
     private final FeatureService featureService;
     private volatile boolean enabled;
 
@@ -84,6 +89,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
             final List<Object> componentTemplateNames = (List<Object>) resources.get("component-templates");
             final List<Object> indexTemplateNames = (List<Object>) resources.get("index-templates");
             final List<Object> ingestPipelineConfigs = (List<Object>) resources.get("ingest-pipelines");
+            final List<Object> lifecyclePolicyConfigs = (List<Object>) resources.get("lifecycle-policies");
 
             componentTemplates = Optional.ofNullable(componentTemplateNames)
                 .orElse(Collections.emptyList())
@@ -110,9 +116,16 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                     );
                 })
                 .collect(Collectors.toList());
+            lifecyclePolicies = Optional.ofNullable(lifecyclePolicyConfigs)
+                .orElse(Collections.emptyList())
+                .stream()
+                .map(o -> (String) o)
+                .filter(templateFilter)
+                .map(this::loadLifecyclePolicy)
+                .collect(Collectors.toList());
             this.featureService = featureService;
         } catch (IOException e) {
-            throw new RuntimeException(e);
+            throw new ElasticsearchException(e);
         }
     }
 
@@ -178,6 +191,15 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         }
     }
 
+    @Override
+    public List<LifecyclePolicy> getLifecyclePolicies() {
+        if (enabled) {
+            return lifecyclePolicies;
+        } else {
+            return Collections.emptyList();
+        }
+    }
+
     protected abstract String getVersionProperty();
 
     private ComponentTemplate loadComponentTemplate(String name, int version) {
@@ -192,7 +214,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 return ComponentTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's component template: " + name, e);
+            throw new ElasticsearchException("failed to load " + getName() + " Ingest plugin's component template: " + name, e);
         }
     }
 
@@ -208,7 +230,7 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
                 return ComposableIndexTemplate.parse(parser);
             }
         } catch (Exception e) {
-            throw new RuntimeException("failed to load " + getName() + " Ingest plugin's index template: " + name, e);
+            throw new ElasticsearchException("failed to load " + getName() + " Ingest plugin's index template: " + name, e);
         }
     }
 
@@ -226,8 +248,19 @@ public abstract class YamlTemplateRegistry extends IndexTemplateRegistry {
         );
     }
 
+    // IndexTemplateRegistry ensures that ILM lifecycle policies are not loaded
+    // when in DSL only mode.
+    private LifecyclePolicy loadLifecyclePolicy(String name) {
+        try {
+            var rawPolicy = loadResource(this.getClass(), "/lifecycle-policies/" + name + ".yaml");
+            return LifecyclePolicyUtils.parsePolicy(rawPolicy, name, LifecyclePolicyConfig.DEFAULT_X_CONTENT_REGISTRY, XContentType.YAML);
+        } catch (IOException e) {
+            throw new ElasticsearchException(e);
+        }
+    }
+
     @Override
-    protected boolean applyRolloverAfterTemplateV2Upgrade() {
+    protected boolean applyRolloverAfterTemplateV2Update() {
         return true;
     }
 }

@@ -9,19 +9,30 @@
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.collapse.CollapseBuilder;
@@ -29,11 +40,14 @@ import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
 import java.util.List;
 
@@ -979,9 +993,119 @@ public class QueryRescorerIT extends ESIntegTestCase {
         });
     }
 
+    public void testRescoreWithTimeout() throws Exception {
+        // no dummy docs since merges can change scores while we run queries.
+        int numDocs = indexRandomNumbers("whitespace", -1, false);
+
+        String intToEnglish = English.intToEnglish(between(0, numDocs - 1));
+        String query = intToEnglish.split(" ")[0];
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
+                .setSize(10)
+                .addRescorer(new QueryRescorerBuilder(functionScoreQuery(new TestTimedScoreFunctionBuilder())).windowSize(100))
+                .setTimeout(TimeValue.timeValueMillis(10)),
+            r -> assertTrue(r.isTimedOut())
+        );
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestTimedQueryPlugin.class);
+    }
+
     private QueryBuilder fieldValueScoreQuery(String scoreField) {
         return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
             CombineFunction.REPLACE
         );
+    }
+
+    public static class TestTimedQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return List.of(
+                new ScoreFunctionSpec<>(
+                    new ParseField("timed"),
+                    TestTimedScoreFunctionBuilder::new,
+                    p -> new TestTimedScoreFunctionBuilder()
+                )
+            );
+        }
+    }
+
+    static class TestTimedScoreFunctionBuilder extends ScoreFunctionBuilder<TestTimedScoreFunctionBuilder> {
+        private final long time = 500;
+
+        TestTimedScoreFunctionBuilder() {}
+
+        TestTimedScoreFunctionBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        public String getName() {
+            return "timed";
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected boolean doEquals(TestTimedScoreFunctionBuilder functionBuilder) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+            return new ScoreFunction(REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return new LeafScoreFunction() {
+                        @Override
+                        public double score(int docId, float subQueryScore) {
+                            try {
+                                Thread.sleep(time);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return time;
+                        }
+
+                        @Override
+                        public Explanation explainScore(int docId, Explanation subQueryScore) {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return true;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
     }
 }

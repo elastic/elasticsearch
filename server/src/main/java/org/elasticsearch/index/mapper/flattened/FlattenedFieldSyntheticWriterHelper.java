@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.mapper.flattened;
 
-import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -226,19 +225,23 @@ class FlattenedFieldSyntheticWriterHelper {
         }
     }
 
-    private final SortedSetDocValues dv;
+    interface SortedKeyedValues {
+        BytesRef next() throws IOException;
+    }
 
-    FlattenedFieldSyntheticWriterHelper(final SortedSetDocValues dv) {
-        this.dv = dv;
+    private final SortedKeyedValues sortedKeyedValues;
+
+    FlattenedFieldSyntheticWriterHelper(final SortedKeyedValues sortedKeyedValues) {
+        this.sortedKeyedValues = sortedKeyedValues;
     }
 
     void write(final XContentBuilder b) throws IOException {
-        KeyValue curr = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+        KeyValue curr = new KeyValue(sortedKeyedValues.next());
         KeyValue prev = KeyValue.EMPTY;
         final List<String> values = new ArrayList<>();
         values.add(curr.value());
-        for (int i = 1; i < dv.docValueCount(); i++) {
-            KeyValue next = new KeyValue(dv.lookupOrd(dv.nextOrd()));
+        for (BytesRef nextValue = sortedKeyedValues.next(); nextValue != null; nextValue = sortedKeyedValues.next()) {
+            KeyValue next = new KeyValue(nextValue);
             writeObject(b, curr, next, curr.start(prev), curr.end(next), values);
             values.add(next.value());
             prev = curr;

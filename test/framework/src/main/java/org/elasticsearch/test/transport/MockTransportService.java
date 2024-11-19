@@ -798,9 +798,4 @@ public class MockTransportService extends TransportService {
             throw new IllegalStateException(e);
         }
     }
-
-    public DiscoveryNode getLocalDiscoNode() {
-        return this.getLocalNode();
-    }
-
 }

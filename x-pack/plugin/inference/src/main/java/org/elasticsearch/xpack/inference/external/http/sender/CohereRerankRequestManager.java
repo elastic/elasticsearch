@@ -27,7 +27,7 @@ public class CohereRerankRequestManager extends CohereRequestManager {
     private static final ResponseHandler HANDLER = createCohereResponseHandler();
 
     private static ResponseHandler createCohereResponseHandler() {
-        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response));
+        return new CohereResponseHandler("cohere rerank", (request, response) -> CohereRankedResponseEntity.fromResponse(response), false);
     }
 
     public static CohereRerankRequestManager of(CohereRerankModel model, ThreadPool threadPool) {

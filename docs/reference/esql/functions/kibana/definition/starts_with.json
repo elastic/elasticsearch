@@ -79,5 +79,7 @@
   ],
   "examples" : [
     "FROM employees\n| KEEP last_name\n| EVAL ln_S = STARTS_WITH(last_name, \"B\")"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

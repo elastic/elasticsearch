@@ -55,7 +55,6 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -1850,8 +1849,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
             Settings.builder()
                 .put(NODE_NAME_SETTING.getKey(), nodeName)
                 .put(PATH_HOME_SETTING.getKey(), tempDir.resolve(nodeName).toAbsolutePath())
-                // test uses the same executor service for all thread pools, search worker would need to be a different one
-                .put(SearchService.SEARCH_WORKER_THREADS_ENABLED.getKey(), false)
                 .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
                 .putList(
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
@@ -2492,7 +2489,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService

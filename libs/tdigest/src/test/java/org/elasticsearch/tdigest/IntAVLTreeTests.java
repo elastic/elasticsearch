@@ -21,8 +21,7 @@
 
 package org.elasticsearch.tdigest;
 
-import org.elasticsearch.tdigest.arrays.WrapperTDigestArrays;
-import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Arrays;
 import java.util.Iterator;
@@ -30,7 +29,7 @@ import java.util.Map;
 import java.util.Random;
 import java.util.TreeMap;
 
-public class IntAVLTreeTests extends ESTestCase {
+public class IntAVLTreeTests extends TDigestTestCase {
 
     static class IntegerBag extends IntAVLTree {
 
@@ -38,8 +37,10 @@ public class IntAVLTreeTests extends ESTestCase {
         int[] values;
         int[] counts;
 
-        IntegerBag() {
-            super(WrapperTDigestArrays.INSTANCE);
+        IntegerBag(TDigestArrays arrays) {
+            super(arrays);
+            // We adjust the breaker after creation as this is just a test class
+            arrays.adjustBreaker(IntAVLTree.SHALLOW_SIZE);
             values = new int[capacity()];
             counts = new int[capacity()];
         }
@@ -89,34 +90,9 @@ public class IntAVLTreeTests extends ESTestCase {
     public void testDualAdd() {
         Random r = random();
         TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntegerBag bag = new IntegerBag();
-        for (int i = 0; i < 100000; ++i) {
-            final int v = r.nextInt(100000);
-            if (map.containsKey(v)) {
-                map.put(v, map.get(v) + 1);
-                assertFalse(bag.addValue(v));
-            } else {
-                map.put(v, 1);
-                assertTrue(bag.addValue(v));
-            }
-        }
-        Iterator<Map.Entry<Integer, Integer>> it = map.entrySet().iterator();
-        for (int node = bag.first(bag.root()); node != IntAVLTree.NIL; node = bag.next(node)) {
-            final Map.Entry<Integer, Integer> next = it.next();
-            assertEquals(next.getKey().intValue(), bag.values[node]);
-            assertEquals(next.getValue().intValue(), bag.counts[node]);
-        }
-        assertFalse(it.hasNext());
-    }
-
-    public void testDualAddRemove() {
-        Random r = random();
-        TreeMap<Integer, Integer> map = new TreeMap<>();
-        IntegerBag bag = new IntegerBag();
-        for (int i = 0; i < 100000; ++i) {
-            final int v = r.nextInt(1000);
-            if (r.nextBoolean()) {
-                // add
+        try (IntegerBag bag = new IntegerBag(arrays())) {
+            for (int i = 0; i < 100000; ++i) {
+                final int v = r.nextInt(100000);
                 if (map.containsKey(v)) {
                     map.put(v, map.get(v) + 1);
                     assertFalse(bag.addValue(v));
@@ -124,18 +100,44 @@ public class IntAVLTreeTests extends ESTestCase {
                     map.put(v, 1);
                     assertTrue(bag.addValue(v));
                 }
-            } else {
-                // remove
-                assertEquals(map.remove(v) != null, bag.removeValue(v));
             }
+            Iterator<Map.Entry<Integer, Integer>> it = map.entrySet().iterator();
+            for (int node = bag.first(bag.root()); node != IntAVLTree.NIL; node = bag.next(node)) {
+                final Map.Entry<Integer, Integer> next = it.next();
+                assertEquals(next.getKey().intValue(), bag.values[node]);
+                assertEquals(next.getValue().intValue(), bag.counts[node]);
+            }
+            assertFalse(it.hasNext());
         }
-        Iterator<Map.Entry<Integer, Integer>> it = map.entrySet().iterator();
-        for (int node = bag.first(bag.root()); node != IntAVLTree.NIL; node = bag.next(node)) {
-            final Map.Entry<Integer, Integer> next = it.next();
-            assertEquals(next.getKey().intValue(), bag.values[node]);
-            assertEquals(next.getValue().intValue(), bag.counts[node]);
-        }
-        assertFalse(it.hasNext());
     }
 
+    public void testDualAddRemove() {
+        Random r = random();
+        TreeMap<Integer, Integer> map = new TreeMap<>();
+        try (IntegerBag bag = new IntegerBag(arrays())) {
+            for (int i = 0; i < 100000; ++i) {
+                final int v = r.nextInt(1000);
+                if (r.nextBoolean()) {
+                    // add
+                    if (map.containsKey(v)) {
+                        map.put(v, map.get(v) + 1);
+                        assertFalse(bag.addValue(v));
+                    } else {
+                        map.put(v, 1);
+                        assertTrue(bag.addValue(v));
+                    }
+                } else {
+                    // remove
+                    assertEquals(map.remove(v) != null, bag.removeValue(v));
+                }
+            }
+            Iterator<Map.Entry<Integer, Integer>> it = map.entrySet().iterator();
+            for (int node = bag.first(bag.root()); node != IntAVLTree.NIL; node = bag.next(node)) {
+                final Map.Entry<Integer, Integer> next = it.next();
+                assertEquals(next.getKey().intValue(), bag.values[node]);
+                assertEquals(next.getValue().intValue(), bag.counts[node]);
+            }
+            assertFalse(it.hasNext());
+        }
+    }
 }

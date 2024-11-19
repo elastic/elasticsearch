@@ -38,7 +38,8 @@ public class MistralEmbeddingsRequestManager extends BaseRequestManager {
         return new AzureMistralOpenAiExternalResponseHandler(
             "mistral text embedding",
             new MistralEmbeddingsResponseEntity(),
-            ErrorMessageResponseEntity::fromResponse
+            ErrorMessageResponseEntity::fromResponse,
+            false
         );
     }
 

@@ -8,7 +8,8 @@ beta::[]
 
 Updates a connector's `configuration`, allowing for config value updates within a registered configuration schema.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-configuration-api-request]]
 ==== {api-request-title}
@@ -18,10 +19,10 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[update-connector-configuration-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 * To update configuration `values`, the connector `configuration` schema must be first registered by a running instance of Elastic connector service.
-* Make sure configuration fields are compatible with the configuration schema for the third-party data source. Refer to the individual {enterprise-search-ref}/connectors-references.html[connectors references] for details.
+* Make sure configuration fields are compatible with the configuration schema for the third-party data source. Refer to the individual <<es-connectors-refs,connector references>> for details.
 
 [[update-connector-configuration-api-path-params]]
 ==== {api-path-parms-title}
@@ -55,7 +56,7 @@ No connector matching `connector_id` could be found.
 [[update-connector-configuration-api-example]]
 ==== {api-examples-title}
 
-The following example configures a `sharepoint_online` connector. Find the supported configuration options in the {enterprise-search-ref}/connectors-sharepoint-online.html[Sharepoint Online connector documentation] or by inspecting the schema in the connector's `configuration` field using the <<get-connector-api>>.
+The following example configures a `sharepoint_online` connector. Find the supported configuration options in the <<es-connectors-sharepoint-online,Sharepoint Online connector documentation>>, or by inspecting the schema in the connector's `configuration` field using the <<get-connector-api>>.
 
 ////
 [source, console]

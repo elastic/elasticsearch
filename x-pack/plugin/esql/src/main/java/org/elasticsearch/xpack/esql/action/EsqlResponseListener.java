@@ -153,14 +153,32 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
                     releasable
                 );
             }
-            long tookNanos = stopWatch.stop().getNanos();
-            restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(tookNanos));
+            restResponse.addHeader(HEADER_NAME_TOOK_NANOS, Long.toString(getTook(esqlResponse, TimeUnit.NANOSECONDS)));
             success = true;
             return restResponse;
         } finally {
             if (success == false) {
                 releasable.close();
             }
+        }
+    }
+
+    /**
+     * If the {@link EsqlQueryResponse} has overallTook time present, use that, as it persists across
+     * REST calls, so it works properly with long-running async-searches.
+     * @param esqlResponse
+     * @return took time in nanos either from the {@link EsqlQueryResponse} or the stopWatch in this object
+     */
+    private long getTook(EsqlQueryResponse esqlResponse, TimeUnit timeUnit) {
+        assert timeUnit == TimeUnit.NANOSECONDS || timeUnit == TimeUnit.MILLISECONDS : "Unsupported TimeUnit: " + timeUnit;
+        TimeValue tookTime = stopWatch.stop();
+        if (esqlResponse != null && esqlResponse.getExecutionInfo() != null && esqlResponse.getExecutionInfo().overallTook() != null) {
+            tookTime = esqlResponse.getExecutionInfo().overallTook();
+        }
+        if (timeUnit == TimeUnit.NANOSECONDS) {
+            return tookTime.nanos();
+        } else {
+            return tookTime.millis();
         }
     }
 
@@ -181,11 +199,11 @@ public final class EsqlResponseListener extends RestRefCountedChunkedToXContentL
             LOGGER.debug(
                 "Finished execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms",
                 esqlQuery,
-                stopWatch.stop().getMillis()
+                getTook(r, TimeUnit.MILLISECONDS)
             );
         }, ex -> {
             // In case of failure, stop the time manually before sending out the response.
-            long timeMillis = stopWatch.stop().getMillis();
+            long timeMillis = getTook(null, TimeUnit.MILLISECONDS);
             LOGGER.debug("Failed execution of ESQL query.\nQuery string: [{}]\nExecution time: [{}]ms", esqlQuery, timeMillis);
             listener.onFailure(ex);
         });

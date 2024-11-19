@@ -3,6 +3,8 @@ _meta:
   description: Default mappings for the OpenTelemetry metrics index template installed by x-pack
   managed: true
 template:
+  settings:
+    index.mapping.ignore_malformed: true
   mappings:
     properties:
       start_timestamp:
@@ -10,8 +12,38 @@ template:
       metrics:
         type: passthrough
         dynamic: true
-        priority: 1
+        priority: 10
       unit:
         type: keyword
         time_series_dimension: true
         ignore_above: 1024
+    dynamic_templates:
+      - histogram:
+          mapping:
+            type: histogram
+      - counter_long:
+          mapping:
+            type: long
+            time_series_metric: counter
+      - gauge_long:
+          mapping:
+            type: long
+            time_series_metric: gauge
+      - counter_double:
+          mapping:
+            type: double
+            time_series_metric: counter
+      - gauge_double:
+          mapping:
+            type: double
+            time_series_metric: gauge
+      - summary:
+          mapping:
+            type: aggregate_metric_double
+            metrics: [sum, value_count]
+            default_metric: value_count
+      - summary_minmax:
+          mapping:
+            type: aggregate_metric_double
+            metrics: [sum, value_count, min, max]
+            default_metric: value_count

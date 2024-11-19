@@ -486,7 +486,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 threadPool
             );
             mockTransportServices[i] = remoteSeedTransport;
-            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalDiscoNode();
+            DiscoveryNode remoteSeedNode = remoteSeedTransport.getLocalNode();
             knownNodes.add(remoteSeedNode);
             nodes[i] = remoteSeedNode;
             settingsBuilder.put("cluster.remote.remote" + i + ".seeds", remoteSeedNode.getAddress().toString());
@@ -1765,7 +1765,6 @@ public class TransportSearchActionTests extends ESTestCase {
                 new IndexNameExpressionResolver(threadPool.getThreadContext(), EmptySystemIndices.INSTANCE),
                 null,
                 null,
-                new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                 client,
                 new UsageService()

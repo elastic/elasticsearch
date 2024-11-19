@@ -131,7 +131,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
       ':server:generateModulesList',
       ':server:generatePluginsList',
       ':generateProviderImpls',
-      ':libs:elasticsearch-native:elasticsearch-native-libraries:extractLibs',
+      ':libs:native:native-libraries:extractLibs',
       ':x-pack:libs:es-opensaml-security-api:shadowJar'].collect { elasticsearchProject.right()?.task(it) ?: it })
   }
 
@@ -169,6 +169,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
               '-ea',
               '-Djava.security.manager=allow',
               '-Djava.locale.providers=CLDR',
+              '-Dtests.testfeatures.enabled=true',
               '-Des.nativelibs.path="' + testLibraryPath + '"',
               // TODO: only open these for mockito when it is modularized
               '--add-opens=java.base/java.security.cert=ALL-UNNAMED',

@@ -23,6 +23,7 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.text.ParseException;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
 import static org.hamcrest.Matchers.containsString;
 
 public class ESWordnetSynonymParserTests extends ESTokenStreamTestCase {

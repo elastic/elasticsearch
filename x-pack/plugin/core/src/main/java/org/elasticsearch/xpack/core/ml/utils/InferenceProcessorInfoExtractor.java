@@ -10,9 +10,7 @@ package org.elasticsearch.xpack.core.ml.utils;
 import org.apache.lucene.util.Counter;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.ingest.ConfigurationUtils;
 import org.elasticsearch.ingest.IngestMetadata;
-import org.elasticsearch.ingest.Pipeline;
 import org.elasticsearch.transport.Transports;
 
 import java.util.HashMap;
@@ -24,6 +22,7 @@ import java.util.Set;
 import java.util.function.Consumer;
 
 import static org.elasticsearch.inference.InferenceResults.MODEL_ID_RESULTS_FIELD;
+import static org.elasticsearch.ingest.Pipeline.ON_FAILURE_KEY;
 import static org.elasticsearch.ingest.Pipeline.PROCESSORS_KEY;
 
 /**
@@ -53,16 +52,10 @@ public final class InferenceProcessorInfoExtractor {
         Counter counter = Counter.newCounter();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = (List<Map<String, Object>>) configMap.get(PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(
-                        entry.getKey(),
-                        pipelineId,
-                        (Map<String, Object>) entry.getValue(),
-                        pam -> counter.addAndGet(1),
-                        0
-                    );
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> counter.addAndGet(1), 0);
                 }
             }
         });
@@ -73,7 +66,6 @@ public final class InferenceProcessorInfoExtractor {
      * @param ingestMetadata The ingestMetadata of current ClusterState
      * @return The set of model IDs referenced by inference processors
      */
-    @SuppressWarnings("unchecked")
     public static Set<String> getModelIdsFromInferenceProcessors(IngestMetadata ingestMetadata) {
         if (ingestMetadata == null) {
             return Set.of();
@@ -82,16 +74,10 @@ public final class InferenceProcessorInfoExtractor {
         Set<String> modelIds = new LinkedHashSet<>();
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(
-                        entry.getKey(),
-                        pipelineId,
-                        (Map<String, Object>) entry.getValue(),
-                        pam -> modelIds.add(pam.modelIdOrAlias()),
-                        0
-                    );
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> modelIds.add(pam.modelIdOrAlias()), 0);
                 }
             }
         });
@@ -102,7 +88,6 @@ public final class InferenceProcessorInfoExtractor {
      * @param state Current cluster state
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
-    @SuppressWarnings("unchecked")
     public static Map<String, Set<String>> pipelineIdsByResource(ClusterState state, Set<String> ids) {
         assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Map<String, Set<String>> pipelineIdsByModelIds = new HashMap<>();
@@ -116,10 +101,10 @@ public final class InferenceProcessorInfoExtractor {
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
                         if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIdsByModelIds.computeIfAbsent(pam.modelIdOrAlias, m -> new LinkedHashSet<>()).add(pipelineId);
                         }
@@ -134,7 +119,6 @@ public final class InferenceProcessorInfoExtractor {
      * @param state Current {@link ClusterState}
      * @return a map from Model or Deployment IDs or Aliases to each pipeline referencing them.
      */
-    @SuppressWarnings("unchecked")
     public static Set<String> pipelineIdsForResource(ClusterState state, Set<String> ids) {
         assert Transports.assertNotTransportThread("non-trivial nested loops over cluster state structures");
         Set<String> pipelineIds = new HashSet<>();
@@ -148,10 +132,10 @@ public final class InferenceProcessorInfoExtractor {
         }
         ingestMetadata.getPipelines().forEach((pipelineId, configuration) -> {
             Map<String, Object> configMap = configuration.getConfigAsMap();
-            List<Map<String, Object>> processorConfigs = ConfigurationUtils.readList(null, null, configMap, PROCESSORS_KEY);
+            List<Map<String, Object>> processorConfigs = readList(configMap, PROCESSORS_KEY);
             for (Map<String, Object> processorConfigWithKey : processorConfigs) {
                 for (Map.Entry<String, Object> entry : processorConfigWithKey.entrySet()) {
-                    addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), pam -> {
+                    addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), pam -> {
                         if (ids.contains(pam.modelIdOrAlias)) {
                             pipelineIds.add(pipelineId);
                         }
@@ -166,7 +150,7 @@ public final class InferenceProcessorInfoExtractor {
     private static void addModelsAndPipelines(
         String processorType,
         String pipelineId,
-        Map<String, Object> processorDefinition,
+        Object processorDefinition,
         Consumer<PipelineAndModel> handler,
         int level
     ) {
@@ -178,21 +162,23 @@ public final class InferenceProcessorInfoExtractor {
             return;
         }
         if (InferenceProcessorConstants.TYPE.equals(processorType)) {
-            String modelId = (String) processorDefinition.get(MODEL_ID_RESULTS_FIELD);
-            if (modelId != null) {
-                handler.accept(new PipelineAndModel(pipelineId, modelId));
+            if (processorDefinition instanceof Map<?, ?> definitionMap) {
+                String modelId = (String) definitionMap.get(MODEL_ID_RESULTS_FIELD);
+                if (modelId != null) {
+                    handler.accept(new PipelineAndModel(pipelineId, modelId));
+                }
             }
             return;
         }
-        if (FOREACH_PROCESSOR_NAME.equals(processorType)) {
-            Map<String, Object> innerProcessor = (Map<String, Object>) processorDefinition.get("processor");
+        if (FOREACH_PROCESSOR_NAME.equals(processorType) && processorDefinition instanceof Map<?, ?> definitionMap) {
+            Map<String, Object> innerProcessor = (Map<String, Object>) definitionMap.get("processor");
             if (innerProcessor != null) {
                 // a foreach processor should only have a SINGLE nested processor. Iteration is for simplicity's sake.
                 for (Map.Entry<String, Object> innerProcessorWithName : innerProcessor.entrySet()) {
                     addModelsAndPipelines(
                         innerProcessorWithName.getKey(),
                         pipelineId,
-                        (Map<String, Object>) innerProcessorWithName.getValue(),
+                        innerProcessorWithName.getValue(),
                         handler,
                         level + 1
                     );
@@ -200,21 +186,26 @@ public final class InferenceProcessorInfoExtractor {
             }
             return;
         }
-        if (processorDefinition.containsKey(Pipeline.ON_FAILURE_KEY)) {
-            List<Map<String, Object>> onFailureConfigs = ConfigurationUtils.readList(
-                null,
-                null,
-                processorDefinition,
-                Pipeline.ON_FAILURE_KEY
-            );
+        if (processorDefinition instanceof Map<?, ?> definitionMap && definitionMap.containsKey(ON_FAILURE_KEY)) {
+            List<Map<String, Object>> onFailureConfigs = readList(definitionMap, ON_FAILURE_KEY);
             onFailureConfigs.stream()
                 .flatMap(map -> map.entrySet().stream())
-                .forEach(
-                    entry -> addModelsAndPipelines(entry.getKey(), pipelineId, (Map<String, Object>) entry.getValue(), handler, level + 1)
-                );
+                .forEach(entry -> addModelsAndPipelines(entry.getKey(), pipelineId, entry.getValue(), handler, level + 1));
         }
     }
 
     private record PipelineAndModel(String pipelineId, String modelIdOrAlias) {}
 
+    /**
+     * A local alternative to ConfigurationUtils.readList(...) that reads list properties out of the processor configuration map,
+     * but doesn't rely on mutating the configuration map.
+     */
+    @SuppressWarnings("unchecked")
+    private static List<Map<String, Object>> readList(Map<?, ?> processorConfig, String key) {
+        Object val = processorConfig.get(key);
+        if (val == null) {
+            throw new IllegalArgumentException("Missing required property [" + key + "]");
+        }
+        return (List<Map<String, Object>>) val;
+    }
 }

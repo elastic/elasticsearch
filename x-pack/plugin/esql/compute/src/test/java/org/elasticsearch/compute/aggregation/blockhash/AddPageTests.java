@@ -41,7 +41,6 @@ public class AddPageTests extends ESTestCase {
         }
         expected.add(added(3, 4));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvBlockEndsOnBatchBoundary() {
@@ -69,7 +68,6 @@ public class AddPageTests extends ESTestCase {
          * about.
          */
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMvPositionEndOnBatchBoundary() {
@@ -92,7 +90,6 @@ public class AddPageTests extends ESTestCase {
         // Because the first position ended on a block boundary we uselessly emit an empty position there
         expected.add(new Added(0, List.of(List.of(), List.of(0, 2))));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     public void testMv() {
@@ -114,7 +111,6 @@ public class AddPageTests extends ESTestCase {
         }
         expected.add(new Added(1, List.of(List.of(2))));
         assertThat(result.added, equalTo(expected));
-        assertThat(result.closed, equalTo(true));
     }
 
     /**
@@ -158,8 +154,6 @@ public class AddPageTests extends ESTestCase {
     }
 
     private class TestAddInput implements GroupingAggregatorFunction.AddInput {
-        private boolean closed = false;
-
         private final List<Added> added = new ArrayList<>();
 
         @Override
@@ -185,7 +179,7 @@ public class AddPageTests extends ESTestCase {
 
         @Override
         public void close() {
-            closed = true;
+            fail("shouldn't close");
         }
     }
 

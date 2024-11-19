@@ -29,10 +29,6 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-
     mavenCentral()
   }
 }
@@ -204,11 +200,11 @@ tasks.register("verifyVersions") {
         throw new GradleException("No branch choice exists for development branch ${unreleasedVersion.branch} in .backportrc.json.")
       }
     }
-    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == 'main' }.key
+    String versionMapping = backportConfig.get("branchLabelMapping").fields().find { it.value.textValue() == '8.x' }.key
     String expectedMapping = "^v${versions.elasticsearch.replaceAll('-SNAPSHOT', '')}\$"
     if (versionMapping != expectedMapping) {
       throw new GradleException(
-        "Backport label mapping for branch 'main' is '${versionMapping}' but should be " +
+        "Backport label mapping for branch '8.x' is '${versionMapping}' but should be " +
           "'${expectedMapping}'. Update .backportrc.json."
       )
     }
@@ -407,6 +403,10 @@ gradle.projectsEvaluated {
       )
     }
   }
+}
+
+tasks.named("validateChangelogs") {
+  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
 }
 
 tasks.named("precommit") {

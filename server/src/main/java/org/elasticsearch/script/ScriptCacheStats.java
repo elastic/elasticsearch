@@ -21,15 +21,8 @@ import java.util.Collections;
 import java.util.Iterator;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
-import static org.elasticsearch.common.collect.Iterators.concat;
-import static org.elasticsearch.common.collect.Iterators.flatMap;
-import static org.elasticsearch.common.collect.Iterators.single;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.endObject;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.field;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startArray;
-import static org.elasticsearch.common.xcontent.ChunkedToXContentHelper.startObject;
 import static org.elasticsearch.script.ScriptCacheStats.Fields.SCRIPT_CACHE_STATS;
 
 // This class is deprecated in favor of ScriptStats and ScriptContextStats
@@ -76,35 +69,25 @@ public record ScriptCacheStats(Map<String, ScriptStats> context, ScriptStats gen
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        return concat(
-            startObject(SCRIPT_CACHE_STATS),
-            startObject(Fields.SUM),
-            general != null
-                ? concat(
-                    field(ScriptStats.Fields.COMPILATIONS, general.getCompilations()),
-                    field(ScriptStats.Fields.CACHE_EVICTIONS, general.getCacheEvictions()),
-                    field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, general.getCompilationLimitTriggered()),
-                    endObject(),
-                    endObject()
-                )
-                : concat(single((builder, params) -> {
-                    var sum = sum();
-                    return builder.field(ScriptStats.Fields.COMPILATIONS, sum.getCompilations())
-                        .field(ScriptStats.Fields.CACHE_EVICTIONS, sum.getCacheEvictions())
-                        .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, sum.getCompilationLimitTriggered())
-                        .endObject();
-                }), startArray(Fields.CONTEXTS), flatMap(context.keySet().stream().sorted().iterator(), ctx -> {
-                    var stats = context.get(ctx);
-                    return concat(
-                        startObject(),
-                        field(Fields.CONTEXT, ctx),
-                        field(ScriptStats.Fields.COMPILATIONS, stats.getCompilations()),
-                        field(ScriptStats.Fields.CACHE_EVICTIONS, stats.getCacheEvictions()),
-                        field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, stats.getCompilationLimitTriggered()),
-                        endObject()
-                    );
-                }), endArray(), endObject())
-        );
+        Function<ScriptStats, ToXContent> statsFields = s -> (b, p) -> b.field(ScriptStats.Fields.COMPILATIONS, s.getCompilations())
+            .field(ScriptStats.Fields.CACHE_EVICTIONS, s.getCacheEvictions())
+            .field(ScriptStats.Fields.COMPILATION_LIMIT_TRIGGERED, s.getCompilationLimitTriggered());
+
+        return ChunkedToXContent.builder(outerParams).object(SCRIPT_CACHE_STATS, sb -> {
+            if (general != null) {
+                sb.xContentObject(Fields.SUM, statsFields.apply(general));
+            } else {
+                sb.xContentObject(Fields.SUM, statsFields.apply(sum()));
+                sb.array(
+                    Fields.CONTEXTS,
+                    context.entrySet().stream().sorted(Map.Entry.comparingByKey()).iterator(),
+                    (eb, e) -> eb.object(ebo -> {
+                        ebo.field(Fields.CONTEXT, e.getKey());
+                        ebo.append(statsFields.apply(e.getValue()));
+                    })
+                );
+            }
+        });
     }
 
     /**

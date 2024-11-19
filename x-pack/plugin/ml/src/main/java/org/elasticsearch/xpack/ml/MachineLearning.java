@@ -327,6 +327,7 @@ import org.elasticsearch.xpack.ml.dataframe.process.NativeMemoryUsageEstimationP
 import org.elasticsearch.xpack.ml.dataframe.process.results.AnalyticsResult;
 import org.elasticsearch.xpack.ml.dataframe.process.results.MemoryUsageEstimationResult;
 import org.elasticsearch.xpack.ml.inference.TrainedModelStatsService;
+import org.elasticsearch.xpack.ml.inference.adaptiveallocations.AdaptiveAllocationsScalerService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentClusterService;
 import org.elasticsearch.xpack.ml.inference.assignment.TrainedModelAssignmentService;
 import org.elasticsearch.xpack.ml.inference.deployment.DeploymentManager;
@@ -498,6 +499,14 @@ public class MachineLearning extends Plugin
 
     public static final String TRAINED_MODEL_CIRCUIT_BREAKER_NAME = "model_inference";
 
+    /**
+     * Hard-coded timeout used for {@link org.elasticsearch.action.support.master.MasterNodeRequest#masterNodeTimeout()} for requests to
+     * the master node from ML code. Wherever possible, prefer to use a user-controlled timeout instead of this.
+     *
+     * @see <a href="https://github.com/elastic/elasticsearch/issues/107984">#107984</a>
+     */
+    public static final TimeValue HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT = TimeValue.THIRTY_SECONDS;
+
     private static final long DEFAULT_MODEL_CIRCUIT_BREAKER_LIMIT = (long) ((0.50) * JvmInfo.jvmInfo().getMem().getHeapMax().getBytes());
     private static final double DEFAULT_MODEL_CIRCUIT_BREAKER_OVERHEAD = 1.0D;
 
@@ -636,14 +645,6 @@ public class MachineLearning extends Plugin
         30,
         5,
         200,
-        Property.OperatorDynamic,
-        Property.NodeScope
-    );
-
-    public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
-        "xpack.ml.max_lazy_ml_nodes",
-        0,
-        0,
         Property.OperatorDynamic,
         Property.NodeScope
     );
@@ -801,7 +802,7 @@ public class MachineLearning extends Plugin
             PROCESS_CONNECT_TIMEOUT,
             CONCURRENT_JOB_ALLOCATIONS,
             MachineLearningField.MAX_MODEL_MEMORY_LIMIT,
-            MAX_LAZY_ML_NODES,
+            MachineLearningField.MAX_LAZY_ML_NODES,
             MAX_MACHINE_MEMORY_PERCENT,
             AutodetectBuilder.MAX_ANOMALY_RECORDS_SETTING_DYNAMIC,
             MAX_OPEN_JOBS_PER_NODE,
@@ -1277,13 +1278,21 @@ public class MachineLearning extends Plugin
             new MlAutoscalingDeciderService(memoryTracker, settings, nodeAvailabilityZoneMapper, clusterService)
         );
 
-        MlInitializationService mlInitializationService = new MlInitializationService(
-            settings,
+        AdaptiveAllocationsScalerService adaptiveAllocationsScalerService = new AdaptiveAllocationsScalerService(
             threadPool,
             clusterService,
             client,
             inferenceAuditor,
             telemetryProvider.getMeterRegistry(),
+            machineLearningExtension.get().isNlpEnabled()
+        );
+
+        MlInitializationService mlInitializationService = new MlInitializationService(
+            settings,
+            threadPool,
+            clusterService,
+            client,
+            adaptiveAllocationsScalerService,
             mlAssignmentNotifier,
             machineLearningExtension.get().isAnomalyDetectionEnabled(),
             machineLearningExtension.get().isDataFrameAnalyticsEnabled(),
@@ -1309,6 +1318,7 @@ public class MachineLearning extends Plugin
             jobManagerHolder,
             autodetectProcessManager,
             mlInitializationService,
+            adaptiveAllocationsScalerService,
             jobDataCountsPersister,
             datafeedRunner,
             datafeedManager,

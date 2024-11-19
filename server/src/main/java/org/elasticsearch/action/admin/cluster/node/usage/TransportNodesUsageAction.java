@@ -93,7 +93,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
 
         public NodeUsageRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
+            skipLegacyNodesRequestHeader(TransportVersions.V_8_15_0, in);
             restActions = in.readBoolean();
             aggregations = in.readBoolean();
         }
@@ -106,7 +106,7 @@ public class TransportNodesUsageAction extends TransportNodesAction<
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
+            sendLegacyNodesRequestHeader(TransportVersions.V_8_15_0, out);
             out.writeBoolean(restActions);
             out.writeBoolean(aggregations);
         }

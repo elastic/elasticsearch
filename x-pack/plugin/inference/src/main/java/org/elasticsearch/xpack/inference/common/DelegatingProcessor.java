@@ -21,7 +21,7 @@ import java.util.concurrent.atomic.AtomicLong;
 public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> {
     private static final Logger log = LogManager.getLogger(DelegatingProcessor.class);
     private final AtomicLong pendingRequests = new AtomicLong();
-    private final AtomicBoolean isClosed = new AtomicBoolean(false);
+    protected final AtomicBoolean isClosed = new AtomicBoolean(false);
     private Flow.Subscriber<? super R> downstream;
     private Flow.Subscription upstream;
 
@@ -49,7 +49,7 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
             @Override
             public void request(long n) {
                 if (isClosed.get()) {
-                    downstream.onComplete(); // shouldn't happen, but reinforce that we're no longer listening
+                    downstream.onComplete();
                 } else if (upstream != null) {
                     upstream.request(n);
                 } else {
@@ -89,7 +89,12 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
         if (isClosed.get()) {
             upstream.cancel();
         } else {
-            next(item);
+            try {
+                next(item);
+            } catch (Exception e) {
+                upstream().cancel();
+                onError(e);
+            }
         }
     }
 
@@ -97,8 +102,9 @@ public abstract class DelegatingProcessor<T, R> implements Flow.Processor<T, R> 
      * An {@link #onNext(Object)} that is only called when the stream is still open.
      * Implementations can pass the resulting R object to the downstream subscriber via {@link #downstream()}, or the upstream can be
      * accessed via {@link #upstream()}.
+     * Any Exceptions thrown by this method will cancel the upstream and be sent to the downstream {@link #onError(Throwable)}.
      */
-    protected abstract void next(T item);
+    protected abstract void next(T item) throws Exception;
 
     @Override
     public void onError(Throwable throwable) {

@@ -67,6 +67,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -99,8 +100,10 @@ import static org.elasticsearch.xpack.esql.SerializationTestUtils.assertSerializ
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 /**
@@ -129,6 +132,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("is_null", IsNull.class),
         entry("is_not_null", IsNotNull.class)
     );
+
+    private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
 
     protected TestCaseSupplier.TestCase testCase;
 
@@ -166,7 +171,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataType.NULL
                 && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
         );
     }
 
@@ -720,17 +725,19 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             for (int i = 0; i < args.size() && i < types.size(); i++) {
                 typesFromSignature.get(i).add(types.get(i).esNameIfPossible());
             }
-            returnFromSignature.add(entry.getValue().esNameIfPossible());
+            if (DataType.UNDER_CONSTRUCTION.containsKey(entry.getValue()) == false) {
+                returnFromSignature.add(entry.getValue().esNameIfPossible());
+            }
         }
 
         for (int i = 0; i < args.size(); i++) {
             EsqlFunctionRegistry.ArgSignature arg = args.get(i);
             Set<String> annotationTypes = Arrays.stream(arg.type())
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             Set<String> signatureTypes = typesFromSignature.get(i)
                 .stream()
-                .filter(DataType.UNDER_CONSTRUCTION::containsKey)
+                .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
                 .collect(Collectors.toCollection(TreeSet::new));
             if (signatureTypes.isEmpty()) {
                 log.info("{}: skipping", arg.name());
@@ -744,8 +751,38 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             );
         }
 
-        Set<String> returnTypes = Arrays.stream(description.returnType()).collect(Collectors.toCollection(TreeSet::new));
+        Set<String> returnTypes = Arrays.stream(description.returnType())
+            .filter(t -> DataType.UNDER_CONSTRUCTION.containsKey(DataType.fromNameOrAlias(t)) == false)
+            .collect(Collectors.toCollection(TreeSet::new));
         assertEquals(returnFromSignature, returnTypes);
+    }
+
+    /**
+     * Asserts the result of a test case matches the expected result and warnings.
+     * <p>
+     * The {@code result} parameter should be an object as returned by {@link #toJavaObjectUnsignedLongAware}.
+     * </p>
+     */
+    @SuppressWarnings("unchecked")
+    protected final void assertTestCaseResultAndWarnings(Object result) {
+        if (result instanceof Iterable<?>) {
+            var collectionResult = (Iterable<Object>) result;
+            assertThat(collectionResult, not(hasItem(Double.NaN)));
+            assertThat(collectionResult, not(hasItem(Double.POSITIVE_INFINITY)));
+            assertThat(collectionResult, not(hasItem(Double.NEGATIVE_INFINITY)));
+        }
+
+        assert testCase.getMatcher().matches(Double.NaN) == false;
+        assertThat(result, not(equalTo(Double.NaN)));
+        assert testCase.getMatcher().matches(Double.POSITIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.POSITIVE_INFINITY)));
+        assert testCase.getMatcher().matches(Double.NEGATIVE_INFINITY) == false;
+        assertThat(result, not(equalTo(Double.NEGATIVE_INFINITY)));
+        assertThat(result, testCase.getMatcher());
+
+        if (testCase.getExpectedWarnings() != null) {
+            assertWarnings(testCase.getExpectedWarnings());
+        }
     }
 
     protected final void assertTypeResolutionFailure(Expression expression) {
@@ -842,8 +879,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -1048,8 +1084,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
@@ -1148,6 +1183,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             }
             builder.endArray();
         }
+        builder.field("preview", info.preview());
+        builder.field("snapshot_only", EsqlFunctionRegistry.isSnapshotOnly(name));
 
         String rendered = Strings.toString(builder.endObject());
         LogManager.getLogger(getTestClass()).info("Writing kibana function definition for [{}]:\n{}", functionName(), rendered);
@@ -1193,9 +1230,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     private static FunctionDefinition definition(String name) {
-        EsqlFunctionRegistry registry = new EsqlFunctionRegistry();
-        if (registry.functionExists(name)) {
-            return registry.resolveFunction(name);
+        if (functionRegistry.functionExists(name)) {
+            return functionRegistry.resolveFunction(name);
         }
         return null;
     }
@@ -1281,13 +1317,6 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
     }
 
     /**
-     * All string types (keyword, text, match_only_text, etc).
-     */
-    protected static DataType[] strings() {
-        return DataType.types().stream().filter(DataType::isString).toArray(DataType[]::new);
-    }
-
-    /**
      * Validate that we know the types for all the test cases already created
      * @param suppliers - list of suppliers before adding in the illegal type combinations
      */
@@ -1313,10 +1342,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
      */
     private static boolean shouldHideSignature(List<DataType> argTypes, DataType returnType) {
         for (DataType dt : DataType.UNDER_CONSTRUCTION.keySet()) {
-            if (returnType == dt) {
+            if (returnType == dt || argTypes.contains(dt)) {
                 return true;
             }
-            return argTypes.contains(dt);
         }
         return false;
     }

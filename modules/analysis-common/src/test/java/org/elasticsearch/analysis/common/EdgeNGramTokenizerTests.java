@@ -31,6 +31,9 @@ import java.io.IOException;
 import java.io.StringReader;
 import java.util.Collections;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertAnalyzesTo;
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
     private IndexAnalyzers buildAnalyzers(IndexVersion version, String tokenizer) throws IOException {
@@ -88,20 +91,21 @@ public class EdgeNGramTokenizerTests extends ESTokenStreamTestCase {
 
         // Check deprecated name as well, needs version before 8.0 because throws IAE after that
         {
-            try (
-                IndexAnalyzers indexAnalyzers = buildAnalyzers(
-                    IndexVersionUtils.randomVersionBetween(
-                        random(),
-                        IndexVersions.V_7_3_0,
-                        IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
-                    ),
-                    "edgeNGram"
-                )
-            ) {
+            IndexVersion version = IndexVersionUtils.randomVersionBetween(
+                random(),
+                IndexVersions.V_7_3_0,
+                IndexVersionUtils.getPreviousVersion(IndexVersions.V_8_0_0)
+            );
+            try (IndexAnalyzers indexAnalyzers = buildAnalyzers(version, "edgeNGram")) {
                 NamedAnalyzer analyzer = indexAnalyzers.get("my_analyzer");
                 assertNotNull(analyzer);
                 assertAnalyzesTo(analyzer, "test", new String[] { "t", "te" });
-
+            }
+            if (version.onOrAfter(IndexVersions.V_7_6_0)) {
+                assertWarnings(
+                    "The [edgeNGram] tokenizer name is deprecated and will be removed in a future version. "
+                        + "Please change the tokenizer name to [edge_ngram] instead."
+                );
             }
         }
 

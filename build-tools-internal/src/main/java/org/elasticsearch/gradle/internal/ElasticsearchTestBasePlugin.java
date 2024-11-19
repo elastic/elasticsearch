@@ -108,6 +108,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
                 "-Xmx" + System.getProperty("tests.heap.size", "512m"),
                 "-Xms" + System.getProperty("tests.heap.size", "512m"),
                 "-Djava.security.manager=allow",
+                "-Dtests.testfeatures.enabled=true",
                 "--add-opens=java.base/java.util=ALL-UNNAMED",
                 // TODO: only open these for mockito when it is modularized
                 "--add-opens=java.base/java.security.cert=ALL-UNNAMED",
@@ -184,15 +185,15 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
             });
 
             if (OS.current().equals(OS.WINDOWS) && System.getProperty("tests.timeoutSuite") == null) {
-                // override the suite timeout to 30 mins for windows, because it has the most inefficient filesystem known to man
-                test.systemProperty("tests.timeoutSuite", "2400000!");
+                // override the suite timeout to 60 mins for windows, because it has the most inefficient filesystem known to man
+                test.systemProperty("tests.timeoutSuite", "3600000!");
             }
 
             /*
              *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
-            project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+            project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

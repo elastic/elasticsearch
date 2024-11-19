@@ -98,7 +98,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -116,5 +116,7 @@
   "examples" : [
     "FROM employees\n| STATS MIN(languages)",
     "FROM employees\n| STATS min_avg_salary_change = MIN(MV_AVG(salary_change))"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

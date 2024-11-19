@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
-import java.util.function.Function;
 
 import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
@@ -258,9 +257,7 @@ public class EsqlFunctionRegistryTests extends ESTestCase {
         }
 
         @Override
-        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-            Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-        ) {
+        public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
             return null;
         }
     }

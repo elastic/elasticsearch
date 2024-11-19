@@ -199,5 +199,7 @@
   ],
   "examples" : [
     "ROW str = \"Hello World\"\n| EVAL str = REPLACE(str, \"World\", \"Universe\")\n| KEEP str"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

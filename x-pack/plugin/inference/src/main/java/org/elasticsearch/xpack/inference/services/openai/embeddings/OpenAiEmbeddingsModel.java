@@ -7,17 +7,26 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
@@ -36,6 +45,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable Map<String, Object> secrets,
         ConfigurationParseContext context
     ) {
@@ -45,6 +55,7 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
             service,
             OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
             OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
@@ -56,10 +67,11 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         String service,
         OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
         super(
-            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings),
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
             new ModelSecrets(secrets),
             serviceSettings,
             secrets
@@ -92,5 +104,31 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
     @Override
     public ExecutableAction accept(OpenAiActionVisitor creator, Map<String, Object> taskSettings) {
         return creator.create(this, taskSettings);
+    }
+
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    USER,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("User")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Specifies the user issuing the request.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setValue("")
+                        .build()
+                );
+
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

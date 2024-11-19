@@ -192,7 +192,6 @@ public class StreamingXContentResponseIT extends ESIntegTestCase {
                         })
                     ),
                     between(1, 10),
-                    () -> {},
                     () -> {
                         try (streamingXContentResponse; finalRef) {
                             streamingXContentResponse.writeFragment(p -> ChunkedToXContentHelper.endObject(), refs.acquire());

@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.ByteArrayStreamInput;
 import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.util.BigArrays;
@@ -17,11 +18,13 @@ import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.metrics.InternalMedianAbsoluteDeviation;
 import org.elasticsearch.search.aggregations.metrics.TDigestState;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.util.stream.LongStream;
 
 public final class QuantileStates {
     public static final double MEDIAN = 50.0;
@@ -46,34 +49,40 @@ public final class QuantileStates {
         return new BytesRef(baos.toByteArray());
     }
 
-    static TDigestState deserializeDigest(BytesRef bytesRef) {
+    static TDigestState deserializeDigest(CircuitBreaker breaker, BytesRef bytesRef) {
         ByteArrayStreamInput in = new ByteArrayStreamInput(bytesRef.bytes);
         in.reset(bytesRef.bytes, bytesRef.offset, bytesRef.length);
         try {
-            return TDigestState.read(in);
+            return TDigestState.read(breaker, in);
         } catch (IOException e) {
             throw new RuntimeException(e);
         }
     }
 
     static class SingleState implements AggregatorState {
-        private TDigestState digest;
+        private final CircuitBreaker breaker;
+        private final TDigestState digest;
         private final Double percentile;
 
-        SingleState(double percentile) {
-            this.digest = TDigestState.create(DEFAULT_COMPRESSION);
+        SingleState(CircuitBreaker breaker, double percentile) {
+            this.breaker = breaker;
+            this.digest = TDigestState.create(breaker, DEFAULT_COMPRESSION);
             this.percentile = percentileParam(percentile);
         }
 
         @Override
-        public void close() {}
+        public void close() {
+            Releasables.close(digest);
+        }
 
         void add(double v) {
             digest.add(v);
         }
 
         void add(BytesRef other) {
-            digest.add(deserializeDigest(other));
+            try (var otherDigest = deserializeDigest(breaker, other)) {
+                digest.add(otherDigest);
+            }
         }
 
         /** Extracts an intermediate view of the contents of this state.  */
@@ -107,9 +116,11 @@ public final class QuantileStates {
         private long largestGroupId = -1;
         private ObjectArray<TDigestState> digests;
         private final BigArrays bigArrays;
+        private final CircuitBreaker breaker;
         private final Double percentile;
 
-        GroupingState(BigArrays bigArrays, double percentile) {
+        GroupingState(CircuitBreaker breaker, BigArrays bigArrays, double percentile) {
+            this.breaker = breaker;
             this.bigArrays = bigArrays;
             this.digests = bigArrays.newObjectArray(1);
             this.percentile = percentileParam(percentile);
@@ -119,7 +130,7 @@ public final class QuantileStates {
             digests = bigArrays.grow(digests, groupId + 1);
             TDigestState qs = digests.get(groupId);
             if (qs == null) {
-                qs = TDigestState.create(DEFAULT_COMPRESSION);
+                qs = TDigestState.create(breaker, DEFAULT_COMPRESSION);
                 digests.set(groupId, qs);
             }
             return qs;
@@ -140,7 +151,9 @@ public final class QuantileStates {
         }
 
         void add(int groupId, BytesRef other) {
-            getOrAddGroup(groupId).add(deserializeDigest(other));
+            try (var digestToAdd = deserializeDigest(breaker, other)) {
+                getOrAddGroup(groupId).add(digestToAdd);
+            }
         }
 
         TDigestState getOrNull(int position) {
@@ -159,15 +172,22 @@ public final class QuantileStates {
                 for (int i = 0; i < selected.getPositionCount(); i++) {
                     int group = selected.getInt(i);
                     TDigestState state;
+                    boolean closeState = false;
                     if (group < digests.size()) {
                         state = getOrNull(group);
                         if (state == null) {
-                            state = TDigestState.create(DEFAULT_COMPRESSION);
+                            state = TDigestState.create(breaker, DEFAULT_COMPRESSION);
+                            closeState = true;
                         }
                     } else {
-                        state = TDigestState.create(DEFAULT_COMPRESSION);
+                        state = TDigestState.create(breaker, DEFAULT_COMPRESSION);
+                        closeState = true;
                     }
                     builder.appendBytesRef(serializeDigest(state));
+
+                    if (closeState) {
+                        state.close();
+                    }
                 }
                 blocks[offset] = builder.build();
             }
@@ -214,7 +234,7 @@ public final class QuantileStates {
 
         @Override
         public void close() {
-            digests.close();
+            Releasables.close(Releasables.wrap(LongStream.range(0, digests.size()).mapToObj(i -> digests.get(i)).toList()), digests);
         }
     }
 }

@@ -58,18 +58,23 @@ public class IndexingSlowLogTests extends ESTestCase {
     static MockAppender appender;
     static Releasable appenderRelease;
     static Logger testLogger1 = LogManager.getLogger(IndexingSlowLog.INDEX_INDEXING_SLOWLOG_PREFIX + ".index");
+    static Level origLogLevel = testLogger1.getLevel();
 
     @BeforeClass
     public static void init() throws IllegalAccessException {
         appender = new MockAppender("trace_appender");
         appender.start();
         Loggers.addAppender(testLogger1, appender);
+
+        Loggers.setLevel(testLogger1, Level.TRACE);
     }
 
     @AfterClass
     public static void cleanup() {
-        appender.stop();
         Loggers.removeAppender(testLogger1, appender);
+        appender.stop();
+
+        Loggers.setLevel(testLogger1, origLogLevel);
     }
 
     public void testLevelPrecedence() {

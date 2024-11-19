@@ -218,7 +218,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -238,5 +238,7 @@
       "variadic" : false,
       "returnType" : "version"
     }
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

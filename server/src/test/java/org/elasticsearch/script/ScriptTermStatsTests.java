@@ -48,9 +48,9 @@ public class ScriptTermStatsTests extends ESTestCase {
 
         // Partial match
         assertAllDocs(
-            Set.of(new Term("field", "foo"), new Term("field", "baz")),
+            Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
             ScriptTermStats::matchedTermsCount,
-            Map.of("doc-1", equalTo(1), "doc-2", equalTo(1), "doc-3", equalTo(0))
+            Map.of("doc-1", equalTo(2), "doc-2", equalTo(1), "doc-3", equalTo(0))
         );
 
         // Always returns 0 when no term is provided.
@@ -211,12 +211,12 @@ public class ScriptTermStatsTests extends ESTestCase {
         // With missing terms
         {
             assertAllDocs(
-                Set.of(new Term("field", "foo"), new Term("field", "baz")),
+                Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
                 ScriptTermStats::termFreq,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsSummary(2, 1, 0, 1))),
-                    Map.entry("doc-2", equalTo(new StatsSummary(2, 2, 0, 2))),
-                    Map.entry("doc-3", equalTo(new StatsSummary(2, 0, 0, 0)))
+                    Map.entry("doc-1", equalTo(new StatsSummary(3, 2, 0, 1))),
+                    Map.entry("doc-2", equalTo(new StatsSummary(3, 2, 0, 2))),
+                    Map.entry("doc-3", equalTo(new StatsSummary(3, 0, 0, 0)))
                 )
             );
         }
@@ -274,10 +274,10 @@ public class ScriptTermStatsTests extends ESTestCase {
         // With missing terms
         {
             assertAllDocs(
-                Set.of(new Term("field", "foo"), new Term("field", "baz")),
+                Set.of(new Term("field", "foo"), new Term("field", "qux"), new Term("field", "baz")),
                 ScriptTermStats::termPositions,
                 Map.ofEntries(
-                    Map.entry("doc-1", equalTo(new StatsSummary(1, 1, 1, 1))),
+                    Map.entry("doc-1", equalTo(new StatsSummary(2, 4, 1, 3))),
                     Map.entry("doc-2", equalTo(new StatsSummary(2, 3, 1, 2))),
                     Map.entry("doc-3", equalTo(new StatsSummary()))
                 )
@@ -311,7 +311,7 @@ public class ScriptTermStatsTests extends ESTestCase {
 
             Document doc = new Document();
             doc.add(new TextField("id", "doc-1", Field.Store.YES));
-            doc.add(new TextField("field", "foo bar", Field.Store.YES));
+            doc.add(new TextField("field", "foo bar qux", Field.Store.YES));
             w.addDocument(doc);
 
             doc = new Document();

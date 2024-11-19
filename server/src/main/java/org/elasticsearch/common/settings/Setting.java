@@ -34,6 +34,7 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.math.BigInteger;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Collections;
@@ -1371,7 +1372,27 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, int minValue, Property... properties) {
-        return new Setting<>(key, Integer.toString(defaultValue), (s) -> parseInt(s, minValue, key, isFiltered(properties)), properties);
+        return new Setting<>(key, Integer.toString(defaultValue), intParser(key, minValue, properties), properties);
+    }
+
+    public static Setting<Integer> intSetting(
+        String key,
+        Function<Settings, String> defaultValueFn,
+        int minValue,
+        int maxValue,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValueFn, intParser(key, minValue, maxValue, properties), properties);
+    }
+
+    private static Function<String, Integer> intParser(String key, int minValue, Property[] properties) {
+        final boolean isFiltered = isFiltered(properties);
+        return s -> parseInt(s, minValue, key, isFiltered);
+    }
+
+    private static Function<String, Integer> intParser(String key, int minValue, int maxValue, Property[] properties) {
+        boolean isFiltered = isFiltered(properties);
+        return s -> parseInt(s, minValue, maxValue, key, isFiltered);
     }
 
     public static Setting<Integer> intSetting(
@@ -1487,25 +1508,66 @@ public class Setting<T> implements ToXContentObject {
     }
 
     public static int parseInt(String s, int minValue, int maxValue, String key, boolean isFiltered) {
-        int value = Integer.parseInt(s);
+        int value;
+        try {
+            value = Integer.parseInt(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         if (value > maxValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be <= " + maxValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, "<=", maxValue);
         }
         return value;
     }
 
     static long parseLong(String s, long minValue, String key, boolean isFiltered) {
-        long value = Long.parseLong(s);
+        long value;
+        try {
+            value = Long.parseLong(s);
+        } catch (NumberFormatException e) {
+            // check if value is a number or garbage
+            try {
+                var bi = new BigInteger(s);
+                // it's a number, so check which bound it is outside
+                if (bi.compareTo(BigInteger.valueOf(minValue)) < 0) {
+                    throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
+                } else {
+                    throw newNumericBoundsException(s, key, isFiltered, "<=", Long.MAX_VALUE);
+                }
+            } catch (NumberFormatException e2) {
+                throw e; // it's garbage, use the original exception
+            }
+        }
         if (value < minValue) {
-            String err = "Failed to parse value" + (isFiltered ? "" : " [" + s + "]") + " for setting [" + key + "] must be >= " + minValue;
-            throw new IllegalArgumentException(err);
+            throw newNumericBoundsException(s, key, isFiltered, ">=", minValue);
         }
         return value;
+    }
+
+    private static IllegalArgumentException newNumericBoundsException(String s, String key, boolean isFiltered, String type, long bound) {
+        String err = "Failed to parse value"
+            + (isFiltered ? "" : " [" + s + "]")
+            + " for setting ["
+            + key
+            + "] must be "
+            + type
+            + " "
+            + bound;
+        throw new IllegalArgumentException(err);
     }
 
     public static Setting<Integer> intSetting(String key, int defaultValue, Property... properties) {
@@ -1625,6 +1687,27 @@ public class Setting<T> implements ToXContentObject {
     /**
      * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
      *
+     * @param <T>          the generics type parameter reflecting the actual type of the enum
+     * @param clazz        the enum class
+     * @param defaultValue a default value function that returns the default values string representation.
+     * @param key          the key for the setting
+     * @param validator    validator for this setting
+     * @param properties   properties for this setting like scope, filtering...
+     * @return the setting object
+     */
+    public static <T extends Enum<T>> Setting<T> enumSetting(
+        Class<T> clazz,
+        Function<Settings, String> defaultValue,
+        String key,
+        Validator<T> validator,
+        Property... properties
+    ) {
+        return new Setting<>(key, defaultValue, e -> Enum.valueOf(clazz, e.toUpperCase(Locale.ROOT)), validator, properties);
+    }
+
+    /**
+     * Creates a setting where the allowed values are defined as enum constants. All enum constants must be uppercase.
+     *
      * @param clazz the enum class
      * @param key the key for the setting
      * @param fallbackSetting the fallback setting for this setting
@@ -1662,6 +1745,10 @@ public class Setting<T> implements ToXContentObject {
      */
     public static Setting<ByteSizeValue> memorySizeSetting(String key, ByteSizeValue defaultValue, Property... properties) {
         return memorySizeSetting(key, defaultValue.toString(), properties);
+    }
+
+    public static Setting<ByteSizeValue> memorySizeSetting(String key, Setting<ByteSizeValue> fallbackSetting, Property... properties) {
+        return new Setting<>(key, fallbackSetting, (s) -> MemorySizeValue.parseBytesSizeValueOrHeapRatio(s, key), properties);
     }
 
     /**
@@ -1708,6 +1795,15 @@ public class Setting<T> implements ToXContentObject {
 
     public static Setting<List<String>> stringListSetting(String key, Validator<List<String>> validator, Property... properties) {
         return listSetting(key, List.of(), Function.identity(), validator, properties);
+    }
+
+    public static Setting<List<String>> stringListSetting(
+        final String key,
+        final List<String> defaultStringValue,
+        final Validator<List<String>> validator,
+        final Property... properties
+    ) {
+        return listSetting(key, null, Function.identity(), s -> defaultStringValue, validator, properties);
     }
 
     public static <T> Setting<List<T>> listSetting(

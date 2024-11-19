@@ -21,7 +21,6 @@ import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.test.ESIntegTestCase;
-import org.elasticsearch.test.junit.annotations.TestIssueLogging;
 
 import java.util.HashSet;
 import java.util.Set;
@@ -41,15 +40,6 @@ import static org.hamcrest.Matchers.is;
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0)
 public class PrevalidateShardPathIT extends ESIntegTestCase {
 
-    @TestIssueLogging(
-        value = "org.elasticsearch.cluster.service.MasterService:DEBUG,"
-            + "org.elasticsearch.indices.store.IndicesStore:TRACE,"
-            + "org.elasticsearch.indices.cluster.IndicesClusterStateService:DEBUG,"
-            + "org.elasticsearch.indices.IndicesService:TRACE,"
-            + "org.elasticsearch.index.IndexService:TRACE,"
-            + "org.elasticsearch.env.NodeEnvironment:TRACE",
-        issueUrl = "https://github.com/elastic/elasticsearch/issues/111134"
-    )
     public void testCheckShards() throws Exception {
         internalCluster().startMasterOnlyNode();
         String node1 = internalCluster().startDataOnlyNode();

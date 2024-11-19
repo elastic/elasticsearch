@@ -301,7 +301,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
-            accurateTotalHits ? Integer.MAX_VALUE : 0
+            accurateTotalHits ? Integer.MAX_VALUE : 0,
+            false
         );
         return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }

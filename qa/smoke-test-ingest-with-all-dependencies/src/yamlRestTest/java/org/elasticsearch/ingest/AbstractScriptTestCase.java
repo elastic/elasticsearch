@@ -31,7 +31,7 @@ public abstract class AbstractScriptTestCase extends ESTestCase {
 
     @Before
     public void init() throws Exception {
-        MustacheScriptEngine engine = new MustacheScriptEngine();
+        MustacheScriptEngine engine = new MustacheScriptEngine(Settings.EMPTY);
         Map<String, ScriptEngine> engines = Collections.singletonMap(engine.getType(), engine);
         scriptService = new ScriptService(Settings.EMPTY, engines, ScriptModule.CORE_CONTEXTS, () -> 1L);
     }

@@ -161,7 +161,7 @@ public class UpdateTrainedModelDeploymentAction extends ActionType<CreateTrained
         public ActionRequestValidationException validate() {
             ActionRequestValidationException validationException = new ActionRequestValidationException();
             if (numberOfAllocations != null) {
-                if (numberOfAllocations < 1) {
+                if (numberOfAllocations < 0 || (isInternal == false && numberOfAllocations == 0)) {
                     validationException.addValidationError("[" + NUMBER_OF_ALLOCATIONS + "] must be a positive integer");
                 }
                 if (isInternal == false

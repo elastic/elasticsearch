@@ -25,6 +25,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.sameInstance;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 public class DelayedBucketTests extends ESTestCase {
     public void testToString() {
@@ -40,6 +42,23 @@ public class DelayedBucketTests extends ESTestCase {
         assertThat(b.reduced(reduce, context), sameInstance(b.reduced(reduce, context)));
         assertThat(b.reduced(reduce, context).getKeyAsString(), equalTo("test"));
         assertThat(b.reduced(reduce, context).getDocCount(), equalTo(3L));
+        // it only accounts for sub-buckets
+        assertEquals(0, buckets.get());
+    }
+
+    public void testReducedSubAggregation() {
+        AtomicInteger buckets = new AtomicInteger();
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
+        DelayedBucket<InternalBucket> b = new DelayedBucket<>(
+            List.of(bucket("test", 1, mockMultiBucketAgg()), bucket("test", 2, mockMultiBucketAgg()))
+        );
+
+        assertThat(b.getDocCount(), equalTo(3L));
+        assertThat(b.reduced(reduce, context), sameInstance(b.reduced(reduce, context)));
+        assertThat(b.reduced(reduce, context).getKeyAsString(), equalTo("test"));
+        assertThat(b.reduced(reduce, context).getDocCount(), equalTo(3L));
+        // it only accounts for sub-buckets
         assertEquals(1, buckets.get());
     }
 
@@ -76,6 +95,19 @@ public class DelayedBucketTests extends ESTestCase {
         BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
         DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1)));
         b.reduced(reduce, context);
+        // only account for sub-aggregations
+        assertEquals(0, buckets.get());
+        b.nonCompetitive(context);
+        assertEquals(0, buckets.get());
+    }
+
+    public void testNonCompetitiveReducedSubAggregation() {
+        AtomicInteger buckets = new AtomicInteger();
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(null, null, () -> false, null, buckets::addAndGet);
+        BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> reduce = mockReduce(context);
+        DelayedBucket<InternalBucket> b = new DelayedBucket<>(List.of(bucket("test", 1, mockMultiBucketAgg())));
+        b.reduced(reduce, context);
+        // only account for sub-aggregations
         assertEquals(1, buckets.get());
         b.nonCompetitive(context);
         assertEquals(0, buckets.get());
@@ -85,10 +117,25 @@ public class DelayedBucketTests extends ESTestCase {
         return new StringTerms.Bucket(new BytesRef(key), docCount, InternalAggregations.EMPTY, false, 0, DocValueFormat.RAW);
     }
 
+    private static InternalBucket bucket(String key, long docCount, InternalAggregations subAggregations) {
+        return new StringTerms.Bucket(new BytesRef(key), docCount, subAggregations, false, 0, DocValueFormat.RAW);
+    }
+
     static BiFunction<List<InternalBucket>, AggregationReduceContext, InternalBucket> mockReduce(AggregationReduceContext context) {
         return (l, c) -> {
             assertThat(c, sameInstance(context));
-            return bucket(l.get(0).getKeyAsString(), l.stream().mapToLong(Bucket::getDocCount).sum());
+            context.consumeBucketsAndMaybeBreak(l.get(0).getAggregations().asList().size());
+            return bucket(l.get(0).getKeyAsString(), l.stream().mapToLong(Bucket::getDocCount).sum(), l.get(0).getAggregations());
         };
+    }
+
+    @SuppressWarnings("unchecked")
+    private InternalAggregations mockMultiBucketAgg() {
+        List<InternalBucket> buckets = List.of(bucket("sub", 1));
+        InternalMultiBucketAggregation<?, InternalBucket> mock = (InternalMultiBucketAggregation<?, InternalBucket>) mock(
+            InternalMultiBucketAggregation.class
+        );
+        when(mock.getBuckets()).thenReturn(buckets);
+        return InternalAggregations.from(List.of(mock));
     }
 }

@@ -13,7 +13,7 @@ import org.apache.lucene.codecs.DocValuesFormat;
 import org.apache.lucene.codecs.KnnVectorsFormat;
 import org.apache.lucene.codecs.PostingsFormat;
 import org.apache.lucene.codecs.lucene90.Lucene90DocValuesFormat;
-import org.apache.lucene.codecs.lucene99.Lucene99Codec;
+import org.apache.lucene.codecs.lucene912.Lucene912Codec;
 import org.apache.lucene.codecs.lucene99.Lucene99HnswVectorsFormat;
 import org.apache.lucene.codecs.perfield.PerFieldDocValuesFormat;
 import org.apache.lucene.codecs.perfield.PerFieldKnnVectorsFormat;
@@ -54,7 +54,7 @@ import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
 import org.apache.lucene.search.Weight;
-import org.apache.lucene.search.suggest.document.Completion99PostingsFormat;
+import org.apache.lucene.search.suggest.document.Completion912PostingsFormat;
 import org.apache.lucene.search.suggest.document.CompletionPostingsFormat;
 import org.apache.lucene.search.suggest.document.SuggestField;
 import org.apache.lucene.store.Directory;
@@ -327,11 +327,11 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     public void testCompletionField() throws Exception {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(false)
-            .setCodec(new Lucene99Codec(Lucene99Codec.Mode.BEST_SPEED) {
+            .setCodec(new Lucene912Codec(Lucene912Codec.Mode.BEST_SPEED) {
                 @Override
                 public PostingsFormat getPostingsFormatForField(String field) {
                     if (field.startsWith("suggest_")) {
-                        return new Completion99PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
+                        return new Completion912PostingsFormat(randomFrom(CompletionPostingsFormat.FSTLoadMode.values()));
                     } else {
                         return super.postingsFormat();
                     }
@@ -414,25 +414,25 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
     enum CodecMode {
         BEST_SPEED {
             @Override
-            Lucene99Codec.Mode mode() {
-                return Lucene99Codec.Mode.BEST_SPEED;
+            Lucene912Codec.Mode mode() {
+                return Lucene912Codec.Mode.BEST_SPEED;
             }
         },
 
         BEST_COMPRESSION {
             @Override
-            Lucene99Codec.Mode mode() {
-                return Lucene99Codec.Mode.BEST_COMPRESSION;
+            Lucene912Codec.Mode mode() {
+                return Lucene912Codec.Mode.BEST_COMPRESSION;
             }
         };
 
-        abstract Lucene99Codec.Mode mode();
+        abstract Lucene912Codec.Mode mode();
     }
 
     static void indexRandomly(Directory directory, CodecMode codecMode, int numDocs, Consumer<Document> addFields) throws IOException {
         IndexWriterConfig config = new IndexWriterConfig().setCommitOnClose(true)
             .setUseCompoundFile(randomBoolean())
-            .setCodec(new Lucene99Codec(codecMode.mode()));
+            .setCodec(new Lucene912Codec(codecMode.mode()));
         try (IndexWriter writer = new IndexWriter(directory, config)) {
             for (int i = 0; i < numDocs; i++) {
                 final Document doc = new Document();
@@ -640,7 +640,7 @@ public class IndexDiskUsageAnalyzerTests extends ESTestCase {
         try (DirectoryReader reader = DirectoryReader.open(source)) {
             IndexWriterConfig config = new IndexWriterConfig().setSoftDeletesField(Lucene.SOFT_DELETES_FIELD)
                 .setUseCompoundFile(randomBoolean())
-                .setCodec(new Lucene99Codec(mode.mode()) {
+                .setCodec(new Lucene912Codec(mode.mode()) {
                     @Override
                     public PostingsFormat getPostingsFormatForField(String field) {
                         return new ES812PostingsFormat();

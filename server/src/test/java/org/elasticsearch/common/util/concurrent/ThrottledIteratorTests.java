@@ -63,7 +63,10 @@ public class ThrottledIteratorTests extends ESTestCase {
             final var blockPermits = new Semaphore(between(0, Math.min(maxRelaxedThreads, maxConcurrency) - 1));
 
             ThrottledIterator.run(IntStream.range(0, items).boxed().iterator(), (releasable, item) -> {
-                try (var refs = new RefCountingRunnable(releasable::close)) {
+                try (var refs = new RefCountingRunnable(() -> {
+                    completedItems.incrementAndGet();
+                    releasable.close();
+                })) {
                     assertTrue(itemPermits.tryAcquire());
                     if (forkSupplier.getAsBoolean()) {
                         var ref = refs.acquire();
@@ -108,7 +111,7 @@ public class ThrottledIteratorTests extends ESTestCase {
                         itemPermits.release();
                     }
                 }
-            }, maxConcurrency, completedItems::incrementAndGet, completionLatch::countDown);
+            }, maxConcurrency, completionLatch::countDown);
 
             assertTrue(completionLatch.await(30, TimeUnit.SECONDS));
             assertEquals(items, completedItems.get());

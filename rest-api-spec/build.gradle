@@ -243,3 +243,8 @@ tasks.register('enforceYamlTestConvention').configure {
 tasks.named("precommit").configure {
   dependsOn 'enforceYamlTestConvention'
 }
+
+tasks.named("yamlRestTestV7CompatTransform").configure({ task ->
+  task.skipTest("indices.sort/10_basic/Index Sort", "warning does not exist for compatibility")
+  task.skipTest("search/330_fetch_fields/Test search rewrite", "warning does not exist for compatibility")
+})

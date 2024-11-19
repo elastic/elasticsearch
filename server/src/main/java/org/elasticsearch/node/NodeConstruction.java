@@ -29,7 +29,6 @@ import org.elasticsearch.action.datastreams.autosharding.DataStreamAutoShardingS
 import org.elasticsearch.action.ingest.ReservedPipelineAction;
 import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.update.UpdateHelper;
@@ -44,7 +43,6 @@ import org.elasticsearch.cluster.coordination.Coordinator;
 import org.elasticsearch.cluster.coordination.MasterHistoryService;
 import org.elasticsearch.cluster.coordination.StableMasterHealthIndicatorService;
 import org.elasticsearch.cluster.features.NodeFeaturesFixupListener;
-import org.elasticsearch.cluster.metadata.DataStreamFactoryRetention;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexMetadataVerifier;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
@@ -63,7 +61,7 @@ import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.routing.allocation.DiskThresholdMonitor;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.cluster.service.TransportVersionsFixupListener;
+import org.elasticsearch.cluster.service.CompatibilityVersionsFixupListener;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.component.LifecycleComponent;
@@ -81,10 +79,12 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.discovery.DiscoveryModule;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
@@ -108,12 +108,15 @@ import org.elasticsearch.health.node.tracker.HealthTracker;
 import org.elasticsearch.health.node.tracker.RepositoriesHealthTracker;
 import org.elasticsearch.health.stats.HealthApiStats;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettingProviders;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.SourceFieldMetrics;
+import org.elasticsearch.index.search.stats.ShardSearchPhaseAPMMetrics;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
@@ -141,6 +144,7 @@ import org.elasticsearch.injection.guice.ModulesBuilder;
 import org.elasticsearch.monitor.MonitorService;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.node.internal.TerminationHandlerProvider;
@@ -267,7 +271,14 @@ class NodeConstruction {
             constructor.loadLoggingDataProviders();
             TelemetryProvider telemetryProvider = constructor.createTelemetryProvider(settings);
             ThreadPool threadPool = constructor.createThreadPool(settings, telemetryProvider.getMeterRegistry());
-            SettingsModule settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+
+            final SettingsModule settingsModule;
+            try (var ignored = threadPool.getThreadContext().newStoredContext()) {
+                // If any deprecated settings are in use then we add warnings to the thread context response headers, but we're not
+                // computing a response here so these headers aren't relevant and eventually just get dropped after possibly leaking into
+                // places they shouldn't. Best to explicitly drop them now to protect against such leakage.
+                settingsModule = constructor.validateSettings(initialEnvironment.settings(), settings, threadPool);
+            }
 
             SearchModule searchModule = constructor.createSearchModule(settingsModule.getSettings(), threadPool, telemetryProvider);
             constructor.createClientAndRegistries(settingsModule.getSettings(), threadPool, searchModule);
@@ -508,6 +519,7 @@ class NodeConstruction {
         for (final ExecutorBuilder<?> builder : threadPool.builders()) {
             additionalSettings.addAll(builder.getRegisteredSettings());
         }
+        addBwcSearchWorkerSettings(additionalSettings);
         SettingsExtension.load().forEach(e -> additionalSettings.addAll(e.getSettings()));
 
         // this is as early as we can validate settings at this point. we already pass them to ThreadPool
@@ -536,6 +548,17 @@ class NodeConstruction {
         modules.bindToInstance(NodeEnvironment.class, nodeEnvironment);
 
         return settingsModule;
+    }
+
+    @UpdateForV9
+    private static void addBwcSearchWorkerSettings(List<Setting<?>> additionalSettings) {
+        // TODO remove the below settings, they are unused and only here to enable BwC for deployments that still use them
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_worker.queue_size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
+        additionalSettings.add(
+            Setting.intSetting("thread_pool.search_worker.size", 0, Setting.Property.NodeScope, Setting.Property.DeprecatedWarning)
+        );
     }
 
     private SearchModule createSearchModule(Settings settings, ThreadPool threadPool, TelemetryProvider telemetryProvider) {
@@ -607,8 +630,7 @@ class NodeConstruction {
         MetadataCreateIndexService metadataCreateIndexService
     ) {
         DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = DataStreamGlobalRetentionSettings.create(
-            clusterService.getClusterSettings(),
-            DataStreamFactoryRetention.load(pluginsService, clusterService.getClusterSettings())
+            clusterService.getClusterSettings()
         );
         modules.bindToInstance(DataStreamGlobalRetentionSettings.class, dataStreamGlobalRetentionSettings);
         modules.bindToInstance(
@@ -766,7 +788,7 @@ class NodeConstruction {
         if (DiscoveryNode.isMasterNode(settings)) {
             clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
             clusterService.addListener(
-                new TransportVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
+                new CompatibilityVersionsFixupListener(clusterService, client.admin().cluster(), featureService, threadPool)
             );
             clusterService.addListener(new NodeFeaturesFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
@@ -776,6 +798,9 @@ class NodeConstruction {
             threadPool::relativeTimeInMillis
         );
         MapperMetrics mapperMetrics = new MapperMetrics(sourceFieldMetrics);
+        final List<SearchOperationListener> searchOperationListeners = List.of(
+            new ShardSearchPhaseAPMMetrics(telemetryProvider.getMeterRegistry())
+        );
 
         IndicesService indicesService = new IndicesServiceBuilder().settings(settings)
             .pluginsService(pluginsService)
@@ -797,11 +822,15 @@ class NodeConstruction {
             .valuesSourceRegistry(searchModule.getValuesSourceRegistry())
             .requestCacheKeyDifferentiator(searchModule.getRequestCacheKeyDifferentiator())
             .mapperMetrics(mapperMetrics)
+            .searchOperationListeners(searchOperationListeners)
             .build();
 
         final var parameters = new IndexSettingProvider.Parameters(indicesService::createIndexMapperServiceForValidation);
         IndexSettingProviders indexSettingProviders = new IndexSettingProviders(
-            pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            Sets.union(
+                builtinIndexSettingProviders(),
+                pluginsService.flatMap(p -> p.getAdditionalIndexSettingProviders(parameters)).collect(Collectors.toSet())
+            )
         );
 
         final ShardLimitValidator shardLimitValidator = new ShardLimitValidator(settings, clusterService);
@@ -892,11 +921,7 @@ class NodeConstruction {
         terminationHandler = getSinglePlugin(terminationHandlers, TerminationHandler.class).orElse(null);
 
         final IndexingPressure indexingLimits = new IndexingPressure(settings);
-        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(
-            client,
-            indexingLimits,
-            threadPool.getThreadContext()
-        );
+        final IncrementalBulkService incrementalBulkService = new IncrementalBulkService(client, indexingLimits);
 
         ActionModule actionModule = new ActionModule(
             settings,
@@ -979,7 +1004,6 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
         final ResponseCollectorService responseCollectorService = new ResponseCollectorService(clusterService);
-        final SearchTransportAPMMetrics searchTransportAPMMetrics = new SearchTransportAPMMetrics(telemetryProvider.getMeterRegistry());
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,
@@ -1058,11 +1082,13 @@ class NodeConstruction {
             searchTransportService,
             indexingLimits,
             searchModule.getValuesSourceRegistry().getUsageService(),
-            repositoriesService
+            repositoriesService,
+            compatibilityVersions
         );
 
         final TimeValue metricsInterval = settings.getAsTime("telemetry.agent.metrics_interval", TimeValue.timeValueSeconds(10));
         final NodeMetrics nodeMetrics = new NodeMetrics(telemetryProvider.getMeterRegistry(), nodeService, metricsInterval);
+        final IndicesMetrics indicesMetrics = new IndicesMetrics(telemetryProvider.getMeterRegistry(), indicesService, metricsInterval);
 
         final SearchService searchService = serviceProvider.newSearchService(
             pluginsService,
@@ -1155,13 +1181,13 @@ class NodeConstruction {
             b.bind(MetadataCreateIndexService.class).toInstance(metadataCreateIndexService);
             b.bind(MetadataUpdateSettingsService.class).toInstance(metadataUpdateSettingsService);
             b.bind(SearchService.class).toInstance(searchService);
-            b.bind(SearchTransportAPMMetrics.class).toInstance(searchTransportAPMMetrics);
             b.bind(SearchResponseMetrics.class).toInstance(searchResponseMetrics);
             b.bind(SearchTransportService.class).toInstance(searchTransportService);
             b.bind(SearchPhaseController.class).toInstance(new SearchPhaseController(searchService::aggReduceContextBuilder));
             b.bind(Transport.class).toInstance(transport);
             b.bind(TransportService.class).toInstance(transportService);
             b.bind(NodeMetrics.class).toInstance(nodeMetrics);
+            b.bind(IndicesMetrics.class).toInstance(indicesMetrics);
             b.bind(NetworkService.class).toInstance(networkService);
             b.bind(IndexMetadataVerifier.class).toInstance(indexMetadataVerifier);
             b.bind(ClusterInfoService.class).toInstance(clusterInfoService);
@@ -1632,4 +1658,7 @@ class NodeConstruction {
         };
     }
 
+    private Set<IndexSettingProvider> builtinIndexSettingProviders() {
+        return Set.of(new IndexMode.IndexModeSettingsProvider());
+    }
 }

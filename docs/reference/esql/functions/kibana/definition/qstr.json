@@ -32,5 +32,6 @@
   "examples" : [
     "from books \n| where qstr(\"author: Faulkner\")\n| keep book_no, author \n| sort book_no \n| limit 5;"
   ],
-  "preview" : true
+  "preview" : true,
+  "snapshot_only" : false
 }

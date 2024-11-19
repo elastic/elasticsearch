@@ -1,9 +1,7 @@
 [[retrievers-overview]]
-=== Retrievers
+== Retrievers
 
-preview::[]
-
-A retriever is an abstraction that was added to the Search API in *8.14.0*.
+A retriever is an abstraction that was added to the Search API in *8.14.0* and was made generally available in *8.16.0*.
 This abstraction enables the configuration of multi-stage retrieval pipelines within a single `_search` call.
 This simplifies your search application logic, because you no longer need to configure complex searches via multiple {es} calls or implement additional client-side logic to combine results from different queries.
 
@@ -13,32 +11,31 @@ For implementation details, including notable restrictions, check out the
 
 [discrete]
 [[retrievers-overview-types]]
-==== Retriever types
+=== Retriever types
 
 Retrievers come in various types, each tailored for different search operations.
 The following retrievers are currently available:
 
-* <<standard-retriever,*Standard Retriever*>>. Returns top documents from a
-traditional https://www.elastic.co/guide/en/elasticsearch/reference/master/query-dsl.html[query].
-Mimics a traditional query but in the context of a retriever framework. This
-ensures backward compatibility as existing `_search` requests remain supported.
-That way you can transition to the new abstraction at your own pace without
-mixing syntaxes.
-* <<knn-retriever,*kNN Retriever*>>. Returns top documents from a <<search-api-knn,knn search>>,
-in the context of a retriever framework.
-* <<rrf-retriever,*RRF Retriever*>>. Combines and ranks multiple first-stage retrievers using
-the reciprocal rank fusion (RRF) algorithm. Allows you to combine multiple result sets
-with different relevance indicators into a single result set.
-An RRF retriever is a *compound retriever*, where its `filter` element is
-propagated to its sub retrievers.
-+
-Sub retrievers may not use elements that are restricted by having a compound retriever as part of the retriever tree.
-See the <<rrf-using-multiple-standard-retrievers,RRF documentation>> for detailed examples and information on how to use the RRF retriever.
-* <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>. Used for <<semantic-reranking,semantic reranking>>.
+* <<standard-retriever,*Standard Retriever*>>.
+Returns top documents from a traditional https://www.elastic.co/guide/en/elasticsearch/reference/master/query-dsl.html[query].
+Mimics a traditional query but in the context of a retriever framework.
+This ensures backward compatibility as existing `_search` requests remain supported.
+That way you can transition to the new abstraction at your own pace without mixing syntaxes.
+* <<knn-retriever,*kNN Retriever*>>.
+Returns top documents from a <<search-api-knn,knn search>>, in the context of a retriever framework.
+* <<rrf-retriever,*RRF Retriever*>>.
+Combines and ranks multiple first-stage retrievers using the reciprocal rank fusion (RRF) algorithm.
+Allows you to combine multiple result sets with different relevance indicators into a single result set.
+An RRF retriever is a *compound retriever*, where its `filter` element is propagated to its sub retrievers.
+* <<rule-retriever,*Rule Retriever*>>.
+Applies <<query-rules,query rules>> to the query before returning results.
+* <<text-similarity-reranker-retriever,*Text Similarity Re-ranker Retriever*>>.
+Used for <<semantic-reranking,semantic reranking>>.
 Requires first creating a `rerank` task using the <<put-inference-api,{es} Inference API>>.
 
 [discrete]
-==== What makes retrievers useful?
+[[retrievers-overview-why-are-they-useful]]
+=== What makes retrievers useful?
 
 Here's an overview of what makes retrievers useful and how they differ from regular queries.
 
@@ -70,7 +67,7 @@ When using compound retrievers, only the query element is allowed, which enforce
 
 [discrete]
 [[retrievers-overview-example]]
-==== Example
+=== Example
 
 The following example demonstrates how using retrievers simplify the composability of queries for RRF ranking.
 
@@ -110,7 +107,7 @@ GET example-index/_search
 
 This example demonstrates how you can combine different retrieval strategies into a single `retriever` pipeline.
 
-Compare to `RRF` with `sub_searches` approach:
+Compare to `RRF` with `sub_searches` approach (which is deprecated as of 8.16.0):
 
 .*Expand* for example
 [%collapsible]
@@ -149,25 +146,30 @@ GET example-index/_search
 //NOTCONSOLE
 ==============
 
+For more examples on how to use retrievers, please refer to <<retrievers-examples,retriever examples>>.
+
 [discrete]
 [[retrievers-overview-glossary]]
-==== Glossary
+=== Glossary
 
 Here are some important terms:
 
-* *Retrieval Pipeline*. Defines the entire retrieval and ranking logic to
-produce top hits.
-* *Retriever Tree*. A hierarchical structure that defines how retrievers interact.
-* *First-stage Retriever*. Returns an initial set of candidate documents.
-* *Compound Retriever*. Builds on one or more retrievers,
-enhancing document retrieval and ranking logic.
-* *Combiners*. Compound retrievers that merge top hits
-from multiple sub-retrievers.
-* *Rerankers*. Special compound retrievers that reorder hits and may adjust the number of hits, with distinctions between first-stage and second-stage rerankers.
+* *Retrieval Pipeline*.
+Defines the entire retrieval and ranking logic to produce top hits.
+* *Retriever Tree*.
+A hierarchical structure that defines how retrievers interact.
+* *First-stage Retriever*.
+Returns an initial set of candidate documents.
+* *Compound Retriever*.
+Builds on one or more retrievers, enhancing document retrieval and ranking logic.
+* *Combiners*.
+Compound retrievers that merge top hits from multiple sub-retrievers.
+* *Rerankers*.
+Special compound retrievers that reorder hits and may adjust the number of hits, with distinctions between first-stage and second-stage rerankers.
 
 [discrete]
 [[retrievers-overview-play-in-search]]
-==== Retrievers in action
+=== Retrievers in action
 
 The Search Playground builds Elasticsearch queries using the retriever abstraction.
 It automatically detects the fields and types in your index and builds a retriever tree based on your selections.
@@ -178,6 +180,9 @@ Refer to the {kibana-ref}/playground.html[Playground documentation] for more inf
 
 [discrete]
 [[retrievers-overview-api-reference]]
-==== API reference
+=== API reference
 
 For implementation details, including notable restrictions, check out the <<retriever,reference documentation>> in the Search API docs.
+
+
+include::retrievers-examples.asciidoc[]

@@ -78,8 +78,6 @@ public final class JwtRoleMappingsIntegTests extends SecurityIntegTestCase {
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         Settings.Builder builder = Settings.builder()
             .put(super.nodeSettings(nodeOrdinal, otherSettings))
-            // some tests make use of cluster-state based role mappings
-            .put("xpack.security.authc.cluster_state_role_mappings.enabled", true)
             .put(XPackSettings.TOKEN_SERVICE_ENABLED_SETTING.getKey(), randomBoolean())
             // 1st JWT realm
             .put("xpack.security.authc.realms.jwt.jwt0.order", 10)

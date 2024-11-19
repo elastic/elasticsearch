@@ -24,7 +24,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.UnaryScalarFuncti
 
 import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -35,6 +34,7 @@ public class Length extends UnaryScalarFunction {
     @FunctionInfo(
         returnType = "integer",
         description = "Returns the character length of a string.",
+        note = "All strings are in UTF-8, so a single character can use multiple bytes.",
         examples = @Example(file = "eval", tag = "length")
     )
     public Length(
@@ -87,7 +87,7 @@ public class Length extends UnaryScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return new LengthEvaluator.Factory(source(), toEvaluator.apply(field()));
     }
 }

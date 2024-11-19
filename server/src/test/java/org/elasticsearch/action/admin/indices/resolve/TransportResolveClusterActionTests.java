@@ -88,9 +88,10 @@ public class TransportResolveClusterActionTests extends ESTestCase {
                 null
             );
 
-            final var ex = asInstanceOf(
+            final var ex = safeAwaitFailure(
                 IllegalArgumentException.class,
-                safeAwaitFailure(ResolveClusterActionResponse.class, listener -> action.doExecute(null, request, listener))
+                ResolveClusterActionResponse.class,
+                listener -> action.doExecute(null, request, listener)
             );
 
             assertThat(ex.getMessage(), containsString("not compatible with version"));

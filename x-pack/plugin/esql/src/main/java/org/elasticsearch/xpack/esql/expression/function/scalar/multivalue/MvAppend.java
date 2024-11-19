@@ -35,7 +35,6 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
@@ -63,7 +62,6 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
             "ip",
             "keyword",
             "long",
-            "text",
             "version" },
         description = "Concatenates values of two multi-value fields."
     )
@@ -135,12 +133,12 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
         if (resolution.unresolved()) {
             return resolution;
         }
-        dataType = field1.dataType();
+        dataType = field1.dataType().noText();
         if (dataType == DataType.NULL) {
-            dataType = field2.dataType();
+            dataType = field2.dataType().noText();
             return isType(field2, DataType::isRepresentable, sourceText(), SECOND, "representable");
         }
-        return isType(field2, t -> t == dataType, sourceText(), SECOND, dataType.typeName());
+        return isType(field2, t -> t.noText() == dataType, sourceText(), SECOND, dataType.typeName());
     }
 
     @Override
@@ -149,9 +147,7 @@ public class MvAppend extends EsqlScalarFunction implements EvaluatorMapper {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         return switch (PlannerUtils.toElementType(dataType())) {
             case BOOLEAN -> new MvAppendBooleanEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));
             case BYTES_REF -> new MvAppendBytesRefEvaluator.Factory(source(), toEvaluator.apply(field1), toEvaluator.apply(field2));

@@ -16,6 +16,7 @@ import io.netty.channel.ChannelFutureListener;
 import io.netty.handler.codec.http.HttpContent;
 import io.netty.handler.codec.http.LastHttpContent;
 
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.transport.netty4.Netty4Utils;
@@ -34,14 +35,21 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     private final Channel channel;
     private final ChannelFutureListener closeListener = future -> doClose();
     private final List<ChunkHandler> tracingHandlers = new ArrayList<>(4);
+    private final ThreadContext threadContext;
     private ByteBuf buf;
-    private boolean hasLast = false;
     private boolean requested = false;
     private boolean closing = false;
     private HttpBody.ChunkHandler handler;
+    private ThreadContext.StoredContext requestContext;
 
-    public Netty4HttpRequestBodyStream(Channel channel) {
+    // used in tests
+    private volatile int bufSize = 0;
+    private volatile boolean hasLast = false;
+
+    public Netty4HttpRequestBodyStream(Channel channel, ThreadContext threadContext) {
         this.channel = channel;
+        this.threadContext = threadContext;
+        this.requestContext = threadContext.newStoredContext();
         Netty4Utils.addListener(channel.closeFuture(), closeListener);
         channel.config().setAutoRead(false);
     }
@@ -66,12 +74,17 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
     public void next() {
         assert closing == false : "cannot request next chunk on closing stream";
         assert handler != null : "handler must be set before requesting next chunk";
+        requestContext = threadContext.newStoredContext();
         channel.eventLoop().submit(() -> {
             requested = true;
             if (buf == null) {
                 channel.read();
             } else {
-                send();
+                try {
+                    send();
+                } catch (Exception e) {
+                    channel.pipeline().fireExceptionCaught(e);
+                }
             }
         });
     }
@@ -86,10 +99,6 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             if (requested) {
                 send();
             }
-        }
-        if (hasLast) {
-            channel.config().setAutoRead(true);
-            channel.closeFuture().removeListener(closeListener);
         }
     }
 
@@ -106,16 +115,12 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
             comp.addComponent(true, chunk);
             buf = comp;
         }
+        bufSize = buf.readableBytes();
     }
 
     // visible for test
-    Channel channel() {
-        return channel;
-    }
-
-    // visible for test
-    ByteBuf buf() {
-        return buf;
+    int bufSize() {
+        return bufSize;
     }
 
     // visible for test
@@ -129,10 +134,17 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
         var bytesRef = Netty4Utils.toReleasableBytesReference(buf);
         requested = false;
         buf = null;
-        for (var tracer : tracingHandlers) {
-            tracer.onNext(bytesRef, hasLast);
+        bufSize = 0;
+        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
+            for (var tracer : tracingHandlers) {
+                tracer.onNext(bytesRef, hasLast);
+            }
+            handler.onNext(bytesRef, hasLast);
         }
-        handler.onNext(bytesRef, hasLast);
+        if (hasLast) {
+            channel.config().setAutoRead(true);
+            channel.closeFuture().removeListener(closeListener);
+        }
     }
 
     @Override
@@ -146,15 +158,18 @@ public class Netty4HttpRequestBodyStream implements HttpBody.Stream {
 
     private void doClose() {
         closing = true;
-        for (var tracer : tracingHandlers) {
-            Releasables.closeExpectNoException(tracer);
-        }
-        if (handler != null) {
-            handler.close();
+        try (var ignored = threadContext.restoreExistingContext(requestContext)) {
+            for (var tracer : tracingHandlers) {
+                Releasables.closeExpectNoException(tracer);
+            }
+            if (handler != null) {
+                handler.close();
+            }
         }
         if (buf != null) {
             buf.release();
             buf = null;
+            bufSize = 0;
         }
         channel.config().setAutoRead(true);
     }

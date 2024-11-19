@@ -18,7 +18,7 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionVisitor;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
-import org.elasticsearch.xpack.inference.services.elser.ElserModels;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserModels;
 
 import java.net.URI;
 import java.net.URISyntaxException;

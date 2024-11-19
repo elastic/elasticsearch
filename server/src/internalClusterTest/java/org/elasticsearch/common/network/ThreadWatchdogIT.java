@@ -9,7 +9,7 @@
 
 package org.elasticsearch.common.network;
 
-import org.apache.logging.log4j.core.LogEvent;
+import org.apache.logging.log4j.Level;
 import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
@@ -23,7 +23,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
@@ -43,7 +42,6 @@ import org.elasticsearch.transport.TransportService;
 import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
-import java.util.concurrent.CountDownLatch;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
@@ -103,26 +101,24 @@ public class ThreadWatchdogIT extends ESIntegTestCase {
     }
 
     private static void blockAndWaitForWatchdogLogs() {
-        final var threadName = Thread.currentThread().getName();
-        final var logsSeenLatch = new CountDownLatch(2);
-        final var warningSeen = new RunOnce(logsSeenLatch::countDown);
-        final var threadDumpSeen = new RunOnce(logsSeenLatch::countDown);
-        MockLog.assertThatLogger(() -> safeAwait(logsSeenLatch), ThreadWatchdog.class, new MockLog.LoggingExpectation() {
-            @Override
-            public void match(LogEvent event) {
-                final var formattedMessage = event.getMessage().getFormattedMessage();
-                if (formattedMessage.contains("the following threads are active but did not make progress in the preceding [100ms]:")
-                    && formattedMessage.contains(threadName)) {
-                    warningSeen.run();
-                }
-                if (formattedMessage.contains("hot threads dump due to active threads not making progress")) {
-                    threadDumpSeen.run();
-                }
-            }
-
-            @Override
-            public void assertMatched() {}
-        });
+        MockLog.awaitLogger(
+            () -> {},
+            ThreadWatchdog.class,
+            new MockLog.SeenEventExpectation(
+                "warning",
+                ThreadWatchdog.class.getCanonicalName(),
+                Level.WARN,
+                "*the following threads are active but did not make progress in the preceding [100ms]:*"
+                    + Thread.currentThread().getName()
+                    + "*"
+            ),
+            new MockLog.SeenEventExpectation(
+                "thread dump",
+                ThreadWatchdog.class.getCanonicalName(),
+                Level.WARN,
+                "*hot threads dump due to active threads not making progress*"
+            )
+        );
     }
 
     public void testThreadWatchdogHttpLogging() throws IOException {

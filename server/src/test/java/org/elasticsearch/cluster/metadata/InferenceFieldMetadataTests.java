@@ -61,13 +61,15 @@ public class InferenceFieldMetadataTests extends AbstractXContentTestCase<Infere
     private static InferenceFieldMetadata createTestItem() {
         String name = randomAlphaOfLengthBetween(3, 10);
         String inferenceId = randomIdentifier();
+        String searchInferenceId = randomIdentifier();
         String[] inputFields = generateRandomStringArray(5, 10, false, false);
-        return new InferenceFieldMetadata(name, inferenceId, inputFields);
+        return new InferenceFieldMetadata(name, inferenceId, searchInferenceId, inputFields);
     }
 
     public void testNullCtorArgsThrowException() {
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, new String[0]));
-        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata(null, "inferenceId", "searchInferenceId", new String[0]));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", null, "searchInferenceId", new String[0]));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", null, new String[0]));
+        assertThrows(NullPointerException.class, () -> new InferenceFieldMetadata("name", "inferenceId", "searchInferenceId", null));
     }
 }

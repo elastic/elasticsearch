@@ -21,6 +21,8 @@
 
 package org.elasticsearch.tdigest;
 
+import org.apache.lucene.util.Accountable;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tdigest.arrays.TDigestArrays;
 
 import java.util.Collection;
@@ -37,7 +39,7 @@ import java.util.Locale;
  * - test coverage roughly at 90%
  * - easy to adapt for use with map-reduce
  */
-public abstract class TDigest {
+public abstract class TDigest implements Releasable, Accountable {
     protected ScaleFunction scale = ScaleFunction.K_2;
     double min = Double.POSITIVE_INFINITY;
     double max = Double.NEGATIVE_INFINITY;
@@ -50,8 +52,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the MergingDigest
      */
-    public static TDigest createMergingDigest(TDigestArrays arrays, double compression) {
-        return new MergingDigest(arrays, compression);
+    public static MergingDigest createMergingDigest(TDigestArrays arrays, double compression) {
+        return MergingDigest.create(arrays, compression);
     }
 
     /**
@@ -63,8 +65,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the AvlTreeDigest
      */
-    public static TDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
-        return new AVLTreeDigest(arrays, compression);
+    public static AVLTreeDigest createAvlTreeDigest(TDigestArrays arrays, double compression) {
+        return AVLTreeDigest.create(arrays, compression);
     }
 
     /**
@@ -73,8 +75,8 @@ public abstract class TDigest {
      *
      * @return the SortingDigest
      */
-    public static TDigest createSortingDigest(TDigestArrays arrays) {
-        return new SortingDigest(arrays);
+    public static SortingDigest createSortingDigest(TDigestArrays arrays) {
+        return SortingDigest.create(arrays);
     }
 
     /**
@@ -86,8 +88,8 @@ public abstract class TDigest {
      *                    The number of centroids retained will be a smallish (usually less than 10) multiple of this number.
      * @return the HybridDigest
      */
-    public static TDigest createHybridDigest(TDigestArrays arrays, double compression) {
-        return new HybridDigest(arrays, compression);
+    public static HybridDigest createHybridDigest(TDigestArrays arrays, double compression) {
+        return HybridDigest.create(arrays, compression);
     }
 
     /**

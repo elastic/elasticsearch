@@ -36,7 +36,7 @@ public class InternalTDigestPercentilesRanksTests extends InternalPercentilesRan
         if (empty) {
             return new InternalTDigestPercentileRanks(name, percents, null, keyed, format, metadata);
         }
-        final TDigestState state = TDigestState.create(100);
+        final TDigestState state = TDigestState.createWithoutCircuitBreaking(100);
         Arrays.stream(values).forEach(state::add);
 
         return new InternalTDigestPercentileRanks(name, percents, state, keyed, format, metadata);

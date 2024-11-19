@@ -20,6 +20,9 @@ import org.elasticsearch.xpack.core.security.action.profile.GetProfilesAction;
 import org.elasticsearch.xpack.core.security.action.profile.SuggestProfilesAction;
 import org.elasticsearch.xpack.core.security.action.user.ProfileHasPrivilegesAction;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissionGroup;
+import org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions;
+import org.elasticsearch.xpack.core.security.authz.privilege.ClusterPrivilegeResolver;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivilege;
 import org.elasticsearch.xpack.core.security.authz.privilege.ConfigurableClusterPrivileges;
 import org.elasticsearch.xpack.core.security.support.MetadataUtils;
@@ -65,6 +68,8 @@ class KibanaOwnedReservedRoleDescriptors {
             new String[] {
                 "monitor",
                 "manage_index_templates",
+                // manage_inference required for Kibana's inference plugin to setup an ELSER endpoint.
+                "manage_inference",
                 MonitoringBulkAction.NAME,
                 "manage_saml",
                 "manage_token",
@@ -456,11 +461,13 @@ class KibanaOwnedReservedRoleDescriptors {
                         TransportUpdateSettingsAction.TYPE.name()
                     )
                     .build(),
+                // security entity analytics indices
                 RoleDescriptor.IndicesPrivileges.builder().indices("risk-score.risk-*").privileges("all").build(),
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(".asset-criticality.asset-criticality-*")
-                    .privileges("create_index", "manage", "read")
+                    .privileges("create_index", "manage", "read", "write")
                     .build(),
+                RoleDescriptor.IndicesPrivileges.builder().indices(".entities.v1.latest.security*").privileges("read").build(),
                 // For cloud_defend usageCollection
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("logs-cloud_defend.*", "metrics-cloud_defend.*")
@@ -488,7 +495,15 @@ class KibanaOwnedReservedRoleDescriptors {
                 getRemoteIndicesReadPrivileges("metrics-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm.*"),
                 getRemoteIndicesReadPrivileges("traces-apm-*") },
-            null,
+            new RemoteClusterPermissions().addGroup(
+                new RemoteClusterPermissionGroup(
+                    RemoteClusterPermissions.getSupportedRemoteClusterPermissions()
+                        .stream()
+                        .filter(s -> s.equals(ClusterPrivilegeResolver.MONITOR_STATS.name()))
+                        .toArray(String[]::new),
+                    new String[] { "*" }
+                )
+            ),
             null,
             "Grants access necessary for the Kibana system user to read from and write to the Kibana indices, "
                 + "manage index templates and tokens, and check the availability of the Elasticsearch cluster. "

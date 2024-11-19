@@ -24,12 +24,12 @@ import java.io.InputStream;
 public abstract class SlicedInputStream extends InputStream {
     private int nextSlice = 0;
     private InputStream currentStream;
-    private int currentSliceOffset = 0;
+    private long currentSliceOffset = 0;
     private final int numSlices;
     private boolean closed = false;
     private boolean initialized = false;
     private int markedSlice = -1;
-    private int markedSliceOffset = -1;
+    private long markedSliceOffset = -1;
 
     /**
      * Creates a new SlicedInputStream
@@ -99,6 +99,30 @@ public abstract class SlicedInputStream extends InputStream {
     }
 
     @Override
+    public long skip(long n) throws IOException {
+        long remaining = n;
+        while (remaining > 0) {
+            final InputStream stream = currentStream();
+            if (stream == null) {
+                break;
+            }
+            long skipped = stream.skip(remaining);
+            currentSliceOffset += skipped;
+            if (skipped < remaining) {
+                // read one more byte to see if we reached EOF in order to proceed to the next stream.
+                if (stream.read() < 0) {
+                    nextStream();
+                } else {
+                    currentSliceOffset++;
+                    skipped++;
+                }
+            }
+            remaining -= skipped;
+        }
+        return n - remaining;
+    }
+
+    @Override
     public void close() throws IOException {
         closed = true;
         initialized = true;
@@ -129,7 +153,7 @@ public abstract class SlicedInputStream extends InputStream {
         // According to JDK documentation, marking a closed InputStream should have no effect.
         if (markSupported() && isClosed() == false && numSlices > 0) {
             if (initialized) {
-                markedSlice = nextSlice - 1;
+                markedSlice = (currentStream == null) ? numSlices : nextSlice - 1;
                 markedSliceOffset = currentSliceOffset;
             } else {
                 markedSlice = 0;
@@ -148,12 +172,16 @@ public abstract class SlicedInputStream extends InputStream {
                     throw new IOException("Mark has not been set");
                 }
 
-                // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
-                // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
                 nextSlice = markedSlice;
-                final InputStream stream = nextStream();
-                if (stream != null) {
-                    stream.skipNBytes(markedSliceOffset);
+                initialized = true;
+                IOUtils.close(currentStream);
+                if (nextSlice < numSlices) {
+                    currentStream = openSlice(nextSlice++);
+                    // We do not call the SlicedInputStream's skipNBytes but call skipNBytes directly on the returned stream, to ensure that
+                    // the skip is performed on the marked slice and no other slices are involved. This may help uncover any bugs.
+                    currentStream.skipNBytes(markedSliceOffset);
+                } else {
+                    currentStream = null;
                 }
                 currentSliceOffset = markedSliceOffset;
             }

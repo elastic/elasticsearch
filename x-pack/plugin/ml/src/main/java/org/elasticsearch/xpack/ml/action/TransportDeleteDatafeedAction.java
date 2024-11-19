@@ -28,6 +28,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.DeleteDatafeedAction;
 import org.elasticsearch.xpack.core.ml.action.IsolateDatafeedAction;
 import org.elasticsearch.xpack.core.ml.utils.ExceptionsHelper;
+import org.elasticsearch.xpack.ml.MachineLearning;
 import org.elasticsearch.xpack.ml.datafeed.DatafeedManager;
 
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
@@ -103,22 +104,26 @@ public class TransportDeleteDatafeedAction extends AcknowledgedTransportMasterNo
         if (datafeedTask == null) {
             listener.onResponse(true);
         } else {
-            persistentTasksService.sendRemoveRequest(datafeedTask.getId(), null, new ActionListener<>() {
-                @Override
-                public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
-                    listener.onResponse(Boolean.TRUE);
-                }
+            persistentTasksService.sendRemoveRequest(
+                datafeedTask.getId(),
+                MachineLearning.HARD_CODED_MACHINE_LEARNING_MASTER_NODE_TIMEOUT,
+                new ActionListener<>() {
+                    @Override
+                    public void onResponse(PersistentTasksCustomMetadata.PersistentTask<?> persistentTask) {
+                        listener.onResponse(Boolean.TRUE);
+                    }
 
-                @Override
-                public void onFailure(Exception e) {
-                    if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-                        // the task has been removed in between
-                        listener.onResponse(true);
-                    } else {
-                        listener.onFailure(e);
+                    @Override
+                    public void onFailure(Exception e) {
+                        if (ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
+                            // the task has been removed in between
+                            listener.onResponse(true);
+                        } else {
+                            listener.onFailure(e);
+                        }
                     }
                 }
-            });
+            );
         }
     }
 

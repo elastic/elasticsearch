@@ -389,17 +389,45 @@ public class NettyAllocator {
         private void trashContent() {
             if (trashed == false) {
                 trashed = true;
-                for (var nioBuf : buf.nioBuffers()) {
-                    assert nioBuf.hasArray();
+                TrashingByteBufAllocator.trashBuffer(buf);
+            }
+        }
+    }
+
+    static class TrashingCompositeByteBuf extends CompositeByteBuf {
+
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
+            super(alloc, direct, maxNumComponents);
+        }
+
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents, ByteBuf... buffers) {
+            super(alloc, direct, maxNumComponents, buffers);
+        }
+
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents, Iterable<ByteBuf> buffers) {
+            super(alloc, direct, maxNumComponents, buffers);
+        }
+
+        @Override
+        protected void deallocate() {
+            TrashingByteBufAllocator.trashBuffer(this);
+            super.deallocate();
+        }
+    }
+
+    static class TrashingByteBufAllocator extends NoDirectBuffers {
+
+        static int DEFAULT_MAX_COMPONENTS = 16;
+
+        static void trashBuffer(ByteBuf buf) {
+            for (var nioBuf : buf.nioBuffers()) {
+                if (nioBuf.hasArray()) {
                     var from = nioBuf.arrayOffset() + nioBuf.position();
                     var to = from + nioBuf.remaining();
                     Arrays.fill(nioBuf.array(), from, to, (byte) 0);
                 }
             }
         }
-    }
-
-    static class TrashingByteBufAllocator extends NoDirectBuffers {
 
         TrashingByteBufAllocator(ByteBufAllocator delegate) {
             super(delegate);
@@ -419,5 +447,16 @@ public class NettyAllocator {
         public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
             return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
         }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer() {
+            return new TrashingCompositeByteBuf(this, false, DEFAULT_MAX_COMPONENTS);
+        }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
+            return new TrashingCompositeByteBuf(this, false, maxNumComponents);
+        }
+
     }
 }

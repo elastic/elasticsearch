@@ -13,18 +13,32 @@ import io.netty.buffer.ByteBufAllocator;
 import io.netty.buffer.Unpooled;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.List;
 
+import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBuf;
+import static org.elasticsearch.transport.netty4.NettyAllocator.TrashingByteBufAllocator;
+
 public class NettyAllocatorTests extends ESTestCase {
+
+    static void assertBufferTrashed(BytesReference bytesRef) throws IOException {
+        var iter = bytesRef.iterator();
+        BytesRef br;
+        while ((br = iter.next()) != null) {
+            for (var i = br.offset; i < br.offset + br.length; i++) {
+                assertEquals("off=" + br.offset + " len=" + br.length + " i=" + i, 0, br.bytes[i]);
+            }
+        }
+    }
 
     public void testArrayThrashingByteBuf() {
         var arr = randomByteArrayOfLength(between(1024, 2048));
         var buf = Unpooled.wrappedBuffer(arr);
-        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
+        var tBuf = new TrashingByteBuf(buf);
         tBuf.release();
         var emptyArr = new byte[arr.length];
         assertArrayEquals(emptyArr, arr);
@@ -39,7 +53,7 @@ public class NettyAllocatorTests extends ESTestCase {
             byteBufs[i] = ByteBuffer.wrap(byteArrs[i]);
         }
         var buf = Unpooled.wrappedBuffer(byteBufs);
-        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
+        var tBuf = new TrashingByteBuf(buf);
         tBuf.release();
         for (int i = 0; i < arrCnt; i++) {
             for (int j = 0; j < byteArrs[i].length; j++) {
@@ -55,7 +69,7 @@ public class NettyAllocatorTests extends ESTestCase {
         arr[0] = 1;
         arr[arr.length - 1] = 1;
         var buf = Unpooled.wrappedBuffer(arr, off, len);
-        var tBuf = new NettyAllocator.TrashingByteBuf(buf);
+        var tBuf = new TrashingByteBuf(buf);
         tBuf.release();
         assertEquals(1, arr[0]);
         assertEquals(1, arr[arr.length - 1]);
@@ -65,7 +79,7 @@ public class NettyAllocatorTests extends ESTestCase {
     }
 
     public void testThrashingByteBufAllocator() throws IOException {
-        var alloc = new NettyAllocator.TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var size = between(1024 * 1024, 10 * 1024 * 1024);
 
         // use 3 different heap allocation methods
@@ -73,14 +87,20 @@ public class NettyAllocatorTests extends ESTestCase {
             buf.writeBytes(randomByteArrayOfLength(size));
             var bytesRef = Netty4Utils.toBytesReference(buf);
             buf.release();
-
-            var iter = bytesRef.iterator();
-            BytesRef br;
-            while ((br = iter.next()) != null) {
-                for (var i = br.offset; i < br.offset + br.length; i++) {
-                    assertEquals("off=" + br.offset + " len=" + br.length + " i=" + i, 0, br.bytes[i]);
-                }
-            }
+            assertBufferTrashed(bytesRef);
         }
     }
+
+    public void testTrashingCompositeByteBuf() throws IOException {
+        var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
+        var compBuf = alloc.compositeHeapBuffer();
+        for (var i = 0; i < between(1, 10); i++) {
+            var buf = alloc.heapBuffer().writeBytes(randomByteArrayOfLength(between(1024, 8192)));
+            compBuf.addComponent(true, buf);
+        }
+        var bytesRef = Netty4Utils.toBytesReference(compBuf);
+        compBuf.release();
+        assertBufferTrashed(bytesRef);
+    }
+
 }

@@ -329,17 +329,20 @@ public class EsqlSession {
                     // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
                     // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
                     // TODO: add a test for this
-                    // MP TODO: deal with this later in this PR
-                    // if (clusters.containsAll(newClusters) == false
-                    // // do not bother with a re-resolution if only remotes were requested and all were offline
-                    // && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
-                    // enrichPolicyResolver.resolvePolicies(
-                    // newClusters,
-                    // unresolvedPolicies,
-                    // ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
-                    // );
-                    // return;
-                    // }
+                    if (clusters.containsAll(newClusters) == false
+                        // do not bother with a re-resolution if only remotes were requested and all were offline
+                        && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+                        Map<String, Boolean> newClusterInfo = new HashMap<>();
+                        for (String newCluster : newClusters) {
+                            newClusterInfo.put(newCluster, executionInfo.isSkipUnavailable(newCluster));
+                        }
+                        enrichPolicyResolver.resolvePolicies(
+                            newClusterInfo,
+                            unresolvedPolicies,
+                            ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
+                        );
+                        return;
+                    }
                 }
                 ll.onResponse(action.apply(indexResolution, enrichResolution));
             }), matchFields);

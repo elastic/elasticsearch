@@ -25,6 +25,20 @@ mapped_string:(foo (bar))
 // Bad syntax for nested fields:
 mapped_nested { mapped_string: bar }
 
+// Unknown nested field or not a nested field
+not_nested : { mapped_string: bar }
+mapped_string: { mapped_string: bar }
+
+// Nested query can not use fieldless subqueries
+mapped_nested: { foo }
+mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar AND foo bar }
+mapped_nested: { mapped_string:foo AND mapped_string_2:foo bar OR foo bar }
+mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar OR foo bar }
+mapped_nested: { mapped_string:foo OR mapped_string_2:foo bar AND foo bar }
+mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
+mapped_nested: { mapped_string:foo AND (mapped_string_2:foo bar OR foo bar) }
+mapped_nested: { mapped_string:foo OR (mapped_string_2:foo bar OR foo bar) }
+
 // Missing escape sequences:
 mapped_string: foo:bar
 mapped_string: (foo and bar)

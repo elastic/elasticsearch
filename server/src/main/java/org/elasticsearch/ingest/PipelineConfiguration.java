@@ -139,7 +139,10 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
         } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
             return value;
         } else {
-            throw new IllegalArgumentException("unexpected value type [" + value.getClass() + "]");
+            // if the previous list of expected value types ends up not being exhaustive, then we want to learn about that
+            // at development time, but it's probably better to err on the side of passing through the value at runtime
+            assert false : "unexpected value type [" + value.getClass() + "]";
+            return value;
         }
     }
 

@@ -426,6 +426,7 @@ public class Stateless extends Plugin
         settings.put(CLUSTER_ROUTING_ALLOCATION_DISK_THRESHOLD_ENABLED_SETTING.getKey(), false);
         // Explicitly disable the recovery source, as it is not needed in stateless mode.
         settings.put(RecoverySettings.INDICES_RECOVERY_SOURCE_ENABLED_SETTING.getKey(), false);
+        settings.put("cluster.logsdb.enabled", true);
         return settings.build();
     }
 

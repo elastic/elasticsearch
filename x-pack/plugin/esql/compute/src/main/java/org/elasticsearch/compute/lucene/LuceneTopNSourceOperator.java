@@ -288,6 +288,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             l.add(SortField.FIELD_DOC);
             l.add(SortField.FIELD_SCORE);
             var sort = new Sort(l.toArray(SortField[]::new));
+            // TODO : sorts are not used !!??
             return new ScoringPerShardCollector(shardContext, sort, limit);
         }
     }
@@ -323,7 +324,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     static final class ScoringPerShardCollector extends PerShardCollector {
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
-            super(shardContext, new TopScoreDocCollectorManager(limit, limit).newCollector());
+            super(shardContext, new TopScoreDocCollectorManager(limit, null, 0, false).newCollector());
         }
     }
 }

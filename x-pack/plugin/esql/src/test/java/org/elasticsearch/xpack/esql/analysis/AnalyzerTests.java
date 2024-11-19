@@ -1945,18 +1945,14 @@ public class AnalyzerTests extends ESTestCase {
                 .item(startsWith("job{f}"))
                 .item(startsWith("job.raw{f}"))
                 /*
-                 * Int is a reference here because we renamed it in project.
-                 * If we hadn't it'd be a field and that'd be fine.
+                 * Int key is returned as a full field (despite the rename)
                  */
                 .item(containsString("int{f}"))
                 .item(startsWith("last_name{f}"))
                 .item(startsWith("long_noidx{f}"))
                 .item(startsWith("salary{f}"))
                 /*
-                 * It's important that name is returned as a *reference* here
-                 * instead of a field. If it were a field we'd use SearchStats
-                 * on it and discover that it doesn't exist in the index. It doesn't!
-                 * We don't expect it to. It exists only in the lookup table.
+                 * As is the name column from the right side.
                  */
                 .item(containsString("name{f}"))
         );

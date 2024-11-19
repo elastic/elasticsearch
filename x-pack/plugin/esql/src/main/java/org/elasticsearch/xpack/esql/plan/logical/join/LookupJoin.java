@@ -23,8 +23,6 @@ import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 
 /**
  * Lookup join - specialized LEFT (OUTER) JOIN between the main left side and a lookup index (index_mode = lookup) on the right.
- * In the future, as the join capabilities of the engine will evolve, a regular LEFT JOIN will be used instead, letting the planner decide
- * the strategy at runtime.
  */
 public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
@@ -62,8 +60,6 @@ public class LookupJoin extends Join implements SurrogateLogicalPlan {
 
     @Override
     protected NodeInfo<Join> info() {
-        // Do not just add the JoinConfig as a whole - this would prevent correctly registering the
-        // expressions and references.
         return NodeInfo.create(this, LookupJoin::new, left(), right(), config(), output);
     }
 

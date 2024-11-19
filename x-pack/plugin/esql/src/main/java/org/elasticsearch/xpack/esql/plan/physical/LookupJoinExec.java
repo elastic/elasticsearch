@@ -116,12 +116,14 @@ public class LookupJoinExec extends BinaryExec implements EstimatesRowSize {
 
     @Override
     public AttributeSet inputSet() {
-        // TODO: this is a hack until qualifiers land since the right side is always materialized
+        // TODO: this is a hack since the right side is always materialized - instead this should
+        // return the _doc so the extraction can happen lazily
         return left().outputSet();
     }
 
     @Override
     protected AttributeSet computeReferences() {
+        // TODO: same as above - once lazy materialization of both sides lands, this needs updating
         return Expressions.references(leftFields);
     }
 

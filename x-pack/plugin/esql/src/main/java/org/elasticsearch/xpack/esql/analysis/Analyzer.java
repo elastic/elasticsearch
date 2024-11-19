@@ -648,6 +648,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
                 List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
                 List<Attribute> output = new ArrayList<>(join.left().output());
+                // the order is stable (since the AttributeSet preservers the insertion order)
                 output.addAll(join.right().outputSet().subtract(new AttributeSet(rightKeys)));
 
                 // update the config - pick the left keys as those in the output

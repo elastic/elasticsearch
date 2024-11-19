@@ -33,10 +33,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
-import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.utils.SemanticTextInferenceUtils;
 import org.elasticsearch.xpack.inference.mapper.SemanticTextFieldMapper;
 
@@ -185,7 +181,10 @@ public class SemanticQueryBuilder extends AbstractQueryBuilder<SemanticQueryBuil
         }
 
         if (inferenceResultsSupplier != null) {
-            InferenceResults inferenceResults = SemanticTextInferenceUtils.validateAndConvertInferenceResults(inferenceResultsSupplier.get(), fieldName);
+            InferenceResults inferenceResults = SemanticTextInferenceUtils.validateAndConvertInferenceResults(
+                inferenceResultsSupplier.get(),
+                fieldName
+            );
             return inferenceResults != null ? new SemanticQueryBuilder(this, null, inferenceResults, noInferenceResults) : this;
         }
 

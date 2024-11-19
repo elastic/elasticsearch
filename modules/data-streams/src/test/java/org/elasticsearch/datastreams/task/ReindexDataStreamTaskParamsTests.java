@@ -31,19 +31,23 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
 
     @Override
     protected ReindexDataStreamTaskParams createTestInstance() {
-        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50), randomLong());
+        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50), randomLong(), randomNonNegativeInt(), randomNonNegativeInt());
     }
 
     @Override
     protected ReindexDataStreamTaskParams mutateInstance(ReindexDataStreamTaskParams instance) {
         String sourceDataStream = instance.sourceDataStream();
-        long startTime = randomLong();
-        switch (randomIntBetween(0, 1)) {
+        long startTime = instance.startTime();
+        int totalIndices = instance.totalIndices();
+        int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
+        switch (randomIntBetween(0, 3)) {
             case 0 -> sourceDataStream = randomAlphaOfLength(50);
             case 1 -> startTime = randomLong();
+            case 2 -> totalIndices = totalIndices + 1;
+            case 3 -> totalIndices = totalIndicesToBeUpgraded + 1;
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamTaskParams(sourceDataStream, startTime);
+        return new ReindexDataStreamTaskParams(sourceDataStream, startTime, totalIndices, totalIndicesToBeUpgraded);
     }
 
     @Override

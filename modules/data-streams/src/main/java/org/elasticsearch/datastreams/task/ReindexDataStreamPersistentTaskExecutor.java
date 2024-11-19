@@ -47,8 +47,11 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         PersistentTasksCustomMetadata.PersistentTask<ReindexDataStreamTaskParams> taskInProgress,
         Map<String, String> headers
     ) {
+        ReindexDataStreamTaskParams params = taskInProgress.getParams();
         return new ReindexDataStreamTask(
-            taskInProgress.getParams().startTime(),
+            params.startTime(),
+            params.totalIndices(),
+            params.totalIndicesToBeUpgraded(),
             threadPool,
             id,
             type,
@@ -73,6 +76,13 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                     .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
                     .toList();
                 reindexDataStreamTask.setPendingIndices(indicesToBeReindexed.stream().map(Index::getName).toList());
+                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+                    .getMetadata()
+                    .custom(PersistentTasksCustomMetadata.TYPE);
+                PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
+                    reindexDataStreamTask.getPersistentTaskId()
+                );
+                reindexDataStreamTask.updatePersistentTaskState(new ReindexDataStreamPersistentTaskState(), ActionListener.noop());
                 for (Index index : indicesToBeReindexed) {
                     // TODO This is just a placeholder. This is where the real data stream reindex logic will go
                 }

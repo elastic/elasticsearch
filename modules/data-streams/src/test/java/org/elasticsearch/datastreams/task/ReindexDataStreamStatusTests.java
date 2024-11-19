@@ -22,6 +22,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
+import static java.util.Map.entry;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.Matchers.equalTo;
 
@@ -36,12 +37,13 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
     protected ReindexDataStreamStatus createTestInstance() {
         return new ReindexDataStreamStatus(
             randomLong(),
+            randomNegativeInt(),
+            randomNegativeInt(),
             randomBoolean(),
             nullableTestException(),
-            randomList(),
-            randomList(),
-            randomList(),
-            randomMap()
+            randomNegativeInt(),
+            randomNegativeInt(),
+            randomErrorList()
         );
     }
 
@@ -68,67 +70,84 @@ public class ReindexDataStreamStatusTests extends AbstractWireSerializingTestCas
         return randomList(minSize, Math.max(minSize, 100), () -> randomAlphaOfLength(50));
     }
 
-    private Map<String, Exception> randomMap() {
-        return randomMap(0);
+    private List<Tuple<String, Exception>> randomErrorList() {
+        return randomErrorList(0);
     }
 
-    private Map<String, Exception> randomMap(int minSize) {
-        return randomMap(minSize, Math.max(minSize, 10), () -> Tuple.tuple(randomAlphaOfLength(50), testException()));
+    private List<Tuple<String, Exception>> randomErrorList(int minSize) {
+        return randomList(minSize, Math.max(minSize, 100), () -> Tuple.tuple(randomAlphaOfLength(30), testException()));
     }
 
     @Override
     protected ReindexDataStreamStatus mutateInstance(ReindexDataStreamStatus instance) throws IOException {
         long startTime = instance.persistentTaskStartTime();
+        int totalIndices = instance.totalIndices();
+        int totalIndicesToBeUpgraded = instance.totalIndicesToBeUpgraded();
         boolean complete = instance.complete();
         Exception exception = instance.exception();
-        List<String> successes = instance.successes();
-        List<String> inProgress = instance.inProgress();
-        List<String> pending = instance.pending();
-        Map<String, Exception> errors = instance.errors();
-        switch (randomIntBetween(0, 5)) {
+        int inProgress = instance.inProgress();
+        int pending = instance.pending();
+        List<Tuple<String, Exception>> errors = instance.errors();
+        switch (randomIntBetween(0, 6)) {
             case 0 -> startTime = randomLong();
-            case 1 -> complete = complete == false;
-            case 2 -> successes = randomList(successes.size() + 1);
-            case 3 -> inProgress = randomList(inProgress.size() + 1);
-            case 4 -> pending = randomList(pending.size() + 1);
-            case 5 -> errors = randomMap(errors.size() + 1);
+            case 1 -> totalIndices = totalIndices + 1;
+            case 2 -> totalIndicesToBeUpgraded = totalIndicesToBeUpgraded + 1;
+            case 3 -> complete = complete == false;
+            case 4 -> inProgress = inProgress + 1;
+            case 5 -> pending = pending + 1;
+            case 6 -> errors = randomErrorList(errors.size() + 1);
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamStatus(startTime, complete, exception, successes, inProgress, pending, errors);
+        return new ReindexDataStreamStatus(
+            startTime,
+            totalIndices,
+            totalIndicesToBeUpgraded,
+            complete,
+            exception,
+            inProgress,
+            pending,
+            errors
+        );
     }
 
     public void testToXContent() throws IOException {
         ReindexDataStreamStatus status = new ReindexDataStreamStatus(
             1234L,
+            200,
+            100,
             true,
             new ElasticsearchException("the whole task failed"),
-            List.of("index1", "index2"),
-            List.of("index3", "index4"),
-            List.of("index5", "index6"),
-            Map.of("index7", new ElasticsearchException("index7 failed"), "index8", new ElasticsearchException("index8 failed"))
+            12,
+            8,
+            List.of(
+                Tuple.tuple("index7", new ElasticsearchException("index7 failed")),
+                Tuple.tuple("index8", new ElasticsearchException("index8 " + "failed"))
+            )
         );
         try (XContentBuilder builder = XContentBuilder.builder(JsonXContent.jsonXContent)) {
             builder.humanReadable(true);
             status.toXContent(builder, EMPTY_PARAMS);
             try (XContentParser parser = createParser(JsonXContent.jsonXContent, BytesReference.bytes(builder))) {
+                Map<String, Object> parserMap = parser.map();
                 assertThat(
-                    parser.map(),
+                    parserMap,
                     equalTo(
-                        Map.of(
-                            "start_time",
-                            1234,
-                            "complete",
-                            true,
-                            "exception",
-                            "the whole task failed",
-                            "successes",
-                            Map.of("count", 2, "indices", List.of("index1", "index2")),
-                            "in_progress",
-                            Map.of("count", 2, "indices", List.of("index3", "index4")),
-                            "pending",
-                            Map.of("count", 2, "indices", List.of("index5", "index6")),
-                            "errors",
-                            Map.of("count", 2, "indices", Map.of("index7", "index7 failed", "index8", "index8 failed"))
+                        Map.ofEntries(
+                            entry("start_time", 1234),
+                            entry("total_indices", 200),
+                            entry("total_indices_requiring_upgrade", 100),
+                            entry("complete", true),
+                            entry("exception", "the whole task failed"),
+                            entry("successes", 78),
+                            entry("in_progress", 12),
+                            entry("pending", 8),
+                            entry(
+                                "errors",
+                                List.of(
+                                    Map.of("index", "index7", "message", "index7 failed"),
+                                    Map.of("index", "index8", "message", "index8 failed")
+                                )
+                            )
                         )
                     )
                 );

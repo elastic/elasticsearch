@@ -23,22 +23,29 @@ import java.io.IOException;
 
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 
-public record ReindexDataStreamTaskParams(String sourceDataStream, long startTime) implements PersistentTaskParams {
+public record ReindexDataStreamTaskParams(String sourceDataStream, long startTime, int totalIndices, int totalIndicesToBeUpgraded)
+    implements
+        PersistentTaskParams {
+
     public static final String NAME = ReindexDataStreamTask.TASK_NAME;
     private static final String SOURCE_DATA_STREAM_FIELD = "source_data_stream";
     private static final String START_TIME_FIELD = "start_time";
+    private static final String TOTAL_INDICES_FIELD = "total_indices";
+    private static final String TOTAL_INDICES_TO_BE_UPGRADED_FIELD = "total_indices_to_be_upgraded";
     private static final ConstructingObjectParser<ReindexDataStreamTaskParams, Void> PARSER = new ConstructingObjectParser<>(
         NAME,
         true,
-        args -> new ReindexDataStreamTaskParams((String) args[0], (long) args[1])
+        args -> new ReindexDataStreamTaskParams((String) args[0], (long) args[1], (int) args[2], (int) args[3])
     );
     static {
         PARSER.declareString(constructorArg(), new ParseField(SOURCE_DATA_STREAM_FIELD));
         PARSER.declareLong(constructorArg(), new ParseField(START_TIME_FIELD));
+        PARSER.declareInt(constructorArg(), new ParseField(TOTAL_INDICES_FIELD));
+        PARSER.declareInt(constructorArg(), new ParseField(TOTAL_INDICES_TO_BE_UPGRADED_FIELD));
     }
 
     public ReindexDataStreamTaskParams(StreamInput in) throws IOException {
-        this(in.readString(), in.readLong());
+        this(in.readString(), in.readLong(), in.readInt(), in.readInt());
     }
 
     @Override
@@ -55,11 +62,18 @@ public record ReindexDataStreamTaskParams(String sourceDataStream, long startTim
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(sourceDataStream);
         out.writeLong(startTime);
+        out.writeInt(totalIndices);
+        out.writeInt(totalIndicesToBeUpgraded);
     }
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        return builder.startObject().field(SOURCE_DATA_STREAM_FIELD, sourceDataStream).field(START_TIME_FIELD, startTime).endObject();
+        return builder.startObject()
+            .field(SOURCE_DATA_STREAM_FIELD, sourceDataStream)
+            .field(START_TIME_FIELD, startTime)
+            .field(TOTAL_INDICES_FIELD, totalIndices)
+            .field(TOTAL_INDICES_TO_BE_UPGRADED_FIELD, totalIndicesToBeUpgraded)
+            .endObject();
     }
 
     public String getSourceDataStream() {

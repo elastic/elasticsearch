@@ -11,27 +11,25 @@ package org.elasticsearch.datastreams.task;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 
 public record ReindexDataStreamStatus(
     long persistentTaskStartTime,
+    int totalIndices,
+    int totalIndicesToBeUpgraded,
     boolean complete,
     Exception exception,
-    List<String> successes,
-    List<String> inProgress,
-    List<String> pending,
-    Map<String, Exception> errors
+    int inProgress,
+    int pending,
+    List<Tuple<String, Exception>> errors
 ) implements Task.Status {
     public ReindexDataStreamStatus {
-        Objects.requireNonNull(successes);
-        Objects.requireNonNull(inProgress);
-        Objects.requireNonNull(pending);
         Objects.requireNonNull(errors);
     }
 
@@ -40,12 +38,13 @@ public record ReindexDataStreamStatus(
     public ReindexDataStreamStatus(StreamInput in) throws IOException {
         this(
             in.readLong(),
+            in.readInt(),
+            in.readInt(),
             in.readBoolean(),
             in.readException(),
-            in.readCollectionAsList(StreamInput::readString),
-            in.readCollectionAsList(StreamInput::readString),
-            in.readCollectionAsList(StreamInput::readString),
-            in.readMap(StreamInput::readException)
+            in.readInt(),
+            in.readInt(),
+            in.readCollectionAsList(in1 -> Tuple.tuple(in1.readString(), in1.readException()))
         );
     }
 
@@ -57,12 +56,16 @@ public record ReindexDataStreamStatus(
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(persistentTaskStartTime);
+        out.writeInt(totalIndices);
+        out.writeInt(totalIndicesToBeUpgraded);
         out.writeBoolean(complete);
         out.writeException(exception);
-        out.writeStringCollection(successes);
-        out.writeStringCollection(inProgress);
-        out.writeStringCollection(pending);
-        out.writeMap(errors, StreamOutput::writeException);
+        out.writeInt(inProgress);
+        out.writeInt(pending);
+        out.writeCollection(errors, (out1, tuple) -> {
+            out1.writeString(tuple.v1());
+            out1.writeException(tuple.v2());
+        });
     }
 
     @Override
@@ -70,28 +73,23 @@ public record ReindexDataStreamStatus(
         builder.startObject();
         builder.field("start_time", persistentTaskStartTime);
         builder.field("complete", complete);
-        addIndexList(builder, "successes", successes);
-        addIndexList(builder, "in_progress", inProgress);
-        addIndexList(builder, "pending", pending);
-        builder.startObject("errors");
-        builder.field("count", errors.size());
-        builder.startObject("indices");
-        for (Map.Entry<String, Exception> error : errors.entrySet()) {
-            builder.field(error.getKey(), error.getValue().getMessage());
+        builder.field("total_indices", totalIndices);
+        builder.field("total_indices_requiring_upgrade", totalIndicesToBeUpgraded);
+        builder.field("successes", totalIndicesToBeUpgraded - (inProgress + pending + errors.size()));
+        builder.field("in_progress", inProgress);
+        builder.field("pending", pending);
+        builder.startArray("errors");
+        for (Tuple<String, Exception> error : errors) {
+            builder.startObject();
+            builder.field("index", error.v1());
+            builder.field("message", error.v2().getMessage());
+            builder.endObject();
         }
-        builder.endObject();
-        builder.endObject();
+        builder.endArray();
         if (exception != null) {
             builder.field("exception", exception.getMessage());
         }
         builder.endObject();
         return builder;
-    }
-
-    private void addIndexList(XContentBuilder builder, String name, List<String> list) throws IOException {
-        builder.startObject(name);
-        builder.field("count", list.size());
-        builder.field("indices", list);
-        builder.endObject();
     }
 }

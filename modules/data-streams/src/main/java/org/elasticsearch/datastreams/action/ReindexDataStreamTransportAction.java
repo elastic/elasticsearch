@@ -11,12 +11,16 @@ package org.elasticsearch.datastreams.action;
 
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction;
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataStreamRequest;
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.task.ReindexDataStreamTask;
 import org.elasticsearch.datastreams.task.ReindexDataStreamTaskParams;
 import org.elasticsearch.injection.guice.Inject;
@@ -34,12 +38,14 @@ import org.elasticsearch.transport.TransportService;
 public class ReindexDataStreamTransportAction extends HandledTransportAction<ReindexDataStreamRequest, ReindexDataStreamResponse> {
     private final PersistentTasksService persistentTasksService;
     private final TransportService transportService;
+    private final ClusterService clusterService;
 
     @Inject
     public ReindexDataStreamTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
-        PersistentTasksService persistentTasksService
+        PersistentTasksService persistentTasksService,
+        ClusterService clusterService
     ) {
         super(
             ReindexDataStreamAction.NAME,
@@ -51,16 +57,31 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         );
         this.transportService = transportService;
         this.persistentTasksService = persistentTasksService;
+        this.clusterService = clusterService;
     }
 
     @Override
     protected void doExecute(Task task, ReindexDataStreamRequest request, ActionListener<ReindexDataStreamResponse> listener) {
+        String sourceDataStreamName = request.getSourceDataStream();
+        Metadata metadata = clusterService.state().metadata();
+        DataStream dataStream = metadata.dataStreams().get(sourceDataStreamName);
+        if (dataStream == null) {
+            listener.onFailure(new ResourceNotFoundException("Data stream named [{}] does not exist", sourceDataStreamName));
+            return;
+        }
+        int totalIndices = dataStream.getIndices().size();
+        int totalIndicesToBeUpgraded = (int) dataStream.getIndices()
+            .stream()
+            .filter(index -> metadata.index(index).getCreationVersion().isLegacyIndexVersion())
+            .count();
         ReindexDataStreamTaskParams params = new ReindexDataStreamTaskParams(
-            request.getSourceDataStream(),
-            transportService.getThreadPool().absoluteTimeInMillis()
+            sourceDataStreamName,
+            transportService.getThreadPool().absoluteTimeInMillis(),
+            totalIndices,
+            totalIndicesToBeUpgraded
         );
         try {
-            String persistentTaskId = getPersistentTaskId(request.getSourceDataStream());
+            String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
             persistentTasksService.sendStartRequest(
                 persistentTaskId,
                 ReindexDataStreamTask.TASK_NAME,
@@ -95,9 +116,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         }
     }
 
-    private String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
+    public static String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
         return "reindex-data-stream-" + dataStreamName;
-        // TODO: Do we want to make an attempt to make these unique, and allow multiple to be running at once as long as all but one are
-        // complete?
     }
 }

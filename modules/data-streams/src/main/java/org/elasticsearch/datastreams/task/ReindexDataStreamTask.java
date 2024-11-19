@@ -10,12 +10,12 @@
 package org.elasticsearch.datastreams.task;
 
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
@@ -23,16 +23,19 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
     private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
     private final long persistentTaskStartTime;
+    private final int totalIndices;
+    private final int totalIndicesToBeUpgraded;
     private final ThreadPool threadPool;
     private boolean complete = false;
     private Exception exception;
-    private List<String> sucesses = new ArrayList<>();
     private List<String> inProgress = new ArrayList<>();
     private List<String> pending = List.of();
-    private Map<String, Exception> errors = new HashMap<>();
+    private List<Tuple<String, Exception>> errors = new ArrayList<>();
 
     public ReindexDataStreamTask(
         long persistentTaskStartTime,
+        int totalIndices,
+        int totalIndicesToBeUpgraded,
         ThreadPool threadPool,
         long id,
         String type,
@@ -43,12 +46,23 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     ) {
         super(id, type, action, description, parentTask, headers);
         this.persistentTaskStartTime = persistentTaskStartTime;
+        this.totalIndices = totalIndices;
+        this.totalIndicesToBeUpgraded = totalIndicesToBeUpgraded;
         this.threadPool = threadPool;
     }
 
     @Override
     public ReindexDataStreamStatus getStatus() {
-        return new ReindexDataStreamStatus(persistentTaskStartTime, complete, exception, sucesses, inProgress, pending, errors);
+        return new ReindexDataStreamStatus(
+            persistentTaskStartTime,
+            totalIndices,
+            totalIndicesToBeUpgraded,
+            complete,
+            exception,
+            inProgress.size(),
+            pending.size(),
+            errors
+        );
     }
 
     @Override
@@ -64,10 +78,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         threadPool.schedule(() -> super.markAsFailed(e), TASK_KEEP_ALIVE_TIME, threadPool.generic());
     }
 
-    public void addSuccessfulIndex(String index) {
-        this.sucesses.add(index);
-    }
-
     public void setInProgressIndices(List<String> inProgressIndices) {
         this.inProgress = inProgressIndices;
     }
@@ -77,6 +87,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void addErrorIndex(String index, Exception error) {
-        this.errors.put(index, error);
+        this.errors.add(Tuple.tuple(index, error));
     }
 }

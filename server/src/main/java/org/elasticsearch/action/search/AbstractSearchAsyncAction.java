@@ -40,7 +40,6 @@ import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.transport.LeakTracker;
 import org.elasticsearch.transport.Transport;
 
 import java.util.ArrayList;
@@ -252,15 +251,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 }
             }
             for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
-                int queuedItems = pendingExecutions.queuedItems.get();
-                if (queuedItems < maxConcurrentRequestsPerNode) {
-                    pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
-                    try {
-                        pendingExecutions.flushQueue();
-                    } catch (Throwable e) {
-                        throw new AssertionError(e);
-                    }
-                }
+                pendingExecutions.maybeReleasePermits();
             }
         }
     }
@@ -298,13 +289,13 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
-    protected void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
         if (throttleConcurrentRequests) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
                 shard.getNodeId(),
                 n -> new PendingExecutions(maxConcurrentRequestsPerNode)
             );
-            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, LeakTracker.wrap(l)));
+            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
         } else {
             doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
         }
@@ -468,6 +459,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         } else {
             if (lastShard == false) {
                 performPhaseOnShard(shardIndex, shardIt, nextShard);
+                PendingExecutions pendingExecutions = pendingExecutionsPerNode.get(nextShard.getNodeId());
+                if (pendingExecutions != null) {
+                    pendingExecutions.maybeReleasePermits();
+                }
             }
         }
     }
@@ -813,7 +808,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
     private static final class PendingExecutions {
         private final Semaphore semaphore = new Semaphore(0);
         private final AtomicInteger queuedItems = new AtomicInteger();
-        private final AtomicBoolean released = new AtomicBoolean(false);
         private final int permits;
         private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
 
@@ -846,6 +840,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 } else {
                     return;
                 }
+            }
+        }
+
+        private void maybeReleasePermits() {
+            int queuedItemsCount = queuedItems.get();
+            if (queuedItemsCount < permits) {
+                queuedItems.set(permits + 1);
+                semaphore.release(permits);
+                flushQueue();
             }
         }
 

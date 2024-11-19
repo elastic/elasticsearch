@@ -50,6 +50,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
@@ -522,6 +523,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             throw new IllegalArgumentException("project [" + projectId + "] not found");
         }
         return new ProjectState(this, projectId);
+    }
+
+    public <E extends Exception> void forEachProject(CheckedConsumer<ProjectState, E> action) throws E {
+        for (ProjectId projectId : metadata().projects().keySet()) {
+            action.accept(this.projectState(projectId));
+        }
     }
 
     @Override

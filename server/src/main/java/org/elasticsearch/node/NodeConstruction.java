@@ -795,7 +795,7 @@ class NodeConstruction {
         FeatureService featureService = new FeatureService(pluginsService.loadServiceProviders(FeatureSpecification.class));
 
         if (DiscoveryNode.isMasterNode(settings)) {
-            clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client));
+            clusterService.addListener(new SystemIndexMappingUpdateService(systemIndices, client, projectResolver));
             clusterService.addListener(new NodeFeaturesFixupListener(clusterService, client.admin().cluster(), threadPool));
         }
 

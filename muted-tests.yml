@@ -251,6 +251,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
   method: testRollupIndex {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/117086
+- class: org.elasticsearch.upgrades.FullClusterRestartIT
+  method: testNewReplicasTimeSeriesMode {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/117087
 
 # Examples:
 #

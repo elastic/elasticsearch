@@ -66,7 +66,11 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(
+            dataStreamName,
+            templateIndexMode,
+            indexTemplateAndCreateRequestSettings
+        );
         if (logsdbSettings != Settings.EMPTY) {
             indexTemplateAndCreateRequestSettings = Settings.builder()
                 .put(logsdbSettings)
@@ -80,9 +84,13 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            return Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
-                .build();
+            var builder = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
+            if (indexTemplateAndCreateRequestSettings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                builder.putNull(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey());
+                builder.putNull(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+            }
+            return builder.build();
         }
         return Settings.EMPTY;
     }

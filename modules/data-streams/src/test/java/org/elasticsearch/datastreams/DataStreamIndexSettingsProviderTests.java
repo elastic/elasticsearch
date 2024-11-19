@@ -19,7 +19,6 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
-import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
@@ -42,7 +41,6 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     private static final TimeValue DEFAULT_LOOK_BACK_TIME = TimeValue.timeValueHours(2); // default
     private static final TimeValue DEFAULT_LOOK_AHEAD_TIME = TimeValue.timeValueMinutes(30); // default
-    private static String DATA_STREAM_NAME = "logs-app1";
 
     DataStreamIndexSettingsProvider provider;
 
@@ -690,11 +688,12 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
 
     private Settings generateTsdbSettings(String mapping, Instant now) throws IOException {
         Metadata metadata = Metadata.EMPTY_METADATA;
+        String dataStreamName = "logs-app1";
         Settings settings = Settings.EMPTY;
 
         var result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 1),
-            DATA_STREAM_NAME,
+            DataStream.getDefaultBackingIndexName(dataStreamName, 1),
+            dataStreamName,
             IndexMode.TIME_SERIES,
             metadata,
             now,
@@ -706,80 +705,4 @@ public class DataStreamIndexSettingsProviderTests extends ESTestCase {
         return builder().put(result).put("index.mode", "time_series").build();
     }
 
-    public void testLogsdbRoutingPathOnSortFields() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
-    }
-
-    public void testLogsdbRoutingPathOnSortFieldsFilterTimestamp() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
-    }
-
-    public void testLogsdbRoutingPathOnSortSingleField() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "data stream ["
-                    + DATA_STREAM_NAME
-                    + "] in logsdb mode and with [index.logsdb.route_on_sort_fields] index setting has only 1 sort fields "
-                    + "(excluding timestamp), needs at least 2"
-            )
-        );
-    }
-
-    public void testLogsdbExplicitRoutingPathMatchesSortFields() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Settings result = generateLogsdbSettings(settings);
-        assertTrue(result.isEmpty());
-    }
-
-    public void testLogsdbExplicitRoutingPathDoesNotMatchSortFields() throws Exception {
-        var settings = Settings.builder()
-            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
-            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
-            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
-            .build();
-        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
-        assertThat(
-            e.getMessage(),
-            equalTo(
-                "data stream ["
-                    + DATA_STREAM_NAME
-                    + "] in logsdb mode and with [index.logsdb.route_on_sort_fields] index setting has mismatching sort "
-                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
-            )
-        );
-    }
-
-    private Settings generateLogsdbSettings(Settings settings) throws IOException {
-        Metadata metadata = Metadata.EMPTY_METADATA;
-        var result = provider.getAdditionalIndexSettings(
-            DataStream.getDefaultBackingIndexName(DATA_STREAM_NAME, 1),
-            DATA_STREAM_NAME,
-            IndexMode.LOGSDB,
-            metadata,
-            Instant.now(),
-            settings,
-            List.of()
-        );
-        return builder().put(result).build();
-    }
 }

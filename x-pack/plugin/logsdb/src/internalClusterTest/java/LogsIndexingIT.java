@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.datastreams;
+package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
@@ -86,7 +86,14 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {
-        return List.of(InternalSettingsPlugin.class, DataStreamsPlugin.class);
+        return List.of(InternalSettingsPlugin.class, LogsDBPlugin.class);
+    }
+
+    @Override
+    protected Settings nodeSettings() {
+        Settings.Builder newSettings = Settings.builder();
+        newSettings.put(super.nodeSettings()).put("cluster.logsdb.enabled", "true");
+        return newSettings.build();
     }
 
     public void testStandard() throws Exception {

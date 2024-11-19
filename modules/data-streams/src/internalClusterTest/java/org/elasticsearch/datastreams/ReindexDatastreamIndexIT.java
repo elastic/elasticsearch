@@ -10,12 +10,19 @@ package org.elasticsearch.datastreams;
 
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.mapping.get.GetMappingsRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
+import org.elasticsearch.action.admin.indices.settings.get.GetSettingsRequest;
+import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.datastreams.ReindexDataStreamIndexAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.cluster.block.ClusterBlockException;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.MappingMetadata;
+import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.datastreams.action.TransportReindexDataStreamIndexAction;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.plugins.Plugin;
@@ -27,11 +34,13 @@ import org.elasticsearch.xcontent.XContentType;
 import java.util.Collection;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 
 import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DEFAULT_TIMESTAMP_FIELD;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.hasKey;
 
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
@@ -52,8 +61,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(destIndex).setSize(0), 10);
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
 
         // verify that dest still exists, but is now empty
         assertTrue(indexExists(destIndex));
@@ -88,14 +96,13 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(response.getDestIndex()).setSize(0), numDocs);
     }
 
-    public void testWriteBlockAddedToSource() throws Exception {
+    public void testSetSourceToReadOnly() throws Exception {
         // empty source index
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         indicesAdmin().create(new CreateIndexRequest(sourceIndex)).get();
 
         // call reindex
-        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
-            .actionGet();
+        client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex)).actionGet();
 
         // assert that write to source fails
         var indexReq = new IndexRequest(sourceIndex).source(jsonBuilder().startObject().field("field", "1").endObject());
@@ -103,7 +110,77 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertHitCount(prepareSearch(sourceIndex).setSize(0), 0);
     }
 
-    // TODO test that does fail on create if index exists. (Not sure how to do this since relies on race condition)
+    public void testSettingsAddedBeforeReindex() throws Exception {
+        // start with a static setting
+        var numShards = randomIntBetween(1, 10);
+        var staticSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, numShards).build();
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex, staticSettings)).get();
+
+        // update with a dynamic setting
+        var numReplicas = randomIntBetween(0, 10);
+        var dynamicSettings = Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, numReplicas).build();
+        indicesAdmin().updateSettings(new UpdateSettingsRequest(dynamicSettings, sourceIndex)).actionGet();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        // assert both static and dynamic settings set on dest index
+        var settingsResponse = indicesAdmin().getSettings(new GetSettingsRequest().indices(destIndex)).actionGet();
+        assertEquals(numReplicas, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_REPLICAS)));
+        assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
+    }
+
+    // TODO check if mappings are added to new index
+    public void testMappingsAddedToDestIndex() throws Exception {
+        var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
+        String mapping = """
+            {
+              "_doc":{
+                "dynamic":"strict",
+                "properties":{
+                  "foo1":{
+                    "type":"text"
+                  }
+                }
+              }
+            }
+            """;
+        indicesAdmin().create(new CreateIndexRequest(sourceIndex).mapping(mapping)).actionGet();
+
+        // call reindex
+        var destIndex = client().execute(ReindexDataStreamIndexAction.INSTANCE, new ReindexDataStreamIndexAction.Request(sourceIndex))
+            .actionGet()
+            .getDestIndex();
+
+        // assert number replicas set in both source and dest index
+
+        var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
+        Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
+
+        assertThat(mappings, hasKey(destIndex));
+
+        var destMappings = mappings.get(destIndex).sourceAsMap();
+        var sourceMappings = mappings.get(destIndex).sourceAsMap();
+
+        assertEquals(sourceMappings, destMappings);
+        // sanity check specific value from dest mapping
+        assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
+    }
+
+    // TODO error on set read-only if don't have perms
+
+    // TODO check settings added after
+
+    // TODO check tsdb start/end time correct
+
+    // TODO check other metadata
+
+    // TODO check logsdb/tsdb work
+
+    // TODO test that does not fail on create if index exists. (Not sure how to do this since relies on race condition)
     // Even though we delete the dest index, it could be created by another thread after the delete.
     // Subsequent operations should not fail if it does exist
 

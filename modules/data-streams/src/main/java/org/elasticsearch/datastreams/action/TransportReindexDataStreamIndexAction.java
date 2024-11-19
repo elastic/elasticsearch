@@ -36,6 +36,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public class TransportReindexDataStreamIndexAction extends HandledTransportAction<
@@ -121,11 +122,11 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
 
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
-            .<CreateIndexResponse>andThen(l -> createIndex(sourceIndex, destIndexName, l))
+            .<CreateIndexResponse>andThen(l -> createIndexWithSettings(sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(sourceIndex, destIndexName, l))
             // .<AcknowledgedResponse>andThen(l -> createSnapshot(sourceIndex, sourceIndexName, destIndexName, l))
-            .andThenApply(response -> new ReindexDataStreamIndexAction.Response(destIndexName))
+            .andThenApply(ignored -> new ReindexDataStreamIndexAction.Response(destIndexName))
             .addListener(listener);
     }
 
@@ -145,13 +146,16 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         client.admin().indices().delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
-    private void createIndex(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
+    private void createIndexWithSettings(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
         logger.info("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
+        // Create destination with subset of source index settings that can be added before reindex
         var settings = getPreSettings(sourceIndex);
-        var createIndexRequest = new CreateIndexRequest(destIndexName, settings);
 
-        // TODO will create fail if exists ?
+        var sourceMapping = sourceIndex.mapping();
+        Map<String, Object> mapping = sourceMapping != null ? sourceMapping.rawSourceAsMap() : Map.of();
+        var createIndexRequest = new CreateIndexRequest(destIndexName).settings(settings).mapping(mapping);
+
         var errorMessage = String.format(Locale.ROOT, "Could not create index [%s]", destIndexName);
         client.admin().indices().create(createIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }

@@ -707,8 +707,8 @@ So for the same params as above, we would now have:
 ==== Aggregations in RRF
 
 Using the `rrf` retriever, we can also gather aggregations from all its specified sub-retrievers. The aggregations gathered
-are irrespective of the specified `rank_window_size`, i.e. we collect all matching documents and just the top `rank_window_size`,
-and refer to the union of the result sets from all sub-retrievers.
+are irrespective of the specified `rank_window_size` but instead we refer to the union of the result sets from all sub-retrievers,
+i.e. we collect all matching documents and not just the top `rank_window_size`.
 
 So for example, assuming that we have the following documents:
 [source,python]

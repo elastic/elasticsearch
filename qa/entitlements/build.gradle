@@ -18,21 +18,8 @@ esplugin {
   classname 'org.elasticsearch.test.entitlements.EntitlementsCheckPlugin'
 }
 
-configurations {
-  entitlementBridge {
-    canBeConsumed = false
-  }
-}
-
 dependencies {
   clusterPlugins project(':qa:entitlements')
-  entitlementBridge project(':libs:entitlement:bridge')
-}
-
-tasks.named('javaRestTest') {
-  systemProperty "tests.entitlement-bridge.jar-name", configurations.entitlementBridge.singleFile.getName()
-  usesDefaultDistribution()
-  systemProperty "tests.security.manager", "false"
 }
 
 tasks.named("javadoc").configure {

@@ -10,14 +10,11 @@ package org.elasticsearch.xpack.stack;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -38,16 +35,9 @@ import java.util.Map;
 public class StackTemplateRegistry extends IndexTemplateRegistry {
     private static final Logger logger = LogManager.getLogger(StackTemplateRegistry.class);
 
-    // Historical node feature kept here as LegacyStackTemplateRegistry is deprecated
-    public static final NodeFeature STACK_TEMPLATES_FEATURE = new NodeFeature("stack.templates_supported");
-
-    // this node feature is a redefinition of {@link DataStreamFeatures#DATA_STREAM_LIFECYCLE} and it's meant to avoid adding a
-    // dependency to the data-streams module just for this
-    public static final NodeFeature DATA_STREAM_LIFECYCLE = new NodeFeature("data_stream.lifecycle");
-
     // The stack template registry version. This number must be incremented when we make changes
     // to built-in templates.
-    public static final int REGISTRY_VERSION = 12;
+    public static final int REGISTRY_VERSION = 14;
 
     public static final String TEMPLATE_VERSION_VARIABLE = "xpack.stack.template.version";
     public static final Setting<Boolean> STACK_TEMPLATES_ENABLED = Setting.boolSetting(
@@ -57,17 +47,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         Setting.Property.Dynamic
     );
 
-    /**
-     * if index.mode "logs" is applied by default in logs@settings for 'logs-*-*'
-     */
-    public static final Setting<Boolean> CLUSTER_LOGSDB_ENABLED = Setting.boolSetting(
-        "cluster.logsdb.enabled",
-        false,
-        Setting.Property.NodeScope
-    );
-
     private final ClusterService clusterService;
-    private final FeatureService featureService;
     private final Map<String, ComponentTemplate> componentTemplateConfigs;
     private volatile boolean stackTemplateEnabled;
 
@@ -106,6 +86,12 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
     public static final String METRICS_INDEX_TEMPLATE_NAME = "metrics";
 
     //////////////////////////////////////////////////////////
+    // Base traces components
+    //////////////////////////////////////////////////////////
+    public static final String TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME = "traces@mappings";
+    public static final String TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME = "traces@settings";
+
+    //////////////////////////////////////////////////////////
     // Synthetics components (for matching synthetics-*-* indices)
     //////////////////////////////////////////////////////////
     public static final String SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME = "synthetics@mappings";
@@ -124,17 +110,15 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         ClusterService clusterService,
         ThreadPool threadPool,
         Client client,
-        NamedXContentRegistry xContentRegistry,
-        FeatureService featureService
+        NamedXContentRegistry xContentRegistry
     ) {
         super(nodeSettings, clusterService, threadPool, client, xContentRegistry);
         this.clusterService = clusterService;
-        this.featureService = featureService;
         this.stackTemplateEnabled = STACK_TEMPLATES_ENABLED.get(nodeSettings);
-        this.componentTemplateConfigs = loadComponentTemplateConfigs(CLUSTER_LOGSDB_ENABLED.get(nodeSettings));
+        this.componentTemplateConfigs = loadComponentTemplateConfigs();
     }
 
-    private Map<String, ComponentTemplate> loadComponentTemplateConfigs(boolean logsDbEnabled) {
+    private Map<String, ComponentTemplate> loadComponentTemplateConfigs() {
         final Map<String, ComponentTemplate> componentTemplates = new HashMap<>();
         for (IndexTemplateConfig config : List.of(
             new IndexTemplateConfig(
@@ -146,7 +130,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             ),
             new IndexTemplateConfig(
                 LOGS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
-                logsDbEnabled ? "/logs@mappings-logsdb.json" : "/logs@mappings.json",
+                "/logs@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -163,12 +147,7 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
                 "/logs@settings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
-                Map.of(
-                    "xpack.stack.template.deprecated",
-                    "false",
-                    "xpack.stack.template.logs.index.mode",
-                    logsDbEnabled ? "logs" : "standard"
-                )
+                Map.of("xpack.stack.template.deprecated", "false")
             ),
             new IndexTemplateConfig(
                 METRICS_MAPPINGS_COMPONENT_TEMPLATE_NAME,
@@ -187,6 +166,20 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
             new IndexTemplateConfig(
                 METRICS_TSDB_SETTINGS_COMPONENT_TEMPLATE_NAME,
                 "/metrics@tsdb-settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@settings.json",
+                REGISTRY_VERSION,
+                TEMPLATE_VERSION_VARIABLE,
+                ADDITIONAL_TEMPLATE_VARIABLES
+            ),
+            new IndexTemplateConfig(
+                TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+                "/traces@mappings.json",
                 REGISTRY_VERSION,
                 TEMPLATE_VERSION_VARIABLE,
                 ADDITIONAL_TEMPLATE_VARIABLES
@@ -348,12 +341,5 @@ public class StackTemplateRegistry extends IndexTemplateRegistry {
         // are only installed via elected master node then the APIs are always
         // there and the ActionNotFoundTransportException errors are then prevented.
         return true;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        // Ensure current version of the components are installed only after versions that support data stream lifecycle
-        // due to .kibana-reporting making use of the feature
-        return featureService.clusterHasFeature(event.state(), DATA_STREAM_LIFECYCLE);
     }
 }

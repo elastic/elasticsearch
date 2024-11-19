@@ -21,7 +21,7 @@ import java.io.IOException;
  */
 public class EmptyAttribute extends Attribute {
     public EmptyAttribute(Source source) {
-        super(source, StringUtils.EMPTY, null, null);
+        super(source, StringUtils.EMPTY, null);
     }
 
     @Override
@@ -35,15 +35,7 @@ public class EmptyAttribute extends Attribute {
     }
 
     @Override
-    protected Attribute clone(
-        Source source,
-        String name,
-        DataType type,
-        String qualifier,
-        Nullability nullability,
-        NameId id,
-        boolean synthetic
-    ) {
+    protected Attribute clone(Source source, String name, DataType type, Nullability nullability, NameId id, boolean synthetic) {
         return this;
     }
 

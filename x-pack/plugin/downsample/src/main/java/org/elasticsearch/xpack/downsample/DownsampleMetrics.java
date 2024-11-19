@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.downsample;
 
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
 
 import java.io.IOException;
@@ -36,8 +37,8 @@ public class DownsampleMetrics extends AbstractLifecycleComponent {
 
     private final MeterRegistry meterRegistry;
 
-    public DownsampleMetrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
+    public DownsampleMetrics(TelemetryProvider telemetryProvider) {
+        this.meterRegistry = telemetryProvider.getMeterRegistry();
     }
 
     @Override

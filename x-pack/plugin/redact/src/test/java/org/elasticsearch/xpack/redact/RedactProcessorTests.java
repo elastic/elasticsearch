@@ -259,7 +259,8 @@ public class RedactProcessorTests extends ESTestCase {
                 ">",
                 MatcherWatchdog.noop(),
                 notAllowed,
-                false // set skip_if_unlicensed to false, we do not want to skip, we do want to fail
+                false, // set skip_if_unlicensed to false, we do not want to skip, we do want to fail
+                false
             );
             assertThat(processor.getSkipIfUnlicensed(), equalTo(false));
             var ingestDoc = createIngestDoc(Map.of("not_the_field", "fieldValue"));
@@ -311,6 +312,118 @@ public class RedactProcessorTests extends ESTestCase {
             var ingestDoc = createIngestDoc(Map.of("to_redact", "before"));
             var redacted = processor.execute(ingestDoc);
             assertEquals("<after>", redacted.getFieldValue("to_redact", String.class));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testTraceRedact() throws Exception {
+        var config = new HashMap<String, Object>();
+        config.put("field", "to_redact");
+        config.put("patterns", List.of("%{EMAILADDRESS:REDACTED}"));
+        config.put("trace_redact", true);
+        {
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t",
+                "d",
+                new HashMap<>(config)
+            );
+            var message = "this should not be redacted";
+            var ingestDoc = createIngestDoc(Map.of("to_redact", message));
+            var redactedDoc = processor.execute(ingestDoc);
+
+            assertEquals(message, redactedDoc.getFieldValue("to_redact", String.class));
+            assertNull(redactedDoc.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class, true));
+        }
+        {
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t",
+                "d",
+                new HashMap<>(config)
+            );
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com will be redacted"));
+            var redactedDoc = processor.execute(ingestDoc);
+
+            assertEquals("<REDACTED> will be redacted", redactedDoc.getFieldValue("to_redact", String.class));
+            // validate ingest metadata path correctly resolved
+            assertTrue(redactedDoc.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
+            // validate ingest metadata structure correct
+            var ingestMeta = redactedDoc.getIngestMetadata();
+            assertTrue(ingestMeta.containsKey(RedactProcessor.REDACT_KEY));
+            var redactMetadata = (HashMap<String, Object>) ingestMeta.get(RedactProcessor.REDACT_KEY);
+            assertTrue(redactMetadata.containsKey(RedactProcessor.IS_REDACTED_KEY));
+            assertTrue((Boolean) redactMetadata.get(RedactProcessor.IS_REDACTED_KEY));
+        }
+        {
+            var configNoTrace = new HashMap<String, Object>();
+            configNoTrace.put("field", "to_redact");
+            configNoTrace.put("patterns", List.of("%{EMAILADDRESS:REDACTED}"));
+
+            var processor = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(null, "t", "d", configNoTrace);
+            var ingestDoc = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com will be redacted"));
+            var redactedDoc = processor.execute(ingestDoc);
+
+            assertEquals("<REDACTED> will be redacted", redactedDoc.getFieldValue("to_redact", String.class));
+            assertNull(redactedDoc.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class, true));
+        }
+    }
+
+    public void testTraceRedactMultipleProcessors() throws Exception {
+        var configRedact = new HashMap<String, Object>();
+        configRedact.put("field", "to_redact");
+        configRedact.put("patterns", List.of("%{EMAILADDRESS:REDACTED}"));
+        configRedact.put("trace_redact", true);
+
+        var configNoRedact = new HashMap<String, Object>();
+        configNoRedact.put("field", "to_redact");
+        configNoRedact.put("patterns", List.of("%{IP:REDACTED}"));  // not in the doc
+        configNoRedact.put("trace_redact", true);
+
+        // first processor does not redact doc, second one does
+        {
+            var processorRedact = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t1",
+                "d",
+                new HashMap<>(configRedact)
+            );
+            var processorNoRedact = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t2",
+                "d",
+                new HashMap<>(configNoRedact)
+            );
+            var ingestDocWithEmail = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com will be redacted"));
+
+            var docNotRedacted = processorNoRedact.execute(ingestDocWithEmail);
+            assertNull(docNotRedacted.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class, true));
+
+            var docRedacted = processorRedact.execute(docNotRedacted);
+            assertTrue(docRedacted.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
+        }
+        // first processor redacts doc, second one does not
+        {
+            var processorRedact = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t1",
+                "d",
+                new HashMap<>(configRedact)
+            );
+            var processorNoRedact = new RedactProcessor.Factory(mockLicenseState(), MatcherWatchdog.noop()).create(
+                null,
+                "t2",
+                "d",
+                new HashMap<>(configNoRedact)
+            );
+            var ingestDocWithEmail = createIngestDoc(Map.of("to_redact", "thisisanemail@address.com will be redacted"));
+
+            var docRedacted = processorRedact.execute(ingestDocWithEmail);
+            assertTrue(docRedacted.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
+
+            // validate does not override already redacted doc metadata
+            var docRedactedAlready = processorNoRedact.execute(docRedacted);
+            assertTrue(docRedactedAlready.getFieldValue(RedactProcessor.METADATA_PATH_REDACT_IS_REDACTED, Boolean.class));
         }
     }
 

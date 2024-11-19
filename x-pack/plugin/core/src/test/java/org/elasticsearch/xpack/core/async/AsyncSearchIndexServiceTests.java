@@ -360,7 +360,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
 
             // setting very small limit for the max size of async search response
             int limit = randomIntBetween(1, 125);
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", limit + "b"));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
             String expectedErrMsg = "Can't store an async search response larger than ["
@@ -393,7 +396,10 @@ public class AsyncSearchIndexServiceTests extends ESSingleNodeTestCase {
             assertEquals(expectedErrMsg, e2.getMessage());
         } finally {
             // restoring limit
-            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT
+            );
             updateSettingsRequest.transientSettings(Settings.builder().put("search.max_async_search_response_size", (String) null));
             assertAcked(clusterAdmin().updateSettings(updateSettingsRequest).actionGet());
         }

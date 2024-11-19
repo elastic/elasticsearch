@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.stack;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
@@ -29,8 +28,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.datastreams.DataStreamFeatures;
-import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.ingest.IngestMetadata;
 import org.elasticsearch.ingest.PipelineConfiguration;
 import org.elasticsearch.test.ClusterServiceUtils;
@@ -71,7 +68,6 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
@@ -82,22 +78,13 @@ public class StackTemplateRegistryTests extends ESTestCase {
     private ClusterService clusterService;
     private ThreadPool threadPool;
     private VerifyingClient client;
-    private FeatureService featureService;
 
     @Before
     public void createRegistryAndClient() {
         threadPool = new TestThreadPool(this.getClass().getName());
         client = new VerifyingClient(threadPool);
         clusterService = ClusterServiceUtils.createClusterService(threadPool);
-        featureService = new FeatureService(List.of(new StackTemplatesFeatures(), new DataStreamFeatures()));
-        registry = new StackTemplateRegistry(
-            Settings.EMPTY,
-            clusterService,
-            threadPool,
-            client,
-            NamedXContentRegistry.EMPTY,
-            featureService
-        );
+        registry = new StackTemplateRegistry(Settings.EMPTY, clusterService, threadPool, client, NamedXContentRegistry.EMPTY);
     }
 
     @After
@@ -114,8 +101,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            featureService
+            NamedXContentRegistry.EMPTY
         );
         assertThat(disabledRegistry.getComposableTemplateConfigs(), anEmptyMap());
     }
@@ -127,8 +113,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            featureService
+            NamedXContentRegistry.EMPTY
         );
         assertThat(disabledRegistry.getComponentTemplateConfigs(), not(anEmptyMap()));
         assertThat(
@@ -371,8 +356,7 @@ public class StackTemplateRegistryTests extends ESTestCase {
             clusterService,
             threadPool,
             client,
-            NamedXContentRegistry.EMPTY,
-            featureService
+            NamedXContentRegistry.EMPTY
         );
 
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
@@ -430,10 +414,12 @@ public class StackTemplateRegistryTests extends ESTestCase {
         versions.put(StackTemplateRegistry.SYNTHETICS_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.SYNTHETICS_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         versions.put(StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
+        versions.put(StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME, StackTemplateRegistry.REGISTRY_VERSION);
         ClusterChangedEvent sameVersionEvent = createClusterChangedEvent(versions, nodes);
         client.setVerifier((action, request, listener) -> {
-            if (action instanceof PutComponentTemplateAction) {
-                fail("template should not have been re-installed");
+            if (request instanceof PutComponentTemplateAction.Request put) {
+                fail("template should not have been re-installed: " + put.name());
                 return null;
             } else if (action == ILMActions.PUT) {
                 // Ignore this, it's verified in another test
@@ -489,6 +475,14 @@ public class StackTemplateRegistryTests extends ESTestCase {
             StackTemplateRegistry.KIBANA_REPORTING_COMPONENT_TEMPLATE_NAME,
             StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
         );
+        versions.put(
+            StackTemplateRegistry.TRACES_MAPPINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
+        versions.put(
+            StackTemplateRegistry.TRACES_SETTINGS_COMPONENT_TEMPLATE_NAME,
+            StackTemplateRegistry.REGISTRY_VERSION + randomIntBetween(1, 1000)
+        );
         ClusterChangedEvent higherVersionEvent = createClusterChangedEvent(versions, nodes);
         registry.clusterChanged(higherVersionEvent);
     }
@@ -509,25 +503,6 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.clusterChanged(event);
     }
 
-    public void testThatNothingIsInstalledWhenAllNodesAreNotUpdated() {
-        DiscoveryNode updatedNode = DiscoveryNodeUtils.create("updatedNode");
-        DiscoveryNode outdatedNode = DiscoveryNodeUtils.create("outdatedNode", ESTestCase.buildNewFakeTransportAddress(), Version.V_8_10_0);
-        DiscoveryNodes nodes = DiscoveryNodes.builder()
-            .localNodeId("updatedNode")
-            .masterNodeId("updatedNode")
-            .add(updatedNode)
-            .add(outdatedNode)
-            .build();
-
-        client.setVerifier((a, r, l) -> {
-            fail("if some cluster mode are not updated to at least v.8.11.0 nothing should happen");
-            return null;
-        });
-
-        ClusterChangedEvent event = createClusterChangedEvent(Collections.emptyMap(), nodes);
-        registry.clusterChanged(event);
-    }
-
     public void testThatTemplatesAreNotDeprecated() {
         for (ComposableIndexTemplate it : registry.getComposableTemplateConfigs().values()) {
             assertFalse(it.isDeprecated());
@@ -541,13 +516,8 @@ public class StackTemplateRegistryTests extends ESTestCase {
         registry.getIngestPipelines()
             .stream()
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
-            .map(PipelineConfiguration::getConfigAsMap)
+            .map(PipelineConfiguration::getConfig)
             .forEach(p -> assertFalse((Boolean) p.get("deprecated")));
-    }
-
-    public void testDataStreamLifecycleNodeFeatureId() {
-        // let's make sure these ids remain in-sync
-        assertThat(StackTemplateRegistry.DATA_STREAM_LIFECYCLE.id(), is(DataStreamFeatures.DATA_STREAM_LIFECYCLE.id()));
     }
 
     // -------------

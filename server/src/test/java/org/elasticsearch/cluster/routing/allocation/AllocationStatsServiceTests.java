@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -79,7 +80,12 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
 
         var queue = new DeterministicTaskQueue();
         try (var clusterService = ClusterServiceUtils.createClusterService(state, queue.getThreadPool())) {
-            var service = new AllocationStatsService(clusterService, () -> clusterInfo, createShardAllocator(), TEST_WRITE_LOAD_FORECASTER);
+            var service = new AllocationStatsService(
+                clusterService,
+                () -> clusterInfo,
+                createShardAllocator(),
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
+            );
             assertThat(
                 service.stats(),
                 allOf(
@@ -119,7 +125,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                 clusterService,
                 EmptyClusterInfoService.INSTANCE,
                 createShardAllocator(),
-                TEST_WRITE_LOAD_FORECASTER
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
             );
             assertThat(
                 service.stats(),
@@ -162,7 +168,8 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                     threadPool,
                     clusterService,
                     (innerState, strategy) -> innerState,
-                    TelemetryProvider.NOOP
+                    TelemetryProvider.NOOP,
+                    EMPTY_NODE_ALLOCATION_STATS
                 ) {
                     @Override
                     public DesiredBalance getDesiredBalance() {
@@ -175,7 +182,7 @@ public class AllocationStatsServiceTests extends ESAllocationTestCase {
                         );
                     }
                 },
-                TEST_WRITE_LOAD_FORECASTER
+                new NodeAllocationStatsProvider(TEST_WRITE_LOAD_FORECASTER)
             );
             assertThat(
                 service.stats(),

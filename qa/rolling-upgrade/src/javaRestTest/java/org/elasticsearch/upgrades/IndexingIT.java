@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.upgrades;
 
@@ -17,10 +18,10 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.test.ListMatcher;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -257,7 +258,6 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
 
     public void testTsdb() throws IOException {
         final Version oldClusterVersion = Version.fromString(getOldClusterVersion());
-        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
 
         StringBuilder bulk = new StringBuilder();
         if (isOldCluster()) {
@@ -384,6 +384,7 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
 
     private void assertTsdbAgg(final Version oldClusterVersion, final List<String> expectedTsids, final Matcher<?>... expected)
         throws IOException {
+        @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
         boolean onOrAfterTsidHashingVersion = oldClusterVersion.onOrAfter(Version.V_8_13_0);
         Request request = new Request("POST", "/tsdb/_search");
         request.addParameter("size", "0");
@@ -413,8 +414,6 @@ public class IndexingIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testSyntheticSource() throws IOException {
-        assumeTrue("added in 8.4.0", oldClusterHasFeature(RestTestLegacyFeatures.SYNTHETIC_SOURCE_SUPPORTED));
-
         if (isOldCluster()) {
             Request createIndex = new Request("PUT", "/synthetic");
             XContentBuilder indexSpec = XContentBuilder.builder(XContentType.JSON.xContent()).startObject();

@@ -191,7 +191,7 @@ public class LogTests extends AbstractScalarFunctionTestCase {
         suppliers = anyNullIsNull(true, suppliers);
 
         // Negative cases
-        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers));
+        return parameterSuppliersFromTypedData(errorsForCasesWithoutExamples(suppliers, (v, p) -> "numeric"));
     }
 
     @Override

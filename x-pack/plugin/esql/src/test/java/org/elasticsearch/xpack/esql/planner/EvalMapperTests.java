@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.date.DateTrunc;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Abs;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Pow;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Round;
+import org.elasticsearch.xpack.esql.expression.function.scalar.string.ByteLength;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.Length;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
@@ -49,7 +50,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Gre
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.GreaterThanOrEqual;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThan;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.LessThanOrEqual;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.time.Duration;
 import java.time.ZoneOffset;
@@ -65,7 +66,7 @@ public class EvalMapperTests extends ESTestCase {
     private static final FieldAttribute LONG = field("long", DataType.LONG);
     private static final FieldAttribute DATE = field("date", DataType.DATETIME);
 
-    private static final EsqlConfiguration TEST_CONFIG = new EsqlConfiguration(
+    private static final Configuration TEST_CONFIG = new Configuration(
         ZoneOffset.UTC,
         Locale.US,
         "test",
@@ -75,7 +76,8 @@ public class EvalMapperTests extends ESTestCase {
         10000,
         StringUtils.EMPTY,
         false,
-        Map.of()
+        Map.of(),
+        System.nanoTime()
     );
 
     @ParametersFactory(argumentFormatting = "%1$s")
@@ -114,6 +116,7 @@ public class EvalMapperTests extends ESTestCase {
             new Pow(Source.EMPTY, DOUBLE1, DOUBLE2),
             DOUBLE1,
             literal,
+            new ByteLength(Source.EMPTY, literal),
             new Length(Source.EMPTY, literal),
             new DateFormat(Source.EMPTY, datePattern, DATE, TEST_CONFIG),
             new DateFormat(Source.EMPTY, datePattern, literal, TEST_CONFIG),

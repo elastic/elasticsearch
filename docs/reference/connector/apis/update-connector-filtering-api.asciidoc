@@ -8,9 +8,10 @@ beta::[]
 
 Updates the draft `filtering` configuration of a connector and marks the draft validation state as `edited`. The filtering draft is activated once validated by the running Elastic connector service.
 
-The filtering property is used to configure sync rules (both basic and advanced) for a connector. Learn more in the {enterprise-search-ref}/sync-rules.html[sync rules documentation].
+The filtering property is used to configure sync rules (both basic and advanced) for a connector. Learn more in the <<es-sync-rules>>.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-filtering-api-request]]
 ==== {api-request-title}
@@ -20,7 +21,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[update-connector-filtering-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 * Filtering draft is activated once validated by the running Elastic connector service, the `draft.validation.state` must be `valid`.
 * If, after a validation attempt, the `draft.validation.state` equals to `invalid`, inspect `draft.validation.errors` and fix any issues.
@@ -37,7 +38,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 
 `rules`::
 (Optional, array of objects)
-An array of {enterprise-search-ref}/sync-rules.html#sync-rules-basic[basic sync rules], each with the following sub-attributes:
+An array of <<es-sync-rules-basic, basic sync rules>>, each with the following sub-attributes:
 * `id` (Required, string) +
 A unique identifier for the rule.
 * `policy` (Required, string) +
@@ -57,7 +58,7 @@ The timestamp when the rule was last edited. Defaults to `now` UTC timestamp.
 
 `advanced_snippet`::
 (Optional, object)
-Used for {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced filtering] at query time, with the following sub-attributes:
+Used for <<es-sync-rules-advanced, advanced filtering>> at query time, with the following sub-attributes:
 * `value` (Required, object or array) +
 A JSON object/array passed directly to the connector for advanced filtering.
 * `created_at` (Optional, datetime) +
@@ -81,7 +82,7 @@ No connector matching `connector_id` could be found.
 [[update-connector-filtering-api-example]]
 ==== {api-examples-title}
 
-The following example updates the draft {enterprise-search-ref}/sync-rules.html#sync-rules-basic[basic sync rules] for a Google Drive connector with ID `my-g-drive-connector`. All Google Drive files with `.txt` extension will be skipped:
+The following example updates the draft <<es-sync-rules-basic, basic sync rules>> for a Google Drive connector with ID `my-g-drive-connector`. All Google Drive files with `.txt` extension will be skipped:
 
 ////
 [source, console]
@@ -143,7 +144,7 @@ PUT _connector/my-g-drive-connector/_filtering
 }
 ----
 
-The following example updates the draft advanced sync rules for a MySQL connector with id `my-sql-connector`. Advanced sync rules are specific to each connector type. Refer to the references for connectors that support {enterprise-search-ref}/sync-rules.html#sync-rules-advanced[advanced sync rules] for syntax and examples.
+The following example updates the draft advanced sync rules for a MySQL connector with id `my-sql-connector`. Advanced sync rules are specific to each connector type. Refer to the references for connectors that support <<es-sync-rules-advanced, advanced sync rules>> for syntax and examples.
 
 [source,console]
 ----

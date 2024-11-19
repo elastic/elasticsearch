@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.terms;
@@ -122,7 +123,7 @@ public class SignificantTermsAggregatorFactory extends ValuesSourceAggregatorFac
 
     /**
      * Whether the aggregation will execute. If the main query matches no documents and parent aggregation isn't a global or terms
-     * aggregation with min_doc_count = 0, the the aggregator will not really execute. In those cases it doesn't make sense to load
+     * aggregation with min_doc_count = 0, the aggregator will not really execute. In those cases it doesn't make sense to load
      * global ordinals.
      * <p>
      * Some searches that will never match can still fall through and we endup running query that will produce no results.

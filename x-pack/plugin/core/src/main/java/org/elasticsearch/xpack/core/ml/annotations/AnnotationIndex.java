@@ -72,8 +72,7 @@ public class AnnotationIndex {
     ) {
 
         final ActionListener<Boolean> annotationsIndexCreatedListener = finalListener.delegateFailureAndWrap((delegate, success) -> {
-            final ClusterHealthRequest request = new ClusterHealthRequest(READ_ALIAS_NAME).waitForYellowStatus()
-                .masterNodeTimeout(masterNodeTimeout);
+            final ClusterHealthRequest request = new ClusterHealthRequest(masterNodeTimeout, READ_ALIAS_NAME).waitForYellowStatus();
             executeAsyncWithOrigin(
                 client,
                 ML_ORIGIN,

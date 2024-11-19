@@ -62,7 +62,7 @@ public final class DataExtractorUtils {
         } else {
             Long earliestTime = toLongIfFinite((aggregations.<Min>get(EARLIEST_TIME)).value());
             Long latestTime = toLongIfFinite((aggregations.<Max>get(LATEST_TIME)).value());
-            long totalHits = searchResponse.getHits().getTotalHits().value;
+            long totalHits = searchResponse.getHits().getTotalHits().value();
             return new DataExtractor.DataSummary(earliestTime, latestTime, totalHits);
         }
     }

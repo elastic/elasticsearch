@@ -6,13 +6,13 @@
 |===
 field | result
 boolean | boolean
-datetime | datetime
+date | date
 double | double
 integer | integer
 ip | ip
 keyword | keyword
 long | long
-text | text
+text | keyword
 unsigned_long | unsigned_long
 version | version
 |===

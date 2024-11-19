@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -13,6 +14,7 @@ import org.elasticsearch.Build;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -596,29 +598,25 @@ public class NodeConnectionsServiceTests extends ESTestCase {
             return new TransportAddress[0];
         }
 
-        private void runConnectionBlock(CheckedRunnable<Exception> connectionBlock) {
+        private void runConnectionBlock(CheckedRunnable<Exception> connectionBlock) throws Exception {
             if (connectionBlock == null) {
                 return;
             }
-            try {
-                connectionBlock.run();
-            } catch (Exception e) {
-                throw new AssertionError(e);
-            }
+            connectionBlock.run();
         }
 
         @Override
         public void openConnection(DiscoveryNode node, ConnectionProfile profile, ActionListener<Connection> listener) {
             final CheckedRunnable<Exception> connectionBlock = nodeConnectionBlocks.get(node);
             if (profile == null && randomConnectionExceptions && randomBoolean()) {
-                threadPool.generic().execute(() -> {
+                threadPool.generic().execute(ActionRunnable.run(listener, () -> {
                     runConnectionBlock(connectionBlock);
-                    listener.onFailure(new ConnectTransportException(node, "simulated"));
-                });
+                    throw new ConnectTransportException(node, "simulated");
+                }));
             } else {
-                threadPool.generic().execute(() -> {
+                threadPool.generic().execute(ActionRunnable.supply(listener, () -> {
                     runConnectionBlock(connectionBlock);
-                    listener.onResponse(new Connection() {
+                    return new Connection() {
                         private final SubscribableListener<Void> closeListener = new SubscribableListener<>();
                         private final SubscribableListener<Void> removedListener = new SubscribableListener<>();
 
@@ -682,8 +680,8 @@ public class NodeConnectionsServiceTests extends ESTestCase {
                         public boolean hasReferences() {
                             return refCounted.hasReferences();
                         }
-                    });
-                });
+                    };
+                }));
             }
         }
 

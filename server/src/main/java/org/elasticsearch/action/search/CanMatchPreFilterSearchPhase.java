@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
 
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.FixedBitSet;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.common.util.Maps;
@@ -22,7 +22,6 @@ import org.elasticsearch.index.query.CoordinatorRewriteContextProvider;
 import org.elasticsearch.search.CanMatchShardResponse;
 import org.elasticsearch.search.SearchService;
 import org.elasticsearch.search.SearchShardTarget;
-import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.sort.FieldSortBuilder;
@@ -43,7 +42,6 @@ import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicReferenceArray;
 import java.util.function.BiFunction;
 import java.util.stream.Collectors;
-import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.core.Strings.format;
@@ -60,7 +58,7 @@ import static org.elasticsearch.core.Types.forciblyCast;
  * sort them according to the provided order. This can be useful for instance to ensure that shards that contain recent
  * data are executed first when sorting by descending timestamp.
  */
-final class CanMatchPreFilterSearchPhase extends SearchPhase {
+final class CanMatchPreFilterSearchPhase {
 
     private final Logger logger;
     private final SearchRequest request;
@@ -94,7 +92,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         ActionListener<GroupShardsIterator<SearchShardIterator>> listener
     ) {
-        super("can_match");
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
@@ -128,22 +125,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
     private static boolean assertSearchCoordinationThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-    }
-
-    @Override
-    public void run() {
-        assert assertSearchCoordinationThread();
-        checkNoMissingShards();
-        Version version = request.minCompatibleShardNode();
-        if (version != null && Version.CURRENT.minimumCompatibilityVersion().equals(version) == false) {
-            if (checkMinimumVersion(shardsIts) == false) {
-                throw new VersionMismatchException(
-                    "One of the shards is incompatible with the required minimum version [{}]",
-                    request.minCompatibleShardNode()
-                );
-            }
-        }
-        runCoordinatorRewritePhase();
     }
 
     // tries to pre-filter shards based on information that's available to the coordinator
@@ -186,7 +167,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
         } else {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
+            GroupShardsIterator<SearchShardIterator> matchingShards = new GroupShardsIterator<>(matchedShardLevelRequests);
+            // verify missing shards only for the shards that we hit for the query
+            checkNoMissingShards(matchingShards);
+            new Round(matchingShards).run();
         }
     }
 
@@ -196,9 +180,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         results.consumeResult(result, () -> {});
     }
 
-    private void checkNoMissingShards() {
+    private void checkNoMissingShards(GroupShardsIterator<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        doCheckNoMissingShards(getName(), request, shardsIts);
+        SearchPhase.doCheckNoMissingShards("can_match", request, shards, SearchPhase::makeMissingShardsError);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {
@@ -327,7 +311,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         public void onFailure(Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
             onPhaseFailure("round", e);
         }
@@ -379,22 +363,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         );
     }
 
-    private boolean checkMinimumVersion(GroupShardsIterator<SearchShardIterator> shardsIts) {
-        for (SearchShardIterator it : shardsIts) {
-            if (it.getTargetNodeIds().isEmpty() == false) {
-                boolean isCompatible = it.getTargetNodeIds().stream().anyMatch(nodeId -> {
-                    Transport.Connection conn = getConnection(new SendingTarget(it.getClusterAlias(), nodeId));
-                    return conn == null || conn.getNode().getVersion().onOrAfter(request.minCompatibleShardNode());
-                });
-                if (isCompatible == false) {
-                    return false;
-                }
-            }
-        }
-        return true;
-    }
-
-    @Override
     public void start() {
         if (getNumShards() == 0) {
             finishPhase();
@@ -405,29 +373,25 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
+                    logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
                 onPhaseFailure("start", e);
             }
 
             @Override
             protected void doRun() {
-                CanMatchPreFilterSearchPhase.this.run();
+                assert assertSearchCoordinationThread();
+                runCoordinatorRewritePhase();
             }
         });
     }
 
     public void onPhaseFailure(String msg, Exception cause) {
-        listener.onFailure(new SearchPhaseExecutionException(getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
+        listener.onFailure(new SearchPhaseExecutionException("can_match", msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 
     public Transport.Connection getConnection(SendingTarget sendingTarget) {
-        Transport.Connection conn = nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
-        Version minVersion = request.minCompatibleShardNode();
-        if (minVersion != null && conn != null && conn.getNode().getVersion().before(minVersion)) {
-            throw new VersionMismatchException("One of the shards is incompatible with the required minimum version [{}]", minVersion);
-        }
-        return conn;
+        return nodeIdToConnection.apply(sendingTarget.clusterAlias, sendingTarget.nodeId);
     }
 
     private int getNumShards() {
@@ -448,7 +412,11 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         void consumeResult(CanMatchShardResponse result, Runnable next) {
             try {
-                consumeResult(result.getShardIndex(), result.canMatch(), result.estimatedMinAndMax());
+                final boolean canMatch = result.canMatch();
+                final MinAndMax<?> minAndMax = result.estimatedMinAndMax();
+                if (canMatch || minAndMax != null) {
+                    consumeResult(result.getShardIndex(), canMatch, minAndMax);
+                }
             } finally {
                 next.run();
             }
@@ -465,7 +433,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             consumeResult(shardIndex, true, null);
         }
 
-        synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
+        private synchronized void consumeResult(int shardIndex, boolean canMatch, MinAndMax<?> minAndMax) {
             if (canMatch) {
                 possibleMatches.set(shardIndex);
                 numPossibleMatches++;
@@ -494,10 +462,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         CanMatchSearchPhaseResults results,
         GroupShardsIterator<SearchShardIterator> shardsIts
     ) {
-        int cardinality = results.getNumPossibleMatches();
         FixedBitSet possibleMatches = results.getPossibleMatches();
         // TODO: pick the local shard when possible
-        if (requireAtLeastOneMatch && cardinality == 0) {
+        if (requireAtLeastOneMatch && results.getNumPossibleMatches() == 0) {
             // this is a special case where we have no hit but we need to get at least one search response in order
             // to produce a valid search result with all the aggs etc.
             // Since it's possible that some of the shards that we're skipping are
@@ -514,7 +481,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
             possibleMatches.set(shardIndexToQuery);
         }
-        SearchSourceBuilder source = request.source();
         int i = 0;
         for (SearchShardIterator iter : shardsIts) {
             iter.reset();
@@ -528,7 +494,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         if (shouldSortShards(results.minAndMaxes) == false) {
             return shardsIts;
         }
-        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(source);
+        FieldSortBuilder fieldSort = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
         return new GroupShardsIterator<>(sortShards(shardsIts, results.minAndMaxes, fieldSort.order()));
     }
 
@@ -537,11 +503,24 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         MinAndMax<?>[] minAndMaxes,
         SortOrder order
     ) {
-        return IntStream.range(0, shardsIts.size())
-            .boxed()
-            .sorted(shardComparator(shardsIts, minAndMaxes, order))
-            .map(shardsIts::get)
-            .toList();
+        int bound = shardsIts.size();
+        List<Integer> toSort = new ArrayList<>(bound);
+        for (int i = 0; i < bound; i++) {
+            toSort.add(i);
+        }
+        Comparator<? super MinAndMax<?>> keyComparator = forciblyCast(MinAndMax.getComparator(order));
+        toSort.sort((idx1, idx2) -> {
+            int res = keyComparator.compare(minAndMaxes[idx1], minAndMaxes[idx2]);
+            if (res != 0) {
+                return res;
+            }
+            return shardsIts.get(idx1).compareTo(shardsIts.get(idx2));
+        });
+        List<SearchShardIterator> list = new ArrayList<>(bound);
+        for (Integer integer : toSort) {
+            list.add(shardsIts.get(integer));
+        }
+        return list;
     }
 
     private static boolean shouldSortShards(MinAndMax<?>[] minAndMaxes) {
@@ -557,19 +536,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             }
         }
         return clazz != null;
-    }
-
-    private static Comparator<Integer> shardComparator(
-        GroupShardsIterator<SearchShardIterator> shardsIts,
-        MinAndMax<?>[] minAndMaxes,
-        SortOrder order
-    ) {
-        final Comparator<Integer> comparator = Comparator.comparing(
-            index -> minAndMaxes[index],
-            forciblyCast(MinAndMax.getComparator(order))
-        );
-
-        return comparator.thenComparing(shardsIts::get);
     }
 
 }

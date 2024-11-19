@@ -23,6 +23,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.randomLiteral;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.CARTESIAN;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.GEO;
 import static org.hamcrest.Matchers.equalTo;
@@ -166,6 +167,22 @@ public class MvAppendTests extends AbstractScalarFunctionTestCase {
                 ),
                 "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
                 DataType.TEXT,
+                equalTo(result)
+            );
+        }));
+
+        suppliers.add(new TestCaseSupplier(List.of(DataType.SEMANTIC_TEXT, DataType.SEMANTIC_TEXT), () -> {
+            List<Object> field1 = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            List<Object> field2 = randomList(1, 10, () -> randomLiteral(DataType.SEMANTIC_TEXT).value());
+            var result = new ArrayList<>(field1);
+            result.addAll(field2);
+            return new TestCaseSupplier.TestCase(
+                List.of(
+                    new TestCaseSupplier.TypedData(field1, DataType.SEMANTIC_TEXT, "field1"),
+                    new TestCaseSupplier.TypedData(field2, DataType.SEMANTIC_TEXT, "field2")
+                ),
+                "MvAppendBytesRefEvaluator[field1=Attribute[channel=0], field2=Attribute[channel=1]]",
+                DataType.SEMANTIC_TEXT,
                 equalTo(result)
             );
         }));

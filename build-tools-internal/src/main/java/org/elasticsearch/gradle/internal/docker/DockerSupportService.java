@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.docker;
 
@@ -12,10 +13,10 @@ import com.avast.gradle.dockercompose.ServiceInfo;
 import org.elasticsearch.gradle.Architecture;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.GradleException;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
+import org.gradle.api.provider.Property;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.services.BuildService;
 import org.gradle.api.services.BuildServiceParameters;
@@ -58,7 +59,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
 
     private final ProviderFactory providerFactory;
     private DockerAvailability dockerAvailability;
-    private Map<String, ServiceInfo> serviceInfos;
     private Map<String, Map<Integer, Integer>> tcpPorts;
     private Map<String, Map<Integer, Integer>> udpPorts;
 
@@ -227,7 +227,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         // We don't attempt to check the current flavor and version of Linux unless we're
         // running in CI, because we don't want to stop people running the Docker tests in
         // their own environments if they really want to.
-        if (BuildParams.isCi() == false) {
+        if (getParameters().getIsCI().get().booleanValue() == false) {
             return false;
         }
 
@@ -355,10 +355,6 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         return udpPorts;
     }
 
-    public void setServiceInfos(Map<String, ServiceInfo> serviceInfos) {
-        this.serviceInfos = serviceInfos;
-    }
-
     /**
      * An immutable class that represents the results of a Docker search from {@link #getDockerAvailability()}}.
      */
@@ -401,5 +397,7 @@ public abstract class DockerSupportService implements BuildService<DockerSupport
         File getExclusionsFile();
 
         void setExclusionsFile(File exclusionsFile);
+
+        Property<Boolean> getIsCI();
     }
 }

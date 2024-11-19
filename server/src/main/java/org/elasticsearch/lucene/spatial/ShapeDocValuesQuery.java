@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.spatial;
@@ -15,6 +16,7 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.ConstantScoreScorer;
 import org.apache.lucene.search.ConstantScoreWeight;
+import org.apache.lucene.search.DocIdSetIterator;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
@@ -108,17 +110,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                final ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
-            }
-
-            @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-                final Weight weight = this;
                 // implement ScorerSupplier, since we do some expensive stuff to make a scorer
                 return new ScorerSupplier() {
 
@@ -127,7 +119,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return null;
+                            return new ConstantScoreScorer(0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final GeometryDocValueReader reader = new GeometryDocValueReader();
                         final Component2DVisitor visitor = Component2DVisitor.getVisitor(component2D, relation, encoder);
@@ -145,7 +137,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                                 return 1000f; // TODO: what should it be?
                             }
                         };
-                        return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
+                        return new ConstantScoreScorer(score(), scoreMode, iterator);
                     }
 
                     @Override
@@ -170,17 +162,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
-                final ScorerSupplier scorerSupplier = scorerSupplier(context);
-                if (scorerSupplier == null) {
-                    return null;
-                }
-                return scorerSupplier.get(Long.MAX_VALUE);
-            }
-
-            @Override
             public ScorerSupplier scorerSupplier(LeafReaderContext context) {
-                final Weight weight = this;
                 // implement ScorerSupplier, since we do some expensive stuff to make a scorer
                 return new ScorerSupplier() {
 
@@ -189,7 +171,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                         // binary doc values allocate an array upfront, lets only allocate it if we are going to use it
                         final BinaryDocValues values = context.reader().getBinaryDocValues(field);
                         if (values == null) {
-                            return null;
+                            return new ConstantScoreScorer(0f, scoreMode, DocIdSetIterator.empty());
                         }
                         final Component2DVisitor[] visitors = new Component2DVisitor[components2D.size()];
                         for (int i = 0; i < components2D.size(); i++) {
@@ -216,7 +198,7 @@ abstract class ShapeDocValuesQuery<GEOMETRY> extends Query {
                                 return 1000f; // TODO: what should it be?
                             }
                         };
-                        return new ConstantScoreScorer(weight, score(), scoreMode, iterator);
+                        return new ConstantScoreScorer(score(), scoreMode, iterator);
                     }
 
                     @Override

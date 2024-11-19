@@ -1,5 +1,0 @@
-pr: 109196
-summary: Handle nullable `DocsStats` and `StoresStats`
-area: Distributed
-type: bug
-issues: []

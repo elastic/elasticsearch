@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -20,7 +21,6 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.TransportAction;
@@ -34,7 +34,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.collect.Iterators;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.RecyclerBytesStreamOutput;
@@ -57,6 +56,7 @@ import org.elasticsearch.http.HttpBodyTracer;
 import org.elasticsearch.http.HttpRouteStats;
 import org.elasticsearch.http.HttpRouteStatsTracker;
 import org.elasticsearch.http.HttpServerTransport;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -71,6 +71,7 @@ import org.elasticsearch.rest.action.RestActionListener;
 import org.elasticsearch.rest.action.RestToXContentListener;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
+import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.test.junit.annotations.TestLogging;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -435,13 +436,22 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                super(TYPE.name(), actionFilters, transportService.getTaskManager());
-                executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
+            }
+
+            TransportYieldsContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {
+                super(TYPE.name(), actionFilters, transportService.getTaskManager(), executor);
+                this.executor = executor;
             }
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(ActionRunnable.supply(listener, () -> new Response(request.failIndex, executor)));
+                var response = new Response(request.failIndex, executor);
+                try {
+                    listener.onResponse(response);
+                } catch (Exception e) {
+                    ESTestCase.fail(e);
+                }
             }
         }
 
@@ -585,18 +595,22 @@ public class Netty4ChunkedContinuationsIT extends ESNetty4IntegTestCase {
 
             @Inject
             public TransportInfiniteContinuationsAction(ActionFilters actionFilters, TransportService transportService) {
-                super(TYPE.name(), actionFilters, transportService.getTaskManager());
-                this.executor = transportService.getThreadPool().executor(ThreadPool.Names.GENERIC);
+                this(actionFilters, transportService, transportService.getThreadPool().executor(ThreadPool.Names.GENERIC));
+            }
+
+            TransportInfiniteContinuationsAction(ActionFilters actionFilters, TransportService transportService, ExecutorService executor) {
+                super(TYPE.name(), actionFilters, transportService.getTaskManager(), executor);
+                this.executor = executor;
             }
 
             @Override
             protected void doExecute(Task task, Request request, ActionListener<Response> listener) {
-                executor.execute(
-                    ActionRunnable.supply(
-                        ActionTestUtils.assertNoFailureListener(listener::onResponse),
-                        () -> new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE))
-                    )
-                );
+                var response = new Response(randomFrom(executor, EsExecutors.DIRECT_EXECUTOR_SERVICE));
+                try {
+                    listener.onResponse(response);
+                } catch (Exception e) {
+                    ESTestCase.fail(e);
+                }
             }
         }
 

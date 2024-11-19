@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
 
-import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Strings;
@@ -50,9 +50,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             INDEX_NAME,
             0,
-            "version",
             "stack",
-            null,
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),
@@ -71,9 +69,7 @@ public class TestSystemIndexDescriptor extends SystemIndexDescriptor {
             SETTINGS,
             name,
             0,
-            "version",
             "stack",
-            Version.fromString(Build.current().minWireCompatVersion()),
             Type.INTERNAL_MANAGED,
             List.of(),
             List.of(),

@@ -10,6 +10,18 @@ These are the settings available for configuring <<data-stream-lifecycle, data s
 
 ==== Cluster level settings
 
+[[data-streams-lifecycle-retention-max]]
+`data_streams.lifecycle.retention.max`::
+(<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
+The maximum retention period that will apply to all user data streams managed by the data stream lifecycle. The max retention will also
+override the retention of a data stream whose configured retention exceeds the max retention. It should be greater than `10s`.
+
+[[data-streams-lifecycle-retention-default]]
+`data_streams.lifecycle.retention.default`::
+(<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)
+The retention period that will apply to all user data streams managed by the data stream lifecycle that do not have retention configured.
+It should be greater than `10s` and less or equals than <<data-streams-lifecycle-retention-max, `data_streams.lifecycle.retention.max`>>.
+
 [[data-streams-lifecycle-poll-interval]]
 `data_streams.lifecycle.poll_interval`::
 (<<dynamic-cluster-setting,Dynamic>>, <<time-units, time unit value>>)

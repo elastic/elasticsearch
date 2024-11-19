@@ -34,7 +34,6 @@ import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata.Assignment;
 import org.elasticsearch.tasks.TaskId;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -135,12 +134,46 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     public void testNodeAssignmentProblems() {
-        // no data nodes
-        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
-        ClusterState cs = buildClusterState(nodes);
+        // no nodes
+        ClusterState cs = buildClusterState(DiscoveryNodes.builder());
         TransformPersistentTasksExecutor executor = buildTaskExecutor();
 
         Assignment assignment = executor.getAssignment(
+            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+            List.of(),
+            cs
+        );
+        assertNull(assignment.getExecutorNode());
+        assertThat(
+            assignment.getExplanation(),
+            equalTo(
+                "Not starting transform [new-task-id], reasons [cluster-uuid:No Discovery Nodes found in cluster state."
+                    + " Check cluster health and troubleshoot missing Discovery Nodes.]"
+            )
+        );
+
+        // no data nodes, but the cluster state is empty
+        DiscoveryNodes.Builder nodes = buildNodes(false, false, false, false, true);
+        cs = buildClusterState(nodes);
+        executor = buildTaskExecutor();
+
+        assignment = executor.getAssignment(
+            new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
+            List.of(),
+            cs
+        );
+        assertNull(assignment.getExecutorNode());
+        assertThat(
+            assignment.getExplanation(),
+            equalTo("Not starting transform [new-task-id], reasons [current-data-node-with-transform-disabled:not a transform node]")
+        );
+
+        // no data nodes
+        nodes = buildNodes(false, false, false, false, true);
+        cs = buildClusterState(nodes);
+        executor = buildTaskExecutor();
+
+        assignment = executor.getAssignment(
             new TransformTaskParams("new-task-id", TransformConfigVersion.CURRENT, null, false),
             cs.nodes().getAllNodes(),
             cs
@@ -510,7 +543,7 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
     }
 
     private ClusterState buildClusterState(DiscoveryNodes.Builder nodes) {
-        Metadata.Builder metadata = Metadata.builder();
+        Metadata.Builder metadata = Metadata.builder().clusterUUID("cluster-uuid");
         RoutingTable.Builder routingTable = RoutingTable.builder();
         addIndices(metadata, routingTable);
         PersistentTasksCustomMetadata.Builder pTasksBuilder = PersistentTasksCustomMetadata.builder()
@@ -559,8 +592,8 @@ public class TransformPersistentTasksExecutorTests extends ESTestCase {
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                threadPool,
+                null
             ),
             configManager,
             mockAuditor

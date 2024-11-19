@@ -1990,7 +1990,7 @@ idle for more than the specified timeout.
 
 The server can also set the `Keep-Alive` HTTP response header. The effective
 time-to-live value is the smaller value between this setting and the `Keep-Alive`
-reponse header. Configure this setting to `-1` to let the server dictate the value.
+response header. Configure this setting to `-1` to let the server dictate the value.
 If the header is not set by the server and the setting has value of `-1`,
 the time-to-live is infinite and connections never expire.
 // end::oidc-http-connection-pool-ttl-tag[]

@@ -205,7 +205,6 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.function.UnaryOperator;
@@ -221,10 +220,8 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
 
     // This setting is only here for backward compatibility reasons as 6.x indices made use of it. It can be removed in 8.x.
     @Deprecated
-    public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING = new Setting<>(
+    public static final Setting<String> INDEX_WATCHER_TEMPLATE_VERSION_SETTING = Setting.simpleString(
         "index.xpack.watcher.template.version",
-        "",
-        Function.identity(),
         Setting.Property.IndexScope
     );
     public static final Setting<Boolean> ENCRYPT_SENSITIVE_DATA_SETTING = Setting.boolSetting(
@@ -490,7 +487,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
             .setBulkSize(SETTING_BULK_SIZE.get(settings))
             .build();
 
-        HistoryStore historyStore = new HistoryStore(bulkProcessor);
+        HistoryStore historyStore = new HistoryStore(bulkProcessor, settings);
 
         // schedulers
         final Set<Schedule.Parser<?>> scheduleParsers = new HashSet<>();
@@ -613,6 +610,7 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
         settings.add(SETTING_BULK_CONCURRENT_REQUESTS);
         settings.add(SETTING_BULK_FLUSH_INTERVAL);
         settings.add(SETTING_BULK_SIZE);
+        settings.add(HistoryStore.MAX_HISTORY_SIZE_SETTING);
 
         // notification services
         settings.addAll(SlackService.getSettings());
@@ -804,7 +802,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setDescription("Contains Watch definitions")
                 .setMappings(getWatchesIndexMappings())
                 .setSettings(getWatchesIndexSettings())
-                .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
                 .build(),
@@ -814,7 +811,6 @@ public class Watcher extends Plugin implements SystemIndexPlugin, ScriptPlugin, 
                 .setDescription("Used to track current and queued Watch execution")
                 .setMappings(getTriggeredWatchesIndexMappings())
                 .setSettings(getTriggeredWatchesIndexSettings())
-                .setVersionMetaKey("version")
                 .setOrigin(WATCHER_ORIGIN)
                 .setIndexFormat(6)
                 .build()

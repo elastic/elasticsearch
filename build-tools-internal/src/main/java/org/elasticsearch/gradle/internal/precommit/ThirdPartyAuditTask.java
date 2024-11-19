@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
@@ -12,7 +13,6 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -193,6 +193,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
 
+    @Input
+    @Optional
+    public abstract Property<JavaVersion> getRuntimeJavaVersion();
+
     @Classpath
     public FileCollection getClasspath() {
         return classpath;
@@ -370,14 +374,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     /** Returns true iff the build Java version is the same as the given version. */
     private boolean isJavaVersion(JavaVersion version) {
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
-                return true;
-            }
-        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
-            return true;
+        if (getRuntimeJavaVersion().isPresent()) {
+            return getRuntimeJavaVersion().get().equals(version);
         }
-        return false;
+        return version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion());
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

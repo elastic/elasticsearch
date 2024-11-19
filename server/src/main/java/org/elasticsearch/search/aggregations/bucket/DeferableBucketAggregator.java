@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket;
 
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.Aggregator;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.BucketCollector;
@@ -64,7 +66,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
                 }
                 deferredAggregations.add(subAggregators[i]);
                 deferredAggregationNames.add(subAggregators[i].name());
-                subAggregators[i] = deferringCollector.wrap(subAggregators[i]);
+                subAggregators[i] = deferringCollector.wrap(subAggregators[i], bigArrays());
             } else {
                 collectors.add(subAggregators[i]);
             }
@@ -86,7 +88,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     /**
      * Build the {@link DeferringBucketCollector}. The default implementation
      * replays all hits against the buckets selected by
-     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(long...)}.
+     * {#link {@link DeferringBucketCollector#prepareSelectedBuckets(LongArray)}.
      */
     protected DeferringBucketCollector buildDeferringCollector() {
         return new BestBucketsDeferringCollector(topLevelQuery(), searcher(), descendsFromGlobalAggregator(parent()));
@@ -106,7 +108,7 @@ public abstract class DeferableBucketAggregator extends BucketsAggregator {
     }
 
     @Override
-    protected final void prepareSubAggs(long[] bucketOrdsToCollect) throws IOException {
+    protected final void prepareSubAggs(LongArray bucketOrdsToCollect) throws IOException {
         if (deferringCollector != null) {
             deferringCollector.prepareSelectedBuckets(bucketOrdsToCollect);
         }

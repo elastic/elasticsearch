@@ -27,6 +27,8 @@ public class Types {
     private static final String OPERATOR_PACKAGE = PACKAGE + ".operator";
     private static final String DATA_PACKAGE = PACKAGE + ".data";
 
+    static final TypeName STRING = ClassName.get("java.lang", "String");
+
     static final TypeName LIST_INTEGER = ParameterizedTypeName.get(ClassName.get(List.class), TypeName.INT.box());
 
     static final ClassName PAGE = ClassName.get(DATA_PACKAGE, "Page");
@@ -34,6 +36,7 @@ public class Types {
     static final TypeName BLOCK_ARRAY = ArrayTypeName.of(BLOCK);
     static final ClassName VECTOR = ClassName.get(DATA_PACKAGE, "Vector");
 
+    static final ClassName CIRCUIT_BREAKER = ClassName.get("org.elasticsearch.common.breaker", "CircuitBreaker");
     static final ClassName BIG_ARRAYS = ClassName.get("org.elasticsearch.common.util", "BigArrays");
 
     static final ClassName BOOLEAN_BLOCK = ClassName.get(DATA_PACKAGE, "BooleanBlock");
@@ -126,7 +129,7 @@ public class Types {
         "AbstractEvaluator"
     );
 
-    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.xpack.esql.expression.function", "Warnings");
+    static final ClassName WARNINGS = ClassName.get("org.elasticsearch.compute.operator", "Warnings");
 
     static final ClassName SOURCE = ClassName.get("org.elasticsearch.xpack.esql.core.tree", "Source");
 

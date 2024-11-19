@@ -123,7 +123,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         var service = createRequestExecutorService(null, requestSender);
 
@@ -203,7 +203,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             throw new IllegalArgumentException("failed");
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
 
@@ -270,13 +270,13 @@ public class RequestExecutorServiceTests extends ESTestCase {
             assertNull(serviceThreadContext.getHeader(headerKey));
 
             @SuppressWarnings("unchecked")
-            ActionListener<InferenceServiceResults> listener = (ActionListener<InferenceServiceResults>) invocation.getArguments()[5];
+            ActionListener<InferenceServiceResults> listener = invocation.getArgument(4, ActionListener.class);
             listener.onResponse(null);
 
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         var finishedOnResponse = new CountDownLatch(1);
         ActionListener<InferenceServiceResults> listener = new ActionListener<>() {
@@ -422,7 +422,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -467,7 +467,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -528,7 +528,7 @@ public class RequestExecutorServiceTests extends ESTestCase {
             waitToShutdown.countDown();
             waitToReturnFromSend.await(TIMEOUT.getSeconds(), TimeUnit.SECONDS);
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         Future<?> executorTermination = submitShutdownRequest(waitToShutdown, waitToReturnFromSend, service);
 
@@ -598,11 +598,11 @@ public class RequestExecutorServiceTests extends ESTestCase {
         doAnswer(invocation -> {
             service.shutdown();
             return Void.TYPE;
-        }).when(requestSender).send(any(), any(), any(), any(), any(), any());
+        }).when(requestSender).send(any(), any(), any(), any(), any());
 
         service.start();
 
-        verify(requestSender, times(1)).send(any(), any(), any(), any(), any(), any());
+        verify(requestSender, times(1)).send(any(), any(), any(), any(), any());
     }
 
     public void testRemovesRateLimitGroup_AfterStaleDuration() {

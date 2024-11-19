@@ -104,9 +104,7 @@ public class AdaptiveAllocationsSettings implements ToXContentObject, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        if (enabled != null) {
-            builder.field(ENABLED.getPreferredName(), enabled);
-        }
+        builder.field(ENABLED.getPreferredName(), enabled != null ? enabled : false);
         if (minNumberOfAllocations != null) {
             builder.field(MIN_NUMBER_OF_ALLOCATIONS.getPreferredName(), minNumberOfAllocations);
         }
@@ -149,8 +147,8 @@ public class AdaptiveAllocationsSettings implements ToXContentObject, Writeable 
     public ActionRequestValidationException validate() {
         ActionRequestValidationException validationException = new ActionRequestValidationException();
         boolean hasMinNumberOfAllocations = (minNumberOfAllocations != null && minNumberOfAllocations != -1);
-        if (hasMinNumberOfAllocations && minNumberOfAllocations < 1) {
-            validationException.addValidationError("[" + MIN_NUMBER_OF_ALLOCATIONS + "] must be a positive integer or null");
+        if (hasMinNumberOfAllocations && minNumberOfAllocations < 0) {
+            validationException.addValidationError("[" + MIN_NUMBER_OF_ALLOCATIONS + "] must be a non-negative integer or null");
         }
         boolean hasMaxNumberOfAllocations = (maxNumberOfAllocations != null && maxNumberOfAllocations != -1);
         if (hasMaxNumberOfAllocations && maxNumberOfAllocations < 1) {

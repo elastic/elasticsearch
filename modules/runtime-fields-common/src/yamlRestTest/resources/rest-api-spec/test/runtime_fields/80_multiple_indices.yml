@@ -12,7 +12,7 @@ setup:
               day_of_week:
                 type: keyword
                 script: |
-                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ROOT));
+                  emit(doc['timestamp'].value.dayOfWeekEnum.getDisplayName(TextStyle.FULL, Locale.ENGLISH));
               tomorrow:
                 type: date
                 script:

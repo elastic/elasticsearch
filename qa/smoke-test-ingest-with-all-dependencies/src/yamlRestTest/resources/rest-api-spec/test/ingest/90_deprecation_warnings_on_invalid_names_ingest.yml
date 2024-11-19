@@ -1,0 +1,28 @@
+---
+"Test invalid name warnings":
+  - requires:
+      cluster_features: [ "ingest.pipeline_name_special_chars_warning" ]
+      test_runner_features: [ "warnings" ]
+      reason: verifying deprecation warnings from 9.0 onwards for invalid pipeline names
+
+  - do:
+      cluster.health:
+        wait_for_status: green
+
+  - do:
+      ingest.put_pipeline:
+        id: "Invalid*-pipeline:id"
+        body: >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "set" : {
+                  "field" : "field1",
+                  "value": "_value"
+                }
+              }]
+          }
+      warnings:
+        - "Invalid pipeline id: Invalid*-pipeline:id"
+  - match: { acknowledged: true }

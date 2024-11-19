@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -667,7 +668,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<TransportResponse.Empty> res = submitRequest(
                 serviceC,
@@ -724,7 +725,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<StringMessageResponse> res = submitRequest(
                 serviceC,
@@ -794,8 +795,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
-            connectToNode(serviceA, serviceC.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
+            connectToNode(serviceA, serviceC.getLocalNode(), connectionProfile);
 
             TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<>() {
                 @Override
@@ -820,14 +821,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             Future<StringMessageResponse> compressed = submitRequest(
                 serviceC,
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, true),
                 responseHandler
             );
             Future<StringMessageResponse> uncompressed = submitRequest(
                 serviceA,
-                serviceC.getLocalDiscoNode(),
+                serviceC.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, false),
                 responseHandler
@@ -1048,7 +1049,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     ignoringRequestHandler
                 );
                 serviceB = newService;
-                nodeB = newService.getLocalDiscoNode();
+                nodeB = newService.getLocalNode();
                 connectToNode(serviceB, nodeA);
                 connectToNode(serviceA, nodeB);
             } else if (serviceA.nodeConnected(nodeB)) {
@@ -1372,7 +1373,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:testError" which returns an error
@@ -1419,7 +1420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for excluded action type "internal:testNotSeen"
@@ -1466,7 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -1868,8 +1869,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         assertBusy(() -> assertFalse(serviceB.nodeConnected(nodeA)));
 
         // now try to connect again and see that it fails
-        expectThrows(ConnectTransportException.class, () -> connectToNode(serviceB, nodeA));
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testMockUnresponsiveRule() throws InterruptedException {
@@ -1916,11 +1917,9 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         );
 
         assertThat(expectThrows(ExecutionException.class, res::get).getCause(), instanceOf(ReceiveTimeoutTransportException.class));
-        expectThrows(ConnectTransportException.class, () -> {
-            serviceB.disconnectFromNode(nodeA);
-            connectToNode(serviceB, nodeA);
-        });
-        expectThrows(ConnectTransportException.class, () -> openConnection(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
+        serviceB.disconnectFromNode(nodeA);
+        assertNotNull(connectToNodeExpectFailure(serviceB, nodeA, null));
+        assertNotNull(openConnectionExpectFailure(serviceB, nodeA, TestProfiles.LIGHT_PROFILE));
     }
 
     public void testHostOnMessages() throws InterruptedException {
@@ -2342,7 +2341,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            expectThrows(ConnectTransportException.class, () -> openConnection(serviceA, node, builder.build()));
+            assertNotNull(openConnectionExpectFailure(serviceA, node, builder.build()));
         }
     }
 
@@ -2448,10 +2447,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueMillis(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] handshake_timeout[1ms]", ex.getMessage());
         }
     }
@@ -2488,10 +2484,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.STATE
             );
             builder.setHandshakeTimeout(TimeValue.timeValueHours(1));
-            ConnectTransportException ex = expectThrows(
-                ConnectTransportException.class,
-                () -> connectToNode(serviceA, dummy, builder.build())
-            );
+            ConnectTransportException ex = connectToNodeExpectFailure(serviceA, dummy, builder.build());
             assertEquals("[][" + dummy.getAddress() + "] general node connection failure", ex.getMessage());
             assertThat(ex.getCause().getMessage(), startsWith("handshake failed"));
             t.join();
@@ -3160,10 +3153,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 TransportRequestOptions.Type.REG,
                 TransportRequestOptions.Type.STATE
             );
-            final ConnectTransportException e = expectThrows(
-                ConnectTransportException.class,
-                () -> openConnection(service, nodeA, builder.build())
-            );
+            final ConnectTransportException e = openConnectionExpectFailure(service, nodeA, builder.build());
             assertThat(e, hasToString(containsString(("a channel closed while connecting"))));
             assertTrue(connectionClosedListenerCalled.get());
         }
@@ -3379,7 +3369,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "stuck threads logging",
                 ThreadWatchdog.class.getCanonicalName(),
                 Level.WARN,
-                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+                "the following threads are active but did not make progress in the preceding [5s]: [*" + threadName + "*]"
             )
         );
         safeAwait(barrier);
@@ -3429,7 +3419,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ) {
             final CountDownLatch latch = new CountDownLatch(1);
             serviceC.connectToNode(
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
                 new ActionListener<>() {
                     @Override
@@ -3506,7 +3496,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use when connecting to this node
      */
     public static void connectToNode(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        UnsafePlainActionFuture.get(fut -> service.connectToNode(node, connectionProfile, fut.map(x -> null)), ThreadPool.Names.GENERIC);
+        safeAwait(listener -> service.connectToNode(node, connectionProfile, listener.map(ignored -> null)));
+    }
+
+    /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException connectToNodeExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return safeAwaitFailure(
+            ConnectTransportException.class,
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
+        );
     }
 
     /**
@@ -3517,7 +3522,22 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
      * @param connectionProfile the connection profile to use
      */
     public static Transport.Connection openConnection(TransportService service, DiscoveryNode node, ConnectionProfile connectionProfile) {
-        return PlainActionFuture.get(fut -> service.openConnection(node, connectionProfile, fut));
+        return safeAwait(listener -> service.openConnection(node, connectionProfile, listener));
+    }
+
+    /**
+     * Attempt to connect to the specified node, but assert that this fails and return the resulting exception.
+     */
+    public static ConnectTransportException openConnectionExpectFailure(
+        TransportService service,
+        DiscoveryNode node,
+        ConnectionProfile connectionProfile
+    ) {
+        return safeAwaitFailure(
+            ConnectTransportException.class,
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
+        );
     }
 
     public static <T extends TransportResponse> Future<T> submitRequest(

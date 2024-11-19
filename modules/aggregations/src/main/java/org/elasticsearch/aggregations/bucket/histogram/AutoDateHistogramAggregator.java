@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.aggregations.bucket.histogram;
 
@@ -140,7 +141,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
     protected final InternalAggregation[] buildAggregations(
         LongKeyedBucketOrds bucketOrds,
         LongToIntFunction roundingIndexFor,
-        long[] owningBucketOrds
+        LongArray owningBucketOrds
     ) throws IOException {
         return buildAggregationsForVariableBuckets(
             owningBucketOrds,
@@ -323,7 +324,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             return buildAggregations(bucketOrds, l -> roundingIdx, owningBucketOrds);
         }
 
@@ -593,7 +594,7 @@ abstract class AutoDateHistogramAggregator extends DeferableBucketAggregator {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
             /*
              * Rebucket before building the aggregation to build as small as result
              * as possible.

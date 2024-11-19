@@ -13,9 +13,9 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.esql.session.EsqlConfiguration;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
+import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 public class TestPlannerOptimizer {
@@ -25,9 +25,9 @@ public class TestPlannerOptimizer {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
-    private final EsqlConfiguration config;
+    private final Configuration config;
 
-    public TestPlannerOptimizer(EsqlConfiguration config, Analyzer analyzer) {
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
         this.analyzer = analyzer;
         this.config = config;
 
@@ -35,7 +35,7 @@ public class TestPlannerOptimizer {
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
         functionRegistry = new EsqlFunctionRegistry();
-        mapper = new Mapper(functionRegistry);
+        mapper = new Mapper();
     }
 
     public PhysicalPlan plan(String query) {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
@@ -44,15 +45,15 @@ public class IndexModeFieldTypeTests extends ConstantFieldTypeTestCase {
 
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("stand*", null, createContext(IndexMode.LOGSDB)));
 
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("time*", null, createContext(IndexMode.LOGSDB)));
 
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.STANDARD)));
         assertEquals(new MatchNoDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.TIME_SERIES)));
-        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGS)));
+        assertEquals(new MatchAllDocsQuery(), ft.wildcardQuery("logs*", null, createContext(IndexMode.LOGSDB)));
     }
 
     @Override

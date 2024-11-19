@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
@@ -97,10 +99,10 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
-    public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
-        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+        InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
             result[ordIdx] = adapt(delegateResults[ordIdx]);
         }
         return result;

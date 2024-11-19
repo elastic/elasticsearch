@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -53,12 +54,12 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
         for (int i = 0; i < VECTOR_DIMENSION; i++) {
             query[i] = randomFloat();
         }
-        return new ExactKnnQueryBuilder(query, VECTOR_FIELD);
+        return new ExactKnnQueryBuilder(VectorData.fromFloats(query), VECTOR_FIELD, randomBoolean() ? randomFloat() : null);
     }
 
     @Override
     public void testValidOutput() {
-        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(new float[] { 1.0f, 2.0f, 3.0f }, "field");
+        ExactKnnQueryBuilder query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "field", null);
         String expected = """
             {
               "exact_knn" : {
@@ -71,10 +72,29 @@ public class ExactKnnQueryBuilderTests extends AbstractQueryTestCase<ExactKnnQue
               }
             }""";
         assertEquals(expected, query.toString());
+        query = new ExactKnnQueryBuilder(VectorData.fromFloats(new float[] { 1.0f, 2.0f, 3.0f }), "field", 1f);
+        expected = """
+            {
+              "exact_knn" : {
+                "query" : [
+                  1.0,
+                  2.0,
+                  3.0
+                ],
+                "field" : "field",
+                "similarity" : 1.0
+              }
+            }""";
+        assertEquals(expected, query.toString());
     }
 
     @Override
     protected void doAssertLuceneQuery(ExactKnnQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
+        if (queryBuilder.vectorSimilarity() != null) {
+            assertTrue(query instanceof VectorSimilarityQuery);
+            VectorSimilarityQuery vectorSimilarityQuery = (VectorSimilarityQuery) query;
+            query = vectorSimilarityQuery.getInnerKnnQuery();
+        }
         assertTrue(query instanceof DenseVectorQuery.Floats);
         DenseVectorQuery.Floats denseVectorQuery = (DenseVectorQuery.Floats) query;
         assertEquals(VECTOR_FIELD, denseVectorQuery.field);

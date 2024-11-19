@@ -697,8 +697,11 @@ public class FollowingEngineTests extends ESTestCase {
             case TIME_SERIES:
                 settingsBuilder.put("index.mode", "time_series").put("index.routing_path", "foo");
                 break;
-            case LOGS:
-                settingsBuilder.put("index.mode", "logs");
+            case LOGSDB:
+                settingsBuilder.put("index.mode", IndexMode.LOGSDB.getName());
+                break;
+            case LOOKUP:
+                settingsBuilder.put("index.mode", IndexMode.LOOKUP.getName());
                 break;
             default:
                 throw new UnsupportedOperationException("Unknown index mode [" + indexMode + "]");

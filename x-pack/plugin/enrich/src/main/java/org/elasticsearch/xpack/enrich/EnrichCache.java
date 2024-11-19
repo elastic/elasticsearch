@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.cache.Cache;
 import org.elasticsearch.common.cache.CacheBuilder;
+import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -29,6 +30,7 @@ import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.function.BiConsumer;
 import java.util.function.LongSupplier;
+import java.util.function.ToLongBiFunction;
 
 /**
  * A simple cache for enrich that uses {@link Cache}. There is one instance of this cache and
@@ -61,12 +63,29 @@ public final class EnrichCache {
         this(maxSize, System::nanoTime);
     }
 
+    EnrichCache(ByteSizeValue maxByteSize) {
+        this(maxByteSize, System::nanoTime);
+    }
+
     // non-private for unit testing only
     EnrichCache(long maxSize, LongSupplier relativeNanoTimeProvider) {
         this.relativeNanoTimeProvider = relativeNanoTimeProvider;
-        this.cache = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxSize).removalListener(notification -> {
+        this.cache = createCache(maxSize, null);
+    }
+
+    EnrichCache(ByteSizeValue maxByteSize, LongSupplier relativeNanoTimeProvider) {
+        this.relativeNanoTimeProvider = relativeNanoTimeProvider;
+        this.cache = createCache(maxByteSize.getBytes(), (key, value) -> value.sizeInBytes);
+    }
+
+    private Cache<CacheKey, CacheValue> createCache(long maxWeight, ToLongBiFunction<CacheKey, CacheValue> weigher) {
+        var builder = CacheBuilder.<CacheKey, CacheValue>builder().setMaximumWeight(maxWeight).removalListener(notification -> {
             sizeInBytes.getAndAdd(-1 * notification.getValue().sizeInBytes);
-        }).build();
+        });
+        if (weigher != null) {
+            builder.weigher(weigher);
+        }
+        return builder.build();
     }
 
     /**

@@ -1,5 +1,0 @@
-pr: 109312
-summary: Enable fallback synthetic source for `point` and `shape`
-area: Mapping
-type: feature
-issues: []

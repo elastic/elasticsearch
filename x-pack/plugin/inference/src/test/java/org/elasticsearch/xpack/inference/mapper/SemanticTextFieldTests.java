@@ -86,7 +86,7 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
 
     @Override
     protected SemanticTextField createTestInstance() {
-        List<String> rawValues = randomList(1, 5, () -> randomAlphaOfLengthBetween(10, 20));
+        List<String> rawValues = randomList(1, 5, () -> randomSemanticTextInput().toString());
         try { // try catch required for override
             return randomSemanticText(NAME, TestModel.createRandomInstance(), rawValues, randomFrom(XContentType.values()));
         } catch (IOException e) {
@@ -192,6 +192,16 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             case SPARSE_EMBEDDING -> randomSparseEmbeddings(inputs);
             default -> throw new AssertionError("invalid task type: " + model.getTaskType().name());
         };
+        return semanticTextFieldFromChunkedInferenceResults(fieldName, model, inputs, results, contentType);
+    }
+
+    public static SemanticTextField semanticTextFieldFromChunkedInferenceResults(
+        String fieldName,
+        Model model,
+        List<String> inputs,
+        ChunkedInferenceServiceResults results,
+        XContentType contentType
+    ) {
         return new SemanticTextField(
             fieldName,
             inputs,
@@ -202,6 +212,24 @@ public class SemanticTextFieldTests extends AbstractXContentTestCase<SemanticTex
             ),
             contentType
         );
+    }
+
+    /**
+     * Returns a randomly generated object for Semantic Text tests purpose.
+     */
+    public static Object randomSemanticTextInput() {
+        if (rarely()) {
+            return switch (randomIntBetween(0, 4)) {
+                case 0 -> randomInt();
+                case 1 -> randomLong();
+                case 2 -> randomFloat();
+                case 3 -> randomBoolean();
+                case 4 -> randomDouble();
+                default -> throw new IllegalStateException("Illegal state while generating random semantic text input");
+            };
+        } else {
+            return randomAlphaOfLengthBetween(10, 20);
+        }
     }
 
     public static ChunkedInferenceServiceResults toChunkedResult(SemanticTextField field) throws IOException {

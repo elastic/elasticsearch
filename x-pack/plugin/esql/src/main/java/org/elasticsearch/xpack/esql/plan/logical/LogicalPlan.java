@@ -8,8 +8,8 @@ package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvable;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
-import org.elasticsearch.xpack.esql.core.plan.QueryPlan;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.plan.QueryPlan;
 
 import java.util.List;
 
@@ -18,7 +18,6 @@ import java.util.List;
  * For example, a logical plan in English would be: "I want to get from DEN to SFO".
  */
 public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Resolvable {
-
     /**
      * Order is important in the enum; any values should be added at the end.
      */
@@ -75,6 +74,8 @@ public abstract class LogicalPlan extends QueryPlan<LogicalPlan> implements Reso
         }
         return lazyResolved;
     }
+
+    public abstract String commandName();
 
     public abstract boolean expressionsResolved();
 

@@ -1,5 +1,0 @@
-pr: 108881
-summary: Add synthetic source support for `geo_shape` via fallback implementation
-area: Mapping
-type: feature
-issues: []

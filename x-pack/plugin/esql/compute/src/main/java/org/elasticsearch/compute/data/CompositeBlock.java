@@ -162,6 +162,23 @@ public final class CompositeBlock extends AbstractNonThreadSafeRefCounted implem
     }
 
     @Override
+    public Block keepMask(BooleanVector mask) {
+        CompositeBlock result = null;
+        final Block[] masked = new Block[blocks.length];
+        try {
+            for (int i = 0; i < blocks.length; i++) {
+                masked[i] = blocks[i].keepMask(mask);
+            }
+            result = new CompositeBlock(masked);
+            return result;
+        } finally {
+            if (result == null) {
+                Releasables.close(masked);
+            }
+        }
+    }
+
+    @Override
     public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
         // TODO: support this
         throw new UnsupportedOperationException("can't lookup values from CompositeBlock");

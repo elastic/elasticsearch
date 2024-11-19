@@ -7,11 +7,13 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 
 import java.io.IOException;
@@ -19,6 +21,11 @@ import java.util.List;
 import java.util.Objects;
 
 public class LocalSourceExec extends LeafExec {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
+        PhysicalPlan.class,
+        "LocalSourceExec",
+        LocalSourceExec::new
+    );
 
     private final List<Attribute> output;
     private final LocalSupplier supplier;
@@ -29,16 +36,22 @@ public class LocalSourceExec extends LeafExec {
         this.supplier = supplier;
     }
 
-    public LocalSourceExec(PlanStreamInput in) throws IOException {
-        super(Source.readFrom(in));
+    public LocalSourceExec(StreamInput in) throws IOException {
+        super(Source.readFrom((PlanStreamInput) in));
         this.output = in.readNamedWriteableCollectionAsList(Attribute.class);
-        this.supplier = LocalSupplier.readFrom(in);
+        this.supplier = LocalSupplier.readFrom((PlanStreamInput) in);
     }
 
-    public void writeTo(PlanStreamOutput out) throws IOException {
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
         source().writeTo(out);
         out.writeNamedWriteableCollection(output);
         supplier.writeTo(out);
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override

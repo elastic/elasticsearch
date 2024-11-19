@@ -134,7 +134,6 @@ public class EsqlFeatures implements FeatureSpecification {
 
     /**
      * Blocks can be labelled with {@link org.elasticsearch.compute.data.Block.MvOrdering#SORTED_ASCENDING} for optimizations.
-     * C.f. {@link org.elasticsearch.TransportVersions#ESQL_MV_ORDERING_SORTED_ASCENDING}.
      */
     public static final NodeFeature MV_ORDERING_SORTED_ASCENDING = new NodeFeature("esql.mv_ordering_sorted_ascending");
 
@@ -174,6 +173,11 @@ public class EsqlFeatures implements FeatureSpecification {
      */
     public static final NodeFeature METRICS_SYNTAX = new NodeFeature("esql.metrics_syntax");
 
+    /**
+     * Internal resolve_fields API for ES|QL
+     */
+    public static final NodeFeature RESOLVE_FIELDS_API = new NodeFeature("esql.resolve_fields_api");
+
     private Set<NodeFeature> snapshotBuildFeatures() {
         assert Build.current().isSnapshot() : Build.current();
         return Set.of(METRICS_SYNTAX);
@@ -202,7 +206,8 @@ public class EsqlFeatures implements FeatureSpecification {
             STRING_LITERAL_AUTO_CASTING_EXTENDED,
             METADATA_FIELDS,
             TIMESPAN_ABBREVIATIONS,
-            COUNTER_TYPES
+            COUNTER_TYPES,
+            RESOLVE_FIELDS_API
         );
         if (Build.current().isSnapshot()) {
             return Collections.unmodifiableSet(Sets.union(features, snapshotBuildFeatures()));

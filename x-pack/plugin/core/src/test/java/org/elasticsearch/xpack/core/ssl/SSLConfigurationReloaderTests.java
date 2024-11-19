@@ -68,6 +68,7 @@ import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Consumer;
@@ -201,14 +202,19 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            final Runnable modifier = () -> {
+            final List<Runnable> modifierFunctions = List.of(() -> {
                 try {
                     atomicMoveIfPossible(updatedKeyPath, keyPath);
+                } catch (Exception e) {
+                    throw new RuntimeException("failed to modify file", e);
+                }
+            }, () -> {
+                try {
                     atomicMoveIfPossible(updatedCertPath, certPath);
                 } catch (Exception e) {
                     throw new RuntimeException("failed to modify file", e);
                 }
-            };
+            });
 
             // The new server certificate is not in the client's truststore so SSLHandshake should fail
             final Consumer<SSLContext> keyMaterialPostChecks = (updatedContext) -> {
@@ -224,7 +230,7 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
                     throw new RuntimeException("Exception starting or connecting to the mock server", e);
                 }
             };
-            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifier, keyMaterialPostChecks);
+            validateSSLConfigurationIsReloaded(env, keyMaterialPreChecks, modifierFunctions, keyMaterialPostChecks);
         }
     }
 
@@ -559,28 +565,45 @@ public class SSLConfigurationReloaderTests extends ESTestCase {
     private void validateSSLConfigurationIsReloaded(
         Environment env,
         Consumer<SSLContext> preChecks,
-        Runnable modificationFunction,
+        Runnable modifierFunction,
         Consumer<SSLContext> postChecks
     ) throws Exception {
-        final CountDownLatch reloadLatch = new CountDownLatch(1);
+        validateSSLConfigurationIsReloaded(env, preChecks, List.of(modifierFunction), postChecks);
+    }
+
+    private void validateSSLConfigurationIsReloaded(
+        Environment env,
+        Consumer<SSLContext> preChecks,
+        List<Runnable> modifierFunctions,
+        Consumer<SSLContext> postChecks
+    ) throws Exception {
+        final CyclicBarrier reloadBarrier = new CyclicBarrier(2);
         final SSLService sslService = new SSLService(env);
         final SslConfiguration config = sslService.getSSLConfiguration("xpack.security.transport.ssl");
         final Consumer<SslConfiguration> reloadConsumer = sslConfiguration -> {
             try {
                 sslService.reloadSSLContext(sslConfiguration);
             } finally {
-                reloadLatch.countDown();
+                try {
+                    reloadBarrier.await();
+                } catch (Exception e) {
+                    throw new RuntimeException(e);
+                }
             }
         };
         new SSLConfigurationReloader(reloadConsumer, resourceWatcherService, SSLService.getSSLConfigurations(env).values());
         // Baseline checks
         preChecks.accept(sslService.sslContextHolder(config).sslContext());
 
-        assertEquals("nothing should have called reload", 1, reloadLatch.getCount());
+        assertEquals("nothing should have called reload", 0, reloadBarrier.getNumberWaiting());
 
         // modify
-        modificationFunction.run();
-        reloadLatch.await();
+        for (var modifierFunction : modifierFunctions) {
+            modifierFunction.run();
+            reloadBarrier.await();
+            reloadBarrier.reset();
+        }
+
         // checks after reload
         postChecks.accept(sslService.sslContextHolder(config).sslContext());
     }

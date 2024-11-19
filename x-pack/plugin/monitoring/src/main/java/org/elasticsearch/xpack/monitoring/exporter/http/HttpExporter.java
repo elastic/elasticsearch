@@ -48,7 +48,6 @@ import org.elasticsearch.xpack.monitoring.exporter.MonitoringMigrationCoordinato
 
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -57,7 +56,6 @@ import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
-import java.util.function.Function;
 import java.util.function.Supplier;
 
 import javax.net.ssl.SSLContext;
@@ -103,7 +101,7 @@ public class HttpExporter extends Exporter {
     public static final Setting.AffixSetting<List<String>> HOST_SETTING = Setting.affixKeySetting(
         "xpack.monitoring.exporters.",
         "host",
-        key -> Setting.listSetting(key, Collections.emptyList(), Function.identity(), new Setting.Validator<>() {
+        key -> Setting.stringListSetting(key, new Setting.Validator<>() {
 
             @Override
             public void validate(final List<String> value) {

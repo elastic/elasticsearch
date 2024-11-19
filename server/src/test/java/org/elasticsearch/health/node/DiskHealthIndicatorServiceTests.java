@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node;
@@ -28,7 +29,6 @@ import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.health.Diagnosis;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
@@ -1084,12 +1084,8 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         Collection<DiscoveryNode> nodes,
         Map<String, Set<String>> indexNameToNodeIdsMap
     ) {
-        Map<String, Set<String>> features = new HashMap<>();
         DiscoveryNodes.Builder nodesBuilder = DiscoveryNodes.builder();
-        for (DiscoveryNode node : nodes) {
-            nodesBuilder = nodesBuilder.add(node);
-            features.put(node.getId(), Set.of(HealthFeatures.SUPPORTS_HEALTH.id()));
-        }
+        nodes.forEach(nodesBuilder::add);
         nodesBuilder.localNodeId(randomFrom(nodes).getId());
         nodesBuilder.masterNodeId(randomFrom(nodes).getId());
         ClusterBlocks.Builder clusterBlocksBuilder = new ClusterBlocks.Builder();
@@ -1124,7 +1120,6 @@ public class DiskHealthIndicatorServiceTests extends ESTestCase {
         state.metadata(metadata.generateClusterUuidIfNeeded().build());
         state.routingTable(routingTable.build());
         state.blocks(clusterBlocksBuilder);
-        state.nodeFeatures(features);
         return state.build();
     }
 

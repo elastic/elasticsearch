@@ -20,7 +20,6 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -49,23 +48,21 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         for (int length = 4; length < 100; length++) {
             suppliers(suppliers, length);
         }
-        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT);
+        Set<DataType> supported = Set.of(DataType.NULL, DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
         for (DataType lhs : DataType.types()) {
-            if (lhs == DataType.NULL || EsqlDataTypes.isRepresentable(lhs) == false) {
+            if (lhs == DataType.NULL || DataType.isRepresentable(lhs) == false) {
                 continue;
             }
             for (DataType rhs : DataType.types()) {
-                if (rhs == DataType.NULL || EsqlDataTypes.isRepresentable(rhs) == false) {
+                if (rhs == DataType.NULL || DataType.isRepresentable(rhs) == false) {
                     continue;
                 }
-                boolean lhsIsString = lhs == DataType.KEYWORD || lhs == DataType.TEXT;
-                boolean rhsIsString = rhs == DataType.KEYWORD || rhs == DataType.TEXT;
-                if (lhsIsString && rhsIsString) {
+                if (DataType.isString(lhs) && DataType.isString(rhs)) {
                     continue;
                 }
 
-                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs)));
+                suppliers.add(typeErrorSupplier(false, supportedPerPosition, List.of(lhs, rhs), (v, p) -> "string"));
             }
         }
         return parameterSuppliersFromTypedData(suppliers);
@@ -75,6 +72,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
         if (length > 3) {
             suppliers.add(supplier("ascii", DataType.KEYWORD, length, () -> randomAlphaOfLengthBetween(1, 10)));
             suppliers.add(supplier("unicode", DataType.TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
+            suppliers.add(supplier("unicode", DataType.SEMANTIC_TEXT, length, () -> randomRealisticUnicodeOfLengthBetween(1, 10)));
         } else {
             add(suppliers, "ascii", length, () -> randomAlphaOfLengthBetween(1, 10));
             add(suppliers, "unicode", length, () -> randomRealisticUnicodeOfLengthBetween(1, 10));
@@ -102,7 +100,7 @@ public class ConcatTests extends AbstractScalarFunctionTestCase {
 
     private static void add(List<TestCaseSupplier> suppliers, String name, int length, Supplier<String> valueSupplier) {
         Map<Integer, List<List<DataType>>> permutations = new HashMap<Integer, List<List<DataType>>>();
-        List<DataType> supportedDataTypes = List.of(DataType.KEYWORD, DataType.TEXT);
+        List<DataType> supportedDataTypes = DataType.stringTypes().stream().toList();
         permutations.put(0, List.of(List.of(DataType.KEYWORD), List.of(DataType.TEXT)));
         for (int v = 0; v < length - 1; v++) {
             List<List<DataType>> current = permutations.get(v);

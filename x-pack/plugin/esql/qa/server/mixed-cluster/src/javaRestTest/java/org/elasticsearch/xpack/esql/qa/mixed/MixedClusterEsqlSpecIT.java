@@ -11,7 +11,7 @@ import org.elasticsearch.Version;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.TestFeatureService;
-import org.elasticsearch.xpack.esql.core.CsvSpecReader.CsvTestCase;
+import org.elasticsearch.xpack.esql.CsvSpecReader.CsvTestCase;
 import org.elasticsearch.xpack.esql.qa.rest.EsqlSpecTestCase;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -84,6 +84,22 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        /*
+         * In ESQL's main tests we shouldn't have to deduplicate but in
+         * serverless, where we reuse this test case exactly with *slightly*
+         * different configuration, we must deduplicate. So we do it here.
+         * It's a bit of a loss of precision, but that's ok.
+         */
         return true;
     }
 }

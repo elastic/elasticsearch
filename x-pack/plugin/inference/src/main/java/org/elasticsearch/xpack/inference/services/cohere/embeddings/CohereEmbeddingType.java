@@ -112,7 +112,7 @@ public enum CohereEmbeddingType {
      * @return the embedding type that is known to the version passed in
      */
     public static CohereEmbeddingType translateToVersion(CohereEmbeddingType embeddingType, TransportVersion version) {
-        if (version.before(TransportVersions.ML_INFERENCE_EMBEDDING_BYTE_ADDED) && embeddingType == BYTE) {
+        if (version.before(TransportVersions.V_8_14_0) && embeddingType == BYTE) {
             return INT8;
         }
 

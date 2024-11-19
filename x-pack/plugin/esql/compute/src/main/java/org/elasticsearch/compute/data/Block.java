@@ -10,15 +10,12 @@ package org.elasticsearch.compute.data;
 import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.RamUsageEstimator;
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.index.mapper.BlockLoader;
-
-import java.util.List;
 
 /**
  * A Block is a columnar representation of homogenous data. It has a position (row) count, and
@@ -138,6 +135,14 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
      * TODO: pass BlockFactory
      */
     Block filter(int... positions);
+
+    /**
+     * Build a {@link Block} with the same values as this {@linkplain Block}, but replacing
+     * all values for which {@code mask.getBooleanValue(position)} returns
+     * {@code false} with {@code null}. The {@code mask} vector must be at least
+     * as long as this {@linkplain Block}.
+     */
+    Block keepMask(BooleanVector mask);
 
     /**
      * Builds an Iterator of new {@link Block}s with the same {@link #elementType}
@@ -281,19 +286,6 @@ public interface Block extends Accountable, BlockLoader.Block, NamedWriteable, R
             }
             return blocks;
         }
-    }
-
-    static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            IntBlock.ENTRY,
-            LongBlock.ENTRY,
-            FloatBlock.ENTRY,
-            DoubleBlock.ENTRY,
-            BytesRefBlock.ENTRY,
-            BooleanBlock.ENTRY,
-            ConstantNullBlock.ENTRY,
-            CompositeBlock.ENTRY
-        );
     }
 
     /**

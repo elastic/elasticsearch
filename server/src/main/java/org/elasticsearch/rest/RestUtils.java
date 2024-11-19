@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -23,7 +24,7 @@ import java.util.function.UnaryOperator;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.action.support.master.AcknowledgedRequest.DEFAULT_ACK_TIMEOUT;
-import static org.elasticsearch.rest.RestRequest.PATH_RESTRICTED;
+import static org.elasticsearch.rest.RestRequest.INTERNAL_MARKER_REQUEST_PARAMETERS;
 
 public class RestUtils {
 
@@ -85,8 +86,10 @@ public class RestUtils {
     }
 
     private static void addParam(Map<String, String> params, String name, String value) {
-        if (PATH_RESTRICTED.equalsIgnoreCase(name)) {
-            throw new IllegalArgumentException("parameter [" + PATH_RESTRICTED + "] is reserved and may not set");
+        for (var reservedParameter : INTERNAL_MARKER_REQUEST_PARAMETERS) {
+            if (reservedParameter.equalsIgnoreCase(name)) {
+                throw new IllegalArgumentException("parameter [" + name + "] is reserved and may not be set");
+            }
         }
         params.put(name, value);
     }
@@ -146,17 +149,17 @@ public class RestUtils {
     }
 
     private static boolean decodingNeeded(String s, int size, boolean plusAsSpace) {
-        boolean decodingNeeded = false;
-        for (int i = 0; i < size; i++) {
+        if (Strings.isEmpty(s)) {
+            return false;
+        }
+        int num = Math.min(s.length(), size);
+        for (int i = 0; i < num; i++) {
             final char c = s.charAt(i);
-            if (c == '%') {
-                i++;  // We can skip at least one char, e.g. `%%'.
-                decodingNeeded = true;
-            } else if (plusAsSpace && c == '+') {
-                decodingNeeded = true;
+            if (c == '%' || (plusAsSpace && c == '+')) {
+                return true;
             }
         }
-        return decodingNeeded;
+        return false;
     }
 
     @SuppressWarnings("fallthrough")

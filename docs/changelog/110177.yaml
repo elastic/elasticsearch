@@ -1,5 +1,0 @@
-pr: 110177
-summary: Fix trailing slash in `security.put_privileges` specification
-area: Authorization
-type: bug
-issues: []

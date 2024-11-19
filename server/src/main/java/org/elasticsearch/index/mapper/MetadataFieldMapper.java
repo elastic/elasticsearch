@@ -1,24 +1,22 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.Explicit;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Iterator;
 import java.util.Map;
-import java.util.Set;
 import java.util.function.Function;
 
 /**
@@ -134,8 +132,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
             return build();
         }
 
-        private static final Set<String> UNSUPPORTED_PARAMETERS_8_6_0 = Set.of("type", "fields", "copy_to", "boost");
-
         public final void parseMetadataField(String name, MappingParserContext parserContext, Map<String, Object> fieldNode) {
             final Parameter<?>[] params = getParameters();
             Map<String, Parameter<?>> paramsMap = Maps.newHashMapWithExpectedSize(params.length);
@@ -148,20 +144,6 @@ public abstract class MetadataFieldMapper extends FieldMapper {
                 final Object propNode = entry.getValue();
                 Parameter<?> parameter = paramsMap.get(propName);
                 if (parameter == null) {
-                    if (UNSUPPORTED_PARAMETERS_8_6_0.contains(propName)) {
-                        if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.V_8_6_0)) {
-                            // silently ignore type, and a few other parameters: sadly we've been doing this for a long time
-                            deprecationLogger.warn(
-                                DeprecationCategory.API,
-                                propName,
-                                "Parameter [{}] has no effect on metadata field [{}] and will be removed in future",
-                                propName,
-                                name
-                            );
-                        }
-                        iterator.remove();
-                        continue;
-                    }
                     throw new MapperParsingException("unknown parameter [" + propName + "] on metadata field [" + name + "]");
                 }
                 parameter.parse(name, parserContext, propNode);
@@ -174,7 +156,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     protected MetadataFieldMapper(MappedFieldType mappedFieldType) {
-        super(mappedFieldType.name(), mappedFieldType, MultiFields.empty(), CopyTo.empty(), false, null);
+        super(mappedFieldType.name(), mappedFieldType, BuilderParams.empty());
     }
 
     @Override
@@ -216,10 +198,7 @@ public abstract class MetadataFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
     }
-
-    @Override
-    public abstract SourceLoader.SyntheticFieldLoader syntheticFieldLoader();
 }

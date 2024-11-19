@@ -1,5 +1,0 @@
-pr: 109126
-summary: Correctly handle duplicate model ids for the `_cat` trained models api and usage statistics
-area: Machine Learning
-type: bug
-issues: [ ]

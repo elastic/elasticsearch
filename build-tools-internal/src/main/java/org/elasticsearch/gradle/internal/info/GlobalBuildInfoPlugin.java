@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.info;
 
 import org.apache.commons.io.IOUtils;
+import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.BwcVersions;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.info.ParallelDetector;
@@ -31,7 +33,6 @@ import org.gradle.internal.jvm.inspection.JvmInstallationMetadata;
 import org.gradle.internal.jvm.inspection.JvmMetadataDetector;
 import org.gradle.internal.jvm.inspection.JvmVendor;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
-import org.gradle.jvm.toolchain.JavaLauncher;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 import org.gradle.jvm.toolchain.JvmVendorSpec;
@@ -48,16 +49,16 @@ import java.io.UncheckedIOException;
 import java.nio.file.Files;
 import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
-import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import javax.inject.Inject;
+
+import static org.elasticsearch.gradle.internal.conventions.GUtils.elvis;
 
 public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private static final Logger LOGGER = Logging.getLogger(GlobalBuildInfoPlugin.class);
@@ -68,6 +69,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     private final JvmMetadataDetector metadataDetector;
     private final ProviderFactory providers;
     private JavaToolchainService toolChainService;
+    private Project project;
 
     @Inject
     public GlobalBuildInfoPlugin(
@@ -88,6 +90,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (project != project.getRootProject()) {
             throw new IllegalStateException(this.getClass().getName() + " can only be applied to the root project.");
         }
+        this.project = project;
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
         GradleVersion minimumGradleVersion = GradleVersion.version(getResourceContents("/minimumGradleVersion"));
@@ -98,47 +101,61 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         JavaVersion minimumCompilerVersion = JavaVersion.toVersion(getResourceContents("/minimumCompilerVersion"));
         JavaVersion minimumRuntimeVersion = JavaVersion.toVersion(getResourceContents("/minimumRuntimeVersion"));
 
-        Optional<File> selectedRuntimeJavaHome = findRuntimeJavaHome();
-        File actualRuntimeJavaHome = selectedRuntimeJavaHome.orElse(Jvm.current().getJavaHome());
-        boolean isRuntimeJavaHomeSet = selectedRuntimeJavaHome.isPresent();
+        Provider<File> explicitRuntimeJavaHome = findRuntimeJavaHome();
+        boolean isRuntimeJavaHomeExplicitlySet = explicitRuntimeJavaHome.isPresent();
+        Provider<File> actualRuntimeJavaHome = isRuntimeJavaHomeExplicitlySet
+            ? explicitRuntimeJavaHome
+            : resolveJavaHomeFromToolChainService(VersionProperties.getBundledJdkMajorVersion());
 
         GitInfo gitInfo = GitInfo.gitInfo(project.getRootDir());
 
+        Provider<JvmInstallationMetadata> runtimeJdkMetaData = actualRuntimeJavaHome.map(
+            runtimeJavaHome -> metadataDetector.getMetadata(getJavaInstallation(runtimeJavaHome))
+        );
+        AtomicReference<BwcVersions> cache = new AtomicReference<>();
+        Provider<BwcVersions> bwcVersionsProvider = providers.provider(
+            () -> cache.updateAndGet(val -> val == null ? resolveBwcVersions() : val)
+        );
+        BuildParameterExtension buildParams = project.getExtensions()
+            .create(
+                "buildParams",
+                BuildParameterExtension.class,
+                actualRuntimeJavaHome,
+                resolveToolchainSpecFromEnv(),
+                actualRuntimeJavaHome.map(
+                    javaHome -> determineJavaVersion(
+                        "runtime java.home",
+                        javaHome,
+                        isRuntimeJavaHomeExplicitlySet
+                            ? minimumRuntimeVersion
+                            : JavaVersion.toVersion(VersionProperties.getBundledJdkMajorVersion())
+                    )
+                ),
+                isRuntimeJavaHomeExplicitlySet,
+                runtimeJdkMetaData.map(m -> formatJavaVendorDetails(m)),
+                getAvailableJavaVersions(),
+                minimumCompilerVersion,
+                minimumRuntimeVersion,
+                Jvm.current().getJavaVersion(),
+                gitInfo.getRevision(),
+                gitInfo.getOrigin(),
+                ZonedDateTime.now(ZoneOffset.UTC),
+                getTestSeed(),
+                System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null,
+                ParallelDetector.findDefaultParallel(project),
+                Util.getBooleanProperty("build.snapshot", true),
+                bwcVersionsProvider
+            );
+
+        project.getGradle().getSharedServices().registerIfAbsent("buildParams", BuildParameterService.class, spec -> {
+            // Provide some parameters
+            spec.getParameters().getBuildParams().set(buildParams);
+        });
+
         BuildParams.init(params -> {
             params.reset();
-            params.setRuntimeJavaHome(actualRuntimeJavaHome);
-            params.setJavaToolChainSpec(resolveToolchainSpecFromEnv());
-            params.setRuntimeJavaVersion(
-                determineJavaVersion(
-                    "runtime java.home",
-                    actualRuntimeJavaHome,
-                    isRuntimeJavaHomeSet ? minimumRuntimeVersion : Jvm.current().getJavaVersion()
-                )
-            );
-            params.setIsRuntimeJavaHomeSet(isRuntimeJavaHomeSet);
-            JvmInstallationMetadata runtimeJdkMetaData = metadataDetector.getMetadata(getJavaInstallation(actualRuntimeJavaHome));
-            params.setRuntimeJavaDetails(formatJavaVendorDetails(runtimeJdkMetaData));
-            params.setJavaVersions(getAvailableJavaVersions());
-            params.setMinimumCompilerVersion(minimumCompilerVersion);
-            params.setMinimumRuntimeVersion(minimumRuntimeVersion);
-            params.setGradleJavaVersion(Jvm.current().getJavaVersion());
-            params.setGitRevision(gitInfo.getRevision());
-            params.setGitOrigin(gitInfo.getOrigin());
-            params.setBuildDate(ZonedDateTime.now(ZoneOffset.UTC));
-            params.setTestSeed(getTestSeed());
             params.setIsCi(
                 System.getenv("JENKINS_URL") != null || System.getenv("BUILDKITE_BUILD_URL") != null || System.getProperty("isCI") != null
-            );
-            params.setDefaultParallel(ParallelDetector.findDefaultParallel(project));
-            params.setInFipsJvm(Util.getBooleanProperty("tests.fips.enabled", false));
-            params.setIsSnapshotBuild(Util.getBooleanProperty("build.snapshot", true));
-            AtomicReference<BwcVersions> cache = new AtomicReference<>();
-            params.setBwcVersions(
-                providers.provider(
-                    () -> cache.updateAndGet(
-                        val -> val == null ? resolveBwcVersions(Util.locateElasticsearchWorkspace(project.getGradle())) : val
-                    )
-                )
             );
         });
 
@@ -148,7 +165,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         // Print global build info header just before task execution
         // Only do this if we are the root build of a composite
         if (GradleUtils.isIncludedBuild(project) == false) {
-            project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo());
+            project.getGradle().getTaskGraph().whenReady(graph -> logGlobalBuildInfo(buildParams));
         }
     }
 
@@ -173,9 +190,12 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
     /* Introspect all versions of ES that may be tested against for backwards
      * compatibility. It is *super* important that this logic is the same as the
      * logic in VersionUtils.java. */
-    private static BwcVersions resolveBwcVersions(File root) {
-        File versionsFile = new File(root, DEFAULT_VERSION_JAVA_FILE_PATH);
-        try (var is = new FileInputStream(versionsFile)) {
+    private BwcVersions resolveBwcVersions() {
+        String versionsFilePath = elvis(
+            System.getProperty("BWC_VERSION_SOURCE"),
+            new File(Util.locateElasticsearchWorkspace(project.getGradle()), DEFAULT_VERSION_JAVA_FILE_PATH).getPath()
+        );
+        try (var is = new FileInputStream(versionsFilePath)) {
             List<String> versionLines = IOUtils.readLines(is, "UTF-8");
             return new BwcVersions(versionLines);
         } catch (IOException e) {
@@ -183,7 +203,7 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private void logGlobalBuildInfo() {
+    private void logGlobalBuildInfo(BuildParameterExtension buildParams) {
         final String osName = System.getProperty("os.name");
         final String osVersion = System.getProperty("os.version");
         final String osArch = System.getProperty("os.arch");
@@ -195,14 +215,14 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         LOGGER.quiet("Elasticsearch Build Hamster says Hello!");
         LOGGER.quiet("  Gradle Version        : " + GradleVersion.current().getVersion());
         LOGGER.quiet("  OS Info               : " + osName + " " + osVersion + " (" + osArch + ")");
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(BuildParams.getRuntimeJavaHome()));
+        if (buildParams.getIsRuntimeJavaHomeSet()) {
+            JvmInstallationMetadata runtimeJvm = metadataDetector.getMetadata(getJavaInstallation(buildParams.getRuntimeJavaHome().get()));
             final String runtimeJvmVendorDetails = runtimeJvm.getVendor().getDisplayName();
             final String runtimeJvmImplementationVersion = runtimeJvm.getJvmVersion();
             final String runtimeVersion = runtimeJvm.getRuntimeVersion();
             final String runtimeExtraDetails = runtimeJvmVendorDetails + ", " + runtimeVersion;
             LOGGER.quiet("  Runtime JDK Version   : " + runtimeJvmImplementationVersion + " (" + runtimeExtraDetails + ")");
-            LOGGER.quiet("  Runtime java.home     : " + BuildParams.getRuntimeJavaHome());
+            LOGGER.quiet("  Runtime java.home     : " + buildParams.getRuntimeJavaHome().get());
             LOGGER.quiet("  Gradle JDK Version    : " + gradleJvmImplementationVersion + " (" + gradleJvmVendorDetails + ")");
             LOGGER.quiet("  Gradle java.home      : " + gradleJvm.getJavaHome());
         } else {
@@ -213,8 +233,8 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         if (javaToolchainHome != null) {
             LOGGER.quiet("  JAVA_TOOLCHAIN_HOME   : " + javaToolchainHome);
         }
-        LOGGER.quiet("  Random Testing Seed   : " + BuildParams.getTestSeed());
-        LOGGER.quiet("  In FIPS 140 mode      : " + BuildParams.isInFipsJvm());
+        LOGGER.quiet("  Random Testing Seed   : " + buildParams.getTestSeed());
+        LOGGER.quiet("  In FIPS 140 mode      : " + buildParams.getInFipsJvm());
         LOGGER.quiet("=======================================");
     }
 
@@ -300,63 +320,30 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         }
     }
 
-    private Optional<File> findRuntimeJavaHome() {
+    private Provider<File> findRuntimeJavaHome() {
         String runtimeJavaProperty = System.getProperty("runtime.java");
 
         if (runtimeJavaProperty != null) {
-            return Optional.of(resolveJavaHomeFromToolChainService(runtimeJavaProperty));
+            return resolveJavaHomeFromToolChainService(runtimeJavaProperty);
         }
-        String env = System.getenv("RUNTIME_JAVA_HOME");
-        if (env != null) {
-            return Optional.of(new File(env));
+        if (System.getenv("RUNTIME_JAVA_HOME") != null) {
+            return providers.provider(() -> new File(System.getenv("RUNTIME_JAVA_HOME")));
         }
         // fall back to tool chain if set.
-        env = System.getenv("JAVA_TOOLCHAIN_HOME");
-        return env == null ? Optional.empty() : Optional.of(new File(env));
-    }
-
-    @NotNull
-    private String resolveJavaHomeFromEnvVariable(String javaHomeEnvVar) {
-        Provider<String> javaHomeNames = providers.gradleProperty("org.gradle.java.installations.fromEnv");
-        // Provide a useful error if we're looking for a Java home version that we haven't told Gradle about yet
-        Arrays.stream(javaHomeNames.get().split(","))
-            .filter(s -> s.equals(javaHomeEnvVar))
-            .findFirst()
-            .orElseThrow(
-                () -> new GradleException(
-                    "Environment variable '"
-                        + javaHomeEnvVar
-                        + "' is not registered with Gradle installation supplier. Ensure 'org.gradle.java.installations.fromEnv' is "
-                        + "updated in gradle.properties file."
-                )
-            );
-        String versionedJavaHome = System.getenv(javaHomeEnvVar);
-        if (versionedJavaHome == null) {
-            final String exceptionMessage = String.format(
-                Locale.ROOT,
-                "$%s must be set to build Elasticsearch. "
-                    + "Note that if the variable was just set you "
-                    + "might have to run `./gradlew --stop` for "
-                    + "it to be picked up. See https://github.com/elastic/elasticsearch/issues/31399 details.",
-                javaHomeEnvVar
-            );
-            throw new GradleException(exceptionMessage);
-        }
-        return versionedJavaHome;
-    }
-
-    @NotNull
-    private File resolveJavaHomeFromToolChainService(String version) {
-        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
-        Provider<JavaLauncher> javaLauncherProvider = toolChainService.launcherFor(javaToolchainSpec -> {
-            javaToolchainSpec.getLanguageVersion().value(value);
-            javaToolchainSpec.getVendor().set(JvmVendorSpec.ORACLE);
+        String env = System.getenv("JAVA_TOOLCHAIN_HOME");
+        return providers.provider(() -> {
+            if (env == null) {
+                return null;
+            }
+            return new File(env);
         });
-        return javaLauncherProvider.get().getMetadata().getInstallationPath().getAsFile();
     }
 
-    private static String getJavaHomeEnvVarName(String version) {
-        return "JAVA" + version + "_HOME";
+    @NotNull
+    private Provider<File> resolveJavaHomeFromToolChainService(String version) {
+        Property<JavaLanguageVersion> value = objectFactory.property(JavaLanguageVersion.class).value(JavaLanguageVersion.of(version));
+        return toolChainService.launcherFor(javaToolchainSpec -> javaToolchainSpec.getLanguageVersion().value(value))
+            .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile());
     }
 
     public static String getResourceContents(String resourcePath) {

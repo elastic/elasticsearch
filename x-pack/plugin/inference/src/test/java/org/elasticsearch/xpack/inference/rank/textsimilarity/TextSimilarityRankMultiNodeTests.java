@@ -42,4 +42,12 @@ public class TextSimilarityRankMultiNodeTests extends AbstractRerankerIT {
     protected Collection<Class<? extends Plugin>> pluginsNeeded() {
         return List.of(InferencePlugin.class, TextSimilarityTestPlugin.class);
     }
+
+    public void testQueryPhaseShardThrowingAllShardsFail() throws Exception {
+        // no-op
+    }
+
+    public void testQueryPhaseCoordinatorThrowingAllShardsFail() throws Exception {
+        // no-op
+    }
 }

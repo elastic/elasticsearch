@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntVector;
@@ -41,7 +42,10 @@ public class FromPartialAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Page page) {
+    public void addRawInput(Page page, BooleanVector mask) {
+        if (mask.isConstant() == false || mask.getBoolean(0) == false) {
+            throw new IllegalStateException("can't mask partial");
+        }
         addIntermediateInput(page);
     }
 

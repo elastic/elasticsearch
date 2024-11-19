@@ -1,19 +1,24 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.SortedSetDocValues;
+import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.ScoreMode;
+import org.apache.lucene.util.Bits;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -113,7 +118,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -278,45 +283,49 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         implements
             Releasable {
 
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-            B[][] topBucketsPerOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCounts = new long[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                collectZeroDocEntriesIfNeeded(owningBucketOrds[ordIdx], excludeDeletedDocs);
-                int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+            try (
+                LongArray otherDocCounts = bigArrays().newLongArray(owningBucketOrds.size(), true);
+                ObjectArray<B[]> topBucketsPerOrd = buildTopBucketsPerOrd(Math.toIntExact(owningBucketOrds.size()))
+            ) {
+                for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                    long owningOrd = owningBucketOrds.get(ordIdx);
+                    collectZeroDocEntriesIfNeeded(owningOrd, excludeDeletedDocs);
+                    int size = (int) Math.min(bucketOrds.size(), bucketCountThresholds.getShardSize());
 
-                try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
-                    B spare = null;
-                    BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                    Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrds[ordIdx]);
-                    while (ordsEnum.next()) {
-                        long docCount = bucketDocCount(ordsEnum.ord());
-                        otherDocCounts[ordIdx] += docCount;
-                        if (docCount < bucketCountThresholds.getShardMinDocCount()) {
-                            continue;
+                    try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
+                        B spare = null;
+                        BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningOrd);
+                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningOrd);
+                        while (ordsEnum.next()) {
+                            long docCount = bucketDocCount(ordsEnum.ord());
+                            otherDocCounts.increment(ordIdx, docCount);
+                            if (docCount < bucketCountThresholds.getShardMinDocCount()) {
+                                continue;
+                            }
+                            if (spare == null) {
+                                spare = emptyBucketBuilder.get();
+                            }
+                            updateBucket(spare, ordsEnum, docCount);
+                            spare = ordered.insertWithOverflow(spare);
                         }
-                        if (spare == null) {
-                            spare = emptyBucketBuilder.get();
-                        }
-                        updateBucket(spare, ordsEnum, docCount);
-                        spare = ordered.insertWithOverflow(spare);
-                    }
 
-                    topBucketsPerOrd[ordIdx] = buildBuckets((int) ordered.size());
-                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPerOrd[ordIdx][i] = ordered.pop();
-                        otherDocCounts[ordIdx] -= topBucketsPerOrd[ordIdx][i].getDocCount();
-                        finalizeBucket(topBucketsPerOrd[ordIdx][i]);
+                        topBucketsPerOrd.set(ordIdx, buildBuckets((int) ordered.size()));
+                        for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                            topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
+                            otherDocCounts.increment(ordIdx, -topBucketsPerOrd.get(ordIdx)[i].getDocCount());
+                            finalizeBucket(topBucketsPerOrd.get(ordIdx)[i]);
+                        }
                     }
                 }
-            }
 
-            buildSubAggs(topBucketsPerOrd);
-            InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                result[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCounts[ordIdx], topBucketsPerOrd[ordIdx]);
+                buildSubAggs(topBucketsPerOrd);
+                InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
+                for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
+                }
+                return result;
             }
-            return result;
         }
 
         /**
@@ -357,7 +366,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         /**
          * Build an array to hold the "top" buckets for each ordinal.
          */
-        abstract B[][] buildTopBucketsPerOrd(int size);
+        abstract ObjectArray<B[]> buildTopBucketsPerOrd(long size);
 
         /**
          * Build an array of buckets for a particular ordinal to collect the
@@ -375,7 +384,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPerOrd) throws IOException;
+        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPerOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -419,20 +428,61 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
             }
             // we need to fill-in the blanks
             for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
-                SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
-                // brute force
-                for (int docId = 0; docId < ctx.reader().maxDoc(); ++docId) {
-                    if (excludeDeletedDocs && ctx.reader().getLiveDocs() != null && ctx.reader().getLiveDocs().get(docId) == false) {
-                        continue;
+                final Bits liveDocs = excludeDeletedDocs ? ctx.reader().getLiveDocs() : null;
+                if (liveDocs == null && valuesSource.hasOrdinals()) {
+                    final SortedSetDocValues values = ((ValuesSource.Bytes.WithOrdinals) valuesSource).ordinalsValues(ctx);
+                    collectZeroDocEntries(values, owningBucketOrd);
+                } else {
+                    final SortedBinaryDocValues values = valuesSource.bytesValues(ctx);
+                    final BinaryDocValues singleton = FieldData.unwrapSingleton(values);
+                    if (singleton != null) {
+                        collectZeroDocEntries(singleton, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
+                    } else {
+                        collectZeroDocEntries(values, liveDocs, ctx.reader().maxDoc(), owningBucketOrd);
                     }
-                    if (values.advanceExact(docId)) {
-                        int valueCount = values.docValueCount();
-                        for (int i = 0; i < valueCount; ++i) {
-                            BytesRef term = values.nextValue();
-                            if (includeExclude == null || includeExclude.accept(term)) {
-                                bucketOrds.add(owningBucketOrd, term);
-                            }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedSetDocValues values, long owningBucketOrd) throws IOException {
+            final TermsEnum termsEnum = values.termsEnum();
+            BytesRef term;
+            while ((term = termsEnum.next()) != null) {
+                if (includeExclude == null || includeExclude.accept(term)) {
+                    bucketOrds.add(owningBucketOrd, term);
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(SortedBinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd)
+            throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final int valueCount = values.docValueCount();
+                    for (int i = 0; i < valueCount; ++i) {
+                        final BytesRef term = values.nextValue();
+                        if (includeExclude == null || includeExclude.accept(term)) {
+                            bucketOrds.add(owningBucketOrd, term);
                         }
+                    }
+                }
+            }
+        }
+
+        private void collectZeroDocEntries(BinaryDocValues values, Bits liveDocs, int maxDoc, long owningBucketOrd) throws IOException {
+            // brute force
+            for (int docId = 0; docId < maxDoc; ++docId) {
+                if (liveDocs != null && liveDocs.get(docId) == false) {
+                    continue;
+                }
+                if (values.advanceExact(docId)) {
+                    final BytesRef term = values.binaryValue();
+                    if (includeExclude == null || includeExclude.accept(term)) {
+                        bucketOrds.add(owningBucketOrd, term);
                     }
                 }
             }
@@ -456,8 +506,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        StringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new StringTerms.Bucket[size][];
+        ObjectArray<StringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -476,7 +526,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(StringTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(ObjectArray<StringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
         }
 
@@ -592,8 +642,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        SignificantStringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new SignificantStringTerms.Bucket[size][];
+        ObjectArray<SignificantStringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -612,7 +662,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void buildSubAggs(SignificantStringTerms.Bucket[][] topBucketsPerOrd) throws IOException {
+        void buildSubAggs(ObjectArray<SignificantStringTerms.Bucket[]> topBucketsPerOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
         }
 

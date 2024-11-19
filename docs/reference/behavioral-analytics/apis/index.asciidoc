@@ -9,7 +9,7 @@ beta::[]
 
 ---
 
-Use the following APIs to manage tasks and resources related to Behavioral Analytics:
+Use the following APIs to manage tasks and resources related to <<behavioral-analytics-overview,Behavioral Analytics>>:
 
 * <<put-analytics-collection>>
 * <<delete-analytics-collection>>

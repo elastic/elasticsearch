@@ -36,6 +36,24 @@ a:integer
 // end::multivalue-result[]
 ;
 
+shadowingInternal
+required_capability: unique_names
+ROW a = 1, a = 2;
+
+a:integer
+        2
+;
+
+shadowingInternalSubfields
+required_capability: unique_names
+// Fun fact: "Sissi" is an actual exoplanet name, after the character from the movie with the same name. A.k.a. HAT-P-14 b.
+ROW city.country.continent.planet.name = "Earth", city.country.continent.name = "Netherlands", city.country.continent.planet.name = "Sissi"
+;
+
+city.country.continent.name:keyword | city.country.continent.planet.name:keyword
+Netherlands                         | Sissi
+;
+
 unsignedLongLiteral
 ROW long_max = 9223372036854775807, ul_start = 9223372036854775808, ul_end = 18446744073709551615, double=18446744073709551616;
 
@@ -70,10 +88,11 @@ a:integer | b:integer | c:null | z:integer
 ;
 
 evalRowWithNull2
+required_capability: unique_names
 row a = 1, null, b = 2, c = null, null | eval z = a+b;
 
-a:integer | null:null | b:integer | c:null | null:null | z:integer
-1 | null | 2 | null | null | 3
+a:integer | b:integer | c:null | null:null | z:integer
+        1 |         2 | null   | null      |         3
 ;
 
 evalRowWithNull3

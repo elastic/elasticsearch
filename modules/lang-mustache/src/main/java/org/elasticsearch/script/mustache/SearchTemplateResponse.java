@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -106,7 +107,7 @@ public class SearchTemplateResponse extends ActionResponse implements ToXContent
 
     void innerToXContent(XContentBuilder builder, Params params) throws IOException {
         if (hasResponse()) {
-            ChunkedToXContent.wrapAsToXContent(p -> response.innerToXContentChunked(p)).toXContent(builder, params);
+            ChunkedToXContent.wrapAsToXContent(response::innerToXContentChunked).toXContent(builder, params);
         } else {
             // we can assume the template is always json as we convert it before compiling it
             try (InputStream stream = source.streamInput()) {

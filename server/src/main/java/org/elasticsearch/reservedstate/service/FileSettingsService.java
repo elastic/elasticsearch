@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.reservedstate.service;
@@ -14,11 +15,14 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.file.MasterNodeFileWatchingService;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.BufferedInputStream;
@@ -26,6 +30,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION;
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_VERSION_ONLY;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
@@ -114,16 +120,48 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      */
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
+        processFileChanges(HIGHER_VERSION_ONLY);
+    }
+
+    /**
+     * Read settings and pass them to {@link ReservedClusterStateService} for application.
+     * Settings will be reprocessed even if the cluster-state version equals that found in the settings file.
+     */
+    @Override
+    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
+        logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
+        processFileChanges(HIGHER_OR_SAME_VERSION);
+    }
+
+    private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         try (
             var fis = Files.newInputStream(watchedFile());
             var bis = new BufferedInputStream(fis);
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
+            stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
+    }
+
+    @Override
+    protected void onProcessFileChangesException(Exception e) {
+        if (e instanceof ExecutionException) {
+            var cause = e.getCause();
+            if (cause instanceof FailedToCommitClusterStateException) {
+                logger.error("Unable to commit cluster state", e);
+                return;
+            } else if (cause instanceof XContentParseException) {
+                logger.error("Unable to parse settings", e);
+                return;
+            } else if (cause instanceof NotMasterException) {
+                logger.error("Node is no longer master", e);
+                return;
+            }
+        }
+        super.onProcessFileChangesException(e);
     }
 
     @Override

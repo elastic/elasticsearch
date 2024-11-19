@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -41,6 +42,8 @@ import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocation
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
+import org.elasticsearch.common.time.TimeProviderUtils;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexVersion;
@@ -52,7 +55,6 @@ import org.elasticsearch.snapshots.Snapshot;
 import org.elasticsearch.snapshots.SnapshotId;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 import org.elasticsearch.test.MockLog;
-import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -84,8 +86,6 @@ import static org.hamcrest.Matchers.everyItem;
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.notNullValue;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class DesiredBalanceComputerTests extends ESAllocationTestCase {
 
@@ -234,9 +234,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 );
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var ignored = randomBoolean()
             ? new ShardRouting[0]
@@ -284,9 +282,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -333,9 +329,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 break;
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
 
@@ -431,9 +425,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 0L
             );
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), desiredRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(desiredRoutingNodes)).build();
 
         var desiredBalance1 = desiredBalanceComputer.compute(DesiredBalance.INITIAL, createInput(clusterState), queue(), input -> true);
         assertDesiredAssignments(
@@ -500,9 +492,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
                 }
             }
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), randomRoutingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(randomRoutingNodes)).build();
 
         allocateCalled.set(false);
 
@@ -539,9 +529,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
             var shardRouting = iterator.next();
             routingNodes.startShard(iterator.initialize(shardRouting.primary() ? "node-0" : "node-1", null, 0L, changes), changes, 0L);
         }
-        clusterState = ClusterState.builder(clusterState)
-            .routingTable(RoutingTable.of(clusterState.routingTable().version(), routingNodes))
-            .build();
+        clusterState = ClusterState.builder(clusterState).routingTable(RoutingTable.of(routingNodes)).build();
 
         var desiredBalance = desiredBalanceComputer.compute(
             DesiredBalance.INITIAL,
@@ -1216,12 +1204,15 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private void checkIterationLogging(int iterations, long eachIterationDuration, MockLog.AbstractEventExpectation expectation) {
-
-        var mockThreadPool = mock(ThreadPool.class);
         var currentTime = new AtomicLong(0L);
-        when(mockThreadPool.relativeTimeInMillis()).thenAnswer(invocation -> currentTime.addAndGet(eachIterationDuration));
+        TimeProvider timeProvider = TimeProviderUtils.create(() -> currentTime.addAndGet(eachIterationDuration));
 
-        var desiredBalanceComputer = new DesiredBalanceComputer(createBuiltInClusterSettings(), mockThreadPool, new ShardsAllocator() {
+        // Some runs of this test try to simulate a long desired balance computation. Setting a high value on the following setting
+        // prevents interrupting a long computation.
+        var clusterSettings = createBuiltInClusterSettings(
+            Settings.builder().put(DesiredBalanceComputer.MAX_BALANCE_COMPUTATION_TIME_DURING_INDEX_CREATION_SETTING.getKey(), "2m").build()
+        );
+        var desiredBalanceComputer = new DesiredBalanceComputer(clusterSettings, timeProvider, new ShardsAllocator() {
             @Override
             public void allocate(RoutingAllocation allocation) {
                 final var unassignedIterator = allocation.routingNodes().unassigned().iterator();
@@ -1355,7 +1346,7 @@ public class DesiredBalanceComputerTests extends ESAllocationTestCase {
     }
 
     private static DesiredBalanceComputer createDesiredBalanceComputer(ShardsAllocator allocator) {
-        return new DesiredBalanceComputer(createBuiltInClusterSettings(), mock(ThreadPool.class), allocator);
+        return new DesiredBalanceComputer(createBuiltInClusterSettings(), TimeProviderUtils.create(() -> 0L), allocator);
     }
 
     private static void assertDesiredAssignments(DesiredBalance desiredBalance, Map<ShardId, ShardAssignment> expected) {

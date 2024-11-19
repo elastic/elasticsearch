@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest;
@@ -147,7 +148,7 @@ public class CompoundProcessor implements Processor {
 
     void innerExecute(int currentProcessor, IngestDocument ingestDocument, final BiConsumer<IngestDocument, Exception> handler) {
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute() || ingestDocument.isTerminate()) {
             handler.accept(ingestDocument, null);
             return;
         }
@@ -158,7 +159,8 @@ public class CompoundProcessor implements Processor {
         // iteratively execute any sync processors
         while (currentProcessor < processorsWithMetrics.size()
             && processorsWithMetrics.get(currentProcessor).v1().isAsync() == false
-            && ingestDocument.isReroute() == false) {
+            && ingestDocument.isReroute() == false
+            && ingestDocument.isTerminate() == false) {
             processorWithMetric = processorsWithMetrics.get(currentProcessor);
             processor = processorWithMetric.v1();
             metric = processorWithMetric.v2();
@@ -184,7 +186,7 @@ public class CompoundProcessor implements Processor {
         }
 
         assert currentProcessor <= processorsWithMetrics.size();
-        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute()) {
+        if (currentProcessor == processorsWithMetrics.size() || ingestDocument.isReroute() || ingestDocument.isTerminate()) {
             handler.accept(ingestDocument, null);
             return;
         }

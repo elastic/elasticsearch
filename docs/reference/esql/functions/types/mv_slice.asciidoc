@@ -8,7 +8,7 @@ field | start | end | result
 boolean | integer | integer | boolean
 cartesian_point | integer | integer | cartesian_point
 cartesian_shape | integer | integer | cartesian_shape
-datetime | integer | integer | datetime
+date | integer | integer | date
 double | integer | integer | double
 geo_point | integer | integer | geo_point
 geo_shape | integer | integer | geo_shape
@@ -16,6 +16,6 @@ integer | integer | integer | integer
 ip | integer | integer | ip
 keyword | integer | integer | keyword
 long | integer | integer | long
-text | integer | integer | text
+text | integer | integer | keyword
 version | integer | integer | version
 |===

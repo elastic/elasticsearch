@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories;
 
@@ -31,7 +32,9 @@ import org.elasticsearch.test.ESSingleNodeTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.ByteArrayInputStream;
+import java.io.EOFException;
 import java.io.IOException;
+import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
@@ -42,6 +45,8 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.Executor;
 import java.util.function.Predicate;
 
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
@@ -316,6 +321,31 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
         }
     }
 
+    public void testSkipBeyondBlobLengthShouldThrowEOFException() throws IOException {
+        final var blobName = randomIdentifier();
+        final int blobLength = randomIntBetween(100, 2_000);
+        final var blobBytes = randomBytesReference(blobLength);
+
+        final var repository = getRepository();
+        executeOnBlobStore(repository, blobStore -> {
+            blobStore.writeBlob(randomPurpose(), blobName, blobBytes, true);
+            return null;
+        });
+
+        var blobContainer = repository.blobStore().blobContainer(repository.basePath());
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            Streams.copy(input, output, false);
+            expectThrows(EOFException.class, () -> input.skipNBytes(randomLongBetween(1, 1000)));
+        }
+
+        try (var input = blobContainer.readBlob(randomPurpose(), blobName, 0, blobLength); var output = new BytesStreamOutput()) {
+            final int capacity = between(1, blobLength);
+            final ByteBuffer byteBuffer = randomBoolean() ? ByteBuffer.allocate(capacity) : ByteBuffer.allocateDirect(capacity);
+            Streams.read(input, byteBuffer, capacity);
+            expectThrows(EOFException.class, () -> input.skipNBytes((blobLength - capacity) + randomLongBetween(1, 1000)));
+        }
+    }
+
     protected void testReadFromPositionLargerThanBlobLength(Predicate<RequestedRangeNotSatisfiedException> responseCodeChecker) {
         final var blobName = randomIdentifier();
         final var blobBytes = randomBytesReference(randomIntBetween(100, 2_000));
@@ -397,7 +427,7 @@ public abstract class AbstractThirdPartyRepositoryTestCase extends ESSingleNodeT
             final BlobStore blobStore = repo.blobStore();
             blobStore.blobContainer(repo.basePath().add("indices").add("foo"))
                 .writeBlob(randomPurpose(), "bar", new ByteArrayInputStream(new byte[3]), 3, false);
-            for (String prefix : Arrays.asList("snap-", "meta-")) {
+            for (String prefix : Arrays.asList(SNAPSHOT_PREFIX, METADATA_PREFIX)) {
                 blobStore.blobContainer(repo.basePath())
                     .writeBlob(randomNonDataPurpose(), prefix + "foo.dat", new ByteArrayInputStream(new byte[3]), 3, false);
             }

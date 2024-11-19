@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      features: allowed_warnings
-      cluster_features: ["gte_v8.11.0"]
-      reason: "Data stream lifecycle was GA in 8.11"
+  - requires:
+      cluster_features: [ "gte_v8.11.0" ]
+      reason: "Data stream lifecycle was released as tech preview in 8.11"
+      test_runner_features: allowed_warnings
   - do:
       allowed_warnings:
         - "index template [my-lifecycle] has index patterns [my-data-stream-1] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-lifecycle] will take precedence during new index creation"

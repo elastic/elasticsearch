@@ -26,6 +26,7 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
@@ -546,7 +547,10 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                var imd = IndexMetadata.builder("test_index")
+                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                    .build();
+                return new IndexSettings(imd, Settings.EMPTY);
             }
 
             @Override
@@ -1549,7 +1553,11 @@ public class ValueSourceReaderTypeConversionTests extends AnyOperatorTestCase {
         PlainActionFuture<Void> future = new PlainActionFuture<>();
         try {
             driverRunner.runToCompletion(drivers, future);
-            future.actionGet(TimeValue.timeValueSeconds(30));
+            /*
+             * We use a 3-minute timer because many of the cases can
+             * take 40 seconds in CI. Locally it's taking 9 seconds.
+             */
+            future.actionGet(TimeValue.timeValueMinutes(3));
         } finally {
             terminate(threadPool);
         }

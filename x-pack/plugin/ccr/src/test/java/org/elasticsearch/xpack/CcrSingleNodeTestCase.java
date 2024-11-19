@@ -61,7 +61,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @Before
     public void setupLocalRemote() throws Exception {
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         String address = getInstanceFromNode(TransportService.class).boundAddress().publishAddress().toString();
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", address));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
@@ -84,7 +84,7 @@ public abstract class CcrSingleNodeTestCase extends ESSingleNodeTestCase {
 
     @After
     public void removeLocalRemote() throws Exception {
-        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest updateSettingsRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         updateSettingsRequest.transientSettings(Settings.builder().put("cluster.remote.local.seeds", (String) null));
         assertAcked(client().admin().cluster().updateSettings(updateSettingsRequest).actionGet());
 

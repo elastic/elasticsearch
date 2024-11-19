@@ -7,14 +7,17 @@
 
 package org.elasticsearch.xpack.esql.session;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 
 import java.util.Collections;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.session.IndexResolver.ALL_FIELDS;
 import static org.elasticsearch.xpack.esql.session.IndexResolver.INDEX_METADATA_FIELD;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 
 public class IndexResolverFieldNamesTests extends ESTestCase {
@@ -1225,6 +1228,31 @@ public class IndexResolverFieldNamesTests extends ESTestCase {
             from employees
             | enrich languages_policy"""), Set.of("language_name"));
         assertThat(fieldNames, equalTo(ALL_FIELDS));
+    }
+
+    public void testMetrics() {
+        var query = "METRICS k8s bytes=sum(rate(network.total_bytes_in)), sum(rate(network.total_cost)) BY cluster";
+        if (Build.current().isSnapshot() == false) {
+            var e = expectThrows(ParsingException.class, () -> parser.createStatement(query));
+            assertThat(e.getMessage(), containsString("line 1:1: mismatched input 'METRICS' expecting {"));
+            return;
+        }
+        Set<String> fieldNames = EsqlSession.fieldNames(parser.createStatement(query), Set.of());
+        assertThat(
+            fieldNames,
+            equalTo(
+                Set.of(
+                    "@timestamp",
+                    "@timestamp.*",
+                    "network.total_bytes_in",
+                    "network.total_bytes_in.*",
+                    "network.total_cost",
+                    "network.total_cost.*",
+                    "cluster",
+                    "cluster.*"
+                )
+            )
+        );
     }
 
     private void assertFieldNames(String query, Set<String> expected) {

@@ -65,7 +65,7 @@ To get all ingest pipelines, omit this parameter or use `*`.
 include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
-[[get-pipeline-api-api-example]]
+[[get-pipeline-api-example]]
 ==== {api-examples-title}
 
 

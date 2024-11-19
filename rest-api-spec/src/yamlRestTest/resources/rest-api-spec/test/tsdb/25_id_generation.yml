@@ -65,6 +65,9 @@ setup:
 
 ---
 generates a consistent id:
+  - requires:
+        cluster_features: "tsdb.ts_routing_hash_doc_value_parse_byte_ref"
+        reason: _tsid routing hash doc value parsing has been fixed
   - do:
       bulk:
         refresh: true
@@ -152,6 +155,50 @@ generates a consistent id:
   - match: { hits.hits.8._source.@timestamp: 2021-04-28T18:52:04.467Z }
   - match: { hits.hits.8._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 
+  - do:
+      search:
+        index: id_generation_test
+        body:
+          query:
+            match_all: {}
+          sort: ["@timestamp", "_ts_routing_hash"]
+          _source: true
+          search_after: [ "2021-04-28T18:50:03.142Z", "cn4exQ" ]
+          docvalue_fields: [_ts_routing_hash]
+
+  - match: {hits.total.value: 9}
+
+  - match: { hits.hits.0._id: cZZNs7B9sSWsyrL5AAABeRnRGTM }
+  - match: { hits.hits.0._source.@timestamp: 2021-04-28T18:50:04.467Z }
+  - match: { hits.hits.0._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.1._id: cn4excfoxSs_KdA5AAABeRnRYiY }
+  - match: { hits.hits.1._source.@timestamp: 2021-04-28T18:50:23.142Z }
+  - match: { hits.hits.1._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.2._id: cZZNs7B9sSWsyrL5AAABeRnRZ1M }
+  - match: { hits.hits.2._source.@timestamp: 2021-04-28T18:50:24.467Z }
+  - match: { hits.hits.2._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.3._id: cZZNs7B9sSWsyrL5AAABeRnRtXM }
+  - match: { hits.hits.3._source.@timestamp: 2021-04-28T18:50:44.467Z }
+  - match: { hits.hits.3._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.4._id: cn4excfoxSs_KdA5AAABeRnR11Y }
+  - match: { hits.hits.4._source.@timestamp: 2021-04-28T18:50:53.142Z }
+  - match: { hits.hits.4._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.5._id: cn4excfoxSs_KdA5AAABeRnR_mY }
+  - match: { hits.hits.5._source.@timestamp: 2021-04-28T18:51:03.142Z }
+  - match: { hits.hits.5._source.k8s.pod.uid: df3145b3-0563-4d3b-a0f7-897eb2876ea9 }
+
+  - match: { hits.hits.6._id: cZZNs7B9sSWsyrL5AAABeRnSA5M }
+  - match: { hits.hits.6._source.@timestamp: 2021-04-28T18:51:04.467Z }
+  - match: { hits.hits.6._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
+
+  - match: { hits.hits.7._id: cZZNs7B9sSWsyrL5AAABeRnS7fM }
+  - match: { hits.hits.7._source.@timestamp: 2021-04-28T18:52:04.467Z }
+  - match: { hits.hits.7._source.k8s.pod.uid: 947e4ced-1786-4e53-9e0c-5c447e959507 }
 ---
 index a new document on top of an old one:
   - do:

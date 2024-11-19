@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.datastreams;
 
@@ -142,10 +143,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
     }
 
     public void testIndexingGettingAndSearching() throws Exception {
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", randomIntBetween(2, 10))
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(randomIntBetween(2, 10), 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(
@@ -218,10 +216,7 @@ public class TSDBPassthroughIndexingIT extends ESSingleNodeTestCase {
 
     public void testIndexingGettingAndSearchingShrunkIndex() throws Exception {
         String dataStreamName = "k8s";
-        var templateSettings = Settings.builder()
-            .put("index.mode", "time_series")
-            .put("index.number_of_shards", 8)
-            .put("index.number_of_replicas", 0);
+        var templateSettings = indexSettings(8, 0).put("index.mode", "time_series");
 
         var request = new TransportPutComposableIndexTemplateAction.Request("id");
         request.indexTemplate(

@@ -23,17 +23,16 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
-import org.elasticsearch.xpack.esql.type.EsqlDataTypes;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 
 import java.io.IOException;
 import java.util.BitSet;
 import java.util.Collections;
 import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
@@ -60,10 +59,46 @@ public class In extends EsqlScalarFunction {
     @FunctionInfo(
         returnType = "boolean",
         description = "The `IN` operator allows testing whether a field or expression equals an element in a list of literals, "
-            + "fields or expressions:",
+            + "fields or expressions.",
         examples = @Example(file = "row", tag = "in-with-expressions")
     )
-    public In(Source source, Expression value, List<Expression> list) {
+    public In(
+        Source source,
+        @Param(
+            name = "field",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "An expression."
+        ) Expression value,
+        @Param(
+            name = "inlist",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "double",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "A list of items."
+        ) List<Expression> list
+    ) {
         super(source, CollectionUtils.combine(list, value));
         this.value = value;
         this.list = list;
@@ -134,10 +169,10 @@ public class In extends EsqlScalarFunction {
             // automatic numerical conversions not applicable for UNSIGNED_LONG, see Verifier#validateUnsignedLongOperator().
             return left == right;
         }
-        if (EsqlDataTypes.isSpatial(left) && EsqlDataTypes.isSpatial(right)) {
+        if (DataType.isSpatial(left) && DataType.isSpatial(right)) {
             return left == right;
         }
-        return EsqlDataTypes.areCompatible(left, right);
+        return DataType.areCompatible(left, right);
     }
 
     @Override
@@ -177,9 +212,7 @@ public class In extends EsqlScalarFunction {
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = commonType();
         EvalOperator.ExpressionEvaluator.Factory lhs;
         EvalOperator.ExpressionEvaluator.Factory[] factories;
@@ -190,7 +223,7 @@ public class In extends EsqlScalarFunction {
                 .toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         } else {
             lhs = toEvaluator.apply(value);
-            factories = list.stream().map(e -> toEvaluator.apply(e)).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
+            factories = list.stream().map(toEvaluator::apply).toArray(EvalOperator.ExpressionEvaluator.Factory[]::new);
         }
 
         if (commonType == BOOLEAN) {
@@ -210,7 +243,7 @@ public class In extends EsqlScalarFunction {
             || commonType == IP
             || commonType == VERSION
             || commonType == UNSUPPORTED
-            || EsqlDataTypes.isSpatial(commonType)) {
+            || DataType.isSpatial(commonType)) {
             return new InBytesRefEvaluator.Factory(source(), toEvaluator.apply(value), factories);
         }
         if (commonType == NULL) {
@@ -225,7 +258,7 @@ public class In extends EsqlScalarFunction {
             if (e.dataType() == NULL && value.dataType() != NULL) {
                 continue;
             }
-            if (EsqlDataTypes.isSpatial(commonType)) {
+            if (DataType.isSpatial(commonType)) {
                 if (e.dataType() == commonType) {
                     continue;
                 } else {
@@ -233,7 +266,7 @@ public class In extends EsqlScalarFunction {
                     break;
                 }
             }
-            commonType = EsqlDataTypeRegistry.INSTANCE.commonType(commonType, e.dataType());
+            commonType = EsqlDataTypeConverter.commonType(commonType, e.dataType());
         }
         return commonType;
     }

@@ -105,6 +105,10 @@ Defaults to `open`.
 (Optional, Boolean) Functionality in preview:[]. If `true`, return all default settings in the response.
 Defaults to `false`.
 
+`verbose`::
+(Optional, Boolean). If `true`, Returns the `maximum_timestamp` corresponding to the `@timestamp` field for documents in the data stream.
+Defaults to `false`.
+
 [role="child_attributes"]
 [[get-data-stream-api-response-body]]
 ==== {api-response-body-title}

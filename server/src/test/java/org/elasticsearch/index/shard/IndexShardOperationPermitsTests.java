@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -538,11 +539,9 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             final var rejectingExecutor = threadPool.executor(REJECTING_EXECUTOR);
             rejectingExecutor.execute(threadBlock::actionGet);
-            expectThrows(
-                EsRejectedExecutionException.class,
-                () -> PlainActionFuture.<Releasable, RuntimeException>get(
-                    f -> permits.blockOperations(f, 1, TimeUnit.HOURS, rejectingExecutor)
-                )
+            assertThat(
+                safeAwaitFailure(Releasable.class, l -> permits.blockOperations(l, 1, TimeUnit.HOURS, rejectingExecutor)),
+                instanceOf(EsRejectedExecutionException.class)
             );
 
             // ensure that the exception means no block was put in place
@@ -554,7 +553,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
             assertNotNull(block);
         }
     }
@@ -566,11 +565,10 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
 
             assertEquals(
                 "timeout while blocking operations after [0s]",
-                expectThrows(
+                safeAwaitFailure(
                     ElasticsearchTimeoutException.class,
-                    () -> PlainActionFuture.<Releasable, RuntimeException>get(
-                        f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic())
-                    )
+                    Releasable.class,
+                    f -> permits.blockOperations(f, 0, TimeUnit.SECONDS, threadPool.generic())
                 ).getMessage()
             );
 
@@ -584,7 +582,7 @@ public class IndexShardOperationPermitsTests extends ESTestCase {
         }
 
         // ensure that another block can still be acquired
-        try (Releasable block = PlainActionFuture.get(f -> permits.blockOperations(f, 1, TimeUnit.HOURS, threadPool.generic()))) {
+        try (Releasable block = safeAwait(l -> permits.blockOperations(l, 1, TimeUnit.HOURS, threadPool.generic()))) {
             assertNotNull(block);
         }
     }

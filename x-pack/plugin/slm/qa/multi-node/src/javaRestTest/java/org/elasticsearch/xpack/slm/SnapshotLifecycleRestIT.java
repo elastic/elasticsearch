@@ -38,6 +38,8 @@ import org.elasticsearch.xpack.core.slm.SnapshotRetentionConfiguration;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
@@ -108,7 +110,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         // allow arbitrarily frequent slm snapshots
         disableSLMMinimumIntervalValidation();
 
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoId, indexName, true);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoId, indexName, true);
 
         // Check that the snapshot was actually taken
         assertBusy(() -> {
@@ -176,7 +179,8 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         disableSLMMinimumIntervalValidation();
 
         // Create a policy with ignore_unavailable: false and an index that doesn't exist
-        createSnapshotPolicy(policyName, "snap", "*/1 * * * * ?", repoName, indexPattern, false);
+        var schedule = randomBoolean() ? "*/1 * * * * ?" : "1s";
+        createSnapshotPolicy(policyName, "snap", schedule, repoName, indexPattern, false);
 
         assertBusy(() -> {
             // Check that the failure is written to the cluster state
@@ -300,10 +304,11 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         });
 
         try {
+            var schedule = randomBoolean() ? "0 0/15 * * * ?" : "15m";
             createSnapshotPolicy(
                 policyName,
                 "snap",
-                "0 0/15 * * * ?",
+                schedule,
                 repoId,
                 indexName,
                 true,
@@ -427,7 +432,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }, 60, TimeUnit.SECONDS);
 
         // Run retention every second
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, "*/1 * * * * ?"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -469,7 +474,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
 
         } finally {
             // Unset retention
-            ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest();
+            ClusterUpdateSettingsRequest unsetRequest = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
             unsetRequest.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_RETENTION_SCHEDULE, (String) null));
             try (XContentBuilder builder = jsonBuilder()) {
                 unsetRequest.toXContent(builder, ToXContent.EMPTY_PARAMS);
@@ -671,6 +676,36 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
         }, 60, TimeUnit.SECONDS);
     }
 
+    @SuppressWarnings("unchecked")
+    public void testGetIntervalSchedule() throws Exception {
+        final String indexName = "index-1";
+        final String policyName = "policy-1";
+        final String repoId = "repo-1";
+
+        initializeRepo(repoId);
+
+        var schedule = "30m";
+        var now = Instant.now();
+        createSnapshotPolicy(policyName, "snap", schedule, repoId, indexName, true);
+
+        assertBusy(() -> {
+            Request getReq = new Request("GET", "/_slm/policy/" + policyName);
+            Response policyMetadata = client().performRequest(getReq);
+            Map<String, Object> policyResponseMap;
+            try (InputStream is = policyMetadata.getEntity().getContent()) {
+                policyResponseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true);
+            }
+
+            Map<String, Object> policyMetadataMap = (Map<String, Object>) policyResponseMap.get(policyName);
+            Long nextExecutionMillis = (Long) policyMetadataMap.get("next_execution_millis");
+            assertNotNull(nextExecutionMillis);
+
+            Instant nextExecution = Instant.ofEpochMilli(nextExecutionMillis);
+            assertTrue(nextExecution.isAfter(now.plus(Duration.ofMinutes(29))));
+            assertTrue(nextExecution.isBefore(now.plus(Duration.ofMinutes(31))));
+        });
+    }
+
     public Map<String, Object> getLocation(String path) {
         try {
             Response executeRepsonse = client().performRequest(new Request("GET", path));
@@ -860,7 +895,7 @@ public class SnapshotLifecycleRestIT extends ESRestTestCase {
     }
 
     private void disableSLMMinimumIntervalValidation() throws IOException {
-        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest();
+        ClusterUpdateSettingsRequest req = new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT);
         req.persistentSettings(Settings.builder().put(LifecycleSettings.SLM_MINIMUM_INTERVAL, "0s"));
         try (XContentBuilder builder = jsonBuilder()) {
             req.toXContent(builder, ToXContent.EMPTY_PARAMS);

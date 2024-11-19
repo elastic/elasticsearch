@@ -4,7 +4,7 @@
 <titleabbrev>Get snapshot status</titleabbrev>
 ++++
 
-Retrieves a detailed description of the current state for each shard participating in the snapshot.
+Retrieves a detailed description of the current state for each shard participating in the snapshot. Note that this API should only be used to obtain detailed shard-level information for ongoing snapshots. If this detail is not needed, or you want to obtain information about one or more existing snapshots, use the <<get-snapshot-api,get snapshot API>>.
 
 ////
 [source,console]
@@ -172,13 +172,8 @@ Indicates the current snapshot state.
 `STARTED`::
   The snapshot is currently running.
 
-`PARTIAL`::
-  The global cluster state was stored, but data of at least one shard was not stored successfully.
-  The <<get-snapshot-api-response-failures,`failures`>> section of the response contains more detailed information about shards
-  that were not processed correctly.
-
 `SUCCESS`::
-  The snapshot finished and all shards were stored successfully.
+  The snapshot completed.
 ====
 --
 

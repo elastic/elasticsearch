@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -215,12 +216,12 @@ public abstract class AbstractQueryBuilder<QB extends AbstractQueryBuilder<QB>> 
      * @return the same input object or a {@link BytesRef} representation if input was of type string
      */
     static Object maybeConvertToBytesRef(Object obj) {
-        if (obj instanceof String) {
-            return BytesRefs.checkIndexableLength(BytesRefs.toBytesRef(obj));
-        } else if (obj instanceof CharBuffer) {
-            return BytesRefs.checkIndexableLength(new BytesRef((CharBuffer) obj));
-        } else if (obj instanceof BigInteger) {
-            return BytesRefs.toBytesRef(obj);
+        if (obj instanceof String v) {
+            return BytesRefs.checkIndexableLength(BytesRefs.toExactSizedBytesRef(v));
+        } else if (obj instanceof CharBuffer v) {
+            return BytesRefs.checkIndexableLength(new BytesRef(v));
+        } else if (obj instanceof BigInteger v) {
+            return BytesRefs.toBytesRef(v);
         }
         return obj;
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.blobstore;
@@ -81,12 +82,17 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.repositories.RepositoryDataTests.generateRandomRepoData;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.INDEX_FILE_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_BLOB_NAME_SUFFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.METADATA_PREFIX;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.SNAPSHOT_PREFIX;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.nullValue;
 
@@ -233,7 +239,7 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         }
     }
 
-    public void testRepositoryDataConcurrentModificationNotAllowed() throws Exception {
+    public void testRepositoryDataConcurrentModificationNotAllowed() {
         final BlobStoreRepository repository = setupRepo();
 
         // write to index generational file
@@ -244,7 +250,20 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         // write repo data again to index generational file, errors because we already wrote to the
         // N+1 generation from which this repository data instance was created
         final RepositoryData fresherRepositoryData = repositoryData.withGenId(startingGeneration + 1);
-        expectThrows(RepositoryException.class, () -> writeIndexGen(repository, fresherRepositoryData, repositoryData.getGenId()));
+
+        assertThat(
+            safeAwaitFailure(
+                RepositoryData.class,
+                listener -> repository.writeIndexGen(
+                    fresherRepositoryData,
+                    repositoryData.getGenId(),
+                    IndexVersion.current(),
+                    Function.identity(),
+                    listener
+                )
+            ),
+            instanceOf(RepositoryException.class)
+        );
     }
 
     public void testBadChunksize() {
@@ -330,9 +349,15 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
         snapshotDetailsAsserter.accept(AbstractSnapshotIntegTestCase.getRepositoryData(repository).getSnapshotDetails(snapshotId));
     }
 
-    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) throws Exception {
-        PlainActionFuture.<RepositoryData, Exception>get(
-            f -> repository.writeIndexGen(repositoryData, generation, IndexVersion.current(), Function.identity(), f)
+    private static void writeIndexGen(BlobStoreRepository repository, RepositoryData repositoryData, long generation) {
+        safeAwait(
+            (ActionListener<RepositoryData> listener) -> repository.writeIndexGen(
+                repositoryData,
+                generation,
+                IndexVersion.current(),
+                Function.identity(),
+                listener
+            )
         );
     }
 
@@ -530,7 +555,10 @@ public class BlobStoreRepositoryTests extends ESSingleNodeTestCase {
                         expectedShardGenerations.put(indexId, shard, shardGeneration);
                         final var blobsToDelete = randomList(
                             100,
-                            () -> randomFrom("meta-", "index-", "snap-") + randomUUID() + randomFrom("", ".dat")
+                            () -> randomFrom(METADATA_PREFIX, INDEX_FILE_PREFIX, SNAPSHOT_PREFIX) + randomUUID() + randomFrom(
+                                "",
+                                METADATA_BLOB_NAME_SUFFIX
+                            )
                         );
                         blobCount += blobsToDelete.size();
                         final var indexPath = repo.basePath()

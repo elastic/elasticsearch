@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.netty4;
@@ -45,6 +46,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.ElasticsearchWrapperException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.client.Request;
@@ -418,7 +420,8 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                         handlingSettings,
                         TLSConfig.noTLS(),
                         null,
-                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null)
+                        randomFrom((httpPreRequest, channel, listener) -> listener.onResponse(null), null),
+                        new IncrementalBulkService.Enabled(clusterSettings)
                     ) {
                         @Override
                         protected void initChannel(Channel ch) throws Exception {
@@ -904,7 +907,7 @@ public class Netty4HttpServerTransportTests extends AbstractHttpServerTransportT
                 assertThat(channel.request().getHttpRequest().header(headerReference.get()), is(headerValueReference.get()));
                 assertThat(channel.request().getHttpRequest().method(), is(translateRequestMethod(httpMethodReference.get())));
                 // assert content is dropped
-                assertThat(channel.request().getHttpRequest().content().utf8ToString(), is(""));
+                assertThat(channel.request().getHttpRequest().body().asFull().bytes().utf8ToString(), is(""));
                 try {
                     channel.sendResponse(new RestResponse(channel, (Exception) ((ElasticsearchWrapperException) cause).getCause()));
                 } catch (IOException e) {

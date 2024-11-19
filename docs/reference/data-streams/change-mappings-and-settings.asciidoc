@@ -5,7 +5,7 @@
 [[data-streams-change-mappings-and-settings]]
 === Change mappings and settings for a data stream
 
-Each data stream has a <<create-index-template,matching index
+Each <<data-streams,data stream>> has a <<create-index-template,matching index
 template>>. Mappings and index settings from this template are applied to new
 backing indices created for the stream. This includes the stream's first
 backing index, which is auto-generated when the stream is created.

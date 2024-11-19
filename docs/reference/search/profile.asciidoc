@@ -1298,7 +1298,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
-                "description" : "DocAndScore[100]",
+                "description" : "DocAndScoreQuery[0,...][0.008961825,...],0.008961825",
                 "time_in_nanos" : 444414,
                 "breakdown" : {
                   "set_min_competitive_score_count" : 0,

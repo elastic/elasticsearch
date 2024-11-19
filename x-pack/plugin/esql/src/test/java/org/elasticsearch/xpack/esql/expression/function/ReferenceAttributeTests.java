@@ -14,19 +14,20 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 
 public class ReferenceAttributeTests extends AbstractAttributeTestCase<ReferenceAttribute> {
-    public static ReferenceAttribute randomReferenceAttribute() {
+    public static ReferenceAttribute randomReferenceAttribute(boolean onlyRepresentable) {
         Source source = Source.EMPTY;
         String name = randomAlphaOfLength(5);
-        DataType type = randomFrom(DataType.types());
-        String qualifier = randomBoolean() ? null : randomAlphaOfLength(3);
+        DataType type = onlyRepresentable
+            ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
+            : randomFrom(DataType.types());
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new ReferenceAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
     }
 
     @Override
     protected ReferenceAttribute create() {
-        return randomReferenceAttribute();
+        return randomReferenceAttribute(false);
     }
 
     @Override
@@ -34,16 +35,14 @@ public class ReferenceAttributeTests extends AbstractAttributeTestCase<Reference
         Source source = instance.source();
         String name = instance.name();
         DataType type = instance.dataType();
-        String qualifier = instance.qualifier();
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
-        switch (between(0, 4)) {
+        switch (between(0, 3)) {
             case 0 -> name = randomAlphaOfLength(name.length() + 1);
             case 1 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
-            case 2 -> qualifier = randomValueOtherThan(qualifier, () -> randomBoolean() ? null : randomAlphaOfLength(3));
-            case 3 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
-            case 4 -> synthetic = false == synthetic;
+            case 2 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
+            case 3 -> synthetic = false == synthetic;
         }
-        return new ReferenceAttribute(source, name, type, qualifier, nullability, new NameId(), synthetic);
+        return new ReferenceAttribute(source, name, type, nullability, new NameId(), synthetic);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.node;
@@ -12,7 +13,6 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchTimeoutException;
-import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.bootstrap.BootstrapCheck;
 import org.elasticsearch.bootstrap.BootstrapContext;
 import org.elasticsearch.client.internal.Client;
@@ -32,7 +32,6 @@ import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.StopWatch;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.component.LifecycleComponent;
-import org.elasticsearch.common.inject.Injector;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.logging.NodeAndClusterIdStateListener;
 import org.elasticsearch.common.network.NetworkAddress;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.transport.BoundTransportAddress;
 import org.elasticsearch.common.transport.TransportAddress;
-import org.elasticsearch.common.util.concurrent.FutureUtils;
 import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.PathUtils;
@@ -61,8 +59,10 @@ import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
 import org.elasticsearch.indices.recovery.PeerRecoverySourceService;
 import org.elasticsearch.indices.store.IndicesStore;
+import org.elasticsearch.injection.guice.Injector;
 import org.elasticsearch.monitor.fs.FsHealthService;
 import org.elasticsearch.monitor.jvm.JvmInfo;
+import org.elasticsearch.monitor.metrics.IndicesMetrics;
 import org.elasticsearch.monitor.metrics.NodeMetrics;
 import org.elasticsearch.node.internal.TerminationHandler;
 import org.elasticsearch.plugins.ClusterCoordinationPlugin;
@@ -78,7 +78,6 @@ import org.elasticsearch.search.SearchService;
 import org.elasticsearch.snapshots.SnapshotShardsService;
 import org.elasticsearch.snapshots.SnapshotsService;
 import org.elasticsearch.tasks.TaskCancellationService;
-import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.tasks.TaskResultsService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.RemoteClusterPortSettings;
@@ -101,15 +100,12 @@ import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Function;
 
 import javax.net.ssl.SNIHostName;
-
-import static org.elasticsearch.core.Strings.format;
 
 /**
  * A node represent a node within a cluster ({@code cluster.name}). The {@link #client()} can be used
@@ -154,12 +150,6 @@ public class Node implements Closeable {
         Property.NodeScope
     );
 
-    public static final Setting<TimeValue> MAXIMUM_SHUTDOWN_TIMEOUT_SETTING = Setting.positiveTimeSetting(
-        "node.maximum_shutdown_grace_period",
-        TimeValue.ZERO,
-        Setting.Property.NodeScope
-    );
-
     private final Lifecycle lifecycle = new Lifecycle();
 
     /**
@@ -180,6 +170,7 @@ public class Node implements Closeable {
     private final LocalNodeFactory localNodeFactory;
     private final NodeService nodeService;
     private final TerminationHandler terminationHandler;
+
     // for testing
     final NamedWriteableRegistry namedWriteableRegistry;
     final NamedXContentRegistry namedXContentRegistry;
@@ -334,7 +325,6 @@ public class Node implements Closeable {
         // TODO: Do not expect that the legacy metadata file is always present https://github.com/elastic/elasticsearch/issues/95211
         if (Assertions.ENABLED && DiscoveryNode.isStateless(settings()) == false) {
             try {
-                assert injector.getInstance(MetaStateService.class).loadFullState().v1().isEmpty();
                 final NodeMetadata nodeMetadata = NodeMetadata.FORMAT.loadLatestState(
                     logger,
                     NamedXContentRegistry.EMPTY,
@@ -435,6 +425,7 @@ public class Node implements Closeable {
         }
 
         injector.getInstance(NodeMetrics.class).start();
+        injector.getInstance(IndicesMetrics.class).start();
         injector.getInstance(HealthPeriodicLogger.class).start();
 
         logger.info("started {}", transportService.getLocalNode());
@@ -483,6 +474,7 @@ public class Node implements Closeable {
         stopIfStarted(SearchService.class);
         stopIfStarted(TransportService.class);
         stopIfStarted(NodeMetrics.class);
+        stopIfStarted(IndicesMetrics.class);
 
         pluginLifecycleComponents.forEach(Node::stopIfStarted);
         // we should stop this last since it waits for resources to get released
@@ -552,6 +544,7 @@ public class Node implements Closeable {
         toClose.add(() -> stopWatch.stop().start("transport"));
         toClose.add(injector.getInstance(TransportService.class));
         toClose.add(injector.getInstance(NodeMetrics.class));
+        toClose.add(injector.getInstance(IndicesMetrics.class));
         if (ReadinessService.enabled(environment)) {
             toClose.add(injector.getInstance(ReadinessService.class));
         }
@@ -591,99 +584,13 @@ public class Node implements Closeable {
      * Invokes hooks to prepare this node to be closed. This should be called when Elasticsearch receives a request to shut down
      * gracefully from the underlying operating system, before system resources are closed. This method will block
      * until the node is ready to shut down.
-     *
+     * <p>
      * Note that this class is part of infrastructure to react to signals from the operating system - most graceful shutdown
      * logic should use Node Shutdown, see {@link org.elasticsearch.cluster.metadata.NodesShutdownMetadata}.
      */
     public void prepareForClose() {
-        HttpServerTransport httpServerTransport = injector.getInstance(HttpServerTransport.class);
-        Map<String, Runnable> stoppers = new HashMap<>();
-        TimeValue maxTimeout = MAXIMUM_SHUTDOWN_TIMEOUT_SETTING.get(this.settings());
-        stoppers.put("http-server-transport-stop", httpServerTransport::close);
-        stoppers.put("async-search-stop", () -> this.awaitSearchTasksComplete(maxTimeout));
-        if (terminationHandler != null) {
-            stoppers.put("termination-handler-stop", terminationHandler::handleTermination);
-        }
-
-        Map<String, CompletableFuture<Void>> futures = new HashMap<>(stoppers.size());
-        for (var stopperEntry : stoppers.entrySet()) {
-            var future = new CompletableFuture<Void>();
-            new Thread(() -> {
-                try {
-                    stopperEntry.getValue().run();
-                } catch (Exception ex) {
-                    logger.warn("unexpected exception in shutdown task [" + stopperEntry.getKey() + "]", ex);
-                } finally {
-                    future.complete(null);
-                }
-            }, stopperEntry.getKey()).start();
-            futures.put(stopperEntry.getKey(), future);
-        }
-
-        @SuppressWarnings(value = "rawtypes") // Can't make an array of parameterized types, but it complains if you leave the type out
-        CompletableFuture<Void> allStoppers = CompletableFuture.allOf(futures.values().toArray(new CompletableFuture[stoppers.size()]));
-
-        try {
-            if (TimeValue.ZERO.equals(maxTimeout)) {
-                FutureUtils.get(allStoppers);
-            } else {
-                FutureUtils.get(allStoppers, maxTimeout.millis(), TimeUnit.MILLISECONDS);
-            }
-
-        } catch (ElasticsearchTimeoutException t) {
-            var unfinishedTasks = futures.entrySet()
-                .stream()
-                .filter(entry -> entry.getValue().isDone() == false)
-                .map(Map.Entry::getKey)
-                .toList();
-            logger.warn("timed out while waiting for graceful shutdown tasks: " + unfinishedTasks);
-        }
-    }
-
-    private void awaitSearchTasksComplete(TimeValue asyncSearchTimeout) {
-        TaskManager taskManager = injector.getInstance(TransportService.class).getTaskManager();
-        long millisWaited = 0;
-        while (true) {
-            long searchTasksRemaining = taskManager.getTasks()
-                .values()
-                .stream()
-                .filter(task -> TransportSearchAction.TYPE.name().equals(task.getAction()))
-                .count();
-            if (searchTasksRemaining == 0) {
-                logger.debug("all search tasks complete");
-                return;
-            } else {
-                // Let the system work on those searches for a while. We're on a dedicated thread to manage app shutdown, so we
-                // literally just want to wait and not take up resources on this thread for now. Poll period chosen to allow short
-                // response times, but checking the tasks list is relatively expensive, and we don't want to waste CPU time we could
-                // be spending on finishing those searches.
-                final TimeValue pollPeriod = TimeValue.timeValueMillis(500);
-                millisWaited += pollPeriod.millis();
-                if (TimeValue.ZERO.equals(asyncSearchTimeout) == false && millisWaited >= asyncSearchTimeout.millis()) {
-                    logger.warn(
-                        format(
-                            "timed out after waiting [%s] for [%d] search tasks to finish",
-                            asyncSearchTimeout.toString(),
-                            searchTasksRemaining
-                        )
-                    );
-                    return;
-                }
-                logger.debug(format("waiting for [%s] search tasks to finish, next poll in [%s]", searchTasksRemaining, pollPeriod));
-                try {
-                    Thread.sleep(pollPeriod.millis());
-                } catch (InterruptedException ex) {
-                    logger.warn(
-                        format(
-                            "interrupted while waiting [%s] for [%d] search tasks to finish",
-                            asyncSearchTimeout.toString(),
-                            searchTasksRemaining
-                        )
-                    );
-                    return;
-                }
-            }
-        }
+        injector.getInstance(ShutdownPrepareService.class)
+            .prepareForShutdown(injector.getInstance(TransportService.class).getTaskManager());
     }
 
     /**

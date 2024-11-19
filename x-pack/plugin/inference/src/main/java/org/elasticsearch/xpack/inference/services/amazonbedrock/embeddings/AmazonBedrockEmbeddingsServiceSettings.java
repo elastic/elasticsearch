@@ -183,7 +183,8 @@ public class AmazonBedrockEmbeddingsServiceSettings extends AmazonBedrockService
         return dimensions;
     }
 
-    public boolean dimensionsSetByUser() {
+    @Override
+    public Boolean dimensionsSetByUser() {
         return this.dimensionsSetByUser;
     }
 

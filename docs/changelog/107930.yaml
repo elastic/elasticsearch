@@ -1,5 +1,0 @@
-pr: 107930
-summary: Optimise terms aggregations for single value fields
-area: Aggregations
-type: enhancement
-issues: []

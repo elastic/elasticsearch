@@ -6,10 +6,8 @@
  */
 package org.elasticsearch.xpack.core.ilm;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.settings.put.UpdateSettingsRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.transport.NoNodeAvailableException;
 import org.elasticsearch.cluster.ClusterState;
@@ -231,10 +229,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        expectThrows(
-            NoNodeAvailableException.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-        );
+        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
 
         Mockito.verifyNoMoreInteractions(client);
     }
@@ -331,13 +326,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-            )
-        );
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, clusterState, null)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -389,7 +378,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         IndexNotFoundException e = expectThrows(
             IndexNotFoundException.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
+            () -> performActionAndWait(step, indexMetadata, clusterState, null)
         );
         assertEquals(indexMetadata.getIndex(), e.getIndex());
 
@@ -398,11 +387,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionSomeShardsOnlyOnNewNodes() throws Exception {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -467,11 +452,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionSomeShardsOnlyOnNewNodesButNewNodesInvalidAttrs() {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -544,11 +525,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
     public void testPerformActionNewShardsExistButWithInvalidAttributes() throws Exception {
         VersionInformation oldVersion = new VersionInformation(
-            VersionUtils.randomVersionBetween(
-                random(),
-                Version.fromId(Version.CURRENT.major * 1_000_000 + 99),
-                VersionUtils.getPreviousVersion()
-            ),
+            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -676,7 +653,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
             return null;
         }).when(indicesClient).updateSettings(Mockito.any(), Mockito.any());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f));
+        performActionAndWait(step, indexMetadata, clusterState, null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -701,10 +678,7 @@ public class SetSingleNodeAllocateStepTests extends AbstractStepTestCase<SetSing
 
         SetSingleNodeAllocateStep step = createRandomInstance();
 
-        expectThrows(
-            NoNodeAvailableException.class,
-            () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, clusterState, null, f))
-        );
+        expectThrows(NoNodeAvailableException.class, () -> performActionAndWait(step, indexMetadata, clusterState, null));
 
         Mockito.verifyNoMoreInteractions(client);
     }

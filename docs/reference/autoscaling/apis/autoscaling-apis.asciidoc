@@ -4,7 +4,7 @@
 
 NOTE: {cloud-only}
 
-You can use the following APIs to perform autoscaling operations.
+You can use the following APIs to perform {cloud}/ec-autoscaling.html[autoscaling operations].
 
 [discrete]
 [[autoscaling-api-top-level]]

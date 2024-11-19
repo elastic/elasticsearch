@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "host.name": {
+      "type": "keyword"
+    },
+    "kibana.alert.risk_score": {
+      "type": "double"
+    }
+  }
+}

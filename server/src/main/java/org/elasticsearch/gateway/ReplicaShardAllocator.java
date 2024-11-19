@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gateway;
@@ -438,14 +439,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         return sizeMatched;
     }
 
-    private static boolean hasMatchingSyncId(
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
-        TransportNodesListShardStoreMetadata.StoreFilesMetadata replicaStore
-    ) {
-        String primarySyncId = primaryStore.syncId();
-        return primarySyncId != null && primarySyncId.equals(replicaStore.syncId());
-    }
-
     private static MatchingNode computeMatchingNode(
         DiscoveryNode primaryNode,
         TransportNodesListShardStoreMetadata.StoreFilesMetadata primaryStore,
@@ -454,8 +447,7 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
     ) {
         final long retainingSeqNoForPrimary = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(primaryNode);
         final long retainingSeqNoForReplica = primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(replicaNode);
-        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0)
-            || hasMatchingSyncId(primaryStore, replicaStore);
+        final boolean isNoopRecovery = (retainingSeqNoForReplica >= retainingSeqNoForPrimary && retainingSeqNoForPrimary >= 0);
         final long matchingBytes = computeMatchingBytes(primaryStore, replicaStore);
         return new MatchingNode(matchingBytes, retainingSeqNoForReplica, isNoopRecovery);
     }
@@ -468,9 +460,6 @@ public abstract class ReplicaShardAllocator extends BaseGatewayShardAllocator {
         final NodeStoreFilesMetadata targetNodeStore = shardStores.getData().get(targetNode);
         if (targetNodeStore == null || targetNodeStore.storeFilesMetadata().isEmpty()) {
             return false;
-        }
-        if (hasMatchingSyncId(primaryStore, targetNodeStore.storeFilesMetadata())) {
-            return true;
         }
         return primaryStore.getPeerRecoveryRetentionLeaseRetainingSeqNo(targetNode) >= 0;
     }

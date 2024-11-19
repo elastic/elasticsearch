@@ -45,9 +45,9 @@ public class RestMonitoringBulkActionTests extends ESTestCase {
         assertThat(action.getName(), is("monitoring_bulk"));
     }
 
-    public void testSupportsContentStream() {
+    public void testSupportsBulkContent() {
         // if you change this, it's a very breaking change for Monitoring
-        assertThat(action.supportsContentStream(), is(true));
+        assertThat(action.supportsBulkContent(), is(true));
     }
 
     public void testMissingSystemId() {

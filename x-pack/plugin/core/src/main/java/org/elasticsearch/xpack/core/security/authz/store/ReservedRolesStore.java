@@ -36,7 +36,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.BiConsumer;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
@@ -112,10 +111,9 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
 
     private static final Map<String, RoleDescriptor> ALL_RESERVED_ROLES = initializeReservedRoles();
 
-    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.listSetting(
+    public static final Setting<List<String>> INCLUDED_RESERVED_ROLES_SETTING = Setting.stringListSetting(
         SecurityField.setting("reserved_roles.include"),
         List.copyOf(ALL_RESERVED_ROLES.keySet()),
-        Function.identity(),
         value -> {
             final Set<String> valueSet = Set.copyOf(value);
             if (false == valueSet.contains("superuser")) {
@@ -402,67 +400,6 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     null,
                     null,
                     "Grants access necessary for the APM system user to send system-level data (such as monitoring) to Elasticsearch.\n"
-                )
-            ),
-            entry(
-                "apm_user",
-                new RoleDescriptor(
-                    "apm_user",
-                    null,
-                    new RoleDescriptor.IndicesPrivileges[] {
-                        // Self managed APM Server
-                        // Can be removed in 8.0
-                        RoleDescriptor.IndicesPrivileges.builder().indices("apm-*").privileges("read", "view_index_metadata").build(),
-
-                        // APM Server under fleet (data streams)
-                        RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm.*").privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder().indices("logs-apm-*").privileges("read", "view_index_metadata").build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metrics-apm.*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("metrics-apm-*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("traces-apm.*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("traces-apm-*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-
-                        // Machine Learning indices. Only needed for legacy reasons
-                        // Can be removed in 8.0
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices(".ml-anomalies*")
-                            .privileges("read", "view_index_metadata")
-                            .build(),
-
-                        // Annotations
-                        RoleDescriptor.IndicesPrivileges.builder()
-                            .indices("observability-annotations")
-                            .privileges("read", "view_index_metadata")
-                            .build() },
-                    new RoleDescriptor.ApplicationResourcePrivileges[] {
-                        RoleDescriptor.ApplicationResourcePrivileges.builder()
-                            .application("kibana-*")
-                            .resources("*")
-                            .privileges("reserved_ml_apm_user")
-                            .build() },
-                    null,
-                    null,
-                    MetadataUtils.getDeprecatedReservedMetadata(
-                        "This role will be removed in a future major release. Please use editor and viewer roles instead"
-                    ),
-                    null,
-                    null,
-                    null,
-                    null,
-                    "Grants the privileges required for APM users (such as read and view_index_metadata privileges "
-                        + "on the apm-* and .ml-anomalies* indices)."
                 )
             ),
             entry(
@@ -868,6 +805,11 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                     .indices("/~(([.]|ilm-history-).*)/")
                     .privileges("read", "view_index_metadata")
                     .build(),
+                // Observability
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata")
+                    .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices(ReservedRolesStore.ALERTS_LEGACY_INDEX, ReservedRolesStore.LISTS_INDEX, ReservedRolesStore.LISTS_ITEMS_INDEX)
@@ -914,6 +856,10 @@ public class ReservedRolesStore implements BiConsumer<Set<String>, ActionListene
                 RoleDescriptor.IndicesPrivileges.builder()
                     .indices("observability-annotations")
                     .privileges("read", "view_index_metadata", "write")
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(".slo-observability.*")
+                    .privileges("read", "view_index_metadata", "write", "manage")
                     .build(),
                 // Security
                 RoleDescriptor.IndicesPrivileges.builder()

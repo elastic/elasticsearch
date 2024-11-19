@@ -1,14 +1,14 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 apply plugin: 'elasticsearch.docs-test'
@@ -28,7 +28,7 @@ ext.docsFileTree = fileTree(projectDir) {
   // These files simply don't pass yet. We should figure out how to fix them.
   exclude 'reference/watcher/reference/actions.asciidoc'
   exclude 'reference/rest-api/security/ssl.asciidoc'
-  if (BuildParams.inFipsJvm) {
+  if (buildParams.inFipsJvm) {
     // We don't support this component in FIPS 140
     exclude 'reference/ingest/processors/attachment.asciidoc'
     // We can't conditionally control output, this would be missing the ingest-attachment component
@@ -37,7 +37,7 @@ ext.docsFileTree = fileTree(projectDir) {
 }
 
 tasks.named("yamlRestTest") {
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (buildParams.isSnapshotBuild() == false) {
     // LOOKUP is not available in snapshots
     systemProperty 'tests.rest.blacklist', [
       "reference/esql/processing-commands/lookup/esql-lookup-example"
@@ -82,7 +82,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (BuildParams.isSnapshotBuild() == false) {
+    if (buildParams.isSnapshotBuild() == false) {
       requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }
@@ -169,7 +169,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && buildParams.inFipsJvm) {
       return
     }
     plugin subproj.path

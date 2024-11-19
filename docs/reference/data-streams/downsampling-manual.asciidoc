@@ -14,7 +14,7 @@ DELETE _ingest/pipeline/my-timestamp-pipeline
 // TEARDOWN
 ////
 
-The recommended way to downsample a time series data stream (TSDS) is
+The recommended way to <<downsampling,downsample>> a <<tsds,time-series data stream (TSDS)>> is
 <<downsampling-ilm,through index lifecycle management (ILM)>>. However, if
 you're not using ILM, you can downsample a TSDS manually. This guide shows you
 how, using typical Kubernetes cluster monitoring data.
@@ -32,7 +32,7 @@ To test out manual downsampling, follow these steps:
 ==== Prerequisites
 
 * Refer to the <<tsds-prereqs,TSDS prerequisites>>.
-* It is not possible to downsample a data stream directly, nor
+* It is not possible to downsample a <<data-streams,data stream>> directly, nor
 multiple indices at once. It's only possible to downsample one time series index
 (TSDS backing index).
 * In order to downsample an index, it needs to be read-only. For a TSDS write

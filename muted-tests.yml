@@ -245,6 +245,9 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
   issue: https://github.com/elastic/elasticsearch/issues/117082
+- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
+  method: testRollupIndex {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/117084
 
 # Examples:
 #

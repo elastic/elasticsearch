@@ -12,8 +12,6 @@ package org.elasticsearch.upgrades;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
@@ -23,7 +21,6 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.Fuzziness;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.ConstantScoreQueryBuilder;
 import org.elasticsearch.index.query.DisMaxQueryBuilder;
@@ -43,7 +40,6 @@ import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.junit.ClassRule;
 
@@ -249,23 +245,10 @@ public class QueryBuilderBWCIT extends ParameterizedFullClusterRestartTestCase {
                     InputStream in = new ByteArrayInputStream(qbSource, 0, qbSource.length);
                     StreamInput input = new NamedWriteableAwareStreamInput(new InputStreamStreamInput(in), registry)
                 ) {
-
-                    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // condition will always be true
-                    var originalClusterHasTransportVersion = oldClusterHasFeature(RestTestLegacyFeatures.TRANSPORT_VERSION_SUPPORTED);
-                    final TransportVersion transportVersion;
-                    if (originalClusterHasTransportVersion == false) {
-                        transportVersion = TransportVersion.fromId(
-                            parseLegacyVersion(getOldClusterVersion()).map(Version::id).orElse(TransportVersions.MINIMUM_COMPATIBLE.id())
-                        );
-                    } else {
-                        transportVersion = TransportVersion.readVersion(input);
-                    }
-
-                    input.setTransportVersion(transportVersion);
+                    input.setTransportVersion(TransportVersion.readVersion(input));
                     QueryBuilder queryBuilder = input.readNamedWriteable(QueryBuilder.class);
                     assert in.read() == -1;
                     assertEquals(expectedQueryBuilder, queryBuilder);
-
                 }
             }
         }

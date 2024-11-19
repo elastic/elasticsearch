@@ -36,7 +36,7 @@ public class Kql extends FullTextFunction {
     )
     public Kql(
         Source source,
-        @Param(name = "query", type = { "keyword", "text" }, description = "Query string in KQL string format.") Expression queryString
+        @Param(name = "query", type = { "keyword", "text" }, description = "Query string in KQL query string format.") Expression queryString
     ) {
         super(source, queryString, List.of(queryString));
     }

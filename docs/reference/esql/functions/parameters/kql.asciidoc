@@ -3,4 +3,4 @@
 *Parameters*
 
 `query`::
-Query string in KQL string format.
+Query string in KQL query string format.

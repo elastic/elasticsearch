@@ -10,7 +10,7 @@
           "name" : "query",
           "type" : "keyword",
           "optional" : false,
-          "description" : "Query string in KQL string format."
+          "description" : "Query string in KQL query string format."
         }
       ],
       "variadic" : false,
@@ -22,7 +22,7 @@
           "name" : "query",
           "type" : "text",
           "optional" : false,
-          "description" : "Query string in KQL string format."
+          "description" : "Query string in KQL query string format."
         }
       ],
       "variadic" : false,

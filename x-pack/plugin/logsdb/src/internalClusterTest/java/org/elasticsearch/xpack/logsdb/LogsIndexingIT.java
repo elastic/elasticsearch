@@ -92,8 +92,11 @@ public class LogsIndexingIT extends ESSingleNodeTestCase {
 
     @Override
     protected Settings nodeSettings() {
-        return Settings.builder().put(super.nodeSettings()).put("cluster.logsdb.enabled", "true")
-            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial").build();
+        return Settings.builder()
+            .put(super.nodeSettings())
+            .put("cluster.logsdb.enabled", "true")
+            .put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), "trial")
+            .build();
     }
 
     public void testStandard() throws Exception {

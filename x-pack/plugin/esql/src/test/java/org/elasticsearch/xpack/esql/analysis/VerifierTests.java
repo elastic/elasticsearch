@@ -1783,7 +1783,7 @@ public class VerifierTests extends ESTestCase {
 
     public void testCategorizeWithinAggregations() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        
+
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
 
         assertEquals(

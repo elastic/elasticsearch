@@ -226,10 +226,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         // reference correctly
         var registry = new InferenceServiceRegistry(inferenceServices, factoryContext);
         registry.init(services.client());
-        if (DefaultElserFeatureFlag.isEnabled()) {
-            for (var service : registry.getServices().values()) {
-                service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
-            }
+        for (var service : registry.getServices().values()) {
+            service.defaultConfigIds().forEach(modelRegistry::addDefaultIds);
         }
         inferenceServiceRegistry.set(registry);
 

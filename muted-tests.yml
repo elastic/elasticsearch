@@ -17,9 +17,6 @@ tests:
 - class: org.elasticsearch.upgrades.SecurityIndexRolesMetadataMigrationIT
   method: testMetadataMigratedAfterUpgrade
   issue: https://github.com/elastic/elasticsearch/issues/110232
-- class: "org.elasticsearch.xpack.searchablesnapshots.FrozenSearchableSnapshotsIntegTests"
-  issue: "https://github.com/elastic/elasticsearch/issues/110408"
-  method: "testCreateAndRestorePartialSearchableSnapshot"
 - class: org.elasticsearch.xpack.security.authz.store.NativePrivilegeStoreCacheTests
   method: testPopulationOfCacheWhenLoadingPrivilegesForAllApplications
   issue: https://github.com/elastic/elasticsearch/issues/110789
@@ -205,6 +202,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
   method: test {categorize.Categorize SYNC}
   issue: https://github.com/elastic/elasticsearch/issues/113722
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {categorize.Categorize ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116373
 - class: org.elasticsearch.kibana.KibanaThreadPoolIT
   method: testBlockedThreadPoolsRejectUserRequests
   issue: https://github.com/elastic/elasticsearch/issues/113939
@@ -327,11 +327,33 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116542
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   issue: https://github.com/elastic/elasticsearch/issues/116817
-- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
-  issue: https://github.com/elastic/elasticsearch/issues/116444
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoShapeGeoHex
   issue: https://github.com/elastic/elasticsearch/issues/115705
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues SYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.xpack.esql.qa.mixed.MixedClusterEsqlSpecIT
+  method: test {spatial.CentroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues ASYNC}
+  issue: https://github.com/elastic/elasticsearch/issues/116945
+- class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
+  method: testRandomDirectoryIOExceptions
+  issue: https://github.com/elastic/elasticsearch/issues/114824
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testRerank {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/116973
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/116974
+- class: org.elasticsearch.xpack.application.CohereServiceUpgradeIT
+  method: testCohereEmbeddings {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/116975
 
 # Examples:
 #

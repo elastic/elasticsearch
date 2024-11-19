@@ -115,36 +115,15 @@ public class IndexEngineTests extends AbstractEngineTestCase {
         }
     }
 
-    public void testRefreshNeededForFastRefreshesBasedOnSearcher() throws Exception {
+    public void testRefreshNeededBasedOnSearcherAndCommits() throws Exception {
         Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
         try (
             var engine = newIndexEngine(
                 indexConfig(
                     Settings.builder()
-                        .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true)
+                        .put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean())
                         .put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60))
                         .build(),
-                    nodeSettings
-                )
-            )
-        ) {
-            engine.index(randomDoc(String.valueOf(0)));
-            // Refresh to warm-up engine
-            engine.refresh("test");
-            assertFalse(engine.refreshNeeded());
-            engine.index(randomDoc(String.valueOf(1)));
-            engine.flush();
-            assertTrue(engine.refreshNeeded());
-        }
-    }
-
-    public void testRefreshNeededForNonFastRefreshesBasedOnSearcherAndCommits() throws Exception {
-        Settings nodeSettings = Settings.builder().put(Stateless.STATELESS_ENABLED.getKey(), true).build();
-
-        try (
-            var engine = newIndexEngine(
-                indexConfig(
-                    Settings.builder().put(IndexSettings.INDEX_REFRESH_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(60)).build(),
                     nodeSettings,
                     () -> 1L,
                     NoMergePolicy.INSTANCE

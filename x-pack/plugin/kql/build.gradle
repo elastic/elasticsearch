@@ -26,14 +26,14 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-tasks.named('yamlRestTest') {
+tasks.named('yamlRestTest').configure {
   usesDefaultDistribution()
-}.configure {
+
   /****************************************************************
   *  Enable QA/rest integration tests for snapshot builds only   *
   *  TODO: Enable for all builds upon this feature release       *
     ****************************************************************/
-  enabled = BuildParams.isSnapshotBuild()
+  enabled = buildParams.isSnapshotBuild()
 }
 
 /**********************************

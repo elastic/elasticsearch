@@ -7,19 +7,17 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.cluster.service;
+package org.elasticsearch.action.admin.indices.stats;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 
-import java.util.Map;
+import java.util.Set;
 
-public class TransportFeatures implements FeatureSpecification {
+public class IndicesStatsFeatures implements FeatureSpecification {
+
     @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        // transport version was introduced in 8.8.0, but we need to wait until all nodes are >8.8.0
-        // to properly detect when we need to fix transport versions
-        return Map.of(TransportVersionsFixupListener.FIX_TRANSPORT_VERSION, Version.V_8_8_1);
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(IndexStats.REVERTED_TIER_CREATION_DATE);
     }
 }

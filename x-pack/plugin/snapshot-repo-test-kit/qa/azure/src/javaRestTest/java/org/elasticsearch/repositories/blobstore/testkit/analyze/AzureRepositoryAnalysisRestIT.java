@@ -78,12 +78,6 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
             () -> "ignored;DefaultEndpointsProtocol=http;BlobEndpoint=" + fixture.getAddress(),
             s -> USE_FIXTURE
         )
-        .apply(c -> {
-            if (USE_FIXTURE) {
-                // test fixture does not support CAS yet; TODO fix this
-                c.systemProperty("test.repository_test_kit.skip_cas", "true");
-            }
-        })
         .systemProperty(
             "tests.azure.credentials.disable_instance_discovery",
             () -> "true",

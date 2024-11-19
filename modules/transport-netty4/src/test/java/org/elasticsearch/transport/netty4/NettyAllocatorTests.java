@@ -35,7 +35,7 @@ public class NettyAllocatorTests extends ESTestCase {
         }
     }
 
-    public void testArrayThrashingByteBuf() {
+    public void testTrashArrayByteBuf() {
         var arr = randomByteArrayOfLength(between(1024, 2048));
         var buf = Unpooled.wrappedBuffer(arr);
         var tBuf = new TrashingByteBuf(buf);

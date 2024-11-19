@@ -162,8 +162,8 @@ from books metadata _score
 | sort c_score desc
 | LIMIT 2;
 
-book_no:keyword | title:text | _score:double
-8875            | The Two Towers | 6.0
+book_no:keyword | title:text | c_score:double
+2675            | The Lord of the Rings - Boxed Set | 6.0
 4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 6.0
 ;
 

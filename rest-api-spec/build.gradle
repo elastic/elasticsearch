@@ -68,4 +68,5 @@ tasks.named("yamlRestCompatTestTransform").configure ({ task ->
   task.skipTest("tsdb/90_unsupported_operations/index with routing over _bulk", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/90_unsupported_operations/update over _bulk", "skip until pr/116687 gets backported")
   task.skipTest("tsdb/90_unsupported_operations/index with routing", "skip until pr/116687 gets backported")
+  task.skipTest("search/500_date_range/from, to, include_lower, include_upper deprecated", "deprecated parameters are removed in 9.0")
 })

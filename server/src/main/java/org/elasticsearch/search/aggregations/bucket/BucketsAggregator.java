@@ -173,7 +173,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
-            checkRealMemoryCBForInternalBucket();
+            checkRealMemoryCB("building_sub_aggregation");
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
         }
         return subAggsForBucketFunction(aggregations);

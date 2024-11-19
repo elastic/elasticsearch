@@ -33,9 +33,12 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
         var systemModulesDescriptors = ModuleFinder.ofSystem()
             .findAll()
             .stream()
-            .map(ModuleReference::descriptor).collect(Collectors.toUnmodifiableSet());
+            .map(ModuleReference::descriptor)
+            .collect(Collectors.toUnmodifiableSet());
 
-        var systemModules = ModuleLayer.boot().modules().stream()
+        var systemModules = ModuleLayer.boot()
+            .modules()
+            .stream()
             .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
             .collect(Collectors.toUnmodifiableSet());
 

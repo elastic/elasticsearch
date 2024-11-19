@@ -9,12 +9,14 @@ package org.elasticsearch.xpack.logsdb;
 
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.MockLicenseState;
@@ -27,12 +29,15 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
+
+    private static final String DATA_STREAM_NAME = "logs-app1";
 
     private SyntheticSourceLicenseService syntheticSourceLicenseService;
     private SyntheticSourceIndexSettingsProvider provider;
@@ -59,7 +64,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsage() throws IOException {
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings settings = Settings.EMPTY;
         {
@@ -139,7 +144,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsageLogsdbIndex() throws IOException {
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
             {
@@ -182,7 +187,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsageTimeSeries() throws IOException {
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         String mapping = """
             {
@@ -222,7 +227,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testNewIndexHasSyntheticSourceUsage_invalidSettings() throws IOException {
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         Settings settings = Settings.builder().put("index.soft_deletes.enabled", false).build();
         {
@@ -263,7 +268,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     }
 
     public void testGetAdditionalIndexSettingsDowngradeFromSyntheticSource() throws IOException {
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
                 List.of(Tuple.tuple(dataStreamName, 1)),
@@ -340,7 +345,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         );
         final Settings settings = Settings.EMPTY;
 
-        String dataStreamName = "logs-app1";
+        String dataStreamName = DATA_STREAM_NAME;
         Metadata.Builder mb = Metadata.builder(
             DataStreamTestHelper.getClusterStateWithDataStreams(
                 List.of(Tuple.tuple(dataStreamName, 1)),
@@ -399,5 +404,160 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(0));
         assertThat(newMapperServiceCounter.get(), equalTo(0));
+    }
+
+    public void testSkipRouteOnSortFieldsAndRoutingPath() throws IOException {
+        provider = new SyntheticSourceIndexSettingsProvider(
+            syntheticSourceLicenseService,
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            getLogsdbIndexModeSettingsProvider(true)
+        );
+
+        String dataStreamName = DATA_STREAM_NAME;
+        Metadata.Builder mb = Metadata.builder(
+            DataStreamTestHelper.getClusterStateWithDataStreams(
+                List.of(Tuple.tuple(dataStreamName, 1)),
+                List.of(),
+                Instant.now().toEpochMilli(),
+                builder().build(),
+                1
+            ).getMetadata()
+        );
+        Metadata metadata = mb.build();
+
+        Settings settings = builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+
+        Settings result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(0));
+        assertThat(newMapperServiceCounter.get(), equalTo(0));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(1));
+        assertEquals(List.of("host", "message"), IndexMetadata.INDEX_ROUTING_PATH.get(result));
+
+        syntheticSourceLicenseService.setSyntheticSourceFallback(true);
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            null,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(2));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(false, IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.get(result));
+
+        result = provider.getAdditionalIndexSettings(
+            DataStream.getDefaultBackingIndexName(dataStreamName, 2),
+            dataStreamName,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.ofEpochMilli(1L),
+            settings,
+            List.of()
+        );
+        assertThat(result.size(), equalTo(2));
+        assertEquals(SourceFieldMapper.Mode.STORED, SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(result));
+        assertEquals(false, IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.get(result));
+    }
+
+    public void testLogsdbRoutingPathOnSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testLogsdbRoutingPathOnSortFieldsFilterTimestamp() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertThat(IndexMetadata.INDEX_ROUTING_PATH.get(result), contains("host", "message"));
+    }
+
+    public void testLogsdbRoutingPathOnSortSingleField() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream ["
+                    + DATA_STREAM_NAME
+                    + "] in logsdb mode and with [index.logsdb.route_on_sort_fields] index setting has only 1 sort fields "
+                    + "(excluding timestamp), needs at least 2"
+            )
+        );
+    }
+
+    public void testLogsdbExplicitRoutingPathMatchesSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), IndexMode.LOGSDB)
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Settings result = generateLogsdbSettings(settings);
+        assertTrue(result.isEmpty());
+    }
+
+    public void testLogsdbExplicitRoutingPathDoesNotMatchSortFields() throws Exception {
+        var settings = Settings.builder()
+            .put(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(), "host,message,@timestamp")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "host,message,foo")
+            .put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), true)
+            .build();
+        Exception e = expectThrows(IllegalStateException.class, () -> generateLogsdbSettings(settings));
+        assertThat(
+            e.getMessage(),
+            equalTo(
+                "data stream ["
+                    + DATA_STREAM_NAME
+                    + "] in logsdb mode and with [index."
+                    + "logsdb.route_on_sort_fields] index setting has mismatching sort "
+                    + "and routing fields, [index.routing_path:[host, message, foo]], [index.sort.fields:[host, message]]"
+            )
+        );
+    }
+
+    private Settings generateLogsdbSettings(Settings settings) throws IOException {
+        Metadata metadata = Metadata.EMPTY_METADATA;
+        var result = provider.getAdditionalIndexSettings(
+            null,
+            DATA_STREAM_NAME,
+            IndexMode.LOGSDB,
+            metadata,
+            Instant.now(),
+            settings,
+            List.of()
+        );
+        return builder().put(result).build();
     }
 }

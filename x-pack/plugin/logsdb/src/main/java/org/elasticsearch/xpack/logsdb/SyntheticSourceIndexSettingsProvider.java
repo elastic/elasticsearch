@@ -19,13 +19,17 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Locale;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -63,36 +67,67 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         IndexMode templateIndexMode,
         Metadata metadata,
         Instant resolvedAt,
-        Settings indexTemplateAndCreateRequestSettings,
+        Settings settings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
-        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(
-            dataStreamName,
-            templateIndexMode,
-            indexTemplateAndCreateRequestSettings
-        );
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, settings);
         if (logsdbSettings != Settings.EMPTY) {
-            indexTemplateAndCreateRequestSettings = Settings.builder()
-                .put(logsdbSettings)
-                .put(indexTemplateAndCreateRequestSettings)
-                .build();
+            settings = Settings.builder().put(logsdbSettings).put(settings).build();
         }
 
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
-        if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
-            && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
-            LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            var builder = Settings.builder()
-                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
-            if (indexTemplateAndCreateRequestSettings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
-                builder.putNull(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey());
-                builder.putNull(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+        if (syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
+            var builder = Settings.builder();
+            if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, settings, combinedTemplateMappings)) {
+                LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
+                builder.put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString());
             }
-            return builder.build();
-        }
+            if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                builder.put(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false);
+            }
+            return builder.keys().isEmpty() ? Settings.EMPTY : builder.build();
+        } else if (templateIndexMode == IndexMode.LOGSDB
+            || logsdbSettings != Settings.EMPTY
+            || LogsdbIndexModeSettingsProvider.resolveIndexMode(settings.get(IndexSettings.MODE.getKey())) == IndexMode.LOGSDB) {
+                if (settings.getAsBoolean(IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(), false)) {
+                    List<String> sortFields = new ArrayList<>(settings.getAsList(IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey()));
+                    sortFields.removeIf(s -> s.equals(DataStreamTimestampFieldMapper.DEFAULT_PATH));
+                    if (sortFields.size() < 2) {
+                        throw new IllegalStateException(
+                            String.format(
+                                Locale.ROOT,
+                                "data stream [%s] in logsdb mode and with [%s] index setting has only %d sort fields "
+                                    + "(excluding timestamp), needs at least 2",
+                                dataStreamName,
+                                IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                sortFields.size()
+                            )
+                        );
+                    }
+                    if (settings.hasValue(IndexMetadata.INDEX_ROUTING_PATH.getKey())) {
+                        List<String> routingPaths = settings.getAsList(IndexMetadata.INDEX_ROUTING_PATH.getKey());
+                        if (routingPaths.equals(sortFields) == false) {
+                            throw new IllegalStateException(
+                                String.format(
+                                    Locale.ROOT,
+                                    "data stream [%s] in logsdb mode and with [%s] index setting has mismatching sort "
+                                        + "and routing fields, [index.routing_path:%s], [index.sort.fields:%s]",
+                                    dataStreamName,
+                                    IndexSettings.LOGSDB_ROUTE_ON_SORT_FIELDS.getKey(),
+                                    routingPaths,
+                                    sortFields
+                                )
+                            );
+                        }
+                    } else {
+                        return Settings.builder().putList(INDEX_ROUTING_PATH.getKey(), sortFields).build();
+                    }
+                }
+            }
         return Settings.EMPTY;
+
     }
 
     boolean newIndexHasSyntheticSourceUsage(

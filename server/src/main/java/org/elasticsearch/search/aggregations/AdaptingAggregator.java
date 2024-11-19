@@ -10,6 +10,7 @@
 package org.elasticsearch.search.aggregations;
 
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.search.profile.aggregation.InternalAggregationProfileTree;
 
@@ -98,10 +99,10 @@ public abstract class AdaptingAggregator extends Aggregator {
     }
 
     @Override
-    public final InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public final InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         InternalAggregation[] delegateResults = delegate.buildAggregations(owningBucketOrds);
-        InternalAggregation[] result = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+        InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
             result[ordIdx] = adapt(delegateResults[ordIdx]);
         }
         return result;

@@ -1,0 +1,6 @@
+pr: 116972
+summary: "ESQL: Missing enrich policies on skip_unavailable=true clusters do not fail\
+  \ the query"
+area: ES|QL
+type: enhancement
+issues: []

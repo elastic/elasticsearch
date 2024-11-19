@@ -7,11 +7,9 @@
 package org.elasticsearch.xpack.esql.core.expression;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 

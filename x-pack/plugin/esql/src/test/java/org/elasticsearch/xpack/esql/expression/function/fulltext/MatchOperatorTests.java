@@ -33,6 +33,7 @@ public class MatchOperatorTests extends MatchTests {
         // Have a minimal test so that we can generate the docs
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         addPositiveTestCase(List.of(DataType.KEYWORD, DataType.KEYWORD), suppliers);
+        addPositiveTestCase(List.of(DataType.TEXT, DataType.TEXT), suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 }

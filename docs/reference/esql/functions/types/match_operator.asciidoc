@@ -6,4 +6,5 @@
 |===
 field | query | result
 keyword | keyword | boolean
+text | text | boolean
 |===

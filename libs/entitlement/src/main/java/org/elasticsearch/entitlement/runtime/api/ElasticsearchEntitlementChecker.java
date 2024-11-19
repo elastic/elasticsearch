@@ -36,14 +36,11 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
             .map(ModuleReference::descriptor)
             .collect(Collectors.toUnmodifiableSet());
 
-        var systemModules = ModuleLayer.boot()
+        return ModuleLayer.boot()
             .modules()
             .stream()
             .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
             .collect(Collectors.toUnmodifiableSet());
-
-        logger.info("System modules: " + systemModules);
-        return systemModules;
     }
 
     @Override
@@ -88,7 +85,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
+            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
             return true;
         }
         logger.trace("Not trivially allowed");

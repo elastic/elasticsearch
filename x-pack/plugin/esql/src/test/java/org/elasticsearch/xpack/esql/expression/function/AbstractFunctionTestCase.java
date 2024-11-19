@@ -879,8 +879,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -1085,8 +1084,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));

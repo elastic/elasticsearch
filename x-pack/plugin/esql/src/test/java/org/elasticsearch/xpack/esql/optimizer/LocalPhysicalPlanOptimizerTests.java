@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -60,6 +61,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
@@ -144,7 +146,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()))
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -330,7 +332,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }, directoryReader -> {
             IndexSearcher searcher = newSearcher(directoryReader);
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
-            plan.set(plannerOptimizer.plan(query, new SearchStats(List.of(ctx))));
+            plan.set(plannerOptimizer.plan(query, SearchContextStats.from(List.of(ctx))));
         });
 
         return plan.get();

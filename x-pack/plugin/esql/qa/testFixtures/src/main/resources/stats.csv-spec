@@ -2468,6 +2468,7 @@ count:long     |values:keyword        |job_positions:keyword
 ;
 
 prunedStatsFollowedByStats
+required_capability: per_agg_filtering
 from employees
 | eval my_length = length(concat(first_name, null))
 | stats count = count(my_length) where false,

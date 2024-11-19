@@ -14,6 +14,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.time.LocalDateTime;
+import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.time.temporal.ChronoField;
 import java.util.Calendar;
@@ -235,7 +236,7 @@ public class Cron implements ToXContentFragment {
 
     private final String expression;
 
-    private TimeZone timeZone;
+    private ZoneId timeZone;
 
     private transient TreeSet<Integer> seconds;
     private transient TreeSet<Integer> minutes;
@@ -255,7 +256,7 @@ public class Cron implements ToXContentFragment {
     // for the next ~60 years
     public static final int MAX_YEAR = Calendar.getInstance(UTC, Locale.ROOT).get(Calendar.YEAR) + 50;
 
-    public Cron(String expression, TimeZone timeZone) {
+    public Cron(String expression, ZoneId timeZone) {
         this.timeZone = timeZone;
         assert expression != null : "cron expression cannot be null";
         this.expression = expression.toUpperCase(Locale.ROOT);
@@ -277,7 +278,7 @@ public class Cron implements ToXContentFragment {
      *         <CODE>CronExpression</CODE>
      */
     public Cron(String expression) {
-        this(expression, UTC);
+        this(expression, UTC.toZoneId());
     }
 
     /**
@@ -290,7 +291,7 @@ public class Cron implements ToXContentFragment {
         this(cron.expression, cron.timeZone);
     }
 
-    public void setTimeZone(TimeZone timeZone) {
+    public void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
     }
 
@@ -305,7 +306,7 @@ public class Cron implements ToXContentFragment {
     @SuppressForbidden(reason = "In this case, the DST ambiguity of the atZone method is desired, understood and tested")
     public long getNextValidTimeAfter(final long time) {
 
-        LocalDateTime afterTimeLdt = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(time), timeZone.toZoneId()).plusSeconds(1);
+        LocalDateTime afterTimeLdt = LocalDateTime.ofInstant(java.time.Instant.ofEpochMilli(time), timeZone).plusSeconds(1);
         LocalDateTimeLegacyWrapper cl = new LocalDateTimeLegacyWrapper(afterTimeLdt.with(ChronoField.MILLI_OF_SECOND, 0));
 
         boolean gotOne = false;
@@ -407,7 +408,7 @@ public class Cron implements ToXContentFragment {
                         day = getLastDayOfMonth(mon, cl.getYear());
                         day -= lastdayOffset;
 
-                        LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone.toZoneId()));
+                        LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone));
                         tcal.setSecond(0);
                         tcal.setMinute(0);
                         tcal.setHour(0);
@@ -442,7 +443,7 @@ public class Cron implements ToXContentFragment {
                     t = day;
                     day = daysOfMonth.first();
 
-                    LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone.toZoneId()));
+                    LocalDateTimeLegacyWrapper tcal = new LocalDateTimeLegacyWrapper(LocalDateTime.now(timeZone));
                     tcal.setSecond(0);
                     tcal.setMinute(0);
                     tcal.setHour(0);
@@ -696,7 +697,7 @@ public class Cron implements ToXContentFragment {
 
         LocalDateTime nextRuntime = cl.getLocalDateTime();
 
-        return nextRuntime.atZone(timeZone.toZoneId()).toInstant().toEpochMilli();
+        return nextRuntime.atZone(timeZone).toInstant().toEpochMilli();
     }
 
     public String expression() {

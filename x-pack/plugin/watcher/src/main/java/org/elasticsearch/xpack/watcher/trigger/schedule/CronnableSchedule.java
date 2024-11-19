@@ -8,17 +8,17 @@ package org.elasticsearch.xpack.watcher.trigger.schedule;
 
 import org.elasticsearch.xpack.core.scheduler.Cron;
 
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.Objects;
-import java.util.TimeZone;
 
 public abstract class CronnableSchedule implements Schedule {
 
     private static final Comparator<Cron> CRON_COMPARATOR = Comparator.comparing(Cron::expression);
 
     protected final Cron[] crons;
-    private TimeZone timeZone;
+    private ZoneId timeZone;
 
     CronnableSchedule(String... expressions) {
         this(crons(expressions));
@@ -30,14 +30,14 @@ public abstract class CronnableSchedule implements Schedule {
         Arrays.sort(crons, CRON_COMPARATOR);
     }
 
-    protected void setTimeZone(TimeZone timeZone) {
+    protected void setTimeZone(ZoneId timeZone) {
         this.timeZone = timeZone;
         for (Cron cron : crons) {
             cron.setTimeZone(timeZone);
         }
     }
 
-    public TimeZone getTimeZone() {
+    public ZoneId getTimeZone() {
         return timeZone;
     }
 

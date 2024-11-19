@@ -112,26 +112,6 @@ public class LocalDateTimeLegacyWrapper {
         ldt = ldt.plusYears(years);
     }
 
-    public void plusMonths(long months) {
-        ldt = ldt.plusMonths(months);
-    }
-
-    public void plusWeeks(long weeks) {
-        ldt = ldt.plusWeeks(weeks);
-    }
-
-    public void plusDays(long days) {
-        ldt = ldt.plusDays(days);
-    }
-
-    public void plusHours(long hours) {
-        ldt = ldt.plusHours(hours);
-    }
-
-    public void plusMinutes(long minutes) {
-        ldt = ldt.plusMinutes(minutes);
-    }
-
     public void plusSeconds(long seconds) {
         ldt = ldt.plusSeconds(seconds);
     }

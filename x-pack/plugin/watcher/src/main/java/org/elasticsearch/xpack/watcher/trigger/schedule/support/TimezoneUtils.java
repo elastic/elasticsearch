@@ -11,7 +11,6 @@ import java.time.DateTimeException;
 import java.time.ZoneId;
 import java.util.Locale;
 import java.util.Map;
-import java.util.TimeZone;
 
 import static java.util.stream.Collectors.toMap;
 
@@ -20,32 +19,32 @@ import static java.util.stream.Collectors.toMap;
  */
 public class TimezoneUtils {
 
-    private static final Map<String, TimeZone> caseInsensitiveTZLookup;
+    private static final Map<String, ZoneId> caseInsensitiveTZLookup;
 
     static {
         caseInsensitiveTZLookup = ZoneId.getAvailableZoneIds()
             .stream()
-            .collect(toMap(zoneId -> zoneId.toLowerCase(Locale.ROOT), TimeZone::getTimeZone));
+            .collect(toMap(zoneId -> zoneId.toLowerCase(Locale.ROOT), ZoneId::of));
     }
 
     /**
-     * Parses a timezone string into a {@link TimeZone} object. The timezone string can be a valid timezone ID, or a
+     * Parses a timezone string into a {@link ZoneId} object. The timezone string can be a valid timezone ID, or a
      * timezone offset string and is case-insensitive.
      *
      * @param timezoneString The timezone string to parse
-     * @return The parsed {@link TimeZone} object
+     * @return The parsed {@link ZoneId} object
      * @throws DateTimeException If the timezone string is not a valid timezone ID or offset
      */
-    public static TimeZone parse(String timezoneString) throws DateTimeException {
+    public static ZoneId parse(String timezoneString) throws DateTimeException {
         try {
-            return TimeZone.getTimeZone(ZoneId.of(timezoneString));
+            return ZoneId.of(timezoneString);
         } catch (DateTimeException e) {
-            TimeZone timeZone = caseInsensitiveTZLookup.get(timezoneString.toLowerCase(Locale.ROOT));
+            ZoneId timeZone = caseInsensitiveTZLookup.get(timezoneString.toLowerCase(Locale.ROOT));
             if (timeZone != null) {
                 return timeZone;
             }
             try {
-                return TimeZone.getTimeZone(ZoneId.of(timezoneString.toUpperCase(Locale.ROOT)));
+                return ZoneId.of(timezoneString.toUpperCase(Locale.ROOT));
             } catch (DateTimeException ignored) {
                 // ignore
             }

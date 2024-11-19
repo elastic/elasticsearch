@@ -12,10 +12,10 @@ import org.elasticsearch.xpack.watcher.trigger.schedule.support.TimezoneUtils;
 
 import java.io.IOException;
 import java.time.DateTimeException;
+import java.time.ZoneId;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Set;
-import java.util.TimeZone;
 
 public class ScheduleRegistry {
     private final Map<String, Schedule.Parser<? extends Schedule>> parsers = new HashMap<>();
@@ -32,7 +32,7 @@ public class ScheduleRegistry {
         String type = null;
         XContentParser.Token token;
         Schedule schedule = null;
-        TimeZone timeZone = null; // Default to UTC
+        ZoneId timeZone = null; // Default to UTC
         while ((token = parser.nextToken()) != XContentParser.Token.END_OBJECT) {
             if (token == XContentParser.Token.FIELD_NAME) {
                 var fieldName = parser.currentName();
@@ -66,8 +66,8 @@ public class ScheduleRegistry {
         return schedule;
     }
 
-    private static TimeZone parseTimezone(XContentParser parser) throws IOException {
-        TimeZone timeZone;
+    private static ZoneId parseTimezone(XContentParser parser) throws IOException {
+        ZoneId timeZone;
         XContentParser.Token token = parser.nextToken();
         if (token == XContentParser.Token.VALUE_STRING) {
             String text = parser.text();

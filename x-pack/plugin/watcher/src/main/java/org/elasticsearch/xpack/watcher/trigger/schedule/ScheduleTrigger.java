@@ -52,7 +52,7 @@ public class ScheduleTrigger implements Trigger {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         if (schedule instanceof CronnableSchedule cronnableSchedule && cronnableSchedule.getTimeZone() != null) {
-            builder.field(TIMEZONE_FIELD, cronnableSchedule.getTimeZone().getID());
+            builder.field(TIMEZONE_FIELD, cronnableSchedule.getTimeZone().getId());
         }
 
         builder.field(schedule.type(), schedule, params);

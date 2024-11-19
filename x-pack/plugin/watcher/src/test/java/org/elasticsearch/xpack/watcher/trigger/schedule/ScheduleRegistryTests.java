@@ -12,9 +12,9 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.Before;
 
+import java.time.ZoneId;
 import java.util.HashSet;
 import java.util.Set;
-import java.util.TimeZone;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
@@ -51,12 +51,12 @@ public class ScheduleRegistryTests extends ScheduleTestCase {
 
     public void testParseCron() throws Exception {
         var cron = randomBoolean() ? Schedules.cron("* 0/5 * * * ?") : Schedules.cron("* 0/2 * * * ?", "* 0/3 * * * ?", "* 0/5 * * * ?");
-        TimeZone timeZone = null;
+        ZoneId timeZone = null;
         XContentBuilder builder = jsonBuilder().startObject().field(CronSchedule.TYPE, cron);
         if (randomBoolean()) {
-            timeZone = randomTimeZone();
+            timeZone = randomTimeZone().toZoneId();
             cron.setTimeZone(timeZone);
-            builder.field(ScheduleTrigger.TIMEZONE_FIELD, timeZone.getID());
+            builder.field(ScheduleTrigger.TIMEZONE_FIELD, timeZone.getId());
         }
         builder.endObject();
         BytesReference bytes = BytesReference.bytes(builder);

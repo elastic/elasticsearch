@@ -27,7 +27,7 @@ import static org.hamcrest.CoreMatchers.not;
 public class CronTimezoneTests extends ESTestCase {
 
     public void testForFixedOffsetCorrectlyCalculateNextRuntime() {
-        Cron cron = new Cron("0 0 2 * * ?", getTimeZone(ZoneOffset.of("+1")));
+        Cron cron = new Cron("0 0 2 * * ?", ZoneOffset.of("+1"));
         long midnightUTC = Instant.parse("2020-01-01T00:00:00Z").toEpochMilli();
         long nextValidTimeAfter = cron.getNextValidTimeAfter(midnightUTC);
         assertThat(Instant.ofEpochMilli(nextValidTimeAfter), equalTo(Instant.parse("2020-01-01T01:00:00Z")));
@@ -36,7 +36,7 @@ public class CronTimezoneTests extends ESTestCase {
     public void testForLondonFixedDSTTransitionCheckCorrectSchedule() {
         ZoneId londonZone = getTimeZone("Europe/London").toZoneId();
 
-        Cron cron = new Cron("0 0 2 * * ?", getTimeZone(londonZone));
+        Cron cron = new Cron("0 0 2 * * ?", londonZone);
         ZoneRules londonZoneRules = londonZone.getRules();
         Instant springMidnight = Instant.parse("2020-03-01T00:00:00Z");
         long timeBeforeDST = springMidnight.toEpochMilli();
@@ -68,7 +68,7 @@ public class CronTimezoneTests extends ESTestCase {
         long epochBefore = midnightBefore.toInstant().toEpochMilli();
         long epochAfter = midnightAfter.toInstant().toEpochMilli();
 
-        Cron cron = new Cron("0 0 2 * * ?", getTimeZone(timeZone));
+        Cron cron = new Cron("0 0 2 * * ?", timeZone);
 
         long nextScheduleBefore = cron.getNextValidTimeAfter(epochBefore);
         long nextScheduleAfter = cron.getNextValidTimeAfter(epochAfter);
@@ -118,7 +118,7 @@ public class CronTimezoneTests extends ESTestCase {
 
     public void testForGMTGapTransitionTriggerTimeIsAsIfTransitionHasntHappenedYet() {
         ZoneId london = ZoneId.of("Europe/London");
-        Cron cron = new Cron("0 30 1 * * ?", getTimeZone(london)); // Every day at 1:30
+        Cron cron = new Cron("0 30 1 * * ?", london); // Every day at 1:30
 
         Instant beforeTransition = Instant.parse("2025-03-30T00:00:00Z");
         long beforeTransitionEpoch = beforeTransition.toEpochMilli();
@@ -129,7 +129,7 @@ public class CronTimezoneTests extends ESTestCase {
 
     public void testForGMTOverlapTransitionTriggerSkipSecondExecution() {
         ZoneId london = ZoneId.of("Europe/London");
-        Cron cron = new Cron("0 30 1 * * ?", getTimeZone(london)); // Every day at 01:30
+        Cron cron = new Cron("0 30 1 * * ?", london); // Every day at 01:30
 
         Instant beforeTransition = Instant.parse("2024-10-27T00:00:00Z");
         long beforeTransitionEpoch = beforeTransition.toEpochMilli();
@@ -145,7 +145,7 @@ public class CronTimezoneTests extends ESTestCase {
     public void testDiscontinuityResolutionForNonHourCronInRandomTimezone() {
         var timezone = generateRandomDSTZone();
 
-        var cron = new Cron("0 * * * * ?", getTimeZone(timezone)); // Once per minute
+        var cron = new Cron("0 * * * * ?", timezone); // Once per minute
 
         Instant referenceTime = randomInstantBetween(Instant.now(), Instant.now().plus(1826, ChronoUnit.DAYS)); // ~5 years
         ZoneOffsetTransition transition1 = timezone.getRules().nextTransition(referenceTime);
@@ -203,14 +203,14 @@ public class CronTimezoneTests extends ESTestCase {
         if (transition.isGap()) {
             LocalDateTime targetTime = transition.getDateTimeBefore().plusMinutes(10);
 
-            var cron = new Cron("0 " + targetTime.getMinute() + " " + targetTime.getHour() + " * * ?", getTimeZone(timezone));
+            var cron = new Cron("0 " + targetTime.getMinute() + " " + targetTime.getHour() + " * * ?", timezone);
 
             long nextTrigger = cron.getNextValidTimeAfter(transition.getInstant().minus(10, ChronoUnit.MINUTES).toEpochMilli());
 
             assertThat(ofEpochMilli(nextTrigger), equalTo(transition.getInstant().plus(10, ChronoUnit.MINUTES)));
         } else {
             LocalDateTime targetTime = transition.getDateTimeAfter().plusMinutes(10);
-            var cron = new Cron("0 " + targetTime.getMinute() + " " + targetTime.getHour() + " * * ?", getTimeZone(timezone));
+            var cron = new Cron("0 " + targetTime.getMinute() + " " + targetTime.getHour() + " * * ?", timezone);
 
             long transitionLength = Math.abs(transition.getDuration().toSeconds());
             long firstTrigger = cron.getNextValidTimeAfter(

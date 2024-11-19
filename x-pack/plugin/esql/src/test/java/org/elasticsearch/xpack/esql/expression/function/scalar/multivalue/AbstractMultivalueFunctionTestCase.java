@@ -397,9 +397,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
-        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         cases.add(
             new TestCaseSupplier(
                 name + "(epoch nanos)",

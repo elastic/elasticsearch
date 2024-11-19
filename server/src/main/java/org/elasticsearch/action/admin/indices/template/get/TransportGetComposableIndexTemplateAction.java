@@ -19,11 +19,11 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,13 +31,13 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
 public class TransportGetComposableIndexTemplateAction extends TransportMasterNodeReadAction<
     GetComposableIndexTemplateAction.Request,
     GetComposableIndexTemplateAction.Response> {
 
     private final ClusterSettings clusterSettings;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public TransportGetComposableIndexTemplateAction(
@@ -45,7 +45,8 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetComposableIndexTemplateAction.NAME,
@@ -59,6 +60,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         clusterSettings = clusterService.getClusterSettings();
+        this.projectResolver = projectResolver;
     }
 
     @Override
@@ -73,13 +75,7 @@ public class TransportGetComposableIndexTemplateAction extends TransportMasterNo
         ClusterState state,
         ActionListener<GetComposableIndexTemplateAction.Response> listener
     ) {
-        @FixForMultiProject // this will fail if there's multiple templates with the same name
-        Map<String, ComposableIndexTemplate> allTemplates = state.metadata()
-            .projects()
-            .values()
-            .stream()
-            .flatMap(p -> p.templatesV2().entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, ComposableIndexTemplate> allTemplates = projectResolver.getProjectMetadata(state).templatesV2();
         Map<String, ComposableIndexTemplate> results;
         // If we did not ask for a specific name, then we return all templates
         if (request.name() == null) {

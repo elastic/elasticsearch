@@ -44,7 +44,7 @@ public class NettyAllocatorTests extends ESTestCase {
         assertArrayEquals(emptyArr, arr);
     }
 
-    public void testNioBufsThrashingByteBuf() {
+    public void testNioBufsTrashingByteBuf() {
         var arrCnt = between(1, 16);
         var byteArrs = new byte[arrCnt][];
         var byteBufs = new ByteBuffer[arrCnt];
@@ -62,7 +62,7 @@ public class NettyAllocatorTests extends ESTestCase {
         }
     }
 
-    public void testNioBufOffsetThrashingByteBuf() {
+    public void testNioBufOffsetTrashingByteBuf() {
         var arr = randomByteArrayOfLength(1024);
         var off = 1;
         var len = arr.length - 2;
@@ -78,7 +78,7 @@ public class NettyAllocatorTests extends ESTestCase {
         }
     }
 
-    public void testThrashingByteBufAllocator() throws IOException {
+    public void testTrashingByteBufAllocator() throws IOException {
         var alloc = new TrashingByteBufAllocator(ByteBufAllocator.DEFAULT);
         var size = between(1024 * 1024, 10 * 1024 * 1024);
 

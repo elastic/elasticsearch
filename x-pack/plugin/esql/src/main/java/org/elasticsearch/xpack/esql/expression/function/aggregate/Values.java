@@ -70,7 +70,10 @@ public class Values extends AggregateFunction implements ToAggregator {
     )
     public Values(
         Source source,
-        @Param(name = "field", type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" }
+        ) Expression v
     ) {
         this(source, v, Literal.TRUE);
     }

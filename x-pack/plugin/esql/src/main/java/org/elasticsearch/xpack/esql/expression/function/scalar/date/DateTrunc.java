@@ -62,7 +62,7 @@ public class DateTrunc extends EsqlScalarFunction {
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
-        returnType = {"date", "date_nanos"},
+        returnType = { "date", "date_nanos" },
         description = "Rounds down a date to the closest interval.",
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),

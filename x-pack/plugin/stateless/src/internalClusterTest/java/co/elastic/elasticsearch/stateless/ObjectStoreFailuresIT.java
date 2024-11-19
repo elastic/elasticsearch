@@ -30,7 +30,6 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.plugins.Plugin;
-import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.snapshots.mockstore.MockRepository;
 
 import java.util.Collection;
@@ -61,7 +60,7 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         final String indexNodeA = startIndexNode();
         ensureStableCluster(2);
         final String indexName = SYSTEM_INDEX_NAME;
-        createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), true).build());
+        createSystemIndex(indexSettings(1, 0).put(IndexSettings.INDEX_FAST_REFRESH_SETTING.getKey(), randomBoolean()).build());
         startIndexNode();
         ensureStableCluster(3);
 
@@ -119,9 +118,8 @@ public class ObjectStoreFailuresIT extends AbstractStatelessIntegTestCase {
         logger.info("--> [{}] documents acknowledged, [{}] documents failed", docsAcknowledged, docsFailed);
         ensureGreen();
 
-        refresh(indexName); // so that any translog ops become visible for searching
-        final long totalHits = SearchResponseUtils.getTotalHitsValue(prepareSearch(indexName));
-        assertThat(totalHits, greaterThanOrEqualTo((long) docsAcknowledged.get()));
+        refresh(indexName); // so that we can count docs
+        assertThat(findIndexShard(resolveIndex(indexName), 0).docStats().getCount(), greaterThanOrEqualTo((long) docsAcknowledged.get()));
     }
 
     public void testRecoverSearchShardWithObjectStoreFailures() throws Exception {

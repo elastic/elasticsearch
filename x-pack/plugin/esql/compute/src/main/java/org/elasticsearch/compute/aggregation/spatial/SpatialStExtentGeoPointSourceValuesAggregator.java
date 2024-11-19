@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
@@ -41,14 +42,14 @@ class SpatialStExtentGeoPointSourceValuesAggregator extends StExtentAggregator {
     }
 
     public static void combine(StExtentState current, BytesRef wkb) {
-        throw new AssertionError("TODO(gal)");
+        current.add(decode(wkb));
     }
 
     public static void combine(GroupingStExtentState current, int groupId, BytesRef wkb) {
-        throw new AssertionError("TODO(gal)");
+        current.add(groupId, decode(wkb));
     }
 
-    private static Point decode(BytesRef wkb) {
-        return (Point) WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, wkb.bytes, wkb.offset, wkb.length);
+    private static Geometry decode(BytesRef wkb) {
+        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false /* coerce */, wkb.bytes, wkb.offset, wkb.length);
     }
 }

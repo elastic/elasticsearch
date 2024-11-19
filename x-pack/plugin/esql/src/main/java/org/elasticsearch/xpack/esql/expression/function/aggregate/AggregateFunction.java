@@ -46,7 +46,6 @@ public abstract class AggregateFunction extends Function {
             Sum.ENTRY,
             Top.ENTRY,
             Values.ENTRY,
-            SpatialStExtent.ENTRY,
             // internal functions
             ToPartial.ENTRY,
             FromPartial.ENTRY,

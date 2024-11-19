@@ -204,7 +204,7 @@ final class AggregateMapper {
             return new AggDef(
                 aggregateFunction.getClass(),
                 dataTypeToString(aggregateFunction.field().dataType(), aggregateFunction.getClass()),
-                aggregate instanceof SpatialCentroid ? "SourceValues" : "",
+                aggregate instanceof SpatialAggregateFunction ? "SourceValues" : "",
                 grouping
             );
         }

@@ -9,6 +9,11 @@ package org.elasticsearch.xpack.esql.expression.function.aggregate;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -27,7 +32,7 @@ import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpat
 /**
  * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
  */
-public class SpatialStExtent extends SpatialAggregateFunction implements ToAggregator {
+public final class SpatialStExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "SpatialStExtent",
@@ -92,25 +97,24 @@ public class SpatialStExtent extends SpatialAggregateFunction implements ToAggre
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        throw new AssertionError("TODO(gal)");
-//        DataType type = field().dataType();
-//        if (useDocValues) {
-//            // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-//            if (type == DataType.GEO_POINT) {
-//                return new SpatialCentroidGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-//            }
-//            if (type == DataType.CARTESIAN_POINT) {
-//                return new SpatialCentroidCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-//            }
-//        } else {
-//            // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
-//            if (type == DataType.GEO_POINT) {
-//                return new SpatialCentroidGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-//            }
-//            if (type == DataType.CARTESIAN_POINT) {
-//                return new SpatialCentroidCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-//            }
-//        }
-//        throw EsqlIllegalArgumentException.illegalDataType(type);
+        DataType type = field().dataType();
+        if (useDocValues) {
+            // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
+            if (type == DataType.GEO_POINT) {
+                return new SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
+            }
+            if (type == DataType.CARTESIAN_POINT) {
+                return new SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
+            }
+        } else {
+            // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
+            if (type == DataType.GEO_POINT) {
+                return new SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            }
+            if (type == DataType.CARTESIAN_POINT) {
+                return new SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            }
+        }
+        throw EsqlIllegalArgumentException.illegalDataType(type);
     }
 }

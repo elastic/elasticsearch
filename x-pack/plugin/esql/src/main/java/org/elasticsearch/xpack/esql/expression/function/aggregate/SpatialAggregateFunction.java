@@ -22,6 +22,7 @@ import static java.util.Collections.emptyList;
  * select the best one.
  */
 public abstract class SpatialAggregateFunction extends AggregateFunction {
+    // FIXME(gal) use a proper enum
     protected final boolean useDocValues;
 
     protected SpatialAggregateFunction(Source source, Expression field, Expression filter, boolean useDocValues) {

@@ -14,9 +14,9 @@ dependencies {
   compileOnly project(xpackModule('ml'))
   annotationProcessor project('gen')
   implementation 'com.carrotsearch:hppc:0.8.1'
+  implementation project(xpackModule('esql-core'))
 
   testImplementation project(':test:framework')
-  testImplementation(project(xpackModule('esql-core')))
   testImplementation(project(xpackModule('core')))
   testImplementation(project(xpackModule('ml')))
 }

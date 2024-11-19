@@ -114,10 +114,20 @@ POINT(42.97109629958868 14.7552534006536)  | 42.97109629958868 | 14.755253400653
 stExtentSinglePoint
 required_capability: st_extent
 ROW point = TO_GEOPOINT("POINT(42.97109629958868 14.7552534006536)")
-| STATS extent = st_extent(point);
+| STATS extent = st_extent(point)
+;
 
-c:geo_point                                 | x:double          | y:double
-POINT(39.58327988510707 20.619513023697994) | 39.58327988510707 | 20.619513023697994
+extent:geo_point
+BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
+;
+
+stExtentMultiplePoint
+required_capability: st_extent
+FROM airports | WHERE country == "India" | STATS extent = st_extent(location)
+;
+
+extent:geo_point
+BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
 ;
 
 

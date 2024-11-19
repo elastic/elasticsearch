@@ -12,6 +12,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.geometry.Point;
 
 /**
  * This aggregator calculates the centroid of a set of geo points. It is assumes that the geo points are encoded as longs.
@@ -35,10 +36,18 @@ class SpatialStExtentGeoPointDocValuesAggregator extends StExtentAggregator {
     }
 
     public static void combine(StExtentState current, long v) {
-        throw new AssertionError("TODO(gal)");
+        current.add(new Point(decodeX(v), decodeY(v)));
     }
 
     public static void combine(GroupingStExtentState current, int groupId, long encoded) {
         throw new AssertionError("TODO(gal)");
+    }
+
+    private static double decodeX(long encoded) {
+        return GeoEncodingUtils.decodeLongitude((int) (encoded & 0xFFFFFFFFL));
+    }
+
+    private static double decodeY(long encoded) {
+        return GeoEncodingUtils.decodeLatitude((int) (encoded >>> 32));
     }
 }

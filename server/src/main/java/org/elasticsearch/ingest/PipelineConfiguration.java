@@ -136,12 +136,11 @@ public final class PipelineConfiguration implements SimpleDiffable<PipelineConfi
                 copy.add(innerDeepCopy(itemValue, unmodifiable));
             }
             return unmodifiable ? Collections.unmodifiableList(copy) : copy;
-        } else if (value == null || value instanceof String || value instanceof Number || value instanceof Boolean) {
-            return value;
         } else {
-            // if the previous list of expected value types ends up not being exhaustive, then we want to learn about that
+            // if this list of expected value types ends up not being exhaustive, then we want to learn about that
             // at development time, but it's probably better to err on the side of passing through the value at runtime
-            assert false : "unexpected value type [" + value.getClass() + "]";
+            assert (value == null || value instanceof String || value instanceof Number || value instanceof Boolean)
+                : "unexpected value type [" + value.getClass() + "]";
             return value;
         }
     }

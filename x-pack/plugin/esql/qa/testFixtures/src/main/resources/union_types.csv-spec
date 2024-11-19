@@ -735,6 +735,7 @@ Multi Index millis to nanos stats
 required_capability: union_types
 required_capability: union_types_remove_fields
 required_capability: to_date_nanos
+required_capability: date_trunc_date_nanos
 
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))

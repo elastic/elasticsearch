@@ -327,6 +327,438 @@ Which would return the following response collapsed results
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
 
+
+[discrete]
+[[retrievers-examples-highlighting-retriever-results]]
+==== Example: Highlighting results based on nested sub-retrievers
+
+Highlighting is now also available for nested sub-retrievers matches. For example, consider the same
+`rrf` retriever as above, with a `knn` and `standard` retriever as its sub-retrievers. We can specify a `highlight`
+section, as defined in <<highlighting,highlighting>> documentation, and compute highlights for the top results.
+
+[source,console]
+----
+GET /retrievers_example/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "query_string": {
+                                "query": "(information retrieval) OR (artificial intelligence)",
+                                "default_field": "text"
+                            }
+                        }
+                    }
+                },
+                {
+                    "knn": {
+                        "field": "vector",
+                        "query_vector": [
+                            0.23,
+                            0.67,
+                            0.89
+                        ],
+                        "k": 3,
+                        "num_candidates": 5
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "highlight": {
+        "fields": {
+            "text": {
+                "fragment_size": 150,
+                "number_of_fragments": 3
+            }
+        }
+    },
+    "_source": false
+}
+----
+// TEST[continued]
+
+This would highlight the `text` field, base on the matches produced by the `standard` retriever. The highlighted snippets
+would then be included in the response as usual, i.e. under each search hit.
+
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 0.8333334,
+        "hits": [
+            {
+                "_index": "retrievers_example",
+                "_id": "1",
+                "_score": 0.8333334,
+                "highlight": {
+                    "text": [
+                        "Large language models are revolutionizing <em>information</em> <em>retrieval</em> by boosting search precision, deepening contextual understanding, and reshaping user experiences"
+                    ]
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "2",
+                "_score": 0.8333334,
+                "highlight": {
+                    "text": [
+                        "<em>Artificial</em> <em>intelligence</em> is transforming medicine, from advancing diagnostics and tailoring treatment plans to empowering predictive patient care for improved"
+                    ]
+                }
+            },
+            {
+                "_index": "retrievers_example",
+                "_id": "3",
+                "_score": 0.25
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+
+
+[discrete]
+[[retrievers-examples-inner-hits-retriever-results]]
+==== Example: Computing inner hits from nested sub-retrievers
+
+We can also define `inner_hits` to be computed on any of the sub-retrievers, and propagate those computations to the top
+level compound retriever. For example, let's create a new index with a `knn` field, nested under the `nested_field` field,
+and index  a couple of documents.
+
+
+[source,console]
+----
+PUT retrievers_example_nested
+{
+    "mappings": {
+        "properties": {
+            "nested_field": {
+                "type": "nested",
+                "properties": {
+                    "paragraph_id": {
+                        "type": "keyword"
+                    },
+                    "nested_vector": {
+                        "type": "dense_vector",
+                        "dims": 3,
+                        "similarity": "l2_norm",
+                        "index": true
+                    }
+                }
+            },
+            "topic": {
+                "type": "keyword"
+            }
+        }
+    }
+}
+
+POST /retrievers_example_nested/_doc/1
+{
+    "nested_field": [
+        {
+            "paragraph_id": "1a",
+            "nested_vector": [
+                -1.12,
+                -0.59,
+                0.78
+            ]
+        },
+        {
+            "paragraph_id": "1b",
+            "nested_vector": [
+                -0.12,
+                1.56,
+                0.42
+            ]
+        },
+        {
+            "paragraph_id": "1c",
+            "nested_vector": [
+                1,
+                -1,
+                0
+            ]
+        }
+    ],
+    "topic": [
+        "ai"
+    ]
+}
+
+POST /retrievers_example_nested/_doc/2
+{
+    "nested_field": [
+        {
+            "paragraph_id": "2a",
+            "nested_vector": [
+                0.23,
+                1.24,
+                0.65
+            ]
+        }
+    ],
+    "topic": [
+        "information_retrieval"
+    ]
+}
+
+POST /retrievers_example_nested/_doc/3
+{
+    "topic": [
+        "ai"
+    ]
+}
+
+POST /retrievers_example_nested/_refresh
+----
+// TEST[continued]
+
+[source,console]
+----
+GET /retrievers_example_nested/_search
+{
+    "retriever": {
+        "rrf": {
+            "retrievers": [
+                {
+                    "standard": {
+                        "query": {
+                            "nested": {
+                                "path": "nested_field",
+                                "inner_hits": {
+                                    "name": "nested_vector",
+                                    "_source": false,
+                                    "fields": [
+                                        "nested_field.paragraph_id"
+                                    ]
+                                },
+                                "query": {
+                                    "knn": {
+                                        "field": "nested_field.nested_vector",
+                                        "query_vector": [
+                                            1,
+                                            0,
+                                            0.5
+                                        ],
+                                        "k": 10
+                                    }
+                                }
+                            }
+                        }
+                    }
+                },
+                {
+                    "standard": {
+                        "query": {
+                            "term": {
+                                "topic": "ai"
+                            }
+                        }
+                    }
+                }
+            ],
+            "rank_window_size": 10,
+            "rank_constant": 1
+        }
+    },
+    "_source": [
+        "topic"
+    ]
+}
+----
+// TEST[continued]
+
+This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
+The response would look like the following:
+
+Note:: if using more than one `inner_hits` we currently need to provide custom names for each `inner_hits` so that they
+are unique across all retrievers within the request.
+
+[source,console-result]
+----
+{
+    "took": 42,
+    "timed_out": false,
+    "_shards": {
+        "total": 1,
+        "successful": 1,
+        "skipped": 0,
+        "failed": 0
+    },
+    "hits": {
+        "total": {
+            "value": 3,
+            "relation": "eq"
+        },
+        "max_score": 1.0,
+        "hits": [
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "1",
+                "_score": 1.0,
+                "_source": {
+                    "topic": [
+                        "ai"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 3,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.44353113,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 2
+                                    },
+                                    "_score": 0.44353113,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1c"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 1
+                                    },
+                                    "_score": 0.26567122,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1b"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                },
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "1",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 0
+                                    },
+                                    "_score": 0.18478848,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "1a"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "2",
+                "_score": 0.33333334,
+                "_source": {
+                    "topic": [
+                        "information_retrieval"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 1,
+                                "relation": "eq"
+                            },
+                            "max_score": 0.32002488,
+                            "hits": [
+                                {
+                                    "_index": "retrievers_example_nested",
+                                    "_id": "2",
+                                    "_nested": {
+                                        "field": "nested_field",
+                                        "offset": 0
+                                    },
+                                    "_score": 0.32002488,
+                                    "fields": {
+                                        "nested_field": [
+                                            {
+                                                "paragraph_id": [
+                                                    "2a"
+                                                ]
+                                            }
+                                        ]
+                                    }
+                                }
+                            ]
+                        }
+                    }
+                }
+            },
+            {
+                "_index": "retrievers_example_nested",
+                "_id": "3",
+                "_score": 0.33333334,
+                "_source": {
+                    "topic": [
+                        "ai"
+                    ]
+                },
+                "inner_hits": {
+                    "nested_vector": {
+                        "hits": {
+                            "total": {
+                                "value": 0,
+                                "relation": "eq"
+                            },
+                            "max_score": null,
+                            "hits": []
+                        }
+                    }
+                }
+            }
+        ]
+    }
+}
+----
+// TESTRESPONSE[s/"took": 42/"took": $body.took/]
+
+
 [discrete]
 [[retrievers-examples-rrf-and-aggregations]]
 ==== Example: Combine RRF with aggregations

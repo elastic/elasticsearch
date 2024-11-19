@@ -263,6 +263,9 @@ tests:
 - class: org.elasticsearch.upgrades.FullClusterRestartIT
   method: testSearchTimeSeriesMode {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/117090
+- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
+  method: testNewReplicasTimeSeriesMode {cluster=OLD}
+  issue: https://github.com/elastic/elasticsearch/issues/117091
 
 # Examples:
 #

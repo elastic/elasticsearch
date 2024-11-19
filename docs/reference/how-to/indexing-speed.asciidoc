@@ -112,7 +112,7 @@ different nodes so there's redundancy for any node failures. You can also use
 insurance.
 
 [discrete]
-==== Local vs.remote storage
+==== Local vs. remote storage
 
 include::./remote-storage.asciidoc[]
 

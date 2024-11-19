@@ -94,13 +94,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             lowWaterMarkSplits = in.readVLong();
-        } else {
-            lowWaterMarkSplits = -1L;
-        }
-
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             highWaterMarkSplits = in.readVLong();
         } else {
+            lowWaterMarkSplits = -1L;
             highWaterMarkSplits = -1L;
         }
     }
@@ -186,9 +182,6 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             out.writeVLong(lowWaterMarkSplits);
-        }
-
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
             out.writeVLong(highWaterMarkSplits);
         }
     }

@@ -74,7 +74,7 @@ public class DocumentMapper {
     boolean isSyntheticSourceMalformed(CompressedXContent source, IndexVersion version) {
         return sourceMapper().isSynthetic()
             && source.string().contains("\"_source\":{\"mode\":\"synthetic\"}") == false
-            && version.onOrBefore(IndexVersions.V_8_10_0);
+            && version.onOrBefore(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER);
     }
 
     public Mapping mapping() {

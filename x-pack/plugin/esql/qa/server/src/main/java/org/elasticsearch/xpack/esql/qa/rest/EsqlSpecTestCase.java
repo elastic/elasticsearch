@@ -178,8 +178,6 @@ public abstract class EsqlSpecTestCase extends ESRestTestCase {
         }
         checkCapabilities(adminClient(), testFeatureService, testName, testCase);
         assumeTrue("Test " + testName + " is not enabled", isEnabled(testName, instructions, Version.CURRENT));
-
-        assumeFalse("Ignoring categorize tests for now due to jar hell", testCase.requiredCapabilities.contains("categorize"));
     }
 
     protected static void checkCapabilities(RestClient client, TestFeatureService testFeatureService, String testName, CsvTestCase testCase)

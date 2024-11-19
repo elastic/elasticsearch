@@ -28,7 +28,6 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
-  compileOnly project(path: xpackModule('inference'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:dissect')

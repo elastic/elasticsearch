@@ -16,12 +16,12 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
+import org.elasticsearch.xpack.core.ml.inference.utils.SemanticTextInferenceUtils;
 import org.elasticsearch.xpack.esql.analysis.InferenceContext;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
-import org.elasticsearch.xpack.inference.queries.SemanticQueryBuilder;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -118,7 +118,7 @@ public class InferenceUtils {
                 InferenceAction.INSTANCE,
                 inferenceRequest,
                 actionListener.delegateFailureAndWrap((next, inferenceResponse) -> {
-                    InferenceResults inferenceResults = SemanticQueryBuilder.validateAndConvertInferenceResults(
+                    InferenceResults inferenceResults = SemanticTextInferenceUtils.validateAndConvertInferenceResults(
                         inferenceResponse.getResults(),
                         semanticQuery.v1()
                     );

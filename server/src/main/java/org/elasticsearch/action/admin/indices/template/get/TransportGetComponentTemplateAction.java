@@ -12,18 +12,19 @@ package org.elasticsearch.action.admin.indices.template.get;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,9 +32,8 @@ import org.elasticsearch.transport.TransportService;
 
 import java.util.HashMap;
 import java.util.Map;
-import java.util.stream.Collectors;
 
-public class TransportGetComponentTemplateAction extends TransportMasterNodeReadAction<
+public class TransportGetComponentTemplateAction extends TransportMasterNodeReadProjectAction<
     GetComponentTemplateAction.Request,
     GetComponentTemplateAction.Response> {
 
@@ -45,7 +45,8 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ProjectResolver projectResolver
     ) {
         super(
             GetComponentTemplateAction.NAME,
@@ -54,6 +55,7 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
             threadPool,
             actionFilters,
             GetComponentTemplateAction.Request::new,
+            projectResolver,
             indexNameExpressionResolver,
             GetComponentTemplateAction.Response::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -70,16 +72,10 @@ public class TransportGetComponentTemplateAction extends TransportMasterNodeRead
     protected void masterOperation(
         Task task,
         GetComponentTemplateAction.Request request,
-        ClusterState state,
+        ProjectState projectState,
         ActionListener<GetComponentTemplateAction.Response> listener
     ) {
-        @FixForMultiProject // this will fail if there's multiple templates with the same name
-        Map<String, ComponentTemplate> allTemplates = state.metadata()
-            .projects()
-            .values()
-            .stream()
-            .flatMap(p -> p.componentTemplates().entrySet().stream())
-            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        Map<String, ComponentTemplate> allTemplates = projectState.metadata().componentTemplates();
         Map<String, ComponentTemplate> results;
 
         // If we did not ask for a specific name, then we return all templates

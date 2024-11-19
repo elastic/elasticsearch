@@ -71,7 +71,6 @@ tasks.named("yamlRestTest").configure {
     'indices.get/*/*',
     'indices.get_alias/10_basic/Get alias against closed indices',
     'indices.get_field_mapping/*/*',
-    'indices.get_index_template/*/*',
     'indices.get_mapping/40_aliases/Getting mapping for aliases should return the real index as key', // aliases do not work
     'indices.get_mapping/50_wildcard_expansion/*', // index close does not work
     'indices.get_settings/20_aliases/Getting settings for aliases should return the real index as key', // aliases do not work

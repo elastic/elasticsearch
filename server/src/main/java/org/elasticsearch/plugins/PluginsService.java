@@ -122,7 +122,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param pluginsDirectory The directory plugins exist in, or null if plugins should not be loaded from the filesystem
      */
     @SuppressWarnings("this-escape")
-    // TODO: pass in descriptors since we already have them
     public PluginsService(Settings settings, Path configPath, Path modulesDirectory, Path pluginsDirectory) {
         this.settings = settings;
         this.configPath = configPath;
@@ -591,7 +590,6 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     }
 
     // package-visible for testing
-    // TODO: can get module name for non-modular plugins
     static String toModuleName(String name) {
         String result = name.replaceAll("\\W+", ".") // replace non-alphanumeric character strings with dots
             .replaceAll("(^[^A-Za-z_]*)", "") // trim non-alpha or underscore characters from start

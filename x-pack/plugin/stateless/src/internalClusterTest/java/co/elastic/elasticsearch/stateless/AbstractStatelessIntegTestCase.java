@@ -84,6 +84,7 @@ import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -169,7 +170,13 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
 
     @Override
     protected Collection<Class<? extends Plugin>> nodePlugins() {
-        return List.of(SystemIndexTestPlugin.class, BlobCachePlugin.class, Stateless.class, MockTransportService.TestPlugin.class);
+        return List.of(
+            SystemIndexTestPlugin.class,
+            BlobCachePlugin.class,
+            Stateless.class,
+            MockTransportService.TestPlugin.class,
+            LogsDBPlugin.class
+        );
     }
 
     public static class NoopSharedBlobCacheWarmingService extends SharedBlobCacheWarmingService {

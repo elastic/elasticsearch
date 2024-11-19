@@ -174,7 +174,9 @@ public class EnrichPolicyResolver {
 
     private Map<String, Boolean> copyAndAddLocalCluster(Map<String, Boolean> remoteClusters) {
         Map<String, Boolean> newMap = new HashMap<>(remoteClusters);
-        newMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, null);
+        // technically the local cluster has no skip_unavailable setting, but for enrich policy resolution
+        // purposes we treat errors on the local cluster as fatal, so set it as false to simplify downstream code
+        newMap.put(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Boolean.FALSE);
         return newMap;
     }
 
@@ -198,8 +200,7 @@ public class EnrichPolicyResolver {
         final Map<String, Exception> remotesToBeSkipped = new HashMap<>(); // skip_unavailable=true remotes enrich policy failures
         for (Map.Entry<String, Boolean> clusterInfo : targetClusters.entrySet()) {
             String cluster = clusterInfo.getKey();
-            // MP TODO: HMM: do we really need local cluster mapped to null then? Or can we just use "false"?
-            boolean skipUnavailable = clusterInfo.getValue() == null ? false : clusterInfo.getValue();
+            boolean skipUnavailable = clusterInfo.getValue();
             LookupResponse lookupResult = lookupResults.get(cluster);
             if (lookupResult != null) {
                 assert lookupResult.connectionError == null : "Should never have a non-null connectionError here";

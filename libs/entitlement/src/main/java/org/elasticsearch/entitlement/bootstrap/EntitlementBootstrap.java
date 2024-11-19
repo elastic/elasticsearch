@@ -24,22 +24,27 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 public class EntitlementBootstrap {
 
     public static Map<Path, Boolean> pluginData;
+    public static Function<Class<?>, String> pluginResolver;
 
     /**
      * Activates entitlement checking. Once this method returns, calls to forbidden methods
      * will throw {@link org.elasticsearch.entitlement.runtime.api.NotEntitledException}.
+     * @param pluginData a map plugin path -> boolean, that holds the paths of all the installed Elasticsearch modules and plugins, and
+     *                   whether they are Java modular or not.
+     * @param pluginResolver a functor to map a Java Class to the plugin it belongs to (the plugin name).
      */
-    public static void bootstrap(Map<Path, Boolean> pluginData) {
+    public static void bootstrap(Map<Path, Boolean> pluginData, Function<Class<?>, String> pluginResolver) {
         logger.debug("Loading entitlement agent");
-        if (EntitlementBootstrap.pluginData != null) {
+        if (EntitlementBootstrap.pluginData != null || EntitlementBootstrap.pluginResolver != null) {
             throw new IllegalStateException("plugin data is already set");
         }
         EntitlementBootstrap.pluginData = Objects.requireNonNull(pluginData);
-        if (true) throw new IllegalStateException(pluginData.toString());
+        EntitlementBootstrap.pluginResolver = Objects.requireNonNull(pluginResolver);
         exportInitializationToAgent();
         loadAgent(findAgentJar());
     }

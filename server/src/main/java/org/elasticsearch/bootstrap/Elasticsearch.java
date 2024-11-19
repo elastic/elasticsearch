@@ -217,7 +217,7 @@ class Elasticsearch {
                 pluginData.put(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular());
             }
             // TODO: add a functor to map module to plugin name
-            EntitlementBootstrap.bootstrap(pluginData);
+            EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
         } else {
             // install SM after natives, shutdown hooks, etc.
             logger.info("Bootstrapping java SecurityManager");

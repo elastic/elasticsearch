@@ -8,6 +8,6 @@ In order to diagnose the unassigned shards in your deployment use the following 
 
 include::{es-ref-dir}/tab-widgets/troubleshooting/data/diagnose-unassigned-shards-widget.asciidoc[]
 
-See this https://www.youtube.com/watch?v=v2mbeSd1vTQ[monitoring Allocation health video]
-for an example troubleshooting walkthrough.
+See https://www.youtube.com/watch?v=v2mbeSd1vTQ[this video]
+for a walkthrough of monitoring allocation health.
 

@@ -264,7 +264,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
                             continue;
                         }
                         if (spare == null) {
-                            checkRealMemoryForInternalBucket();
+                            checkRealMemoryCBForInternalBucket();
                             spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
                             spareKey = new BytesRef();
                         }

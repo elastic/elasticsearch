@@ -197,7 +197,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                         BytesRef ipAddress = new BytesRef();
                         ordsEnum.readValue(ipAddress);
                         long docCount = bucketDocCount(ordinal);
-                        checkRealMemoryForInternalBucket();
+                        checkRealMemoryCBForInternalBucket();
                         buckets.add(
                             new InternalIpPrefix.Bucket(
                                 config.format(),

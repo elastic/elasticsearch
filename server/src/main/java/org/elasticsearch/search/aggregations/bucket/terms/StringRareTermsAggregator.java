@@ -145,7 +145,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
                             long docCount = bucketDocCount(collectedBuckets.ord());
                             // if the key is below threshold, reinsert into the new ords
                             if (docCount <= maxDocCount) {
-                                checkRealMemoryForInternalBucket();
+                                checkRealMemoryCBForInternalBucket();
                                 StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(
                                     BytesRef.deepCopyOf(scratch),
                                     docCount,

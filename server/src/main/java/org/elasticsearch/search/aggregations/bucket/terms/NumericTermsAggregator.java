@@ -185,7 +185,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                                 continue;
                             }
                             if (spare == null) {
-                                checkRealMemoryForInternalBucket();
+                                checkRealMemoryCBForInternalBucket();
                                 spare = emptyBucketBuilder.get();
                             }
                             updateBucket(spare, ordsEnum, docCount);

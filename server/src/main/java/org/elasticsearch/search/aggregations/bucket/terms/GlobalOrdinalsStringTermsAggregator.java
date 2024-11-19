@@ -730,7 +730,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                                 otherDocCount.increment(finalOrdIdx, docCount);
                                 if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
                                     if (spare == null) {
-                                        checkRealMemoryForInternalBucket();
+                                        checkRealMemoryCBForInternalBucket();
                                         spare = buildEmptyTemporaryBucket();
                                     }
                                     updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
@@ -742,7 +742,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
                         // Get the top buckets
                         topBucketsPreOrd.set(ordIdx, buildBuckets((int) ordered.size()));
                         for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                            checkRealMemoryForInternalBucket();
+                            checkRealMemoryCBForInternalBucket();
                             B bucket = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
                             topBucketsPreOrd.get(ordIdx)[i] = bucket;
                             otherDocCount.increment(ordIdx, -bucket.getDocCount());

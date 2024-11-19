@@ -142,7 +142,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
                             long docCount = bucketDocCount(collectedBuckets.ord());
                             // if the key is below threshold, reinsert into the new ords
                             if (docCount <= maxDocCount) {
-                                checkRealMemoryForInternalBucket();
+                                checkRealMemoryCBForInternalBucket();
                                 LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(collectedBuckets.value(), docCount, null, format);
                                 bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(collectedBuckets.value());
                                 mergeMap.set(collectedBuckets.ord(), bucket.bucketOrd);

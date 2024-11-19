@@ -304,7 +304,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                                 continue;
                             }
                             if (spare == null) {
-                                checkRealMemoryForInternalBucket();
+                                checkRealMemoryCBForInternalBucket();
                                 spare = emptyBucketBuilder.get();
                             }
                             updateBucket(spare, ordsEnum, docCount);

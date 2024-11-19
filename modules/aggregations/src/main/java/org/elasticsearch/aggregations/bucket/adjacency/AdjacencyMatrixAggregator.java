@@ -206,7 +206,7 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     // a date-histogram where we will look for transactions over time and can expect many
                     // empty buckets.
                     if (docCount > 0) {
-                        checkRealMemoryForInternalBucket();
+                        checkRealMemoryCBForInternalBucket();
                         InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                             keys[i],
                             docCount,

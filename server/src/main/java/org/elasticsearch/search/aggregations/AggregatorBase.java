@@ -339,7 +339,7 @@ public abstract class AggregatorBase extends Aggregator {
         throws IOException {
         final InternalAggregation[] results = new InternalAggregation[size];
         for (int i = 0; i < results.length; i++) {
-            updateCircuitBreaker("InternalAggregation");
+            checkRealMemoryCB("InternalAggregation");
             results[i] = aggFunction.apply(i);
         }
         return results;
@@ -350,7 +350,7 @@ public abstract class AggregatorBase extends Aggregator {
      * memory in the parent breaker (Which should be a real memory breaker) and break the execution if we are running out.
      * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
      */
-    protected final void updateCircuitBreaker(String label) {
+    protected final void checkRealMemoryCB(String label) {
         if ((++callCount & 0x3FF) == 0) {
             breaker.addEstimateBytesAndMaybeBreak(0, label);
         }

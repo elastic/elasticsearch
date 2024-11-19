@@ -144,7 +144,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
                     while (ordsEnum.next()) {
                         if (spare == null) {
-                            checkRealMemoryForInternalBucket();
+                            checkRealMemoryCBForInternalBucket();
                             spare = newEmptyBucket();
                         }
 

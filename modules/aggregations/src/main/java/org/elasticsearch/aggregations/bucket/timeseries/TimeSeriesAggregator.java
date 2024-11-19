@@ -79,7 +79,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 while (ordsEnum.next()) {
                     long docCount = bucketDocCount(ordsEnum.ord());
                     ordsEnum.readValue(spare);
-                    checkRealMemoryForInternalBucket();
+                    checkRealMemoryCBForInternalBucket();
                     InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
                         BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
                         docCount,

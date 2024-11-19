@@ -140,7 +140,7 @@ class CountedTermsAggregator extends TermsAggregator {
                         long docCount = bucketDocCount(ordsEnum.ord());
                         otherDocCounts.increment(ordIdx, docCount);
                         if (spare == null) {
-                            checkRealMemoryForInternalBucket();
+                            checkRealMemoryCBForInternalBucket();
                             spare = emptyBucketBuilder.get();
                         }
                         ordsEnum.readValue(spare.getTermBytes());

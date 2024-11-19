@@ -121,7 +121,7 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     continue;
                 }
                 int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
-                checkRealMemoryForInternalBucket();
+                checkRealMemoryCBForInternalBucket();
                 topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
             buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);

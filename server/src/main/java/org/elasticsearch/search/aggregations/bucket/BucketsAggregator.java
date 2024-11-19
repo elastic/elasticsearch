@@ -80,7 +80,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         grow(bucketOrd + 1);
         int docCount = docCountProvider.getDocCount(doc);
         if (docCounts.increment(bucketOrd, docCount) == docCount) {
-            updateCircuitBreaker("allocated_buckets");
+            checkRealMemoryCB("allocated_buckets");
         }
         subCollector.collect(doc, bucketOrd);
     }
@@ -173,7 +173,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         prepareSubAggs(bucketOrdsToCollect);
         InternalAggregation[][] aggregations = new InternalAggregation[subAggregators.length][];
         for (int i = 0; i < subAggregators.length; i++) {
-            checkRealMemoryForInternalBucket();
+            checkRealMemoryCBForInternalBucket();
             aggregations[i] = subAggregators[i].buildAggregations(bucketOrdsToCollect);
         }
         return subAggsForBucketFunction(aggregations);
@@ -257,7 +257,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
             return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                 List<B> buckets = new ArrayList<>(bucketsPerOwningBucketOrd);
                 for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
-                    checkRealMemoryForInternalBucket();
+                    checkRealMemoryCBForInternalBucket();
                     buckets.add(
                         bucketBuilder.build(
                             offsetInOwningOrd,
@@ -353,7 +353,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                                 bucketOrdsToCollect.get(b[0])
                             );
                         }
-                        checkRealMemoryForInternalBucket();
+                        checkRealMemoryCBForInternalBucket();
                         buckets.add(
                             bucketBuilder.build(ordsEnum.value(), bucketDocCount(ordsEnum.ord()), subAggregationResults.apply(b[0]++))
                         );
@@ -420,8 +420,8 @@ public abstract class BucketsAggregator extends AggregatorBase {
     }
 
     /** This method should be call whenever a new bucket object is created. It will che k the real memory
-     * circuit breaker in a sampling fashion. See {@link #updateCircuitBreaker(String)} */
-    protected void checkRealMemoryForInternalBucket() {
-        updateCircuitBreaker("internal_bucket");
+     * circuit breaker in a sampling fashion. See {@link #checkRealMemoryCB(String)} */
+    protected void checkRealMemoryCBForInternalBucket() {
+        checkRealMemoryCB("internal_bucket");
     }
 }

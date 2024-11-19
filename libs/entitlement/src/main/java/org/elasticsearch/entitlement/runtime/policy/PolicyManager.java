@@ -20,7 +20,6 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 public class PolicyManager {
@@ -39,56 +38,22 @@ public class PolicyManager {
         this.pluginResolver = pluginResolver;
     }
 
-    public <T extends Entitlement> void check(Class<?> callerClass, Class<T> entitlementClass, Predicate<T> checker) {
+    public void checkFlagEntitlement(Class<?> callerClass, FlagEntitlement.FlagEntitlementType type) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
 
-        var entitlements = mainPolicies.get(requestingModule.getName());
-        if (entitlements != null) {
-            if (checkEntitlements(entitlementClass, checker, entitlements, requestingModule)) {
-                return;
-            }
+        // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
+        if (requestingModule == System.class.getModule() && type == FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT) {
+            logger.debug("Allowed: caller in module {} has entitlement SYSTEM_EXIT", System.class.getModule().getName());
+            return;
         }
 
-        var pluginName = pluginResolver.apply(callerClass);
-        if (pluginName != null) {
-            var pluginPolicy = pluginPolicies.get(pluginName);
-            if (pluginPolicy != null) {
-                // TODO: optimize
-                var pluginEntitlements = pluginPolicy.scopes.stream()
-                    .filter(
-                        s -> (requestingModule.isNamed() == false && ALL_UNNAMED.equals(s.name))
-                            || requestingModule.getName().equals(s.name)
-                    )
-                    .flatMap(s -> s.entitlements.stream())
-                    .toList();
-                if (checkEntitlements(entitlementClass, checker, pluginEntitlements, requestingModule)) {
-                    return;
-                }
-            }
-        }
+        // TODO: plugins policy check using pluginResolver and pluginPolicies
 
+        // Hard-forbidden until we develop the permission granting scheme
         throw new NotEntitledException("Missing entitlement for " + requestingModule);
-    }
-
-    private static <T extends Entitlement> boolean checkEntitlements(
-        Class<T> entitlementClass,
-        Predicate<T> checker,
-        List<Entitlement> entitlements,
-        Module requestingModule
-    ) {
-        for (var e : entitlements) {
-            // TODO: optimize - group by entitlement type?
-            if (entitlementClass.isInstance(e)) {
-                if (checker.test(entitlementClass.cast(e))) {
-                    logger.debug("Allowed: caller in module {} has entitlement {}", requestingModule.getName(), e);
-                    return true;
-                }
-            }
-        }
-        return false;
     }
 
     // TODO: FIXME (this does not work, as all elastic modules end up in the boot layer)

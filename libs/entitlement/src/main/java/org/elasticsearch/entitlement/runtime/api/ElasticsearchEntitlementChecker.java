@@ -28,6 +28,6 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     @Override
     public void checkSystemExit(Class<?> callerClass, int status) {
-        policyManager.check(callerClass, FlagEntitlement.class, e -> e.type() == FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT);
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlement.FlagEntitlementType.SYSTEM_EXIT);
     }
 }

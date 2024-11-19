@@ -373,12 +373,17 @@ public class InferenceBaseRestTest extends ESRestTestCase {
         return inferInternal(endpoint, input, queryParameters);
     }
 
-    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
+    protected Request createInferenceRequest(String endpoint, List<String> input, Map<String, String> queryParameters) {
         var request = new Request("POST", endpoint);
         request.setJsonEntity(jsonBody(input));
         if (queryParameters.isEmpty() == false) {
             request.addParameters(queryParameters);
         }
+        return request;
+    }
+
+    private Map<String, Object> inferInternal(String endpoint, List<String> input, Map<String, String> queryParameters) throws IOException {
+        var request = createInferenceRequest(endpoint, input, queryParameters);
         var response = client().performRequest(request);
         assertOkOrCreated(response);
         return entityAsMap(response);

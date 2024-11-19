@@ -275,6 +275,9 @@ tests:
 - class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
   method: testSearchTimeSeriesMode {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/117094
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
 
 # Examples:
 #

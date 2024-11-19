@@ -17,6 +17,8 @@ import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
+import java.util.Objects;
+
 public class SemanticQuery extends Query {
     private final String name;
     private final String text;
@@ -49,7 +51,7 @@ public class SemanticQuery extends Query {
 
     @Override
     protected String innerToString() {
-        return null;
+        return name + ":" + text;
     }
 
     private QueryBuilder textExpansionQueryBuilder(TextExpansionResults textExpansionResults) {
@@ -68,5 +70,22 @@ public class SemanticQuery extends Query {
 
     private String embeddingsFieldName() {
         return name.concat(".inference.chunks.embeddings");
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(name, text, inferenceResults);
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (false == super.equals(obj)) {
+            return false;
+        }
+
+        SemanticQuery other = (SemanticQuery) obj;
+        return Objects.equals(name, other.name)
+            && Objects.equals(text, other.text)
+            && Objects.equals(inferenceResults, other.inferenceResults);
     }
 }

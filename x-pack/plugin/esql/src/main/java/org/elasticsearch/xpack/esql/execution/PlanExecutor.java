@@ -46,11 +46,12 @@ public class PlanExecutor {
     private final ClusterService clusterService;
 
     public PlanExecutor(
-            IndexResolver indexResolver,
-            MeterRegistry meterRegistry,
-            XPackLicenseState licenseState,
-            Client client,
-            ClusterService clusterService) {
+        IndexResolver indexResolver,
+        MeterRegistry meterRegistry,
+        XPackLicenseState licenseState,
+        Client client,
+        ClusterService clusterService
+    ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
         this.functionRegistry = new EsqlFunctionRegistry();

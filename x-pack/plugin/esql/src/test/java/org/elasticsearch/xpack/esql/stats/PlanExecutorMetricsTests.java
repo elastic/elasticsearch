@@ -108,13 +108,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
 
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("name")).build());
-        var planExecutor = new PlanExecutor(
-            indexResolver,
-            MeterRegistry.NOOP,
-            new XPackLicenseState(() -> 0L),
-            null,
-            clusterService
-        );
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), null, clusterService);
 
         var enrichResolver = mockEnrichResolver();
 

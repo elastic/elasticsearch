@@ -29,6 +29,7 @@ import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.mapper.InferenceFieldMapperUtil;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
@@ -397,7 +398,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     ),
                     indexRequest.getContentType()
                 );
-                SemanticTextFieldMapper.insertValue(fieldName, newDocMap, result);
+                InferenceFieldMapperUtil.insertValue(fieldName, newDocMap, result);
             }
             indexRequest.source(newDocMap, indexRequest.getContentType());
         }

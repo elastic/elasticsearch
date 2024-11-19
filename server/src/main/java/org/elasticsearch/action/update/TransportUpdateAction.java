@@ -44,6 +44,7 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexService;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.mapper.InferenceFieldMapper;
+import org.elasticsearch.index.mapper.InferenceFieldMapperUtil;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.shard.IndexShard;
@@ -412,7 +413,11 @@ public class TransportUpdateAction extends TransportInstanceSingleOperationActio
                         // This has two important side effects:
                         // - The inference field value will remain parsable by its mapper
                         // - The inference results will be removed, forcing them to be re-generated downstream
-                        updatedSource.put(inferenceFieldName, inferenceFieldMapper.getOriginalValue(updatedSource));
+                        InferenceFieldMapperUtil.insertValue(
+                            inferenceFieldName,
+                            updatedSource,
+                            inferenceFieldMapper.getOriginalValue(updatedSource)
+                        );
                         updatedSourceModified = true;
                         break;
                     }

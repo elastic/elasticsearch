@@ -389,8 +389,10 @@ public class FieldSortIT extends ESIntegTestCase {
             assertThat(response.getHits().getAt(1).getId(), equalTo("2"));
             assertThat(response.getHits().getAt(2).getScore(), Matchers.lessThan(response.getHits().getAt(1).getScore()));
             assertThat(response.getHits().getAt(2).getId(), equalTo("3"));
-        }, prepareSearch("test").setQuery(
-                QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))),
+        },
+            prepareSearch("test").setQuery(
+                QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))
+            ),
             prepareSearch("test").setQuery(
                 QueryBuilders.functionScoreQuery(matchAllQuery(), ScoreFunctionBuilders.fieldValueFactorFunction("field"))
             ).addSort("_score", SortOrder.DESC)
@@ -844,7 +846,7 @@ public class FieldSortIT extends ESIntegTestCase {
             throw new RuntimeException();
         }
 
-        assertResponses( response -> {
+        assertResponses(response -> {
             assertThat(Arrays.toString(response.getShardFailures()), response.getFailedShards(), equalTo(0));
 
             assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
@@ -854,7 +856,7 @@ public class FieldSortIT extends ESIntegTestCase {
         },
             // "--> sort with no missing (same as missing _last)"
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC)),
-            //"--> sort with missing _last"
+            // "--> sort with missing _last"
             prepareSearch().setQuery(matchAllQuery()).addSort(SortBuilders.fieldSort("value").order(SortOrder.ASC).missing("_last"))
         );
 
@@ -1220,18 +1222,18 @@ public class FieldSortIT extends ESIntegTestCase {
             }
         );
         assertResponses(response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
-                assertThat(response.getHits().getHits().length, equalTo(3));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
+            assertThat(response.getHits().getHits().length, equalTo(3));
 
-                assertThat(response.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
-                assertThat(((Number) response.getHits().getAt(0).getSortValues()[0]).intValue(), equalTo(-4));
+            assertThat(response.getHits().getAt(0).getId(), equalTo(Integer.toString(3)));
+            assertThat(((Number) response.getHits().getAt(0).getSortValues()[0]).intValue(), equalTo(-4));
 
-                assertThat(response.getHits().getAt(1).getId(), equalTo(Integer.toString(1)));
-                assertThat(((Number) response.getHits().getAt(1).getSortValues()[0]).intValue(), equalTo(1));
+            assertThat(response.getHits().getAt(1).getId(), equalTo(Integer.toString(1)));
+            assertThat(((Number) response.getHits().getAt(1).getSortValues()[0]).intValue(), equalTo(1));
 
-                assertThat(response.getHits().getAt(2).getId(), equalTo(Integer.toString(2)));
-                assertThat(((Number) response.getHits().getAt(2).getSortValues()[0]).intValue(), equalTo(7));
-            },
+            assertThat(response.getHits().getAt(2).getId(), equalTo(Integer.toString(2)));
+            assertThat(((Number) response.getHits().getAt(2).getSortValues()[0]).intValue(), equalTo(7));
+        },
             prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("int_values", SortOrder.ASC),
             prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("short_values", SortOrder.ASC),
             prepareSearch().setQuery(matchAllQuery()).setSize(10).addSort("byte_values", SortOrder.ASC)

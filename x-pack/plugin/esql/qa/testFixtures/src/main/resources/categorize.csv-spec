@@ -212,3 +212,17 @@ x:integer
 1
 1
 ;
+
+category value processing
+required_capability: categorize
+
+ROW message = ["connected to a", "connected to b", "disconnected"]
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | EVAL category = TO_UPPER(category)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           2 | .*?CONNECTED.+?TO.*?
+           1 | .*?DISCONNECTED.*?
+;

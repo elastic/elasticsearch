@@ -179,13 +179,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     context
                 );
             } else {
-                if (groupSpecs.stream().anyMatch(g -> g.groupingFunction != null)) {
-                    // TODO: DONT DO THIS, bucket should work: assert groupSpecs.size() == 1 : "Only one grouping function is supported";
-                    // Maybe ignore Bucket directly with instanceof
-                    // Maybe add some method to GroupingFunction to get the hash?
-                    // Maybe a method returning a Supplier of HashBlock?
-                }
-
                 operatorFactory = new HashAggregationOperatorFactory(
                     groupSpecs.stream().map(GroupSpec::toHashGroupSpec).toList(),
                     aggregatorMode,

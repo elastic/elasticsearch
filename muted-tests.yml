@@ -112,9 +112,6 @@ tests:
 - class: org.elasticsearch.xpack.shutdown.NodeShutdownIT
   method: testStalledShardMigrationProperlyDetected
   issue: https://github.com/elastic/elasticsearch/issues/115697
-- class: org.elasticsearch.xpack.inference.InferenceCrudIT
-  method: testSupportedStream
-  issue: https://github.com/elastic/elasticsearch/issues/113430
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_start_stop/Verify start transform reuses destination index}
   issue: https://github.com/elastic/elasticsearch/issues/115808
@@ -242,39 +239,6 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/117082
-- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
-  method: testRollupIndex {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/117084
-- class: org.elasticsearch.upgrades.FullClusterRestartDownsampleIT
-  method: testRollupIndex {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/117086
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testNewReplicasTimeSeriesMode {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/117087
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testNewReplicasTimeSeriesMode {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/117088
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSearchTimeSeriesMode {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/117089
-- class: org.elasticsearch.upgrades.FullClusterRestartIT
-  method: testSearchTimeSeriesMode {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/117090
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testNewReplicasTimeSeriesMode {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/117091
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSearchTimeSeriesMode {cluster=OLD}
-  issue: https://github.com/elastic/elasticsearch/issues/117092
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testNewReplicasTimeSeriesMode {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/117093
-- class: org.elasticsearch.xpack.restart.CoreFullClusterRestartIT
-  method: testSearchTimeSeriesMode {cluster=UPGRADED}
-  issue: https://github.com/elastic/elasticsearch/issues/117094
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
@@ -305,6 +269,20 @@ tests:
 - class: org.elasticsearch.upgrades.IndexingIT
   method: testSyntheticSource {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/117128
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/117135
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testTsdb {upgradedNodes=3}
+  issue: https://github.com/elastic/elasticsearch/issues/117136
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testIndexing {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/117137
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testTsdb {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/117138
+- class: org.elasticsearch.upgrades.IndexingIT
+  issue: https://github.com/elastic/elasticsearch/issues/117140
 
 # Examples:
 #

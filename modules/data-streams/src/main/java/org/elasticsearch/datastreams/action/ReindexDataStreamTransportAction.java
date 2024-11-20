@@ -9,7 +9,6 @@
 
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ResourceAlreadyExistsException;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
@@ -24,8 +23,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.datastreams.task.ReindexDataStreamTask;
 import org.elasticsearch.datastreams.task.ReindexDataStreamTaskParams;
 import org.elasticsearch.injection.guice.Inject;
-import org.elasticsearch.persistent.PersistentTaskParams;
-import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.persistent.PersistentTasksService;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -80,43 +77,17 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             totalIndices,
             totalIndicesToBeUpgraded
         );
-        try {
-            String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
-            persistentTasksService.sendStartRequest(
-                persistentTaskId,
-                ReindexDataStreamTask.TASK_NAME,
-                params,
-                null,
-                ActionListener.wrap(
-                    startedTask -> persistentTasksService.waitForPersistentTaskCondition(
-                        startedTask.getId(),
-                        PersistentTasksCustomMetadata.PersistentTask::isAssigned,
-                        null,
-                        new PersistentTasksService.WaitForPersistentTaskListener<>() {
-                            @Override
-                            public void onResponse(
-                                PersistentTasksCustomMetadata.PersistentTask<PersistentTaskParams> persistentTaskParamsPersistentTask
-                            ) {
-                                listener.onResponse(new ReindexDataStreamResponse(persistentTaskId));
-                            }
-
-                            @Override
-                            public void onFailure(Exception e) {
-                                listener.onFailure(new ElasticsearchException("Task [" + persistentTaskId + "] failed starting", e));
-                            }
-                        }
-
-                    ),
-                    e -> listener.onFailure(new ElasticsearchException("Task [" + persistentTaskId + "] failed starting", e))
-                )
-            );
-        } catch (ResourceAlreadyExistsException e) {
-            // There is already a persistent task running for this data stream
-            listener.onFailure(e);
-        }
+        String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
+        persistentTasksService.sendStartRequest(
+            persistentTaskId,
+            ReindexDataStreamTask.TASK_NAME,
+            params,
+            null,
+            ActionListener.wrap(startedTask -> listener.onResponse(new ReindexDataStreamResponse(persistentTaskId)), listener::onFailure)
+        );
     }
 
-    public static String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
+    private String getPersistentTaskId(String dataStreamName) throws ResourceAlreadyExistsException {
         return "reindex-data-stream-" + dataStreamName;
     }
 }

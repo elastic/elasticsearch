@@ -254,41 +254,7 @@ tests:
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
-- class: org.elasticsearch.upgrades.DownsampleIT
-  method: testRollupIndex {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/117122
-- class: org.elasticsearch.upgrades.DownsampleIT
-  method: testRollupIndex {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/117123
-- class: org.elasticsearch.upgrades.DownsampleIT
-  method: testRollupIndex {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/117124
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testAutoIdWithOpTypeCreate {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/117125
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testTsdb {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/117126
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testIndexing {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/117127
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testSyntheticSource {upgradedNodes=1}
-  issue: https://github.com/elastic/elasticsearch/issues/117128
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testIndexing {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/117135
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testTsdb {upgradedNodes=3}
-  issue: https://github.com/elastic/elasticsearch/issues/117136
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testIndexing {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/117137
-- class: org.elasticsearch.upgrades.IndexingIT
-  method: testTsdb {upgradedNodes=2}
-  issue: https://github.com/elastic/elasticsearch/issues/117138
-- class: org.elasticsearch.upgrades.IndexingIT
-  issue: https://github.com/elastic/elasticsearch/issues/117140
+
 
 # Examples:
 #

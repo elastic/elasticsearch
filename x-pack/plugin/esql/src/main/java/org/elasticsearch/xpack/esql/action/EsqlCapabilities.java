@@ -425,6 +425,12 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
+         * Fix {@code SORT} when the {@code _source} field is not a sort key but
+         * <strong>is</strong> being returned.
+         */
+        SORT_RETURNING_SOURCE_OK,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,

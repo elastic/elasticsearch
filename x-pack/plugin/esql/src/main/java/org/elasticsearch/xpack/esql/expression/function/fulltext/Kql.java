@@ -61,11 +61,6 @@ public class Kql extends FullTextFunction {
     }
 
     @Override
-    public String functionName() {
-        return "KQL";
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Kql(source(), newChildren.get(0));
     }

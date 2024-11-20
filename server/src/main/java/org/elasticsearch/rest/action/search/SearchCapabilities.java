@@ -43,6 +43,8 @@ public final class SearchCapabilities {
     /** Initial support for multi-dense-vector maxSim functions access. */
     private static final String MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM = "multi_dense_vector_script_max_sim";
 
+    private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -52,6 +54,7 @@ public final class SearchCapabilities {
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(TRANSFORM_RANK_RRF_TO_RETRIEVER);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
+        capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
             capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);

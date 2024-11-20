@@ -279,6 +279,11 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
+
+        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
@@ -317,32 +322,32 @@ public class EsqlCapabilities {
         /**
          * Support for nanosecond dates as a data type
          */
-        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_TYPE(),
 
         /**
          * Support for to_date_nanos function
          */
-        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        TO_DATE_NANOS(),
 
         /**
          * Support for date nanos type in binary comparisons
          */
-        DATE_NANOS_BINARY_COMPARISON(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_BINARY_COMPARISON(),
 
         /**
          * Support Least and Greatest functions on Date Nanos type
          */
-        LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        LEAST_GREATEST_FOR_DATENANOS(),
 
         /**
          * Support for date_trunc function on date nanos type
          */
-        DATE_TRUNC_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_TRUNC_DATE_NANOS(),
 
         /**
          * support aggregations on date nanos
          */
-        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_AGGREGATIONS(),
 
         /**
          * Support for datetime in least and greatest functions
@@ -489,7 +494,12 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP(Build.current().isSnapshot());
 
         private final boolean enabled;
 

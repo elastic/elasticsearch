@@ -30,10 +30,12 @@ public class MatchOperatorTests extends MatchTests {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        // Have a minimal test so that we can generate the docs
+        // Have a minimal test so that we can generate the appropriate types in the docs
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         addPositiveTestCase(List.of(DataType.KEYWORD, DataType.KEYWORD), suppliers);
         addPositiveTestCase(List.of(DataType.TEXT, DataType.TEXT), suppliers);
+        addPositiveTestCase(List.of(DataType.KEYWORD, DataType.TEXT), suppliers);
+        addPositiveTestCase(List.of(DataType.TEXT, DataType.KEYWORD), suppliers);
         return parameterSuppliersFromTypedData(suppliers);
     }
 }

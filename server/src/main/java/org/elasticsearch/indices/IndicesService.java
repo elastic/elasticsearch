@@ -23,7 +23,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -79,7 +78,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.CloseUtils;
@@ -210,8 +208,6 @@ public class IndicesService extends AbstractLifecycleComponent
         true,
         Setting.Property.NodeScope
     );
-
-    static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
 
     /**
      * The node's settings.
@@ -910,9 +906,7 @@ public class IndicesService extends AbstractLifecycleComponent
                     .setConcreteIndex(shardRouting.index())
                     .source(mapping.source().string(), XContentType.JSON);
                 client.execute(
-                    featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                        ? TransportAutoPutMappingAction.TYPE
-                        : TransportPutMappingAction.TYPE,
+                    TransportAutoPutMappingAction.TYPE,
                     putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
                     new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
                 );

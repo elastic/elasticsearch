@@ -1151,15 +1151,15 @@ public class SimpleNestedIT extends ESIntegTestCase {
         NestedSortBuilder nestedSort = new NestedSortBuilder("parent.child");
         nestedSort.setFilter(QueryBuilders.termQuery("parent.child.filter", true));
         assertResponses(response -> {
-                assertHitCount(response, 3);
-                assertThat(response.getHits().getHits().length, equalTo(3));
-                assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
-                assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
-                assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
-                assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
-                assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
-                assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
-            },
+            assertHitCount(response, 3);
+            assertThat(response.getHits().getHits().length, equalTo(3));
+            assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
+            assertThat(response.getHits().getHits()[0].getSortValues()[0].toString(), equalTo("1"));
+            assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
+            assertThat(response.getHits().getHits()[1].getSortValues()[0].toString(), equalTo("2"));
+            assertThat(response.getHits().getHits()[2].getId(), equalTo("3"));
+            assertThat(response.getHits().getHits()[2].getSortValues()[0].toString(), equalTo("3"));
+        },
             prepareSearch().setQuery(matchAllQuery())
                 .addSort(SortBuilders.fieldSort("parent.child.child_values").setNestedSort(nestedSort).order(SortOrder.ASC)),
             prepareSearch().setQuery(matchAllQuery())
@@ -1456,8 +1456,8 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch("test").addSort(
-                    SortBuilders.fieldSort("users.first").setNestedSort(new NestedSortBuilder("users")).order(SortOrder.ASC)
-                )
+                SortBuilders.fieldSort("users.first").setNestedSort(new NestedSortBuilder("users")).order(SortOrder.ASC)
+            )
                 .addSort(
                     SortBuilders.fieldSort("users.first")
                         .order(SortOrder.ASC)

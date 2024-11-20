@@ -385,12 +385,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRandom(true, false, reqs);
 
         assertResponses(response -> {
-                assertHitCount(response, 2L);
-                assertHits(response.getHits(), "1", "3");
-            },
-            prepareSearch("test").setQuery(simpleQueryStringQuery("foo")),
-            prepareSearch("test").setQuery(simpleQueryStringQuery("bar"))
-        );
+            assertHitCount(response, 2L);
+            assertHits(response.getHits(), "1", "3");
+        }, prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), prepareSearch("test").setQuery(simpleQueryStringQuery("bar")));
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")), response -> {
             assertHitCount(response, 3L);
             assertHits(response.getHits(), "1", "2", "3");
@@ -408,9 +405,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRandom(true, false, reqs);
 
         assertResponses(response -> {
-                assertHits(response.getHits(), "1", "2");
-                assertHitCount(response, 2L);
-            },
+            assertHits(response.getHits(), "1", "2");
+            assertHitCount(response, 2L);
+        },
             prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("bar \"2015/09/02\"")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\" \"2015/09/01\""))
@@ -432,9 +429,9 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         indexRandom(true, false, reqs);
 
         assertResponses(response -> {
-                assertHits(response.getHits(), "1", "2");
-                assertHitCount(response, 2L);
-            },
+            assertHits(response.getHits(), "1", "2");
+            assertHitCount(response, 2L);
+        },
             prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.2 \"2015/09/02\"")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1 1.8"))
@@ -455,7 +452,8 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
-        assertResponses(response -> assertHits(response.getHits(), "1"),
+        assertResponses(
+            response -> assertHits(response.getHits(), "1"),
             prepareSearch("test").setQuery(simpleQueryStringQuery("foo")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("Baz")),

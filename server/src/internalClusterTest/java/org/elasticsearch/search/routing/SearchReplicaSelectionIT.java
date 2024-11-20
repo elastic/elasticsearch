@@ -52,9 +52,9 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
         // Before we've gathered stats for all nodes, we should try each node once.
         Set<String> nodeIds = new HashSet<>();
         assertResponses(response -> {
-                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-                nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-            },
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
+            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
+        },
             client.prepareSearch().setQuery(matchAllQuery()),
             client.prepareSearch().setQuery(matchAllQuery()),
             client.prepareSearch().setQuery(matchAllQuery())

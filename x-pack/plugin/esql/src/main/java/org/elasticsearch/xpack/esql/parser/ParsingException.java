@@ -18,7 +18,7 @@ public class ParsingException extends EsqlClientException {
     public ParsingException(String message, Exception cause, int line, int charPositionInLine) {
         super(message, cause);
         this.line = line;
-        this.charPositionInLine = charPositionInLine;
+        this.charPositionInLine = charPositionInLine + 1;
     }
 
     ParsingException(String message, Object... args) {
@@ -28,13 +28,13 @@ public class ParsingException extends EsqlClientException {
     public ParsingException(Source source, String message, Object... args) {
         super(message, args);
         this.line = source.source().getLineNumber();
-        this.charPositionInLine = source.source().getColumnNumber() - 1;
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
     public ParsingException(Exception cause, Source source, String message, Object... args) {
         super(cause, message, args);
         this.line = source.source().getLineNumber();
-        this.charPositionInLine = source.source().getColumnNumber() - 1;
+        this.charPositionInLine = source.source().getColumnNumber();
     }
 
     public int getLineNumber() {
@@ -42,7 +42,7 @@ public class ParsingException extends EsqlClientException {
     }
 
     public int getColumnNumber() {
-        return charPositionInLine + 1;
+        return charPositionInLine;
     }
 
     public String getErrorMessage() {

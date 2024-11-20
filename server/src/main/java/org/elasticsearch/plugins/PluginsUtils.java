@@ -210,12 +210,12 @@ public class PluginsUtils {
     }
 
     /** Get bundles for plugins installed in the given modules directory. */
-    static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
+    public static Set<PluginBundle> getModuleBundles(Path modulesDirectory) throws IOException {
         return findBundles(modulesDirectory, "module");
     }
 
     /** Get bundles for plugins installed in the given plugins directory. */
-    static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
+    public static Set<PluginBundle> getPluginBundles(final Path pluginsDirectory) throws IOException {
         return findBundles(pluginsDirectory, "plugin");
     }
 
@@ -363,7 +363,7 @@ public class PluginsUtils {
      *
      * @throws IllegalStateException if a dependency cycle is found
      */
-    static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
+    public static List<PluginBundle> sortBundles(Set<PluginBundle> bundles) {
         Map<String, PluginBundle> namedBundles = bundles.stream().collect(Collectors.toMap(b -> b.plugin.getName(), Function.identity()));
         LinkedHashSet<PluginBundle> sortedBundles = new LinkedHashSet<>();
         LinkedHashSet<String> dependencyStack = new LinkedHashSet<>();

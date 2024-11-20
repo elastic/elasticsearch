@@ -25,7 +25,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.node.ReportingService;
-import org.elasticsearch.plugins.PluginsLoader.LoadedPluginLayer;
+import org.elasticsearch.plugins.PluginsLoader.PluginLayer;
 import org.elasticsearch.plugins.scanners.StablePluginsRegistry;
 import org.elasticsearch.plugins.spi.SPIClassIterator;
 
@@ -81,22 +81,17 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
     private final PluginsAndModules info;
     private final StablePluginsRegistry stablePluginsRegistry = new StablePluginsRegistry();
 
-    private final Settings settings;
-    private final Path configPath;
-
     public static final Setting<List<String>> MANDATORY_SETTING = Setting.stringListSetting("plugin.mandatory", Property.NodeScope);
 
     /**
      * Constructs a new PluginService
      *
+     * @param settings The settings for this node
+     * @param configPath The configuration path for this node
      * @param pluginsLoader the information required to complete loading of plugins
      */
-    @SuppressWarnings("this-escape")
     public PluginsService(Settings settings, Path configPath, PluginsLoader pluginsLoader) {
-        this.settings = settings;
-        this.configPath = configPath;
-
-        Map<String, LoadedPlugin> loadedPlugins = loadPluginBundles(pluginsLoader);
+        Map<String, LoadedPlugin> loadedPlugins = loadPluginBundles(settings, configPath, pluginsLoader);
 
         var modulesDescriptors = pluginsLoader.moduleDescriptors();
         var pluginDescriptors = pluginsLoader.pluginDescriptors();
@@ -219,10 +214,11 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return this.plugins;
     }
 
-    private Map<String, LoadedPlugin> loadPluginBundles(PluginsLoader pluginsLoader) {
+    private Map<String, LoadedPlugin> loadPluginBundles(Settings settings, Path configPath, PluginsLoader pluginsLoader) {
         Map<String, LoadedPlugin> loadedPlugins = new LinkedHashMap<>();
-        for (LoadedPluginLayer loadedPluginLayer : pluginsLoader.loadPluginLayers().values()) {
-            loadBundle(loadedPluginLayer, loadedPlugins, settings, configPath);
+
+        for (PluginLayer pluginLayer : pluginsLoader.pluginLayers().toList()) {
+            loadBundle(pluginLayer, loadedPlugins, settings, configPath);
         }
 
         loadExtensions(loadedPlugins.values());
@@ -371,18 +367,13 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
         return "constructor for extension [" + extensionClass.getName() + "] of type [" + extensionPointType.getName() + "]";
     }
 
-    private void loadBundle(
-        LoadedPluginLayer loadedPluginLayer,
-        Map<String, LoadedPlugin> loadedPlugins,
-        Settings settings,
-        Path configPath
-    ) {
-        String name = loadedPluginLayer.pluginBundle().plugin.getName();
+    private void loadBundle(PluginLayer pluginLayer, Map<String, LoadedPlugin> loadedPlugins, Settings settings, Path configPath) {
+        String name = pluginLayer.pluginBundle().plugin.getName();
         logger.debug(() -> "Loading plugin bundle: " + name);
 
         // validate the list of extended plugins
         List<LoadedPlugin> extendedPlugins = new ArrayList<>();
-        for (String extendedPluginName : loadedPluginLayer.pluginBundle().plugin.getExtendedPlugins()) {
+        for (String extendedPluginName : pluginLayer.pluginBundle().plugin.getExtendedPlugins()) {
             LoadedPlugin extendedPlugin = loadedPlugins.get(extendedPluginName);
             assert extendedPlugin != null;
             if (ExtensiblePlugin.class.isInstance(extendedPlugin.instance()) == false) {
@@ -397,18 +388,18 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
             );
         }
 
-        PluginBundle pluginBundle = loadedPluginLayer.pluginBundle();
-        ClassLoader pluginClassLoader = loadedPluginLayer.pluginClassLoader();
+        PluginBundle pluginBundle = pluginLayer.pluginBundle();
+        ClassLoader pluginClassLoader = pluginLayer.pluginClassLoader();
 
         // reload SPI with any new services from the plugin
-        reloadLuceneSPI(loadedPluginLayer.pluginClassLoader());
+        reloadLuceneSPI(pluginLayer.pluginClassLoader());
 
         ClassLoader cl = Thread.currentThread().getContextClassLoader();
         try {
             // Set context class loader to plugin's class loader so that plugins
             // that have dependencies with their own SPI endpoints have a chance to load
             // and initialize them appropriately.
-            privilegedSetContextClassLoader(loadedPluginLayer.pluginClassLoader());
+            privilegedSetContextClassLoader(pluginLayer.pluginClassLoader());
 
             Plugin plugin;
             if (pluginBundle.pluginDescriptor().isStable()) {

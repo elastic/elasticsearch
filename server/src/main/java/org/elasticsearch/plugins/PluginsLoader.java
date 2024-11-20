@@ -37,26 +37,48 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.common.io.FileSystemUtils.isAccessibleDirectory;
 import static org.elasticsearch.jdk.ModuleQualifiedExportsService.addExportsService;
 import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifiedExportsAndOpens;
 
+/**
+ * This class is used to load modules and module layers for each plugin during
+ * node initialization prior to enablement of entitlements. This allows entitlements
+ * to have all the plugin information they need prior to starting.
+ */
 public class PluginsLoader {
 
     /**
+     * Contains information about the {@link ClassLoader} required to load a plugin
+     */
+    public interface PluginLayer {
+        /**
+         * @return Information about the bundle of jars used in this plugin
+         */
+        PluginBundle pluginBundle();
+
+        /**
+         * @return The {@link ClassLoader} used to instantiate the main class for the plugin
+         */
+        ClassLoader pluginClassLoader();
+    }
+
+    /**
      * Contains information about the {@link ClassLoader}s and {@link ModuleLayer} required for loading a plugin
+     * @param pluginBundle Information about the bundle of jars used in this plugin
      * @param pluginClassLoader The {@link ClassLoader} used to instantiate the main class for the plugin
      * @param spiClassLoader The exported {@link ClassLoader} visible to other Java modules
      * @param spiModuleLayer The exported {@link ModuleLayer} visible to other Java modules
      */
-    public record LoadedPluginLayer(
+    private record LoadedPluginLayer(
         PluginBundle pluginBundle,
         ClassLoader pluginClassLoader,
         ClassLoader spiClassLoader,
         ModuleLayer spiModuleLayer
-    ) {
+    ) implements PluginLayer {
 
         public LoadedPluginLayer {
             Objects.requireNonNull(pluginBundle);
@@ -147,8 +169,8 @@ public class PluginsLoader {
         return pluginDescriptors;
     }
 
-    public Map<String, LoadedPluginLayer> loadPluginLayers() {
-        return loadedPluginLayers;
+    public Stream<PluginLayer> pluginLayers() {
+        return loadedPluginLayers.values().stream().map(Function.identity());
     }
 
     private Map<String, LoadedPluginLayer> loadPluginLayers(

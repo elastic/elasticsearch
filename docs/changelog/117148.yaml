@@ -1,0 +1,5 @@
+pr: 117148
+summary: Preserve thread context when waiting for segment generation in RTG
+area: CRUD
+type: bug
+issues: []

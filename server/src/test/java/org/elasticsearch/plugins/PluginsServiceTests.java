@@ -875,20 +875,6 @@ public class PluginsServiceTests extends ESTestCase {
         assertEquals(this.getClass().getClassLoader(), loader.getParent());
     }
 
-    public void testToModuleName() {
-        assertThat(PluginsLoader.toModuleName("module.name"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("module-name"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("module-name1"), equalTo("module.name1"));
-        assertThat(PluginsLoader.toModuleName("1module-name"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("module-name!"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("module!@#name!"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("!module-name!"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("module_name"), equalTo("module_name"));
-        assertThat(PluginsLoader.toModuleName("-module-name-"), equalTo("module.name"));
-        assertThat(PluginsLoader.toModuleName("_module_name"), equalTo("_module_name"));
-        assertThat(PluginsLoader.toModuleName("_"), equalTo("_"));
-    }
-
     static final class Loader extends ClassLoader {
         Loader(ClassLoader parent) {
             super(parent);

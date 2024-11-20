@@ -176,10 +176,6 @@ public class CacheBlobReaderTests extends ESTestCase {
             }
         }
 
-        public VirtualBatchedCompoundCommit getVirtualBatchedCompoundCommit() {
-            return virtualBatchedCompoundCommit;
-        }
-
         public Map.Entry<String, BlobLocation> getLastInternalLocation() {
             // Get the last internal file of the VBCC. We do that by using a comparator that compares their offsets, and use that
             // comparator to get the max of the VBCC internal locations.
@@ -313,7 +309,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             });
         }
 
-        public void readVirtualBatchedCompoundCommitByte(long offset) {
+        public void readVirtualBatchedCompoundCommit(long offset, long length) {
             try (
                 var blobCacheIndexInput = new BlobCacheIndexInput(
                     "fileName",
@@ -361,11 +357,17 @@ public class CacheBlobReaderTests extends ESTestCase {
                         new BlobFileRanges(getLastInternalLocation().getValue())
                     ),
                     null,
-                    1,
+                    length,
                     offset
                 )
             ) {
-                blobCacheIndexInput.readByte();
+                int position = 0;
+                byte[] buffer = new byte[(int) Math.min(length, 10240)];
+                while (position < length) {
+                    var len = (int) Math.min(buffer.length, length - position);
+                    blobCacheIndexInput.readBytes(buffer, 0, len);
+                    position += len;
+                }
             } catch (IOException e) {
                 throw new AssertionError(e);
             }
@@ -593,10 +595,10 @@ public class CacheBlobReaderTests extends ESTestCase {
             // Read last byte of every chunk
             long writtenBytesBefore = getCacheService(node.searchDirectory).getStats().writeBytes();
             for (long offset = chunkSize - 1; offset < vbccSize; offset += chunkSize) {
-                node.readVirtualBatchedCompoundCommitByte(offset);
+                node.readVirtualBatchedCompoundCommit(offset, 1);
             }
             // Read last byte of VBCC
-            node.readVirtualBatchedCompoundCommitByte(vbccSize - 1);
+            node.readVirtualBatchedCompoundCommit(vbccSize - 1, 1);
             long writtenBytesAfter = getCacheService(node.searchDirectory).getStats().writeBytes();
             long writtenBytes = writtenBytesAfter - writtenBytesBefore;
             assertThat(writtenBytes, greaterThan(0L));
@@ -622,7 +624,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             // end of the blob.
             long lastPageOffset = vbccSize % PAGE_SIZE == 0 ? (vbccSize / PAGE_SIZE - 1) * PAGE_SIZE : (vbccSize / PAGE_SIZE) * PAGE_SIZE;
             long offsetInLastPage = randomLongBetween(lastPageOffset, vbccSize - 1);
-            node.readVirtualBatchedCompoundCommitByte(offsetInLastPage);
+            node.readVirtualBatchedCompoundCommit(offsetInLastPage, 1);
             // One call expected for the chunk from the indexing node
             long lastChunkOffset = (offsetInLastPage / chunkSize) * chunkSize;
             assertThat(node.getRangeInputStreamCalls.size(), equalTo(1));
@@ -657,16 +659,13 @@ public class CacheBlobReaderTests extends ESTestCase {
     public void testCacheBlobReaderDoesNotFillGapBeyondTheEndOfAvailableData() throws Exception {
         final var primaryTerm = randomLongBetween(1L, 10L);
         final var chunkSize = PAGE_SIZE * randomIntBetween(1, 256); // 4KiB to 1MiB
-        // TODO (ES-9344) once reader is implemented, read all the gaps using exposed metadata and run with the feature flag enabled
-        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize, false)) {
+        try (var node = createInputStreamCallTrackingNode(primaryTerm, chunkSize, randomBoolean())) {
             final int regionSize = node.sharedCacheService.getRegionSize();
             final long vbccSize = node.virtualBatchedCompoundCommit.getTotalSizeInBytes();
             assertThat(vbccSize, lessThan((long) regionSize));
 
             // Read all the files so that the only gap is the end of the region
-            node.virtualBatchedCompoundCommit.getInternalLocations()
-                .keySet()
-                .forEach(filename -> assertFileChecksum(node.searchDirectory, filename));
+            node.readVirtualBatchedCompoundCommit(0, vbccSize);
 
             assertThat(node.getRangeInputStreamCalls, not(empty()));
             assertThat(
@@ -681,9 +680,7 @@ public class CacheBlobReaderTests extends ESTestCase {
             // Read the files again. The data is all from the cache and there will be no request trying to fill
             // the gap beyond the available data
             node.getRangeInputStreamCalls.clear();
-            node.virtualBatchedCompoundCommit.getInternalLocations()
-                .keySet()
-                .forEach(filename -> assertFileChecksum(node.searchDirectory, filename));
+            node.readVirtualBatchedCompoundCommit(0, vbccSize);
             assertThat(node.getRangeInputStreamCalls, empty());
 
             // Lucene won't read beyond available data length. But we can force it to do so by manually creating a

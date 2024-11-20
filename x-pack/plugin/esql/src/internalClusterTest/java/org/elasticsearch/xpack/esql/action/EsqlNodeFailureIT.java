@@ -41,7 +41,10 @@ public class EsqlNodeFailureIT extends AbstractEsqlIntegTestCase {
         return CollectionUtils.appendToCopy(super.nodePlugins(), FailingFieldPlugin.class);
     }
 
-    public void testNodeFailure() throws IOException {
+    /**
+     * Use a runtime field that fails when loading field values to fail the entire query.
+     */
+    public void testFailureLoadingFields() throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {

@@ -39,6 +39,8 @@ public final class SearchCapabilities {
     /** Support multi-dense-vector script field access. */
     private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
 
+    private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
+
     public static final Set<String> CAPABILITIES;
     static {
         HashSet<String> capabilities = new HashSet<>();
@@ -47,6 +49,7 @@ public final class SearchCapabilities {
         capabilities.add(BYTE_FLOAT_BIT_DOT_PRODUCT_CAPABILITY);
         capabilities.add(DENSE_VECTOR_DOCVALUE_FIELDS);
         capabilities.add(NESTED_RETRIEVER_INNER_HITS_SUPPORT);
+        capabilities.add(RANDOM_SAMPLER_WITH_SCORED_SUBAGGS);
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
             capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);

@@ -9,7 +9,7 @@
 
 package org.elasticsearch.datastreams.action;
 
-import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.DocWriteRequest;
@@ -54,40 +54,11 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
     public void testNonExistentDataStream() {
         String nonExistentDataStreamName = randomAlphaOfLength(50);
         ReindexDataStreamRequest reindexDataStreamRequest = new ReindexDataStreamRequest(nonExistentDataStreamName);
-        ReindexDataStreamResponse response = client().execute(
-            new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME),
-            reindexDataStreamRequest
-        ).actionGet();
-        String persistentTaskId = response.getTaskId();
-        assertThat(persistentTaskId, equalTo("reindex-data-stream-" + nonExistentDataStreamName));
-        AtomicReference<ReindexDataStreamTask> runningTask = new AtomicReference<>();
-        for (TransportService transportService : internalCluster().getInstances(TransportService.class)) {
-            TaskManager taskManager = transportService.getTaskManager();
-            Map<Long, CancellableTask> tasksMap = taskManager.getCancellableTasks();
-            Optional<Map.Entry<Long, CancellableTask>> optionalTask = taskManager.getCancellableTasks()
-                .entrySet()
-                .stream()
-                .filter(entry -> entry.getValue().getType().equals("persistent"))
-                .filter(
-                    entry -> entry.getValue() instanceof ReindexDataStreamTask
-                        && persistentTaskId.equals((((ReindexDataStreamTask) entry.getValue()).getPersistentTaskId()))
-                )
-                .findAny();
-            optionalTask.ifPresent(
-                longCancellableTaskEntry -> runningTask.compareAndSet(null, (ReindexDataStreamTask) longCancellableTaskEntry.getValue())
-            );
-        }
-        ReindexDataStreamTask task = runningTask.get();
-        assertNotNull(task);
-        assertThat(task.getStatus().complete(), equalTo(true));
-        assertThat(
-            ExceptionsHelper.unwrapCause(task.getStatus().exception()).getMessage(),
-            equalTo("no such index [" + nonExistentDataStreamName + "]")
+        assertThrows(
+            ResourceNotFoundException.class,
+            () -> client().execute(new ActionType<ReindexDataStreamResponse>(ReindexDataStreamAction.NAME), reindexDataStreamRequest)
+                .actionGet()
         );
-        assertThat(task.getStatus().successes().size(), equalTo(0));
-        assertThat(task.getStatus().pending().size(), equalTo(0));
-        assertThat(task.getStatus().inProgress().size(), equalTo(0));
-        assertThat(task.getStatus().errors().size(), equalTo(0));
     }
 
     public void testAlreadyUpToDateDataStream() throws Exception {
@@ -121,9 +92,8 @@ public class ReindexDataStreamTransportActionIT extends ESIntegTestCase {
         assertNotNull(task);
         assertThat(task.getStatus().complete(), equalTo(true));
         assertNull(task.getStatus().exception());
-        assertThat(task.getStatus().successes().size(), equalTo(0));
-        assertThat(task.getStatus().pending().size(), equalTo(0));
-        assertThat(task.getStatus().inProgress().size(), equalTo(0));
+        assertThat(task.getStatus().pending(), equalTo(0));
+        assertThat(task.getStatus().inProgress(), equalTo(0));
         assertThat(task.getStatus().errors().size(), equalTo(0));
     }
 

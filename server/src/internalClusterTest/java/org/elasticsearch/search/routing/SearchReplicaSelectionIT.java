@@ -24,6 +24,7 @@ import java.util.Set;
 
 import static org.elasticsearch.index.query.QueryBuilders.matchAllQuery;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
@@ -50,18 +51,14 @@ public class SearchReplicaSelectionIT extends ESIntegTestCase {
 
         // Before we've gathered stats for all nodes, we should try each node once.
         Set<String> nodeIds = new HashSet<>();
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
+        assertResponses(response -> {
             assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
-        assertResponse(client.prepareSearch().setQuery(matchAllQuery()), response -> {
-            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
-            nodeIds.add(response.getHits().getAt(0).getShard().getNodeId());
-        });
+        },
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery()),
+            client.prepareSearch().setQuery(matchAllQuery())
+        );
         assertEquals(3, nodeIds.size());
 
         // Now after more searches, we should select a node with the lowest ARS rank.

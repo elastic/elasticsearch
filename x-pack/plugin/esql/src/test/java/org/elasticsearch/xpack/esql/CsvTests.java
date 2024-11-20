@@ -257,7 +257,10 @@ public class CsvTests extends ESTestCase {
                 "can't use KQL function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
             );
-
+            assumeFalse(
+                "lookup join disabled for csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP.capabilityName())
+            );
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",

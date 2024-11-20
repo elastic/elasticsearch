@@ -56,7 +56,7 @@ public class LegacyStackTemplateRegistryTests extends ESTestCase {
         registry.getIngestPipelines()
             .stream()
             .map(ipc -> new PipelineConfiguration(ipc.getId(), ipc.loadConfig(), XContentType.JSON))
-            .map(PipelineConfiguration::getConfigAsMap)
+            .map(PipelineConfiguration::getConfig)
             .forEach(p -> assertTrue((Boolean) p.get("deprecated")));
     }
 

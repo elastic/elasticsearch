@@ -26,11 +26,44 @@ import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.function.Predicate;
 
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.not;
+import static org.hamcrest.Matchers.sameInstance;
 
 public class PipelineConfigurationTests extends AbstractXContentTestCase<PipelineConfiguration> {
+
+    public void testConfigInvariants() {
+        Map<String, Object> original = Map.of("a", 1);
+        Map<String, Object> mutable = new HashMap<>(original);
+        PipelineConfiguration configuration = new PipelineConfiguration("1", mutable);
+        // the config is equal to the original & mutable map, regardless of how you get a reference to it
+        assertThat(configuration.getConfig(), equalTo(original));
+        assertThat(configuration.getConfig(), equalTo(mutable));
+        assertThat(configuration.getConfig(), equalTo(configuration.getConfig(false)));
+        assertThat(configuration.getConfig(), equalTo(configuration.getConfig(true)));
+        // the config is the same instance as itself when unmodifiable is true
+        assertThat(configuration.getConfig(), sameInstance(configuration.getConfig()));
+        assertThat(configuration.getConfig(), sameInstance(configuration.getConfig(true)));
+        // but it's not the same instance as the original mutable map, nor if unmodifiable is false
+        assertThat(configuration.getConfig(), not(sameInstance(mutable)));
+        assertThat(configuration.getConfig(), not(sameInstance(configuration.getConfig(false))));
+
+        // changing the mutable map doesn't alter the pipeline's configuration
+        mutable.put("b", 2);
+        assertThat(configuration.getConfig(), equalTo(original));
+
+        // the modifiable map can be modified
+        Map<String, Object> modifiable = configuration.getConfig(false);
+        modifiable.put("c", 3); // this doesn't throw an exception
+        assertThat(modifiable.get("c"), equalTo(3));
+        // but the next modifiable copy is a new fresh copy, and doesn't reflect those changes
+        assertThat(configuration.getConfig(), equalTo(configuration.getConfig(false)));
+    }
 
     public void testSerialization() throws IOException {
         PipelineConfiguration configuration = new PipelineConfiguration(
@@ -38,14 +71,12 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray("{}".getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getXContentType());
-
+        assertThat(configuration.getConfig(), anEmptyMap());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
-        assertEquals("{}", serialized.getConfig().utf8ToString());
+        assertThat(serialized.getConfig(), anEmptyMap());
     }
 
     public void testMetaSerialization() throws IOException {
@@ -56,13 +87,14 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
             new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)),
             XContentType.JSON
         );
-        assertEquals(XContentType.JSON, configuration.getXContentType());
         BytesStreamOutput out = new BytesStreamOutput();
         configuration.writeTo(out);
         StreamInput in = StreamInput.wrap(out.bytes().toBytesRef().bytes);
         PipelineConfiguration serialized = PipelineConfiguration.readFrom(in);
-        assertEquals(XContentType.JSON, serialized.getXContentType());
-        assertEquals(configJson, serialized.getConfig().utf8ToString());
+        assertEquals(
+            XContentHelper.convertToMap(new BytesArray(configJson.getBytes(StandardCharsets.UTF_8)), true, XContentType.JSON).v2(),
+            serialized.getConfig()
+        );
     }
 
     public void testParser() throws IOException {
@@ -80,9 +112,8 @@ public class PipelineConfigurationTests extends AbstractXContentTestCase<Pipelin
         XContentParser xContentParser = xContentType.xContent()
             .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, bytes.streamInput());
         PipelineConfiguration parsed = parser.parse(xContentParser, null);
-        assertEquals(xContentType.canonical(), parsed.getXContentType());
-        assertEquals("{}", XContentHelper.convertToJson(parsed.getConfig(), false, parsed.getXContentType()));
-        assertEquals("1", parsed.getId());
+        assertThat(parsed.getId(), equalTo("1"));
+        assertThat(parsed.getConfig(), anEmptyMap());
     }
 
     public void testGetVersion() {

@@ -59,10 +59,15 @@ public abstract class QueryPlan<PlanType extends QueryPlan<PlanType>> extends No
      */
     public List<Expression> expressions() {
         if (lazyExpressions == null) {
-            lazyExpressions = new ArrayList<>();
-            forEachPropertyOnly(Object.class, e -> doForEachExpression(e, lazyExpressions::add));
+            lazyExpressions = computeExpressions();
         }
         return lazyExpressions;
+    }
+
+    protected List<Expression> computeExpressions() {
+        List<Expression> expressions = new ArrayList<>();
+        forEachPropertyOnly(Object.class, e -> doForEachExpression(e, expressions::add));
+        return expressions;
     }
 
     /**

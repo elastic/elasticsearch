@@ -29,7 +29,7 @@ import java.util.stream.Collectors;
 public class MockAzureBlobStore {
 
     private static final Logger logger = LogManager.getLogger(MockAzureBlobStore.class);
-    private static final BytesReference EMPTY = new BytesArray(new byte[] {});
+    private static final BytesReference UNCOMMITTED = new BytesArray(new byte[] {});
     private static final String BLOCK_BLOB_TYPE = "BlockBlob";
     private static final String PAGE_BLOB_TYPE = "PageBlob";
     private static final String APPEND_BLOB_TYPE = "AppendBlob";
@@ -192,7 +192,7 @@ public class MockAzureBlobStore {
 
     private static class MockAzureBlockBlob extends AbstractAzureBlob implements AzureBlob {
         private final Map<String, BytesReference> blocks;
-        private volatile BytesReference contents = EMPTY;
+        private volatile BytesReference contents = UNCOMMITTED;
 
         private MockAzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
@@ -263,7 +263,7 @@ public class MockAzureBlobStore {
 
         @Override
         public boolean isCommitted() {
-            return contents != EMPTY;
+            return contents != UNCOMMITTED;
         }
 
         @Override

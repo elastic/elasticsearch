@@ -920,7 +920,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
             shardsAllocator,
             threadPool,
             clusterService,
-            new DesiredBalanceComputer(clusterSettings, TimeProviderUtils.create(() -> 1L), shardsAllocator) {
+            new DesiredBalanceComputer(clusterSettings, threadPool, shardsAllocator) {
                 @Override
                 public DesiredBalance compute(
                     DesiredBalance previousDesiredBalance,
@@ -933,8 +933,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 }
             },
             (clusterState, rerouteStrategy) -> null,
-            TelemetryProvider.NOOP,
-            EMPTY_NODE_ALLOCATION_STATS
+            TelemetryProvider.NOOP
         ) {
 
             private ActionListener<Void> lastListener;

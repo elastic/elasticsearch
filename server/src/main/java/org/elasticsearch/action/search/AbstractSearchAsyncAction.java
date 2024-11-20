@@ -54,7 +54,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -97,7 +96,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
     protected final GroupShardsIterator<SearchShardIterator> toSkipShardsIts;
     protected final GroupShardsIterator<SearchShardIterator> shardsIts;
-    private final SearchShardIterator[] shardIterators;
+    protected final SearchShardIterator[] shardIterators;
     private final Map<SearchShardIterator, Integer> shardIndexMap;
     private final int expectedTotalOps;
     private final AtomicInteger totalOps = new AtomicInteger();
@@ -247,11 +246,30 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 if (routing == null) {
                     failOnUnavailable(shardIndex, shardRoutings);
                 } else {
-                    performPhaseOnShard(shardIndex, shardRoutings, routing);
+                    performPhaseOnShard(shardIndex, shardRoutings, routing, request);
                 }
             }
-            for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
-                pendingExecutions.maybeReleasePermits();
+            if (request.searchType() != SearchType.QUERY_THEN_FETCH || request.source().aggregations() == null) {
+                for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
+                    List<ShardRequest> requests = new ArrayList<>();
+                    pendingExecutions.queue.drainTo(requests);
+                    if (requests.size() > 1) {
+                        Transport.Connection connection;
+                        try {
+                            ShardRequest first = requests.getFirst();
+                            connection = getConnection(first.shard.getClusterAlias(), first.shard.getNodeId());
+                        } catch (Exception e) {
+                            for (ShardRequest request : requests) {
+                                onShardFailure(request.shardIndex(), request.shard(), request.shardIt(), e);
+                            }
+                            return;
+                        }
+                        executePhaseOnDataNode(requests, connection, pendingExecutions);
+                    } else if (requests.size() == 1) {
+                        ShardRequest first = requests.getFirst();
+                        performPhaseOnShard(first.shardIndex, first.shardIt, first.shard, request);
+                    }
+                }
             }
         }
     }
@@ -289,13 +307,21 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return true;
     }
 
-    private void performPhaseOnShard(final int shardIndex, final SearchShardIterator shardIt, final SearchShardTarget shard) {
+    private void performPhaseOnShard(
+        final int shardIndex,
+        final SearchShardIterator shardIt,
+        final SearchShardTarget shard,
+        SearchRequest request
+    ) {
         if (throttleConcurrentRequests) {
-            var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(
-                shard.getNodeId(),
-                n -> new PendingExecutions(maxConcurrentRequestsPerNode)
-            );
-            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
+            var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> {
+                PendingExecutions p = new PendingExecutions();
+                if (request.searchType() != SearchType.QUERY_THEN_FETCH || request.source().aggregations() == null) {
+                    p.semaphore.release(maxConcurrentRequestsPerNode);
+                }
+                return p;
+            });
+            pendingExecutions.submit(new ShardRequest(shardIndex, shardIt, shard));
         } else {
             doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
         }
@@ -338,6 +364,15 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         SearchShardTarget shard,
         SearchActionListener<Result> listener
     );
+
+    protected void executePhaseOnDataNode(
+        List<ShardRequest> requests,
+        Transport.Connection connection,
+        PendingExecutions pendingExecutions
+    ) {
+        assert false;
+        throw new UnsupportedOperationException();
+    }
 
     /**
      * Processes the phase transition from on phase to another. This method handles all errors that happen during the initial run execution
@@ -429,7 +464,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return failures;
     }
 
-    private void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
+    protected void onShardFailure(final int shardIndex, SearchShardTarget shard, final SearchShardIterator shardIt, Exception e) {
         // we always add the shard failure for a specific shard instance
         // we do make sure to clean it on a successful response from a shard
         onShardFailure(shardIndex, shard, e);
@@ -458,7 +493,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             );
         } else {
             if (lastShard == false) {
-                performPhaseOnShard(shardIndex, shardIt, nextShard);
+                performPhaseOnShard(shardIndex, shardIt, nextShard, request);
                 PendingExecutions pendingExecutions = pendingExecutionsPerNode.get(nextShard.getNodeId());
                 if (pendingExecutions != null) {
                     pendingExecutions.maybeReleasePermits();
@@ -805,28 +840,38 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase();
 
-    private static final class PendingExecutions {
+    protected record ShardRequest(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard) {}
+
+    final class PendingExecutions {
         private final Semaphore semaphore = new Semaphore(0);
         private final AtomicInteger queuedItems = new AtomicInteger();
-        private final int permits;
-        private final LinkedTransferQueue<Consumer<Releasable>> queue = new LinkedTransferQueue<>();
+        private final LinkedTransferQueue<ShardRequest> queue = new LinkedTransferQueue<>();
 
-        PendingExecutions(int permits) {
-            this.permits = permits;
-        }
-
-        void submit(Consumer<Releasable> task) {
+        void submit(ShardRequest request) {
             if (semaphore.tryAcquire()) {
-                executeAndRelease(task);
+                executeAndRelease(request);
             } else {
-                queue.add(task);
+                queue.add(request);
                 int queuedItemsCount = queuedItems.incrementAndGet();
-                if (queuedItemsCount == permits) {
-                    semaphore.release(permits);
-                    for (int i = 0; i < permits; i++) {
-                        flushQueue();
+                if (queuedItemsCount == maxConcurrentRequestsPerNode) {
+                    // here
+                    List<ShardRequest> requests = new ArrayList<>(maxConcurrentRequestsPerNode);
+                    queue.drainTo(requests);
+                    // TODO mp check duplicate code
+                    Transport.Connection connection;
+                    PendingExecutions p;
+                    try {
+                        ShardRequest first = requests.getFirst();
+                        connection = getConnection(first.shard.getClusterAlias(), first.shard.getNodeId());
+                        p = pendingExecutionsPerNode.get(first.shard.getNodeId());
+                    } catch (Exception e) {
+                        for (ShardRequest shardRequest : requests) {
+                            onShardFailure(shardRequest.shardIndex(), shardRequest.shard(), shardRequest.shardIt(), e);
+                        }
+                        return;
                     }
-                } else if (queuedItemsCount > permits) {
+                    executePhaseOnDataNode(requests, connection, p);
+                } else if (queuedItemsCount > maxConcurrentRequestsPerNode) {
                     flushQueue();
                 }
             }
@@ -834,38 +879,43 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
 
         void flushQueue() {
             if (semaphore.tryAcquire()) {
-                var task = pollNextTaskOrReleasePermit();
-                if (task != null) {
-                    executeAndRelease(task);
+                var request = pollNextTaskOrReleasePermit();
+                if (request != null) {
+                    executeAndRelease(request);
                 } else {
                     return;
                 }
             }
         }
 
+        void releaseOnePermit() {
+            semaphore.release(1);
+            flushQueue();
+        }
+
         private void maybeReleasePermits() {
             int queuedItemsCount = queuedItems.get();
-            if (queuedItemsCount < permits) {
-                queuedItems.set(permits + 1);
-                semaphore.release(permits);
+            if (queuedItemsCount < maxConcurrentRequestsPerNode) {
+                queuedItems.set(maxConcurrentRequestsPerNode + 1);
+                semaphore.release(maxConcurrentRequestsPerNode);
                 flushQueue();
             }
         }
 
-        private void executeAndRelease(Consumer<Releasable> task) {
+        private void executeAndRelease(ShardRequest request) {
             do {
                 final SubscribableListener<Void> onDone = new SubscribableListener<>();
-                task.accept(() -> onDone.onResponse(null));
+                doPerformPhaseOnShard(request.shardIndex, request.shardIt, request.shard, () -> onDone.onResponse(null));
                 if (onDone.isDone()) {
                     // keep going on the current thread, no need to fork
-                    task = pollNextTaskOrReleasePermit();
+                    request = pollNextTaskOrReleasePermit();
                 } else {
                     onDone.addListener(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
-                            final Consumer<Releasable> nextTask = pollNextTaskOrReleasePermit();
-                            if (nextTask != null) {
-                                executeAndRelease(nextTask);
+                            final ShardRequest nextRequest = pollNextTaskOrReleasePermit();
+                            if (nextRequest != null) {
+                                executeAndRelease(nextRequest);
                             }
                         }
 
@@ -876,23 +926,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     });
                     return;
                 }
-            } while (task != null);
+            } while (request != null);
         }
 
-        private Consumer<Releasable> pollNextTaskOrReleasePermit() {
-            var task = queue.poll();
-            if (task == null) {
+        private ShardRequest pollNextTaskOrReleasePermit() {
+            var request = queue.poll();
+            if (request == null) {
                 semaphore.release();
                 while (queue.peek() != null && semaphore.tryAcquire()) {
-                    task = queue.poll();
-                    if (task == null) {
+                    request = queue.poll();
+                    if (request == null) {
                         semaphore.release();
                     } else {
-                        return task;
+                        return request;
                     }
                 }
             }
-            return task;
+            return request;
         }
     }
 }

@@ -20,11 +20,14 @@ import org.elasticsearch.search.SearchPhaseResult;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.internal.AliasFilter;
+import org.elasticsearch.search.internal.NodeSearchRequest;
 import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -103,6 +106,54 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         }
         ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
+    }
+
+    protected void executePhaseOnDataNode(
+        List<ShardRequest> requests,
+        Transport.Connection connection,
+        PendingExecutions pendingExecutions
+    ) {
+        List<ShardSearchRequest> shardSearchRequests = new ArrayList<>(requests.size());
+        for (ShardRequest request : requests) {
+            shardSearchRequests.add(super.buildShardSearchRequest(request.shardIt(), request.shardIndex()));
+        }
+        NodeSearchRequest nodeSearchRequest = new NodeSearchRequest(shardSearchRequests);
+        getTask().setResponseAsRequestConsumer(shardSearchResponseAsRequest -> {
+            pendingExecutions.releaseOnePermit();
+            SearchPhaseResult result = shardSearchResponseAsRequest.getResult();
+            if (shardSearchResponseAsRequest.getResult() != null) {
+                onShardResult(result, shardIterators[result.getShardIndex()]);
+            } else {
+                SearchShardIterator shardIt = null;
+                int shardIndex = 0;
+                for (int i = 0; i < shardIterators.length; i++) {
+                    if (shardIterators[i].shardId() == shardSearchResponseAsRequest.getShardId()) {
+                        shardIt = shardIterators[i];
+                        shardIndex = i;
+                        break;
+                    }
+                }
+                SearchShardTarget shard = new SearchShardTarget(
+                    connection.getNode().getId(),
+                    shardSearchResponseAsRequest.getShardId(),
+                    null
+                );
+                onShardFailure(shardIndex, shard, shardIt, shardSearchResponseAsRequest.getError());
+            }
+        });
+        getSearchTransport().sendExecuteQuery(connection, nodeSearchRequest, getTask(), new ActionListener<SearchPhaseResult>() {
+            @Override
+            public void onResponse(SearchPhaseResult searchPhaseResult) {
+                // todo do nothing?
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                for (ShardRequest request : requests) {
+                    onShardFailure(request.shardIndex(), request.shard(), request.shardIt(), e);
+                }
+            }
+        });
     }
 
     @Override

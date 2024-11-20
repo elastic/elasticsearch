@@ -48,6 +48,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             null
         );
 
@@ -79,6 +80,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             XContentType.JSON,
             pipelines,
+            List.of(),
             new ElasticsearchException("Some failure")
         );
 
@@ -135,6 +137,7 @@ public class SimulateIndexResponseTests extends ESTestCase {
             sourceBytes,
             xContentType,
             pipelines,
+            List.of(),
             randomBoolean() ? null : new ElasticsearchException("failed")
         );
     }

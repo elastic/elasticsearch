@@ -18,6 +18,7 @@ import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.xcontent.XContentType;
 
+import java.util.Collection;
 import java.util.Collections;
 import java.util.List;
 
@@ -40,6 +41,7 @@ public class ParsedDocument {
     private BytesReference source;
     private XContentType xContentType;
     private Mapping dynamicMappingsUpdate;
+    private final Collection<String> ignoredFields;
 
     /**
      * Create a no-op tombstone document
@@ -63,7 +65,7 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,List.of()
         );
     }
 
@@ -88,7 +90,8 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
     }
 
@@ -101,7 +104,8 @@ public class ParsedDocument {
         BytesReference source,
         XContentType xContentType,
         Mapping dynamicMappingsUpdate,
-        long normalizedSize
+        long normalizedSize,
+        Collection<String> ignoredFields
     ) {
         this.version = version;
         this.seqID = seqID;
@@ -112,6 +116,7 @@ public class ParsedDocument {
         this.dynamicMappingsUpdate = dynamicMappingsUpdate;
         this.xContentType = xContentType;
         this.normalizedSize = normalizedSize;
+        this.ignoredFields = ignoredFields;
     }
 
     public String id() {
@@ -182,5 +187,9 @@ public class ParsedDocument {
 
     public long getNormalizedSize() {
         return normalizedSize;
+    }
+
+    public Collection<String> getIgnoredFields() {
+        return ignoredFields;
     }
 }

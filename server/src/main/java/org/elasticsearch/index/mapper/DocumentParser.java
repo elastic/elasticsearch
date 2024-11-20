@@ -107,7 +107,8 @@ public final class DocumentParser {
             context.sourceToParse().source(),
             context.sourceToParse().getXContentType(),
             dynamicUpdate,
-            meteringParserDecorator.meteredDocumentSize()
+            meteringParserDecorator.meteredDocumentSize(),
+            context.getIgnoredFields()
         ) {
             @Override
             public String documentDescription() {

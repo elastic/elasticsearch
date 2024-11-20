@@ -143,11 +143,6 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    public SignificantTerms.Bucket getBucketByKey(String term) {
-        return null;
-    }
-
-    @Override
     protected SignificanceHeuristic getSignificanceHeuristic() {
         throw new UnsupportedOperationException();
     }

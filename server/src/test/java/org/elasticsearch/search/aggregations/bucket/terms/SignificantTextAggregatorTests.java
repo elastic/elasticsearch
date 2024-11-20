@@ -93,10 +93,10 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 );
                 SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
-                assertNull(terms.getBucketByKey("even"));
-                assertNull(terms.getBucketByKey("duplicate"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNotNull(terms.getBucketByKey("odd"));
+                assertNull(getBucketByKey(terms, "even"));
+                assertNull(getBucketByKey(terms, "duplicate"));
+                assertNull(getBucketByKey(terms, "common"));
+                assertNotNull(getBucketByKey(terms, "odd"));
 
                 // Search "even" which will have duplication
                 sampler = searchAndReduce(
@@ -105,14 +105,14 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 );
                 terms = sampler.getAggregations().get("sig_text");
 
-                assertNull(terms.getBucketByKey("odd"));
-                assertNull(terms.getBucketByKey("duplicate"));
-                assertNull(terms.getBucketByKey("common"));
-                assertNull(terms.getBucketByKey("separator2"));
-                assertNull(terms.getBucketByKey("separator4"));
-                assertNull(terms.getBucketByKey("separator6"));
+                assertNull(getBucketByKey(terms, "odd"));
+                assertNull(getBucketByKey(terms, "duplicate"));
+                assertNull(getBucketByKey(terms, "common"));
+                assertNull(getBucketByKey(terms, "separator2"));
+                assertNull(getBucketByKey(terms, "separator4"));
+                assertNull(getBucketByKey(terms, "separator6"));
 
-                assertNotNull(terms.getBucketByKey("even"));
+                assertNotNull(getBucketByKey(terms, "even"));
 
                 assertTrue(AggregationInspectionHelper.hasValue(sampler));
             }
@@ -151,8 +151,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                     );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
-                    assertNull(terms.getBucketByKey("even"));
-                    assertNotNull(terms.getBucketByKey("duplicate"));
+                    assertNull(getBucketByKey(terms, "even"));
+                    assertNotNull(getBucketByKey(terms, "duplicate"));
                     assertTrue(AggregationInspectionHelper.hasValue(sampler));
 
                 }
@@ -172,8 +172,8 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                     );
                     SignificantTerms terms = sampler.getAggregations().get("sig_text");
 
-                    assertNotNull(terms.getBucketByKey("even"));
-                    assertNull(terms.getBucketByKey("duplicate"));
+                    assertNotNull(getBucketByKey(terms, "even"));
+                    assertNull(getBucketByKey(terms, "duplicate"));
                     assertTrue(AggregationInspectionHelper.hasValue(sampler));
 
                 }
@@ -283,19 +283,19 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
 
                 StringTerms terms = searchAndReduce(reader, new AggTestConfig(aggBuilder, textFieldType, keywordField("kwd")));
                 SignificantTerms sigOdd = terms.getBucketByKey("odd").getAggregations().get("sig_text");
-                assertNull(sigOdd.getBucketByKey("even"));
-                assertNull(sigOdd.getBucketByKey("duplicate"));
-                assertNull(sigOdd.getBucketByKey("common"));
-                assertNotNull(sigOdd.getBucketByKey("odd"));
+                assertNull(getBucketByKey(sigOdd, "even"));
+                assertNull(getBucketByKey(sigOdd, "duplicate"));
+                assertNull(getBucketByKey(sigOdd, "common"));
+                assertNotNull(getBucketByKey(sigOdd, "odd"));
 
                 SignificantStringTerms sigEven = terms.getBucketByKey("even").getAggregations().get("sig_text");
-                assertNull(sigEven.getBucketByKey("odd"));
-                assertNull(sigEven.getBucketByKey("duplicate"));
-                assertNull(sigEven.getBucketByKey("common"));
-                assertNull(sigEven.getBucketByKey("separator2"));
-                assertNull(sigEven.getBucketByKey("separator4"));
-                assertNull(sigEven.getBucketByKey("separator6"));
-                assertNotNull(sigEven.getBucketByKey("even"));
+                assertNull(getBucketByKey(sigEven, "odd"));
+                assertNull(getBucketByKey(sigEven, "duplicate"));
+                assertNull(getBucketByKey(sigEven, "common"));
+                assertNull(getBucketByKey(sigEven, "separator2"));
+                assertNull(getBucketByKey(sigEven, "separator4"));
+                assertNull(getBucketByKey(sigEven, "separator6"));
+                assertNotNull(getBucketByKey(sigEven, "even"));
             }
         }
     }
@@ -346,6 +346,15 @@ public class SignificantTextAggregatorTests extends AggregatorTestCase {
                 // with the internal exception discovered in issue https://github.com/elastic/elasticsearch/issues/25029
             }
         }
+    }
+
+    private static SignificantTerms.Bucket getBucketByKey(SignificantTerms terms, String term) {
+        for (SignificantTerms.Bucket bucket : terms.getBuckets()) {
+            if (bucket.getKey().toString().equals(term)) {
+                return bucket;
+            }
+        }
+        return null;
     }
 
     @Override

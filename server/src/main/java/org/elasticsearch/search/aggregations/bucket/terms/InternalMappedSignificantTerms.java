@@ -32,7 +32,6 @@ public abstract class InternalMappedSignificantTerms<
     protected final long supersetSize;
     protected final SignificanceHeuristic significanceHeuristic;
     protected final List<B> buckets;
-    protected Map<String, B> bucketMap;
 
     protected InternalMappedSignificantTerms(
         String name,
@@ -83,14 +82,6 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    public B getBucketByKey(String term) {
-        if (bucketMap == null) {
-            bucketMap = buckets.stream().collect(Collectors.toMap(InternalSignificantTerms.Bucket::getKeyAsString, Function.identity()));
-        }
-        return bucketMap.get(term);
-    }
-
-    @Override
     protected long getSubsetSize() {
         return subsetSize;
     }
@@ -116,13 +107,12 @@ public abstract class InternalMappedSignificantTerms<
             && subsetSize == that.subsetSize
             && supersetSize == that.supersetSize
             && Objects.equals(significanceHeuristic, that.significanceHeuristic)
-            && Objects.equals(buckets, that.buckets)
-            && Objects.equals(bucketMap, that.bucketMap);
+            && Objects.equals(buckets, that.buckets);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets, bucketMap);
+        return Objects.hash(super.hashCode(), format, subsetSize, supersetSize, significanceHeuristic, buckets);
     }
 
     @Override

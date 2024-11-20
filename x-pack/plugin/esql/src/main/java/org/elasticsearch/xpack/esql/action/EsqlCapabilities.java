@@ -279,6 +279,11 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
+
+        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
@@ -489,7 +494,12 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP(Build.current().isSnapshot());
 
         private final boolean enabled;
 

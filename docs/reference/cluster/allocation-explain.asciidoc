@@ -159,6 +159,8 @@ node.
 <5> The decider which led to the `no` decision for the node.
 <6> An explanation as to why the decider returned a `no` decision, with a helpful hint pointing to the setting that led to the decision. In this example, a newly created index has <<indices-get-settings,an index setting>> that requires that it only be allocated to a node named `nonexistent_node`, which does not exist, so the index is unable to allocate.
 
+See https://www.youtube.com/watch?v=5z3n2VgusLE[this video] for a walkthrough of troubleshooting a node and index setting mismatch.
+
 [[maximum-number-of-retries-exceeded]]
 ====== Maximum number of retries exceeded
 
@@ -235,7 +237,9 @@ primary shard that was previously allocated.
 ----
 // NOTCONSOLE
 
-TIP: If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If all the nodes containing in-sync copies of a shard are lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>.
+If a shard is unassigned with an allocation status of `no_valid_shard_copy`, then you should <<fix-cluster-status-recover-nodes,make sure that all nodes are in the cluster>>. If all the nodes containing in-sync copies of a shard are lost, then you can <<fix-cluster-status-restore,recover the data for the shard>>. 
+
+See https://www.youtube.com/watch?v=6OAg9IyXFO4[this video] for a walkthrough of troubleshooting `no_valid_shard_copy`.
 
 ===== Unassigned replica shard
 

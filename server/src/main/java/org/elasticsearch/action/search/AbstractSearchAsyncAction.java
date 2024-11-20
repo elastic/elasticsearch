@@ -54,7 +54,6 @@ import java.util.concurrent.Semaphore;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.BiFunction;
-import java.util.function.Consumer;
 import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
@@ -292,7 +291,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 shard.getNodeId(),
                 n -> new PendingExecutions(maxConcurrentRequestsPerNode)
             );
-            pendingExecutions.submit(l -> doPerformPhaseOnShard(shardIndex, shardIt, shard, l));
+            pendingExecutions.submit(new ShardRequest(shardIndex, shardIt, shard));
         } else {
             doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
         }
@@ -801,48 +800,50 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         return shardRequest;
     }
 
+    protected record ShardRequest(int shardIndex, SearchShardIterator shardIt, SearchShardTarget shard) {}
+
     /**
      * Returns the next phase based on the results of the initial search phase
      */
     protected abstract SearchPhase getNextPhase();
 
-    private static final class PendingExecutions {
+    private final class PendingExecutions {
         private final Semaphore semaphore;
-        private final ConcurrentLinkedQueue<Consumer<Releasable>> queue = new ConcurrentLinkedQueue<>();
+        private final ConcurrentLinkedQueue<ShardRequest> queue = new ConcurrentLinkedQueue<>();
 
         PendingExecutions(int permits) {
             assert permits > 0 : "not enough permits: " + permits;
             semaphore = new Semaphore(permits);
         }
 
-        void submit(Consumer<Releasable> task) {
+        void submit(ShardRequest request) {
             if (semaphore.tryAcquire()) {
-                executeAndRelease(task);
+                executeAndRelease(request);
             } else {
-                queue.add(task);
+                queue.add(request);
                 if (semaphore.tryAcquire()) {
-                    task = pollNextTaskOrReleasePermit();
-                    if (task != null) {
-                        executeAndRelease(task);
+                    request = pollNextTaskOrReleasePermit();
+                    if (request != null) {
+                        executeAndRelease(request);
                     }
                 }
             }
         }
 
-        private void executeAndRelease(Consumer<Releasable> task) {
+        private void executeAndRelease(ShardRequest request) {
             do {
                 final SubscribableListener<Void> onDone = new SubscribableListener<>();
-                task.accept(() -> onDone.onResponse(null));
+                doPerformPhaseOnShard(request.shardIndex, request.shardIt, request.shard, () -> onDone.onResponse(null));
                 if (onDone.isDone()) {
                     // keep going on the current thread, no need to fork
-                    task = pollNextTaskOrReleasePermit();
+                    request = pollNextTaskOrReleasePermit();
                 } else {
                     onDone.addListener(new ActionListener<>() {
                         @Override
                         public void onResponse(Void unused) {
-                            final Consumer<Releasable> nextTask = pollNextTaskOrReleasePermit();
-                            if (nextTask != null) {
-                                executeAndRelease(nextTask);
+                            final ShardRequest nextRequest = pollNextTaskOrReleasePermit();
+                            if (nextRequest != null) {
+                                executeAndRelease(nextRequest);
                             }
                         }
 
@@ -853,23 +854,23 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     });
                     return;
                 }
-            } while (task != null);
+            } while (request != null);
         }
 
-        private Consumer<Releasable> pollNextTaskOrReleasePermit() {
-            var task = queue.poll();
-            if (task == null) {
+        private ShardRequest pollNextTaskOrReleasePermit() {
+            var request = queue.poll();
+            if (request == null) {
                 semaphore.release();
                 while (queue.peek() != null && semaphore.tryAcquire()) {
-                    task = queue.poll();
-                    if (task == null) {
+                    request = queue.poll();
+                    if (request == null) {
                         semaphore.release();
                     } else {
-                        return task;
+                        return request;
                     }
                 }
             }
-            return task;
+            return request;
         }
     }
 }

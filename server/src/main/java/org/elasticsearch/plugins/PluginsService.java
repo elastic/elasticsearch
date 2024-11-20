@@ -216,11 +216,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
 
     private Map<String, LoadedPlugin> loadPluginBundles(Settings settings, Path configPath, PluginsLoader pluginsLoader) {
         Map<String, LoadedPlugin> loadedPlugins = new LinkedHashMap<>();
-
-        for (PluginLayer pluginLayer : pluginsLoader.pluginLayers().toList()) {
-            loadBundle(pluginLayer, loadedPlugins, settings, configPath);
-        }
-
+        pluginsLoader.pluginLayers().forEach(pl -> loadBundle(pl, loadedPlugins, settings, configPath));
         loadExtensions(loadedPlugins.values());
         return loadedPlugins;
     }

@@ -41,6 +41,7 @@ public class EarlyDeprecationIndexingIT extends ESRestTestCase {
      * This test confirms by checking the settings that a data stream is created (not an index with defaults)
      * and that an early deprecation warning is not lost
      */
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/pull/117172")
     public void testEarlyDeprecationIsIndexedAfterTemplateIsLoaded() throws Exception {
 
         assertBusy(() -> {

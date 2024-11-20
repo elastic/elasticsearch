@@ -117,7 +117,9 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
-            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            if (withSourceMode) {
+                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            }
         }
     }
 

@@ -239,9 +239,6 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.xpack.test.rest.XPackRestIT
-  method: test {p0=snapshot/10_basic/Failed to snapshot indices with synthetic source}
-  issue: https://github.com/elastic/elasticsearch/issues/117082
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024

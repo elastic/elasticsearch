@@ -13,6 +13,8 @@ boolean | cartesian_shape | cartesian_shape | cartesian_shape
 boolean | cartesian_shape | | cartesian_shape
 boolean | date | date | date
 boolean | date | | date
+boolean | date_nanos | date_nanos | date_nanos
+boolean | date_nanos | | date_nanos
 boolean | double | double | double
 boolean | double | | double
 boolean | geo_point | geo_point | geo_point

@@ -9,6 +9,7 @@
 
 package fixture.azure;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
@@ -29,48 +30,9 @@ public class MockAzureBlobStore {
 
     private static final Logger logger = LogManager.getLogger(MockAzureBlobStore.class);
     private static final BytesReference EMPTY = new BytesArray(new byte[] {});
-
-    public enum BlobType {
-        BLOCK("BlockBlob") {
-            @Override
-            AzureBlob create() {
-                return new MockAzureBlockBlob();
-            }
-        },
-        PAGE("PageBlob") {
-            @Override
-            AzureBlob create() {
-                throw new UnsupportedOperationException("PageBlob is not supported");
-            }
-        },
-        APPEND("AppendBlob") {
-            @Override
-            AzureBlob create() {
-                throw new UnsupportedOperationException("AppendBlob is not supported");
-            }
-        };
-
-        final String xMsBlobType;
-
-        BlobType(String xMsBlobType) {
-            this.xMsBlobType = xMsBlobType;
-        }
-
-        abstract AzureBlob create();
-
-        public String getXMsBlobType() {
-            return xMsBlobType;
-        }
-
-        public static BlobType fromXMSBlobType(String blobTypeString) {
-            for (BlobType blobType : BlobType.values()) {
-                if (blobType.xMsBlobType.equals(blobTypeString)) {
-                    return blobType;
-                }
-            }
-            return null;
-        }
-    }
+    private static final String BLOCK_BLOB_TYPE = "BlockBlob";
+    private static final String PAGE_BLOB_TYPE = "PageBlob";
+    private static final String APPEND_BLOB_TYPE = "AppendBlob";
 
     private final Map<String, AzureBlob> blobs;
 
@@ -104,17 +66,31 @@ public class MockAzureBlobStore {
         }
     }
 
-    public void putBlob(String path, BytesReference contents, BlobType blobType, @Nullable String ifNoneMatch, @Nullable String leaseId) {
+    public void putBlob(String path, BytesReference contents, String blobType, @Nullable String ifNoneMatch, @Nullable String leaseId) {
         blobs.compute(path, (p, existingValue) -> {
             if (existingValue != null) {
                 existingValue.setContents(contents, leaseId, ifNoneMatch);
                 return existingValue;
             } else {
-                final AzureBlob newBlob = blobType.create();
+                validateBlobType(blobType);
+                final AzureBlob newBlob = new MockAzureBlockBlob();
                 newBlob.setContents(contents, leaseId);
                 return newBlob;
             }
         });
+    }
+
+    private void validateBlobType(String blobType) {
+        if (BLOCK_BLOB_TYPE.equals(blobType)) {
+            return;
+        }
+        if (PAGE_BLOB_TYPE.equals(blobType) || APPEND_BLOB_TYPE.equals(blobType)) {
+            ExceptionsHelper.maybeDieOnAnotherThread(
+                new AssertionError("Only BlockBlob is supported. This is a limitation of the MockAzureBlobStore")
+            );
+        }
+        // Anything else is a malformed header
+        throw new MockAzureBlobStore.ConflictException("InvalidHeaderValue", "Unable to parse blobType: " + blobType);
     }
 
     public AzureBlob getBlob(String path, @Nullable String leaseId) {
@@ -171,7 +147,7 @@ public class MockAzureBlobStore {
 
         BytesReference getContents();
 
-        BlobType type();
+        String type();
 
         String acquireLease(String proposedLeaseId, int leaseTimeSeconds);
 
@@ -281,8 +257,8 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public BlobType type() {
-            return BlobType.BLOCK;
+        public String type() {
+            return BLOCK_BLOB_TYPE;
         }
 
         @Override

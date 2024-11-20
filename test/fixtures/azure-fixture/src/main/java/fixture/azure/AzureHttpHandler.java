@@ -185,11 +185,7 @@ public class AzureHttpHandler implements HttpHandler {
                 }
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
-                final String blobTypeHeader = requireHeader(exchange, X_MS_BLOB_TYPE);
-                final MockAzureBlobStore.BlobType blobType = MockAzureBlobStore.BlobType.fromXMSBlobType(blobTypeHeader);
-                if (blobType == null) {
-                    throw new MockAzureBlobStore.ConflictException("InvalidHeaderValue", "Unable to parse blobType: " + blobTypeHeader);
-                }
+                final String blobType = requireHeader(exchange, X_MS_BLOB_TYPE);
                 final String ifNoneMatch = exchange.getRequestHeaders().getFirst("If-None-Match");
                 mockAzureBlobStore.putBlob(
                     blobPath(exchange),
@@ -209,7 +205,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final BytesReference blobContents = azureBlob.getContents();
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
-                responseHeaders.add(X_MS_BLOB_TYPE, azureBlob.type().getXMsBlobType());
+                responseHeaders.add(X_MS_BLOB_TYPE, azureBlob.type());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "/*", request)) {
@@ -248,7 +244,7 @@ public class AzureHttpHandler implements HttpHandler {
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
-                exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type().getXMsBlobType());
+                exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
                 responseContent.writeTo(exchange.getResponseBody());

@@ -78,7 +78,7 @@
     }
   ],
   "examples" : [
-    "from books \n| where match(author, \"Faulkner\")\n| keep book_no, author \n| sort book_no \n| limit 5;"
+    "FROM books \n| WHERE MATCH(author, \"Faulkner\")\n| KEEP book_no, author \n| SORT book_no \n| LIMIT 5;"
   ],
   "preview" : true,
   "snapshot_only" : false

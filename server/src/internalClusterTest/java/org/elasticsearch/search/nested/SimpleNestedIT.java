@@ -1505,8 +1505,8 @@ public class SimpleNestedIT extends ESIntegTestCase {
 
         assertNoFailuresAndResponse(
             prepareSearch("test").addSort(
-                    SortBuilders.fieldSort("users.first").setNestedSort(new NestedSortBuilder("users")).order(SortOrder.ASC)
-                )
+                SortBuilders.fieldSort("users.first").setNestedSort(new NestedSortBuilder("users")).order(SortOrder.ASC)
+            )
                 .addSort(
                     SortBuilders.fieldSort("users.first")
                         .order(SortOrder.ASC)

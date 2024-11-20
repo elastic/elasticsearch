@@ -355,6 +355,14 @@ public class AzureHttpHandler implements HttpHandler {
                                 throw new IllegalStateException("Got multiple deletes in a single request?");
                             }
                             toDelete = blobName;
+                        } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", line)) {
+                            // possible alternative DELETE url, depending on which method is used in the batch client
+                            String path = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
+                            String blobName = path.split(account)[1];
+                            if (toDelete != null) {
+                                throw new IllegalStateException("Got multiple deletes in a single request?");
+                            }
+                            toDelete = blobName;
                         }
                     }
                     response.append("--").append(responseBoundary).append("--\r\n0\r\n");

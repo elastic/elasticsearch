@@ -28,13 +28,13 @@ public class ParsingException extends EsqlClientException {
     public ParsingException(Source source, String message, Object... args) {
         super(message, args);
         this.line = source.source().getLineNumber();
-        this.charPositionInLine = source.source().getColumnNumber();
+        this.charPositionInLine = source.source().getColumnNumber() - 1;
     }
 
     public ParsingException(Exception cause, Source source, String message, Object... args) {
         super(cause, message, args);
         this.line = source.source().getLineNumber();
-        this.charPositionInLine = source.source().getColumnNumber();
+        this.charPositionInLine = source.source().getColumnNumber() - 1;
     }
 
     public int getLineNumber() {

@@ -67,13 +67,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
-            licenseService,
-            parameters.mapperServiceFactory(),
-            logsdbIndexModeSettingsProvider,
-            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
+        return List.of(
+            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory(), logsdbIndexModeSettingsProvider),
+            logsdbIndexModeSettingsProvider
         );
-        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
     }
 
     @Override

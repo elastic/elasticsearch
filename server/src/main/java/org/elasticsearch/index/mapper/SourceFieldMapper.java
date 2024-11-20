@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -39,7 +38,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
@@ -70,9 +68,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         return indexMode.defaultSourceMode().name();
     }, "index.mapping.source.mode", value -> {}, Setting.Property.Final, Setting.Property.IndexScope);
 
-    public static final String DEPRECATION_WARNING = "Configuring source mode in mappings is deprecated and will be removed "
-        + "in future versions. Use [index.mapping.source.mode] index setting instead.";
-
     /** The source mode */
     public enum Mode {
         DISABLED,
@@ -84,32 +79,28 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         null,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false
+        Strings.EMPTY_ARRAY
     );
 
     private static final SourceFieldMapper STORED = new SourceFieldMapper(
         Mode.STORED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false
+        Strings.EMPTY_ARRAY
     );
 
     private static final SourceFieldMapper SYNTHETIC = new SourceFieldMapper(
         Mode.SYNTHETIC,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false
+        Strings.EMPTY_ARRAY
     );
 
     private static final SourceFieldMapper DISABLED = new SourceFieldMapper(
         Mode.DISABLED,
         Explicit.IMPLICIT_TRUE,
         Strings.EMPTY_ARRAY,
-        Strings.EMPTY_ARRAY,
-        false
+        Strings.EMPTY_ARRAY
     );
 
     public static class Defaults {
@@ -143,7 +134,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
          * The default mode for TimeSeries is left empty on purpose, so that mapping printings include the synthetic
          * source mode.
          */
-        private final Parameter<Mode> mode;
+        private final Parameter<Mode> mode = new Parameter<>(
+            "mode",
+            true,
+            () -> null,
+            (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
+            m -> toType(m).enabled.explicit() ? null : toType(m).mode,
+            (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
+            v -> v.toString().toLowerCase(Locale.ROOT)
+        ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
+            .setSerializerCheck((includeDefaults, isConfigured, value) -> value != null); // don't emit if `enabled` is configured
         private final Parameter<List<String>> includes = Parameter.stringArrayParam(
             "includes",
             false,
@@ -158,28 +158,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         private final Settings settings;
 
         private final IndexMode indexMode;
-        private boolean serializeMode;
 
         private final boolean supportsNonDefaultParameterValues;
 
-        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams, boolean serializeMode) {
+        public Builder(IndexMode indexMode, final Settings settings, boolean supportsCheckForNonDefaultParams) {
             super(Defaults.NAME);
             this.settings = settings;
             this.indexMode = indexMode;
             this.supportsNonDefaultParameterValues = supportsCheckForNonDefaultParams == false
                 || settings.getAsBoolean(LOSSY_PARAMETERS_ALLOWED_SETTING_NAME, true);
-            this.serializeMode = serializeMode;
-            this.mode = new Parameter<>(
-                "mode",
-                true,
-                () -> null,
-                (n, c, o) -> Mode.valueOf(o.toString().toUpperCase(Locale.ROOT)),
-                m -> toType(m).enabled.explicit() ? null : toType(m).mode,
-                (b, n, v) -> b.field(n, v.toString().toLowerCase(Locale.ROOT)),
-                v -> v.toString().toLowerCase(Locale.ROOT)
-            ).setMergeValidator((previous, current, conflicts) -> (previous == current) || current != Mode.STORED)
-                // don't emit if `enabled` is configured
-                .setSerializerCheck((includeDefaults, isConfigured, value) -> serializeMode && value != null);
         }
 
         public Builder setSynthetic() {
@@ -232,22 +219,21 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             if (sourceMode == Mode.SYNTHETIC && (includes.getValue().isEmpty() == false || excludes.getValue().isEmpty() == false)) {
                 throw new IllegalArgumentException("filtering the stored _source is incompatible with synthetic source");
             }
-            if (mode.isConfigured()) {
-                serializeMode = true;
-            }
-            final SourceFieldMapper sourceFieldMapper;
-            if (isDefault() && sourceMode == null) {
+
+            SourceFieldMapper sourceFieldMapper;
+            if (isDefault()) {
                 // Needed for bwc so that "mode" is not serialized in case of a standard index with stored source.
-                sourceFieldMapper = DEFAULT;
-            } else if (isDefault() && serializeMode == false && sourceMode != null) {
-                sourceFieldMapper = resolveStaticInstance(sourceMode);
+                if (sourceMode == null) {
+                    sourceFieldMapper = DEFAULT;
+                } else {
+                    sourceFieldMapper = resolveStaticInstance(sourceMode);
+                }
             } else {
                 sourceFieldMapper = new SourceFieldMapper(
                     sourceMode,
                     enabled.get(),
                     includes.getValue().toArray(Strings.EMPTY_ARRAY),
-                    excludes.getValue().toArray(Strings.EMPTY_ARRAY),
-                    serializeMode
+                    excludes.getValue().toArray(Strings.EMPTY_ARRAY)
                 );
             }
             if (indexMode != null) {
@@ -297,29 +283,15 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
-        if (c.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
-            return resolveStaticInstance(settingSourceMode);
-        } else {
-            return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true);
-        }
+
+        return resolveStaticInstance(settingSourceMode);
     },
         c -> new Builder(
             c.getIndexSettings().getMode(),
             c.getSettings(),
-            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
-            c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK)
         )
-    ) {
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            assert name.equals(SourceFieldMapper.NAME) : name;
-            if (parserContext.indexVersionCreated().after(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER) && node.containsKey("mode")) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
-            }
-            return super.parse(name, node, parserContext);
-        }
-    };
+    );
 
     static final class SourceFieldType extends MappedFieldType {
         private final boolean enabled;
@@ -358,9 +330,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         }
     }
 
-    // nullable for bwc reasons - TODO: fold this into serializeMode
+    // nullable for bwc reasons
     private final @Nullable Mode mode;
-    private final boolean serializeMode;
     private final Explicit<Boolean> enabled;
 
     /** indicates whether the source will always exist and be complete, for use by features like the update API */
@@ -370,7 +341,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     private final String[] excludes;
     private final SourceFilter sourceFilter;
 
-    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes, boolean serializeMode) {
+    private SourceFieldMapper(Mode mode, Explicit<Boolean> enabled, String[] includes, String[] excludes) {
         super(new SourceFieldType((enabled.explicit() && enabled.value()) || (enabled.explicit() == false && mode != Mode.DISABLED)));
         this.mode = mode;
         this.enabled = enabled;
@@ -378,7 +349,6 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         this.includes = includes;
         this.excludes = excludes;
         this.complete = stored() && sourceFilter == null;
-        this.serializeMode = serializeMode;
     }
 
     private static SourceFilter buildSourceFilter(String[] includes, String[] excludes) {
@@ -449,7 +419,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new Builder(null, Settings.EMPTY, false, serializeMode).init(this);
+        return new Builder(null, Settings.EMPTY, false).init(this);
     }
 
     /**

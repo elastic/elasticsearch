@@ -197,13 +197,13 @@ public class VerifierTests extends ESTestCase {
         if (EsqlCapabilities.Cap.LOOKUP_V4.isEnabled()) {
             // LOOKUP with unsupported type
             assertEquals(
-                "1:41: column type mismatch, table column was [integer] and original column was [unsupported]",
-                error("from test* | lookup int_number_names on int", analyzer)
+                "1:43: column type mismatch, table column was [integer] and original column was [unsupported]",
+                error("from test* | lookup_🐔 int_number_names on int", analyzer)
             );
             // LOOKUP with multi-typed field
             assertEquals(
-                "1:44: column type mismatch, table column was [double] and original column was [unsupported]",
-                error("from test* | lookup double_number_names on double", analyzer)
+                "1:46: column type mismatch, table column was [double] and original column was [unsupported]",
+                error("from test* | lookup_🐔 double_number_names on double", analyzer)
             );
         }
 

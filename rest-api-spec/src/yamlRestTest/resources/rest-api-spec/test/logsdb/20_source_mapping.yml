@@ -13,10 +13,10 @@ synthetic _source is default:
             index:
               mode: logsdb
   - do:
-      indices.get:
+      indices.get_settings:
         index: test-default-source
-
-  - match: { test-default-source.mappings._source.mode: "synthetic" }
+  - match: { test-default-source.settings.index.mode: logsdb }
+  - match: { test-default-source.settings.index.mapping.source.mode: null }
 
 ---
 stored _source mode is supported:
@@ -28,11 +28,12 @@ stored _source mode is supported:
             index:
               mode: logsdb
               mapping.source.mode: stored
-  - do:
-      indices.get:
-        index: test-stored-source
 
-  - match: { test-stored-source.mappings._source.mode: "stored" }
+  - do:
+      indices.get_settings:
+        index: test-stored-source
+  - match: { test-stored-source.settings.index.mode: logsdb }
+  - match: { test-stored-source.settings.index.mapping.source.mode: stored }
 
 ---
 disabled _source is not supported:
@@ -110,7 +111,6 @@ include/exclude is supported with stored _source:
       indices.get:
         index: test-includes
 
-  - match: { test-includes.mappings._source.mode: "stored" }
   - match: { test-includes.mappings._source.includes: ["a"] }
 
   - do:
@@ -129,5 +129,4 @@ include/exclude is supported with stored _source:
       indices.get:
         index: test-excludes
 
-  - match: { test-excludes.mappings._source.mode: "stored" }
   - match: { test-excludes.mappings._source.excludes: ["b"] }

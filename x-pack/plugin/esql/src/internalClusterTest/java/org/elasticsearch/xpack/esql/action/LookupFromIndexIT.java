@@ -184,7 +184,8 @@ public class LookupFromIndexIT extends AbstractEsqlIntegTestCase {
                 DataType.KEYWORD,
                 "lookup",
                 "data",
-                List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG)))
+                List.of(new Alias(Source.EMPTY, "l", new ReferenceAttribute(Source.EMPTY, "l", DataType.LONG))),
+                Source.EMPTY
             );
             DriverContext driverContext = driverContext();
             try (

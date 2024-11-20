@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.pipeline.SiblingPipelineAggregator;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -26,12 +25,9 @@ import java.util.AbstractList;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
-
-import static java.util.Collections.unmodifiableMap;
 
 /**
  * Represents a set of {@link InternalAggregation}s
@@ -42,16 +38,12 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
 
     public static final InternalAggregations EMPTY = new InternalAggregations(List.of());
     private final List<InternalAggregation> aggregations;
-    private Map<String, InternalAggregation> aggregationsAsMap;
 
     /**
      * Constructs a new aggregation.
      */
     public InternalAggregations(List<InternalAggregation> aggregations) {
         this.aggregations = aggregations;
-        if (aggregations.isEmpty()) {
-            aggregationsAsMap = Map.of();
-        }
     }
 
     /**
@@ -69,23 +61,17 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
         return aggregations;
     }
 
-    private Map<String, InternalAggregation> asMap() {
-        if (aggregationsAsMap == null) {
-            Map<String, InternalAggregation> newAggregationsAsMap = Maps.newMapWithExpectedSize(aggregations.size());
-            for (InternalAggregation aggregation : aggregations) {
-                newAggregationsAsMap.put(aggregation.getName(), aggregation);
-            }
-            this.aggregationsAsMap = unmodifiableMap(newAggregationsAsMap);
-        }
-        return aggregationsAsMap;
-    }
-
     /**
      * Returns the aggregation that is associated with the specified name.
      */
     @SuppressWarnings("unchecked")
     public <A extends InternalAggregation> A get(String name) {
-        return (A) asMap().get(name);
+        for (Aggregation aggregation : aggregations) {
+            if (aggregation.getName().equals(name)) {
+                return (A) aggregation;
+            }
+        }
+        return null;
     }
 
     @Override

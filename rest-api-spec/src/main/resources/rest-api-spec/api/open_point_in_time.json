@@ -55,6 +55,10 @@
         "type": "string",
         "description": "Specific the time to live for the point in time",
         "required": true
+      },
+      "allow_partial_search_results": {
+        "type": "boolean",
+        "description": "Specify whether to tolerate shards missing when creating the point-in-time, or throw an exception if any shard is missing. (default: false)"
       }
     },
     "body":{

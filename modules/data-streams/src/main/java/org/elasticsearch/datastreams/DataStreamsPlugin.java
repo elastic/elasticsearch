@@ -78,7 +78,6 @@ import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
-import org.elasticsearch.datastreams.rest.RestReindexDataStreamAction;
 import org.elasticsearch.datastreams.task.ReindexDataStreamPersistentTaskExecutor;
 import org.elasticsearch.datastreams.task.ReindexDataStreamPersistentTaskState;
 import org.elasticsearch.datastreams.task.ReindexDataStreamStatus;
@@ -301,7 +300,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             handlers.add(new RestPutDataStreamOptionsAction());
             handlers.add(new RestDeleteDataStreamOptionsAction());
         }
-        handlers.add(new RestReindexDataStreamAction());
         return handlers;
     }
 

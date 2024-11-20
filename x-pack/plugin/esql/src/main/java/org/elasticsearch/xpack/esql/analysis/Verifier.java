@@ -781,22 +781,19 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                QueryString.class,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
-                failures
-            );
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                Kql.class,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                kqlFunc -> "[" + kqlFunc.functionName() + "] " + kqlFunc.functionType(),
-                failures
-            );
+
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,

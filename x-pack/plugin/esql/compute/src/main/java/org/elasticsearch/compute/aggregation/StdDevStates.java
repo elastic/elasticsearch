@@ -11,6 +11,7 @@ import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.core.Releasables;
@@ -21,7 +22,7 @@ public final class StdDevStates {
 
     static final class SingleState implements AggregatorState {
 
-        private WelfordAlgorithm welfordAlgorithm;
+        private final WelfordAlgorithm welfordAlgorithm;
 
         SingleState() {
             this(0, 0, 0);
@@ -73,6 +74,15 @@ public final class StdDevStates {
 
         public double evaluateFinal() {
             return welfordAlgorithm.evaluate();
+        }
+
+        public Block evaluateFinal(DriverContext driverContext) {
+            final long count = count();
+            final double m2 = m2();
+            if (count == 0 || Double.isFinite(m2) == false) {
+                return driverContext.blockFactory().newConstantNullBlock(1);
+            }
+            return driverContext.blockFactory().newConstantDoubleBlockWith(evaluateFinal(), 1);
         }
     }
 
@@ -165,6 +175,26 @@ public final class StdDevStates {
                 blocks[offset + 0] = meanBuilder.build();
                 blocks[offset + 1] = m2Builder.build();
                 blocks[offset + 2] = countBuilder.build();
+            }
+        }
+
+        public Block evaluateFinal(IntVector selected, DriverContext driverContext) {
+            try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
+                for (int i = 0; i < selected.getPositionCount(); i++) {
+                    final var groupId = selected.getInt(i);
+                    final var st = getOrNull(groupId);
+                    if (st != null) {
+                        final var m2 = st.m2();
+                        if (Double.isFinite(m2) == false) {
+                            builder.appendNull();
+                        } else {
+                            builder.appendDouble(st.evaluateFinal());
+                        }
+                    } else {
+                        builder.appendNull();
+                    }
+                }
+                return builder.build();
             }
         }
 

@@ -12,7 +12,6 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -42,12 +41,7 @@ public class StdDevDoubleAggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.SingleState state, DriverContext driverContext) {
-        final long count = state.count();
-        final double m2 = state.m2();
-        if (count == 0 || Double.isFinite(m2) == false) {
-            return driverContext.blockFactory().newConstantNullBlock(1);
-        }
-        return driverContext.blockFactory().newConstantDoubleBlockWith(state.evaluateFinal(), 1);
+        return state.evaluateFinal(driverContext);
     }
 
     public static StdDevStates.GroupingState initGrouping(BigArrays bigArrays) {
@@ -67,22 +61,6 @@ public class StdDevDoubleAggregator {
     }
 
     public static Block evaluateFinal(StdDevStates.GroupingState state, IntVector selected, DriverContext driverContext) {
-        try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(selected.getPositionCount())) {
-            for (int i = 0; i < selected.getPositionCount(); i++) {
-                final var groupId = selected.getInt(i);
-                final var st = state.getOrNull(groupId);
-                if (st != null) {
-                    final var m2 = st.m2();
-                    if (Double.isFinite(m2) == false) {
-                        builder.appendNull();
-                    } else {
-                        builder.appendDouble(st.evaluateFinal());
-                    }
-                } else {
-                    builder.appendNull();
-                }
-            }
-            return builder.build();
-        }
+        return state.evaluateFinal(selected, driverContext);
     }
 }

@@ -62,7 +62,9 @@ public class MultiVectorScoreScriptUtils {
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
-                    throw new IllegalArgumentException("The query vector has an inconsistent number of dimensions.");
+                    throw new IllegalArgumentException(
+                        "The query vector contains inner vectors which have inconsistent number of dimensions."
+                    );
                 }
                 lastSize = queryVector.get(i).size();
                 for (int j = 0; j < queryVector.get(i).size(); j++) {
@@ -113,7 +115,9 @@ public class MultiVectorScoreScriptUtils {
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
-                    throw new IllegalArgumentException("The query vector has an inconsistent number of dimensions.");
+                    throw new IllegalArgumentException(
+                        "The query vector contains inner vectors which have inconsistent number of dimensions."
+                    );
                 }
                 lastSize = queryVector.get(i).size();
                 for (int j = 0; j < queryVector.get(i).size(); j++) {
@@ -159,7 +163,9 @@ public class MultiVectorScoreScriptUtils {
                 for (int i = 0; i < ((List<?>) queryVector).size(); i++) {
                     parsedQueryVector[i] = HexFormat.of().parseHex((String) ((List<?>) queryVector).get(i));
                     if (lastSize != -1 && lastSize != parsedQueryVector[i].length) {
-                        throw new IllegalArgumentException("The query vector has an inconsistent number of dimensions.");
+                        throw new IllegalArgumentException(
+                            "The query vector contains inner vectors which have inconsistent number of dimensions."
+                        );
                     }
                     lastSize = parsedQueryVector[i].length;
                 }
@@ -206,7 +212,7 @@ public class MultiVectorScoreScriptUtils {
         public MaxSimBitDotProduct(ScoreScript scoreScript, MultiDenseVectorDocValuesField field, byte[][] queryVector) {
             super(scoreScript, field);
             if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
-                throw new IllegalArgumentException("cannot calculate bit dot product for non-bit vectors");
+                throw new IllegalArgumentException("Cannot calculate bit dot product for non-bit vectors");
             }
             int fieldDims = field.get().getDims();
             if (fieldDims != queryVector.length * Byte.SIZE && fieldDims != queryVector.length) {
@@ -238,7 +244,9 @@ public class MultiVectorScoreScriptUtils {
             int lastSize = -1;
             for (int i = 0; i < queryVector.size(); i++) {
                 if (lastSize != -1 && lastSize != queryVector.get(i).size()) {
-                    throw new IllegalArgumentException("The query vector has an inconsistent number of dimensions.");
+                    throw new IllegalArgumentException(
+                        "The query vector contains inner vectors which have inconsistent number of dimensions."
+                    );
                 }
                 lastSize = queryVector.get(i).size();
                 floatQueryVector[i] = new float[queryVector.get(i).size()];
@@ -265,7 +273,7 @@ public class MultiVectorScoreScriptUtils {
                 this.byteQueryVector = null;
                 if (fieldDims != floatQueryVector[0].length) {
                     throw new IllegalArgumentException(
-                        "The query vector has an incorrect number of dimensions. Must be ["
+                        "The query vector contains inner vectors which have incorrect number of dimensions. Must be ["
                             + fieldDims
                             + "] for float wise operations: provided ["
                             + floatQueryVector[0].length
@@ -277,7 +285,7 @@ public class MultiVectorScoreScriptUtils {
                 this.byteQueryVector = byteQueryVector;
                 if (fieldDims != byteQueryVector[0].length * Byte.SIZE && fieldDims != byteQueryVector[0].length) {
                     throw new IllegalArgumentException(
-                        "The query vector has an incorrect number of dimensions. Must be ["
+                        "The query vector contains inner vectors which have incorrect number of dimensions. Must be ["
                             + fieldDims / 8
                             + "] for bitwise operations, or ["
                             + fieldDims

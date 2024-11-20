@@ -37,7 +37,7 @@ public class FloatMultiDenseVector implements MultiDenseVector {
     public float maxSimDotProduct(float[][] query) {
         vectorValues.reset();
         float[] maxes = new float[query.length];
-        Arrays.fill(maxes, -Float.MAX_VALUE);
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
         while (vectorValues.hasNext()) {
             float[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {

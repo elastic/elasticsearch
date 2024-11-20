@@ -221,7 +221,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             assertThat(
                 e.getMessage(),
                 containsString(
-                    "query vector has an incorrect number of dimensions. "
+                    "query vector contains inner vectors which have incorrect number of dimensions. "
                         + "Must be [1] for bitwise operations, or [8] for byte wise operations: provided [2]."
                 )
             );

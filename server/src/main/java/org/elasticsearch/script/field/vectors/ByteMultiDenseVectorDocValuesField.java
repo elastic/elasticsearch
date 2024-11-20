@@ -141,7 +141,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
 
         @Override
         public Iterator<byte[]> copy() {
-            return new ByteVectorIterator(vectorValues, buffer, size);
+            return new ByteVectorIterator(vectorValues, new byte[buffer.length], size);
         }
 
         @Override

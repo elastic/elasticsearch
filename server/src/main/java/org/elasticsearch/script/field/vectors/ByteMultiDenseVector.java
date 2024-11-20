@@ -42,7 +42,7 @@ public class ByteMultiDenseVector implements MultiDenseVector {
     public float maxSimDotProduct(byte[][] query) {
         vectorValues.reset();
         float[] maxes = new float[query.length];
-        Arrays.fill(maxes, -Float.MAX_VALUE);
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {
@@ -61,7 +61,7 @@ public class ByteMultiDenseVector implements MultiDenseVector {
         vectorValues.reset();
         int bitCount = dims * Byte.SIZE;
         float[] maxes = new float[query.length];
-        Arrays.fill(maxes, -Float.MAX_VALUE);
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
         while (vectorValues.hasNext()) {
             byte[] vv = vectorValues.next();
             for (int i = 0; i < query.length; i++) {

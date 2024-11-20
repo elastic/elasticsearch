@@ -144,7 +144,7 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
 
         @Override
         public Iterator<float[]> copy() {
-            return new FloatVectorIterator(vectorValueBytesRef, buffer, size);
+            return new FloatVectorIterator(vectorValueBytesRef, new float[buffer.length], size);
         }
 
         @Override

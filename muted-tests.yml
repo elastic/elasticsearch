@@ -296,6 +296,9 @@ tests:
 - class: org.elasticsearch.upgrades.IndexingIT
   method: testAutoIdWithOpTypeCreate {upgradedNodes=1}
   issue: https://github.com/elastic/elasticsearch/issues/117125
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testTsdb {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/117126
 
 # Examples:
 #

@@ -17,6 +17,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexSortConfig;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.MapperTestUtils;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.license.MockLicenseState;
@@ -59,7 +60,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         provider = new SyntheticSourceIndexSettingsProvider(syntheticSourceLicenseService, im -> {
             newMapperServiceCounter.incrementAndGet();
             return MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName());
-        }, getLogsdbIndexModeSettingsProvider(false));
+        }, getLogsdbIndexModeSettingsProvider(false), IndexVersion::current);
         newMapperServiceCounter.set(0);
     }
 
@@ -341,7 +342,8 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            getLogsdbIndexModeSettingsProvider(true)
+            getLogsdbIndexModeSettingsProvider(true),
+            IndexVersion::current
         );
         final Settings settings = Settings.EMPTY;
 
@@ -410,7 +412,8 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         provider = new SyntheticSourceIndexSettingsProvider(
             syntheticSourceLicenseService,
             im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
-            getLogsdbIndexModeSettingsProvider(true)
+            getLogsdbIndexModeSettingsProvider(true),
+            IndexVersion::current
         );
 
         String dataStreamName = DATA_STREAM_NAME;

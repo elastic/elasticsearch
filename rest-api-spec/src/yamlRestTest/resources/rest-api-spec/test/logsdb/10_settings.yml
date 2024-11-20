@@ -76,11 +76,6 @@ create logs index:
   - is_true: test
   - match: { test.settings.index.mode: "logsdb" }
 
-  - do:
-      indices.get_mapping:
-        index: test
-  - match: { test.mappings._source.mode: synthetic }
-
 ---
 using default timestamp field mapping:
   - requires:

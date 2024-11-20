@@ -405,6 +405,11 @@ public class VerifierTests extends ESTestCase {
 
         // but fails if it's different
         assertEquals(
+            "1:32: can only use grouping function [bucket(a, 3)] part of the BY clause",
+            error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+        );
+
+        assertEquals(
             "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );

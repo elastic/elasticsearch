@@ -180,8 +180,8 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [sorting_on_source_and_counters_forbidden]
-      reason: "Sorting on _source shouldn't have been possible"
+          capabilities: [sort_returning_source_ok]
+      reason: "Sorts returning _source should be ok, but weren't in older versions"
   - do:
       esql.query:
         body:

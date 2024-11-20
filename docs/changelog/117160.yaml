@@ -1,0 +1,11 @@
+pr: 117160
+summary: Reapply "Deprecate `_source.mode` in mappings"
+area: Mapping
+type: deprecation
+issues: []
+deprecation:
+  title: Reapply "Deprecate `_source.mode` in mappings"
+  area: Mapping
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

@@ -445,7 +445,7 @@ public class AzureHttpHandler implements HttpHandler {
         try {
             return Integer.parseInt(headerValue);
         } catch (NumberFormatException e) {
-            throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", "Invalid " + X_MS_LEASE_DURATION + " header");
+            throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", "Invalid " + headerName + " header");
         }
     }
 

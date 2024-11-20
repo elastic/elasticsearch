@@ -142,7 +142,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
 
-        // register remote-cluster action with transport service only
+        // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
         new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
     }
 

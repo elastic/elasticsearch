@@ -1,0 +1,19 @@
+FROM ${base_image} AS builder
+
+USER root
+
+# Add fips infrastructure
+RUN mkdir -p /opt/fips/
+RUN chmod -R 0555 /opt/fips
+
+COPY fips/*.jar /opt/fips/
+RUN chown 1000:1000 /opt/fips/*
+RUN chmod 0444 /opt/fips/*
+
+FROM ${base_image}
+USER root
+
+COPY --from=builder --chown=0:0 /opt /opt
+USER 1000:0
+ENV ES_FIPS_LIBS_DIR /opt/fips
+

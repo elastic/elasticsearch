@@ -93,6 +93,7 @@ configurations {
   filebeat_x86_64
   metricbeat_aarch64
   metricbeat_x86_64
+  fips
 }
 
 String tiniArch = Architecture.current() == Architecture.AARCH64 ? 'arm64' : 'amd64'
@@ -109,6 +110,8 @@ dependencies {
   filebeat_x86_64 "beats:filebeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
   metricbeat_aarch64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-arm64@tar.gz"
   metricbeat_x86_64 "beats:metricbeat:${VersionProperties.elasticsearch}:linux-x86_64@tar.gz"
+  api "org.bouncycastle:bcpg-fips:1.0.7.1"
+  api "org.bouncycastle:bc-fips:1.0.2.4"
 }
 
 ext.expansions = { Architecture architecture, DockerBase base ->
@@ -431,7 +434,64 @@ void addBuildDockerImageTask(Architecture architecture, DockerBase base) {
   }
 }
 
-void addBuildEssDockerImageTask(Architecture architecture) {
+void addBuildFipsDockerImageTasks(Architecture architecture) {
+  DockerBase dockerBase = DockerBase.FIPS
+  final Path projectDir = project.projectDir.toPath()
+  String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
+  String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
+
+  final TaskProvider<Sync> buildContextTask =
+    tasks.register(taskName('build', architecture, dockerBase, 'DockerContext'), Sync) {
+      into contextDir
+
+      into("fips") {
+        from configurations.fips
+      }
+
+      String baseSuffix = DockerBase.WOLFI.suffix
+      from(projectDir.resolve("src/docker/Dockerfile.fips")) {
+        expand(
+          [
+            base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",
+            docker_base: "${dockerBase.name().toLowerCase()}",
+            version    : "${VersionProperties.elasticsearch}",
+            retry      : ShellRetry
+          ]
+        )
+        filter SquashNewlinesFilter
+        rename ~/Dockerfile\.fips$/, 'Dockerfile'
+      }
+    }
+
+  final TaskProvider<DockerBuildTask> buildDockerImageTask =
+    tasks.register(taskName("build", architecture, dockerBase, "DockerImage"), DockerBuildTask) {
+
+      DockerBase base = DockerBase.WOLFI
+
+      TaskProvider<DockerBuildTask> buildBaseTask = tasks.named(taskName("build", architecture, base, "DockerImage"))
+      inputs.files(buildBaseTask)
+
+      dockerContext.fileProvider(buildContextTask.map { it.getDestinationDir() })
+
+      noCache = buildParams.isCi()
+      baseImages = []
+      tags = generateTags(dockerBase, architecture)
+      platforms.add(architecture.dockerPlatform)
+      Provider<DockerSupportService> serviceProvider = GradleUtils.getBuildService(
+        project.gradle.sharedServices,
+        DockerSupportPlugin.DOCKER_SUPPORT_SERVICE_NAME
+      )
+      onlyIf("$architecture supported") { serviceProvider.get().isArchitectureSupported(architecture) }
+
+    }
+
+  tasks.named("assemble").configure {
+    dependsOn(buildDockerImageTask)
+  }
+}
+
+
+void addBuildCloudDockerImageTasks(Architecture architecture) {
   DockerBase dockerBase = DockerBase.CLOUD_ESS
   String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
   String contextDir = "${project.buildDir}/docker-context/elasticsearch${dockerBase.suffix}-${VersionProperties.elasticsearch}-docker-build-context${arch}"
@@ -463,10 +523,10 @@ void addBuildEssDockerImageTask(Architecture architecture) {
       from(projectDir.resolve("src/docker/Dockerfile.ess")) {
         expand(
           [
-            base_image: "elasticsearch${baseSuffix}:${architecture.classifier}",
+            base_image : "elasticsearch${baseSuffix}:${architecture.classifier}",
             docker_base: "${dockerBase.name().toLowerCase()}",
-            version: "${VersionProperties.elasticsearch}",
-            retry: ShellRetry
+            version    : "${VersionProperties.elasticsearch}",
+            retry      : ShellRetry
           ]
         )
         filter SquashNewlinesFilter
@@ -504,14 +564,15 @@ void addBuildEssDockerImageTask(Architecture architecture) {
 for (final Architecture architecture : Architecture.values()) {
   for (final DockerBase base : DockerBase.values()) {
     if (base == DockerBase.CLOUD_ESS) {
-      continue
+      addBuildCloudDockerImageTasks(architecture)
+    } else if (base == DockerBase.FIPS) {
+      addBuildFipsDockerImageTasks(architecture)
+    } else {
+      addBuildDockerContextTask(architecture, base)
+      addTransformDockerContextTask(architecture, base)
+      addBuildDockerImageTask(architecture, base)
     }
-    addBuildDockerContextTask(architecture, base)
-    addTransformDockerContextTask(architecture, base)
-    addBuildDockerImageTask(architecture, base)
   }
-
-  addBuildEssDockerImageTask(architecture)
 }
 
 def exportDockerImages = tasks.register("exportDockerImages")
@@ -533,14 +594,17 @@ subprojects { Project subProject ->
       base = DockerBase.CLOUD_ESS
     } else if (subProject.name.contains('wolfi-')) {
       base = DockerBase.WOLFI
+    } else if (subProject.name.contains('fips-')) {
+      base = DockerBase.FIPS
     }
 
     final String arch = architecture == Architecture.AARCH64 ? '-aarch64' : ''
     final String extension =
       (base == DockerBase.IRON_BANK ? 'ironbank.tar' :
         (base == DockerBase.CLOUD_ESS ? 'cloud-ess.tar' :
-          (base == DockerBase.WOLFI ? 'wolfi.tar' :
-            'docker.tar')))
+          (base == DockerBase.FIPS ? 'fips.tar' :
+            (base == DockerBase.WOLFI ? 'wolfi.tar' :
+              'docker.tar'))))
     final String artifactName = "elasticsearch${arch}${base.suffix}_test"
 
     final String exportTaskName = taskName("export", architecture, base, 'DockerImage')

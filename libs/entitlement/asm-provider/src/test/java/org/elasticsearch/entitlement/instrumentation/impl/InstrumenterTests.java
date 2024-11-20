@@ -119,7 +119,7 @@ public class InstrumenterTests extends ESTestCase {
         int checkSomeInstanceMethodCallCount = 0;
 
         @Override
-        public void checkSystemExit(Class<?> callerClass, int status) {
+        public void check$java_lang_System$exit(Class<?> callerClass, int status) {
             checkSystemExitCallCount++;
             assertSame(InstrumenterTests.class, callerClass);
             assertEquals(123, status);
@@ -166,7 +166,7 @@ public class InstrumenterTests extends ESTestCase {
     public void testClassIsInstrumented() throws Exception {
         var classToInstrument = ClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "checkSystemExit", Class.class, int.class);
+        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class);
         Map<MethodKey, CheckerMethod> methods = Map.of(
             instrumentationService.methodKeyForTarget(classToInstrument.getMethod("systemExit", int.class)),
             checkerMethod
@@ -199,7 +199,7 @@ public class InstrumenterTests extends ESTestCase {
     public void testClassIsNotInstrumentedTwice() throws Exception {
         var classToInstrument = ClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "checkSystemExit", Class.class, int.class);
+        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class);
         Map<MethodKey, CheckerMethod> methods = Map.of(
             instrumentationService.methodKeyForTarget(classToInstrument.getMethod("systemExit", int.class)),
             checkerMethod
@@ -231,7 +231,7 @@ public class InstrumenterTests extends ESTestCase {
     public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
         var classToInstrument = ClassToInstrument.class;
 
-        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "checkSystemExit", Class.class, int.class);
+        CheckerMethod checkerMethod = getCheckerMethod(EntitlementChecker.class, "check$java_lang_System$exit", Class.class, int.class);
         Map<MethodKey, CheckerMethod> methods = Map.of(
             instrumentationService.methodKeyForTarget(classToInstrument.getMethod("systemExit", int.class)),
             checkerMethod,

@@ -9,17 +9,20 @@
 
 package org.elasticsearch.entitlement.instrumentation.impl;
 
-import org.elasticsearch.entitlement.bridge.InstrumentationTarget;
 import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.test.ESTestCase;
+import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
@@ -31,22 +34,17 @@ public class InstrumentationServiceImplTests extends ESTestCase {
     static class TestTargetClass {}
 
     interface TestChecker {
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "staticMethod", isStatic = true)
-        void checkStaticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
+        void check$org_example_TestTargetClass$staticMethod(Class<?> clazz, int arg0, String arg1, Object arg2);
 
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someMethod")
-        void checkInstanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
+        void check$$instanceMethodNoArgs(Class<?> clazz, TestTargetClass that);
 
-        @InstrumentationTarget(className = "org/example/TestTargetClass2", methodName = "someMethod2")
-        void checkInstanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
+        void check$$instanceMethodWithArgs(Class<?> clazz, TestTargetClass that, int x, int y);
     }
 
     interface TestCheckerOverloads {
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod", isStatic = true)
-        void checkInstanceMethodWithOverload(Class<?> clazz, int x, int y);
+        void check$org_example_TestTargetClass$staticMethodWithOverload(Class<?> clazz, int x, int y);
 
-        @InstrumentationTarget(className = "org/example/TestTargetClass", methodName = "someOverloadedMethod", isStatic = true)
-        void checkInstanceMethodWithOverload(Class<?> clazz, int x, String y);
+        void check$org_example_TestTargetClass$staticMethodWithOverload(Class<?> clazz, int x, String y);
     }
 
     public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
@@ -62,7 +60,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "checkStaticMethod",
+                        "check$org_example_TestTargetClass$staticMethod",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;", "Ljava/lang/Object;")
                     )
                 )
@@ -71,11 +69,18 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "someMethod", List.of(), false)),
+                equalTo(
+                    new MethodKey(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                        "instanceMethodNoArgs",
+                        List.of(),
+                        false
+                    )
+                ),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "checkInstanceMethodNoArgs",
+                        "check$$instanceMethodNoArgs",
                         List.of(
                             "Ljava/lang/Class;",
                             "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;"
@@ -87,11 +92,18 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass2", "someMethod2", List.of("I", "I"), false)),
+                equalTo(
+                    new MethodKey(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                        "instanceMethodWithArgs",
+                        List.of("I", "I"),
+                        false
+                    )
+                ),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
-                        "checkInstanceMethodWithArgs",
+                        "check$$instanceMethodWithArgs",
                         List.of(
                             "Ljava/lang/Class;",
                             "Lorg/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass;",
@@ -111,11 +123,11 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "java/lang/String"), true)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"), true)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
-                        "checkInstanceMethodWithOverload",
+                        "check$org_example_TestTargetClass$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
                     )
                 )
@@ -124,15 +136,136 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "someOverloadedMethod", List.of("I", "I"), true)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"), true)),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
-                        "checkInstanceMethodWithOverload",
+                        "check$org_example_TestTargetClass$staticMethodWithOverload",
                         List.of("Ljava/lang/Class;", "I", "I")
                     )
                 )
             )
         );
+    }
+
+    public void testParseCheckerMethodSignatureStaticMethod() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$org_example_TestClass$staticMethod",
+            new Type[] { Type.getType(Class.class) }
+        );
+
+        assertTrue(methodKey.isStatic());
+        assertThat(methodKey.methodName(), equalTo("staticMethod"));
+        assertThat(methodKey.className(), equalTo("org/example/TestClass"));
+        assertThat(methodKey.parameterTypes(), empty());
+    }
+
+    public void testParseCheckerMethodSignatureStaticMethodWithArgs() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$org_example_TestClass$staticMethod",
+            new Type[] { Type.getType(Class.class), Type.getType("I"), Type.getType(String.class) }
+        );
+
+        assertTrue(methodKey.isStatic());
+        assertThat(methodKey.methodName(), equalTo("staticMethod"));
+        assertThat(methodKey.className(), equalTo("org/example/TestClass"));
+        assertThat(methodKey.parameterTypes(), contains("I", "java/lang/String"));
+    }
+
+    public void testParseCheckerMethodSignatureStaticMethodInnerClass() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$org_example_TestClass$InnerClass$staticMethod",
+            new Type[] { Type.getType(Class.class) }
+        );
+
+        assertTrue(methodKey.isStatic());
+        assertThat(methodKey.methodName(), equalTo("staticMethod"));
+        assertThat(methodKey.className(), equalTo("org/example/TestClass$InnerClass"));
+        assertThat(methodKey.parameterTypes(), empty());
+    }
+
+    public void testParseCheckerMethodSignatureIncorrectName() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$staticMethod", new Type[] { Type.getType(Class.class) })
+        );
+
+        assertThat(exception.getMessage(), containsString("has incorrect name format"));
+    }
+
+    public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentCount() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$ClassName$staticMethod", new Type[] {})
+        );
+        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+    }
+
+    public void testParseCheckerMethodSignatureStaticMethodIncorrectArgumentType() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
+                "check$ClassName$staticMethod",
+                new Type[] { Type.getType(String.class) }
+            )
+        );
+        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+    }
+
+    public void testParseCheckerMethodSignatureInstanceMethod() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$$instanceMethod",
+            new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class) }
+        );
+
+        assertFalse(methodKey.isStatic());
+        assertThat(methodKey.methodName(), equalTo("instanceMethod"));
+        assertThat(
+            methodKey.className(),
+            equalTo("org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass")
+        );
+        assertThat(methodKey.parameterTypes(), empty());
+    }
+
+    public void testParseCheckerMethodSignatureInstanceMethodWithArgs() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$$staticMethod",
+            new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class), Type.getType("I"), Type.getType(String.class) }
+        );
+
+        assertFalse(methodKey.isStatic());
+        assertThat(methodKey.methodName(), equalTo("staticMethod"));
+        assertThat(
+            methodKey.className(),
+            equalTo("org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass")
+        );
+        assertThat(methodKey.parameterTypes(), contains("I", "java/lang/String"));
+    }
+
+    public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$$instanceMethod", new Type[] { Type.getType(String.class) })
+        );
+        assertThat(exception.getMessage(), containsString("It must have a first argument of Class<?> type"));
+    }
+
+    public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentCount() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature("check$$instanceMethod", new Type[] { Type.getType(Class.class) })
+        );
+        assertThat(exception.getMessage(), containsString("a second argument of the class containing the method to instrument"));
+    }
+
+    public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes2() {
+        var exception = assertThrows(
+            IllegalArgumentException.class,
+            () -> InstrumentationServiceImpl.parseCheckerMethodSignature(
+                "check$$instanceMethod",
+                new Type[] { Type.getType(Class.class), Type.getType("I") }
+            )
+        );
+        assertThat(exception.getMessage(), containsString("a second argument of the class containing the method to instrument"));
     }
 }

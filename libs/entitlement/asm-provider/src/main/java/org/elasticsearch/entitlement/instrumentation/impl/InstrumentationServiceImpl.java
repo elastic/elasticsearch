@@ -13,7 +13,6 @@ import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.Instrumenter;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
-import org.objectweb.asm.AnnotationVisitor;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.ClassVisitor;
 import org.objectweb.asm.MethodVisitor;
@@ -25,7 +24,10 @@ import java.lang.reflect.Method;
 import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
+import java.util.List;
+import java.util.Locale;
 import java.util.Map;
+import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
@@ -53,94 +55,91 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         IOException {
         var methodsToInstrument = new HashMap<MethodKey, CheckerMethod>();
         var checkerClass = Class.forName(entitlementCheckerClassName);
-        var instrumentationTargetAnnotationDescriptor = Type.getDescriptor(
-            Class.forName("org.elasticsearch.entitlement.bridge.InstrumentationTarget")
-        );
         var classFileInfo = InstrumenterImpl.getClassFileInfo(checkerClass);
         ClassReader reader = new ClassReader(classFileInfo.bytecodes());
         ClassVisitor visitor = new ClassVisitor(Opcodes.ASM9) {
             @Override
-            public MethodVisitor visitMethod(int access, String name, String descriptor, String signature, String[] exceptions) {
-                var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
-                final String className = Type.getInternalName(checkerClass);
-                final String methodName = name;
-                final String methodDescriptor = descriptor;
-                return new MethodVisitor(Opcodes.ASM9, mv) {
-                    @Override
-                    public AnnotationVisitor visitAnnotation(String descriptor, boolean visible) {
-                        var av = super.visitAnnotation(descriptor, visible);
-                        if (descriptor.equals(instrumentationTargetAnnotationDescriptor)) {
-                            return new InstrumentationTargetAnnotationVisitor(
-                                av,
-                                className,
-                                methodName,
-                                methodDescriptor,
-                                methodsToInstrument
-                            );
-                        }
-                        return av;
-                    }
-                };
+            public MethodVisitor visitMethod(
+                int access,
+                String checkerMethodName,
+                String checkerMethodDescriptor,
+                String signature,
+                String[] exceptions
+            ) {
+                var mv = super.visitMethod(access, checkerMethodName, checkerMethodDescriptor, signature, exceptions);
+
+                var checkerMethodArgumentTypes = Type.getArgumentTypes(checkerMethodDescriptor);
+                var methodToInstrument = parseCheckerMethodSignature(checkerMethodName, checkerMethodArgumentTypes);
+
+                var checkerParameterDescriptors = Arrays.stream(checkerMethodArgumentTypes).map(Type::getDescriptor).toList();
+                var checkerMethod = new CheckerMethod(Type.getInternalName(checkerClass), checkerMethodName, checkerParameterDescriptors);
+
+                methodsToInstrument.put(methodToInstrument, checkerMethod);
+
+                return mv;
             }
         };
         reader.accept(visitor, 0);
         return methodsToInstrument;
     }
 
-    private static class InstrumentationTargetAnnotationVisitor extends AnnotationVisitor {
-        private final String checkerClassName;
-        private final String checkerMethodName;
-        private final String checkerMethodDescriptor;
-        private final HashMap<MethodKey, CheckerMethod> methodsToInstrument;
-        private String targetClassName;
-        private String targetMethodName;
-        private boolean targetMethodIsStatic;
+    private static final Type CLASS_TYPE = Type.getType(Class.class);
 
-        InstrumentationTargetAnnotationVisitor(
-            AnnotationVisitor av,
-            String checkerClassName,
-            String checkerMethodName,
-            String checkerMethodDescriptor,
-            HashMap<MethodKey, CheckerMethod> methodsToInstrument
-        ) {
-            super(Opcodes.ASM9, av);
-            this.checkerClassName = checkerClassName;
-            this.checkerMethodName = checkerMethodName;
-            this.checkerMethodDescriptor = checkerMethodDescriptor;
-            this.methodsToInstrument = methodsToInstrument;
+    static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
+
+        var methodNameTokens = checkerMethodName.split("\\$");
+        if (methodNameTokens.length < 3 || "check".equals(methodNameTokens[0]) == false) {
+            throw new IllegalArgumentException(
+                String.format(
+                    Locale.ROOT,
+                    "Checker method %s has incorrect name format. "
+                        + "It should be either check$$methodName (instance) or check$package_ClassName$methodName (static)",
+                    checkerMethodName
+                )
+            );
         }
 
-        @Override
-        public void visit(String name, Object value) {
-            super.visit(name, value);
-            if (name.equals("className")) {
-                this.targetClassName = (String) value;
+        final boolean targetMethodIsStatic = (methodNameTokens.length == 3 && methodNameTokens[1].isEmpty()) == false;
+        final String targetMethodName = methodNameTokens[methodNameTokens.length - 1];
+
+        final String targetClassName;
+        final List<String> targetParameterTypes;
+        if (targetMethodIsStatic) {
+            if (checkerMethodArgumentTypes.length < 1 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Checker method %s has incorrect argument types. " + "It must have a first argument of Class<?> type.",
+                        checkerMethodName
+                    )
+                );
             }
-            if (name.equals("methodName")) {
-                this.targetMethodName = (String) value;
+
+            targetClassName = Arrays.stream(methodNameTokens)
+                .skip(1)
+                .limit(methodNameTokens.length - 2)
+                .map(s -> s.replace('_', '/'))
+                .collect(Collectors.joining("$"));
+            targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(1).map(Type::getInternalName).toList();
+
+        } else {
+            if (checkerMethodArgumentTypes.length < 2
+                || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false
+                || checkerMethodArgumentTypes[1].getSort() != Type.OBJECT) {
+                throw new IllegalArgumentException(
+                    String.format(
+                        Locale.ROOT,
+                        "Checker method %s has incorrect argument types. "
+                            + "It must have a first argument of Class<?> type, and a second argument of the class containing the method to "
+                            + "instrument",
+                        checkerMethodName
+                    )
+                );
             }
-            if (name.equals("isStatic")) {
-                this.targetMethodIsStatic = (boolean) value;
-            }
+            var targetClassType = checkerMethodArgumentTypes[1];
+            targetClassName = targetClassType.getInternalName();
+            targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
-
-        @Override
-        public void visitEnd() {
-            super.visitEnd();
-            assert targetClassName != null : "InstrumentationTarget for " + checkerMethodName + " is missing className";
-            assert targetMethodName != null : "InstrumentationTarget for " + checkerMethodName + " is missing methodName";
-            var targetParameterTypes = Arrays.stream(Type.getArgumentTypes(checkerMethodDescriptor))
-                .skip(targetMethodIsStatic ? 1 : 2)
-                .map(Type::getInternalName)
-                .toList();
-            var methodToInstrument = new MethodKey(targetClassName, targetMethodName, targetParameterTypes, targetMethodIsStatic);
-
-            var checkerParameterDescriptors = Arrays.stream(Type.getArgumentTypes(checkerMethodDescriptor))
-                .map(Type::getDescriptor)
-                .toList();
-            var checkerMethod = new CheckerMethod(checkerClassName, checkerMethodName, checkerParameterDescriptors);
-
-            methodsToInstrument.put(methodToInstrument, checkerMethod);
-        }
+        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes, targetMethodIsStatic);
     }
 }

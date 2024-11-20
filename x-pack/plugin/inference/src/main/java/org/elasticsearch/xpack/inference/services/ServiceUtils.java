@@ -170,8 +170,8 @@ public final class ServiceUtils {
     }
 
     @SuppressWarnings("unchecked")
-    public static Map<String, Object> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
-        return (Map<String, Object>) sourceMap.remove(fieldName);
+    public static <T> Map<String, T> removeFromMap(Map<String, Object> sourceMap, String fieldName) {
+        return (Map<String, T>) sourceMap.remove(fieldName);
     }
 
     @SuppressWarnings("unchecked")

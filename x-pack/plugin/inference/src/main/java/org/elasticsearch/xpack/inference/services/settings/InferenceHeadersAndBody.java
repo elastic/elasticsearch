@@ -11,6 +11,7 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.VersionedNamedWriteable;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -19,37 +20,24 @@ import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMap;
 
-public record InferenceHeadersAndBody(Map<String, Object> headers, Map<String, Object> body)
+public record InferenceHeadersAndBody(Map<String, String> headers, Map<String, Object> body)
     implements
         ToXContentObject,
         VersionedNamedWriteable {
 
-    public InferenceHeadersAndBody(Map<String, Object> headers, Map<String, Object> body) {
+    public InferenceHeadersAndBody(Map<String, String> headers, Map<String, Object> body) {
         this.headers = headers != null ? headers : Map.of();
         this.body = body != null ? body : Map.of();
     }
 
     public InferenceHeadersAndBody(StreamInput in) throws IOException {
-        this(readSafeMap(in), readSafeMap(in));
-    }
-
-    private static Map<String, Object> readSafeMap(StreamInput in) throws IOException {
-        var map = in.readGenericMap();
-        return map != null ? map : Map.of();
+        this(in.readMap(StreamInput::readString), in.readGenericMap());
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        writeSafeMap(out, headers);
-        writeSafeMap(out, body);
-    }
-
-    private static void writeSafeMap(StreamOutput out, Map<String, Object> map) throws IOException {
-        if (map.isEmpty()) {
-            out.writeGenericNull();
-        } else {
-            out.writeGenericMap(map);
-        }
+        out.writeMap(headers, StreamOutput::writeString);
+        out.writeGenericMap(body);
     }
 
     @Override
@@ -72,8 +60,6 @@ public record InferenceHeadersAndBody(Map<String, Object> headers, Map<String, O
     }
 
     public static InferenceHeadersAndBody fromStorage(Map<String, Object> storage) {
-        var headers = removeFromMap(storage, "headers");
-        var body = removeFromMap(storage, "body");
-        return new InferenceHeadersAndBody(headers, body);
+        return new InferenceHeadersAndBody(removeFromMap(storage, "headers"), removeFromMap(storage, "body"));
     }
 }

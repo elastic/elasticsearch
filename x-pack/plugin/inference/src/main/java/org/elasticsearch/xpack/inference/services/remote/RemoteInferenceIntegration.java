@@ -7,38 +7,32 @@
 
 package org.elasticsearch.xpack.inference.services.remote;
 
+import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
+import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
+import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultTaskSettings;
 
 import java.util.Map;
-import java.util.function.Function;
 
-public class RemoteInferenceIntegration {
-    private final ServiceSettingsIntegration serviceSettingsIntegration;
-    private final TaskSettingsIntegration taskSettingsIntegration;
+public interface RemoteInferenceIntegration {
 
-    public RemoteInferenceIntegration(
-        ServiceSettingsIntegration serviceSettingsIntegration,
-        TaskSettingsIntegration taskSettingsIntegration
-    ) {
-        this.serviceSettingsIntegration = serviceSettingsIntegration;
-        this.taskSettingsIntegration = taskSettingsIntegration;
-    }
+    /* Integration points for reading/writing model from storage */
+    DefaultSecretSettings parseSecretSettings(Map<String, Object> config);
 
-    public DefaultSecretSettings parseSecretSettings(Map<String, Object> config) {
-        return DefaultSecretSettings.fromMap(config);
-    }
+    DefaultServiceSettings parseServiceSettings(Map<String, Object> config);
 
-    public DefaultServiceSettings parseServiceSettings(Map<String, Object> config) {
-        return serviceSettingsIntegration.apply(config);
-    }
+    DefaultTaskSettings parseTaskSettings(Map<String, Object> config);
 
-    public DefaultTaskSettings parseTaskSettings(Map<String, Object> config) {
-        return taskSettingsIntegration.apply(config);
-    }
+    /* Integration points for batching behavior */
+    int maxNumberOfInputsPerBatch(RemoteInferenceModel model);
 
-    public interface ServiceSettingsIntegration extends Function<Map<String, Object>, DefaultServiceSettings> {}
+    EmbeddingRequestChunker.EmbeddingType embeddingType(RemoteInferenceModel model);
 
-    public interface TaskSettingsIntegration extends Function<Map<String, Object>, DefaultTaskSettings> {}
+    /* Integration points for converting to/from provider interface */
+    RemoteInferenceRequest parseInputs(RemoteInferenceModel model, InferenceInputs inputs, Map<String, Object> taskSettings);
+
+    ResponseHandler responseHandler();
 }

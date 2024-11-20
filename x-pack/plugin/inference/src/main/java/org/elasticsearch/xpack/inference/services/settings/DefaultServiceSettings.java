@@ -124,6 +124,14 @@ public class DefaultServiceSettings implements ServiceSettings {
         return modelId;
     }
 
+    public RateLimitSettings rateLimitSettings() {
+        return rateLimitSettings;
+    }
+
+    public Integer rateLimitGroup() {
+        return rateLimitGroup;
+    }
+
     public static DefaultServiceSettings fromStorage(Map<String, Object> storage) {
         var headersAndBody = InferenceHeadersAndBody.fromStorage(removeFromMapOrThrowIfNull(storage, "headersAndBody"));
         var taskType = TaskType.fromString(removeStringOrThrowIfNull(storage, "taskType"));

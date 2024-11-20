@@ -160,37 +160,9 @@ public class MockAzureBlobStore {
         boolean isCommitted();
     }
 
-    private abstract static class AbstractAzureBlob implements AzureBlob {
-
-        protected final Object writeLock = new Object();
-        protected final Lease lease = new Lease();
-
-        @Override
-        public String acquireLease(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
-            synchronized (writeLock) {
-                return lease.acquire(proposedLeaseId, leaseTimeSeconds);
-            }
-        }
-
-        @Override
-        public void releaseLease(String leaseId) {
-            synchronized (writeLock) {
-                lease.release(leaseId);
-            }
-        }
-
-        @Override
-        public void checkLeaseForRead(@Nullable String leaseId) {
-            lease.assertCanRead(leaseId);
-        }
-
-        @Override
-        public void checkLeaseForWrite(@Nullable String leaseId) {
-            lease.assertCanWrite(leaseId);
-        }
-    }
-
-    private static class MockAzureBlockBlob extends AbstractAzureBlob implements AzureBlob {
+    private static class MockAzureBlockBlob implements AzureBlob {
+        private final Object writeLock = new Object();
+        private final Lease lease = new Lease();
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents = UNCOMMITTED;
 
@@ -269,6 +241,30 @@ public class MockAzureBlobStore {
         @Override
         public String toString() {
             return "MockAzureBlockBlob{" + "blocks=" + blocks + ", contents=" + contents + '}';
+        }
+
+        @Override
+        public String acquireLease(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
+            synchronized (writeLock) {
+                return lease.acquire(proposedLeaseId, leaseTimeSeconds);
+            }
+        }
+
+        @Override
+        public void releaseLease(String leaseId) {
+            synchronized (writeLock) {
+                lease.release(leaseId);
+            }
+        }
+
+        @Override
+        public void checkLeaseForRead(@Nullable String leaseId) {
+            lease.assertCanRead(leaseId);
+        }
+
+        @Override
+        public void checkLeaseForWrite(@Nullable String leaseId) {
+            lease.assertCanWrite(leaseId);
         }
     }
 

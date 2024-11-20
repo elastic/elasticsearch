@@ -17,6 +17,12 @@ public interface MultiDenseVector {
         checkDimensions(getDims(), qvDims);
     }
 
+    float maxSimDotProduct(float[][] query);
+
+    float maxSimDotProduct(byte[][] query);
+
+    float maxSimInvHamming(byte[][] query);
+
     Iterator<float[]> getVectors();
 
     float[] getMagnitudes();
@@ -60,6 +66,21 @@ public interface MultiDenseVector {
 
         @Override
         public int getDims() {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public float maxSimDotProduct(float[][] query) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public float maxSimDotProduct(byte[][] query) {
+            throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
+        }
+
+        @Override
+        public float maxSimInvHamming(byte[][] query) {
             throw new IllegalArgumentException(MISSING_VECTOR_FIELD_MESSAGE);
         }
 

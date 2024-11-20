@@ -12,12 +12,10 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
-import org.elasticsearch.action.datastreams.CancelReindexDataStreamAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
-import org.elasticsearch.action.datastreams.GetReindexDataStreamStatusAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
@@ -40,11 +38,9 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.datastreams.action.CancelReindexDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.CreateDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.DataStreamsStatsTransportAction;
 import org.elasticsearch.datastreams.action.DeleteDataStreamTransportAction;
-import org.elasticsearch.datastreams.action.GetReindexDataStreamStatusTransportAction;
 import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
@@ -75,12 +71,10 @@ import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOption
 import org.elasticsearch.datastreams.options.rest.RestDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction;
-import org.elasticsearch.datastreams.rest.RestCancelReindexDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
-import org.elasticsearch.datastreams.rest.RestGetReindexDataStreamStatusAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
@@ -270,8 +264,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
         }
         actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
-        actions.add(new ActionHandler<>(GetReindexDataStreamStatusAction.INSTANCE, GetReindexDataStreamStatusTransportAction.class));
-        actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
         return actions;
     }
 
@@ -310,8 +302,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             handlers.add(new RestDeleteDataStreamOptionsAction());
         }
         handlers.add(new RestReindexDataStreamAction());
-        handlers.add(new RestGetReindexDataStreamStatusAction());
-        handlers.add(new RestCancelReindexDataStreamAction());
         return handlers;
     }
 

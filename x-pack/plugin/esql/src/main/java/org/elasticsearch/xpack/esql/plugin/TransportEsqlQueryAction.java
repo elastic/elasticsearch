@@ -136,6 +136,11 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
 
     private void doExecuteForked(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH);
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
+            request.includeCCSMetadata()
+        );
+
         if (requestIsAsync(request)) {
             asyncTaskManagementService.asyncExecute(
                 request,
@@ -145,16 +150,16 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 listener
             );
         } else {
-            innerExecute(task, request, listener);
+            innerExecute(task, request, executionInfo, listener);
         }
     }
 
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
-        ActionListener.run(listener, l -> innerExecute(task, request, l));
+        ActionListener.run(listener, l -> innerExecute(task, request, task.executionInfo(), l));
     }
 
-    private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
+    private void innerExecute(Task task, EsqlQueryRequest request, EsqlExecutionInfo execInfo, ActionListener<EsqlQueryResponse> listener) {
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -170,16 +175,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             System.nanoTime()
         );
         String sessionId = sessionID(task);
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
-            request.includeCCSMetadata()
-        );
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,
             (CancellableTask) task,
             plan,
             configuration,
-            executionInfo,
+            execInfo,
             resultListener
         );
         planExecutor.esql(
@@ -187,7 +188,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             sessionId,
             configuration,
             enrichPolicyResolver,
-            executionInfo,
+            execInfo,
             remoteClusterService,
             planRunner,
             listener.map(result -> toResponse(task, request, configuration, result))

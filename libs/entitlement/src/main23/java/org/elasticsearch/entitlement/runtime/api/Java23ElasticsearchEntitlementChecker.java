@@ -14,6 +14,7 @@ import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
 public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
     @Override
     public void checkSystemExit(Class<?> callerClass, int status) {
-        throw new RuntimeException("system exit not allowed in java 23");
+        // TODO: this is just an example, we shouldn't really override a method implemented in the superclass
+        super.checkSystemExit(callerClass, status);
     }
 }

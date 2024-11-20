@@ -10,7 +10,6 @@ import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryStringQueryBuilder;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 
@@ -37,15 +36,13 @@ public class QueryStringQueryTests extends ESTestCase {
 
     private static QueryStringQueryBuilder getBuilder(String options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", options);
-        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f));
         return (QueryStringQueryBuilder) mmq.asBuilder();
     }
 
     public void testToString() {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        final StringQueryPredicate mmqp = new StringQueryPredicate(source, "eggplant", "");
-        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f), mmqp);
+        final QueryStringQuery mmq = new QueryStringQuery(source, "eggplant", Collections.singletonMap("foo", 1.0f));
         assertEquals("QueryStringQuery@1:2[{foo=1.0}:eggplant]", mmq.toString());
     }
 }

@@ -15,6 +15,7 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -243,6 +244,10 @@ public class DownsampleIT extends AbstractRollingUpgradeTestCase {
     }
 
     public void testRollupIndex() throws Exception {
+        assumeTrue(
+            "Downsample got many stability improvements in 8.10.0",
+            oldClusterHasFeature(RestTestLegacyFeatures.TSDB_DOWNSAMPLING_STABLE)
+        );
         if (isOldCluster()) {
             createIlmPolicy();
             createIndex();

@@ -41,6 +41,7 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -261,6 +262,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -298,6 +300,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {

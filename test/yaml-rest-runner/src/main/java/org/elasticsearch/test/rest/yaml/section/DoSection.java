@@ -22,6 +22,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.rest.action.admin.indices.RestPutIndexTemplateAction;
+import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestExecutionContext;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponse;
 import org.elasticsearch.test.rest.yaml.ClientYamlTestResponseException;
@@ -371,7 +372,13 @@ public class DoSection implements ExecutableSection {
                 ? executionContext.getClientYamlTestCandidate().getTestPath()
                 : null;
 
-            checkElasticProductHeader(response.getHeaders("X-elastic-product"));
+            var fixedProductionHeader = executionContext.clusterHasFeature(
+                RestTestLegacyFeatures.REST_ELASTIC_PRODUCT_HEADER_PRESENT.id(),
+                false
+            );
+            if (fixedProductionHeader) {
+                checkElasticProductHeader(response.getHeaders("X-elastic-product"));
+            }
             checkWarningHeaders(response.getWarningHeaders(), testPath);
         } catch (ClientYamlTestResponseException e) {
             checkResponseException(e, executionContext);

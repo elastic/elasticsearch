@@ -302,7 +302,7 @@ public class MockAzureBlobStore {
 
     /**
      * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob#outcomes-of-lease-operations-on-blobs-by-lease-state">acquire/release rules</a>
-     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob?tabs=microsoft-entra-id#outcomes-of-use-attempts-on-blobs-by-lease-state">read/write rules</a>
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob#outcomes-of-use-attempts-on-blobs-by-lease-state">read/write rules</a>
      */
     public static class Lease {
 

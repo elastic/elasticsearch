@@ -237,9 +237,6 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.discovery.ClusterDisruptionIT
-  method: testAckedIndexing
-  issue: https://github.com/elastic/elasticsearch/issues/117024
 - class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
   method: test {yaml=reference/esql/esql-across-clusters/line_197}
   issue: https://github.com/elastic/elasticsearch/issues/117099

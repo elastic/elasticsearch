@@ -435,7 +435,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         assertThat(suppressed[0].getMessage(), startsWith("Failed to rollover logs-my_app-"));
     }
 
-    public void testNoRolloverForFreshInstalledIndexTemplate() throws Exception {
+    public void testRolloverForFreshInstalledIndexTemplate() throws Exception {
         DiscoveryNode node = DiscoveryNodeUtils.create("node");
         DiscoveryNodes nodes = DiscoveryNodes.builder().localNodeId("node").masterNodeId("node").add(node).build();
 
@@ -473,9 +473,9 @@ public class IndexTemplateRegistryTests extends ESTestCase {
         registry.setApplyRollover(true);
         registry.clusterChanged(event);
         assertBusy(() -> assertThat(putIndexTemplateCounter.get(), equalTo(1)));
-        // the index component is first installed, not upgraded, therefore rollover should not be triggered
-        Thread.sleep(100L);
-        assertThat(rolloverCounter.get(), equalTo(0));
+        // rollover should be triggered even for the first installation, since the template
+        // may now take precedence over a data stream's existing index template
+        assertBusy(() -> assertThat(rolloverCounter.get(), equalTo(2)));
     }
 
     public void testThatTemplatesAreNotUpgradedWhenNotNeeded() throws Exception {
@@ -726,7 +726,7 @@ public class IndexTemplateRegistryTests extends ESTestCase {
             putRequest.getSource(),
             putRequest.getXContentType()
         );
-        List<?> processors = (List<?>) pipelineConfiguration.getConfigAsMap().get("processors");
+        List<?> processors = (List<?>) pipelineConfiguration.getConfig().get("processors");
         assertThat(processors, hasSize(1));
         Map<?, ?> setProcessor = (Map<?, ?>) ((Map<?, ?>) processors.get(0)).get("set");
         assertNotNull(setProcessor.get("field"));

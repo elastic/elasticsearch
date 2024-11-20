@@ -46,7 +46,7 @@ supports this parameter for CSV responses.
 `drop_null_columns`::
 (Optional, boolean) Should columns that are entirely `null` be removed from
 the `columns` and `values` portion of the results? Defaults to `false`. If
-`true` the the response will include an extra section under the name
+`true` the response will include an extra section under the name
 `all_columns` which has the name of all columns.
 
 `format`::
@@ -92,8 +92,8 @@ https://en.wikipedia.org/wiki/Query_plan[EXPLAIN PLAN].
 
 
 ifeval::["{release-state}"=="unreleased"]
-`table`::
-(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
+//`table`::
+//(Optional, object) Named "table" parameters that can be referenced by the <<esql-lookup>> command.
 endif::[]
 
 [discrete]

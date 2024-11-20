@@ -120,7 +120,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSize(size).setFrom(from).setSearchType(DFS_QUERY_THEN_FETCH),
             response -> {
-                long numHits = response.getHits().getTotalHits().value;
+                long numHits = response.getHits().getTotalHits().value();
                 assertThat(numHits, lessThanOrEqualTo((long) numRelevantDocs + pins.size()));
 
                 // Check pins are sorted by increasing score, (unlike organic, there are no duplicate scores)
@@ -193,7 +193,7 @@ public class PinnedQueryBuilderIT extends ESIntegTestCase {
 
     private void assertExhaustiveScoring(PinnedQueryBuilder pqb) {
         assertResponse(prepareSearch().setQuery(pqb).setTrackTotalHits(true).setSearchType(DFS_QUERY_THEN_FETCH), response -> {
-            long numHits = response.getHits().getTotalHits().value;
+            long numHits = response.getHits().getTotalHits().value();
             assertThat(numHits, equalTo(2L));
         });
     }

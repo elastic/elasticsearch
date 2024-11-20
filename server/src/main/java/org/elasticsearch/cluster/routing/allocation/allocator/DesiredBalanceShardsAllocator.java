@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -64,6 +65,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
     private volatile DesiredBalance currentDesiredBalance = DesiredBalance.INITIAL;
     private volatile boolean resetCurrentDesiredBalance = false;
     private final Set<String> processedNodeShutdowns = new HashSet<>();
+    private final DesiredBalanceMetrics desiredBalanceMetrics;
 
     // stats
     protected final CounterMetric computationsSubmitted = new CounterMetric();
@@ -84,7 +86,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this(
             delegateAllocator,
@@ -92,7 +95,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
-            telemetryProvider
+            telemetryProvider,
+            nodeAllocationStatsProvider
         );
     }
 
@@ -102,8 +106,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
+        this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
         this.threadPool = threadPool;
         this.reconciler = reconciler;
@@ -111,7 +117,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            telemetryProvider.getMeterRegistry()
+            desiredBalanceMetrics,
+            nodeAllocationStatsProvider
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -124,6 +131,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
                 recordTime(
                     cumulativeComputationTime,
+                    // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
+                    // However, it is possible that we revert the effect here by setting it again since the computation is async
+                    // and does not check whether the node is master. This should have little to no practical impact. But it may
+                    // lead to unexpected behaviours for tests. See also https://github.com/elastic/elasticsearch/pull/116904
                     () -> setCurrentDesiredBalance(
                         desiredBalanceComputer.compute(
                             getInitialDesiredBalance(),
@@ -134,7 +145,16 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
                     )
                 );
                 computationsExecuted.inc();
-                if (isFresh(desiredBalanceInput)) {
+
+                if (currentDesiredBalance.finishReason() == DesiredBalance.ComputationFinishReason.STOP_EARLY) {
+                    logger.debug(
+                        "Desired balance computation for [{}] terminated early with partial result, scheduling reconciliation",
+                        index
+                    );
+                    submitReconcileTask(currentDesiredBalance);
+                    var newInput = DesiredBalanceInput.create(indexGenerator.incrementAndGet(), desiredBalanceInput.routingAllocation());
+                    desiredBalanceComputation.compareAndEnqueue(desiredBalanceInput, newInput);
+                } else if (isFresh(desiredBalanceInput)) {
                     logger.debug("Desired balance computation for [{}] is completed, scheduling reconciliation", index);
                     computationsConverged.inc();
                     submitReconcileTask(currentDesiredBalance);
@@ -168,6 +188,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             if (event.localNodeMaster() == false) {
                 onNoLongerMaster();
             }
+            // Only update on change, to minimise volatile writes
+            if (event.localNodeMaster() != event.previousState().nodes().isLocalNodeElectedMaster()) {
+                desiredBalanceMetrics.setNodeIsMaster(event.localNodeMaster());
+            }
         });
     }
 
@@ -193,6 +217,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         queue.add(index, listener);
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
+        if (allocation.routingTable().indicesRouting().isEmpty()) {
+            logger.debug("No eager reconciliation needed for empty routing table");
+            return;
+        }
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).
@@ -306,9 +334,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             computedShardMovements.sum(),
             cumulativeComputationTime.count(),
             cumulativeReconciliationTime.count(),
-            desiredBalanceReconciler.unassignedShards.get(),
-            desiredBalanceReconciler.totalAllocations.get(),
-            desiredBalanceReconciler.undesiredAllocations.get()
+            desiredBalanceMetrics.unassignedShards(),
+            desiredBalanceMetrics.totalAllocations(),
+            desiredBalanceMetrics.undesiredAllocations()
         );
     }
 
@@ -318,10 +346,7 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             queue.completeAllAsNotMaster();
             pendingDesiredBalanceMoves.clear();
             desiredBalanceReconciler.clear();
-
-            desiredBalanceReconciler.unassignedShards.set(0);
-            desiredBalanceReconciler.totalAllocations.set(0);
-            desiredBalanceReconciler.undesiredAllocations.set(0);
+            desiredBalanceMetrics.zeroAllMetrics();
         }
     }
 

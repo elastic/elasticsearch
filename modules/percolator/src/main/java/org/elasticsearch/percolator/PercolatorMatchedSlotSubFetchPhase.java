@@ -91,7 +91,7 @@ final class PercolatorMatchedSlotSubFetchPhase implements FetchSubPhase {
                     query = percolatorIndexSearcher.rewrite(query);
                     int memoryIndexMaxDoc = percolatorIndexSearcher.getIndexReader().maxDoc();
                     TopDocs topDocs = percolatorIndexSearcher.search(query, memoryIndexMaxDoc, new Sort(SortField.FIELD_DOC));
-                    if (topDocs.totalHits.value == 0) {
+                    if (topDocs.totalHits.value() == 0) {
                         // This hit didn't match with a percolate query,
                         // likely to happen when percolating multiple documents
                         continue;

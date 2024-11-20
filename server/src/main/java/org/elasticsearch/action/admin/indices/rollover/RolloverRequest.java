@@ -13,6 +13,7 @@ import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndexComponentSelector;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -124,8 +125,8 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
             );
         }
 
-        var selectors = indicesOptions.selectorOptions().defaultSelectors();
-        if (selectors.size() > 1) {
+        var selector = indicesOptions.selectorOptions().defaultSelector();
+        if (selector == IndexComponentSelector.ALL_APPLICABLE) {
             validationException = addValidationError(
                 "rollover cannot be applied to both regular and failure indices at the same time",
                 validationException

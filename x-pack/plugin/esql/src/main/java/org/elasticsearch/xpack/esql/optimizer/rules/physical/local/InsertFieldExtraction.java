@@ -14,11 +14,15 @@ import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.TypedAttribute;
 import org.elasticsearch.xpack.esql.optimizer.rules.physical.ProjectAwayColumns;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
+import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.FieldExtractExec;
+import org.elasticsearch.xpack.esql.plan.physical.LeafExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.plan.physical.UnaryExec;
 import org.elasticsearch.xpack.esql.rule.Rule;
 
+import java.util.ArrayList;
+import java.util.Collections;
 import java.util.LinkedHashSet;
 import java.util.LinkedList;
 import java.util.List;
@@ -40,7 +44,12 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
     public PhysicalPlan apply(PhysicalPlan plan) {
         // apply the plan locally, adding a field extractor right before data is loaded
         // by going bottom-up
-        plan = plan.transformUp(UnaryExec.class, p -> {
+        plan = plan.transformUp(p -> {
+            // skip source nodes
+            if (p instanceof LeafExec) {
+                return p;
+            }
+
             var missing = missingAttributes(p);
 
             /*
@@ -58,9 +67,24 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
             // add extractor
             if (missing.isEmpty() == false) {
-                // collect source attributes and add the extractor
-                var extractor = new FieldExtractExec(p.source(), p.child(), List.copyOf(missing));
-                p = p.replaceChild(extractor);
+                // identify child (for binary nodes) that exports _doc and place the field extractor there
+                List<PhysicalPlan> newChildren = new ArrayList<>(p.children().size());
+                boolean found = false;
+                for (PhysicalPlan child : p.children()) {
+                    if (found == false) {
+                        if (child.outputSet().stream().anyMatch(EsQueryExec::isSourceAttribute)) {
+                            found = true;
+                            // collect source attributes and add the extractor
+                            child = new FieldExtractExec(p.source(), child, List.copyOf(missing));
+                        }
+                    }
+                    newChildren.add(child);
+                }
+                // somehow no doc id
+                if (found == false) {
+                    throw new IllegalArgumentException("No child with doc id found");
+                }
+                return p.replaceChildren(newChildren);
             }
 
             return p;
@@ -71,8 +95,16 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
 
     private static Set<Attribute> missingAttributes(PhysicalPlan p) {
         var missing = new LinkedHashSet<Attribute>();
-        var input = p.inputSet();
+        var inputSet = p.inputSet();
 
+        // FIXME: the extractors should work on the right side as well
+        // skip the lookup join since the right side is always materialized and a projection
+        if (p instanceof LookupJoinExec join) {
+            // collect fields used in the join condition
+            return Collections.emptySet();
+        }
+
+        var input = inputSet;
         // collect field attributes used inside expressions
         p.forEachExpression(TypedAttribute.class, f -> {
             if (f instanceof FieldAttribute || f instanceof MetadataAttribute) {

@@ -26,70 +26,89 @@ topLevelQuery
     ;
 
 query
-    : query (AND | OR) query          #booleanQuery
-    | NOT subQuery=simpleQuery        #notQuery
-    | simpleQuery                     #defaultQuery
+    : <assoc=right> query operator=(AND|OR) query  #booleanQuery
+    | simpleQuery                                  #defaultQuery
     ;
 
 simpleQuery
-    : nestedQuery
-    | expression
+    : notQuery
+    | nestedQuery
     | parenthesizedQuery
+    | matchAllQuery
+    | existsQuery
+    | rangeQuery
+    | fieldQuery
+    | fieldLessQuery
     ;
 
-expression
-    : fieldTermQuery
-    | fieldRangeQuery
-    ;
+notQuery:
+   NOT subQuery=simpleQuery
+   ;
 
 nestedQuery
-    : fieldName COLON LEFT_CURLY_BRACKET query RIGHT_CURLY_BRACKET
+    : fieldName COLON LEFT_CURLY_BRACKET nestedSubQuery RIGHT_CURLY_BRACKET
     ;
 
-parenthesizedQuery:
-   LEFT_PARENTHESIS query RIGHT_PARENTHESIS;
-
-fieldRangeQuery
-    : fieldName operator=OP_COMPARE rangeQueryValue
+nestedSubQuery
+    : <assoc=right> nestedSubQuery operator=(AND|OR) nestedSubQuery #booleanNestedQuery
+    | nestedSimpleSubQuery                                          #defaultNestedQuery
     ;
 
-fieldTermQuery
-    : (fieldName COLON)? termQueryValue
+nestedSimpleSubQuery
+    : notQuery
+    | nestedQuery
+    | matchAllQuery
+    | nestedParenthesizedQuery
+    | existsQuery
+    | rangeQuery
+    | fieldQuery;
+
+nestedParenthesizedQuery
+    : LEFT_PARENTHESIS nestedSubQuery RIGHT_PARENTHESIS;
+
+matchAllQuery
+    : (WILDCARD COLON)? WILDCARD
     ;
 
-fieldName
-    : wildcardExpression
-    | unquotedLiteralExpression
-    | quotedStringExpression
+parenthesizedQuery
+    : LEFT_PARENTHESIS query RIGHT_PARENTHESIS
+    ;
+
+rangeQuery
+    : fieldName operator=(OP_LESS|OP_LESS_EQ|OP_MORE|OP_MORE_EQ) rangeQueryValue
     ;
 
 rangeQueryValue
-    : unquotedLiteralExpression
-    | quotedStringExpression
+    : (UNQUOTED_LITERAL|WILDCARD)+
+    | QUOTED_STRING
+   ;
+
+existsQuery
+    :fieldName COLON WILDCARD
     ;
 
-termQueryValue
-    : wildcardExpression
-    | quotedStringExpression
-    | termValue=unquotedLiteralExpression
-    | groupingTermExpression;
-
-groupingTermExpression
-    : LEFT_PARENTHESIS unquotedLiteralExpression RIGHT_PARENTHESIS
+fieldQuery
+    : fieldName COLON fieldQueryValue
+    | fieldName COLON LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
     ;
 
-unquotedLiteralExpression
-    : UNQUOTED_LITERAL+
+fieldLessQuery
+    : fieldQueryValue
+    | LEFT_PARENTHESIS fieldQueryValue RIGHT_PARENTHESIS
     ;
 
-quotedStringExpression
-    : QUOTED_STRING
+fieldQueryValue
+    : (AND|OR|NOT)? (UNQUOTED_LITERAL|WILDCARD)+ (NOT|AND|OR)?
+    | (AND|OR) (AND|OR|NOT)?
+    | NOT (AND|OR)?
+    | QUOTED_STRING
     ;
 
-wildcardExpression
-    : WILDCARD
-;
-
+fieldName
+    : value=UNQUOTED_LITERAL
+    | value=QUOTED_STRING
+    | value=WILDCARD
+    ;
 
 DEFAULT_SKIP: WHITESPACE -> skip;
 
@@ -98,31 +117,34 @@ OR: 'or';
 NOT: 'not';
 
 COLON: ':';
-OP_COMPARE: OP_LESS | OP_MORE | OP_LESS_EQ | OP_MORE_EQ;
+OP_LESS: '<';
+OP_LESS_EQ: '<=';
+OP_MORE: '>';
+OP_MORE_EQ: '>=';
 
 LEFT_PARENTHESIS: '(';
 RIGHT_PARENTHESIS: ')';
 LEFT_CURLY_BRACKET: '{';
 RIGHT_CURLY_BRACKET: '}';
 
-UNQUOTED_LITERAL: WILDCARD* UNQUOTED_LITERAL_CHAR+ WILDCARD*;
+UNQUOTED_LITERAL: UNQUOTED_LITERAL_CHAR+;
 
 QUOTED_STRING: '"'QUOTED_CHAR*'"';
 
-WILDCARD: WILDCARD_CHAR+;
+WILDCARD: WILDCARD_CHAR;
 
 fragment WILDCARD_CHAR: '*';
-fragment OP_LESS: '<';
-fragment OP_LESS_EQ: '<=';
-fragment OP_MORE: '>';
-fragment OP_MORE_EQ: '>=';
 
 fragment UNQUOTED_LITERAL_CHAR
+    : WILDCARD_CHAR* UNQUOTED_LITERAL_BASE_CHAR WILDCARD_CHAR*
+    | WILDCARD_CHAR WILDCARD_CHAR+
+    ;
+
+fragment UNQUOTED_LITERAL_BASE_CHAR
     : ESCAPED_WHITESPACE
     | ESCAPED_SPECIAL_CHAR
     | ESCAPE_UNICODE_SEQUENCE
     | '\\' (AND | OR | NOT)
-    | WILDCARD_CHAR UNQUOTED_LITERAL_CHAR
     | NON_SPECIAL_CHAR
     ;
 
@@ -135,7 +157,7 @@ fragment QUOTED_CHAR
 
 fragment WHITESPACE: [ \t\n\r\u3000];
 fragment ESCAPED_WHITESPACE: '\\r' | '\\t' | '\\n';
-fragment NON_SPECIAL_CHAR: ~[ \\():<>"*{}];
+fragment NON_SPECIAL_CHAR: ~[ \n\r\t\u3000\\():<>"*{}];
 fragment ESCAPED_SPECIAL_CHAR: '\\'[ \\():<>"*{}];
 
 fragment ESCAPED_QUOTE: '\\"';

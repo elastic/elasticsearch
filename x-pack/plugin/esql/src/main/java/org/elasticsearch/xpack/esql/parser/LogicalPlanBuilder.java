@@ -53,6 +53,7 @@ import org.elasticsearch.xpack.esql.plan.logical.OrderBy;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.show.ShowInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.joni.exception.SyntaxException;
@@ -68,6 +69,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.common.logging.HeaderWarning.addWarning;
 import static org.elasticsearch.xpack.esql.core.util.StringUtils.WILDCARD;
 import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputExpressions;
@@ -84,7 +86,7 @@ import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.stringToIn
  */
 public class LogicalPlanBuilder extends ExpressionBuilder {
 
-    private int queryDepth = 0;
+    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
 
     /**
      * Maximum number of commands allowed per query
@@ -94,6 +96,8 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     public LogicalPlanBuilder(QueryParams params) {
         super(params);
     }
+
+    private int queryDepth = 0;
 
     protected LogicalPlan plan(ParseTree ctx) {
         LogicalPlan p = ParserUtils.typedParsing(this, ctx, LogicalPlan.class);
@@ -345,7 +349,10 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         List<NamedExpression> groupings = visitGrouping(ctx.grouping);
         aggregates.addAll(groupings);
         // TODO: add support for filters
-        return input -> new InlineStats(source(ctx), input, new ArrayList<>(groupings), aggregates);
+        return input -> new InlineStats(
+            source(ctx),
+            new Aggregate(source(ctx), input, Aggregate.AggregateType.STANDARD, new ArrayList<>(groupings), aggregates)
+        );
     }
 
     @Override
@@ -497,7 +504,7 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
     @Override
     public PlanFactory visitLookupCommand(EsqlBaseParser.LookupCommandContext ctx) {
         if (false == Build.current().isSnapshot()) {
-            throw new ParsingException(source(ctx), "LOOKUP is in preview and only available in SNAPSHOT build");
+            throw new ParsingException(source(ctx), "LOOKUP__ is in preview and only available in SNAPSHOT build");
         }
         var source = source(ctx);
 
@@ -519,5 +526,42 @@ public class LogicalPlanBuilder extends ExpressionBuilder {
         return p -> new Lookup(source, p, tableName, matchFields, null /* localRelation will be resolved later*/);
     }
 
-    interface PlanFactory extends Function<LogicalPlan, LogicalPlan> {}
+    public PlanFactory visitJoinCommand(EsqlBaseParser.JoinCommandContext ctx) {
+        var source = source(ctx);
+        if (false == Build.current().isSnapshot()) {
+            throw new ParsingException(source, "JOIN is in preview and only available in SNAPSHOT build");
+        }
+
+        if (ctx.type != null && ctx.type.getType() != EsqlBaseParser.DEV_JOIN_LOOKUP) {
+            String joinType = ctx.type == null ? "(INNER)" : ctx.type.getText();
+            throw new ParsingException(source, "only LOOKUP JOIN available, {} JOIN unsupported at the moment", joinType);
+        }
+
+        var target = ctx.joinTarget();
+        UnresolvedRelation right = new UnresolvedRelation(
+            source(target),
+            new TableIdentifier(source(target.index), null, visitIdentifier(target.index)),
+            false,
+            emptyList(),
+            IndexMode.LOOKUP,
+            null,
+            "???"
+        );
+
+        var condition = ctx.joinCondition();
+
+        // ON only with qualified names
+        var predicates = expressions(condition.joinPredicate());
+        List<Attribute> joinFields = new ArrayList<>(predicates.size());
+        for (var f : predicates) {
+            // verify each field is an unresolved attribute
+            if (f instanceof UnresolvedAttribute ua) {
+                joinFields.add(ua);
+            } else {
+                throw new ParsingException(f.source(), "JOIN ON clause only supports fields at the moment, found [{}]", f.sourceText());
+            }
+        }
+
+        return p -> new LookupJoin(source, p, right, joinFields);
+    }
 }

@@ -14,7 +14,6 @@ import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.plugin.EsqlCorePlugin;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
@@ -123,7 +122,7 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         Function<DataType, DataType> expectedDataType,
         BiFunction<Integer, Stream<BytesRef>, Matcher<Object>> matcher
     ) {
-        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.IP, DataType.VERSION }) {
+        for (DataType type : new DataType[] { DataType.KEYWORD, DataType.TEXT, DataType.SEMANTIC_TEXT, DataType.IP, DataType.VERSION }) {
             if (type != DataType.IP) {
                 cases.add(
                     new TestCaseSupplier(
@@ -397,9 +396,6 @@ public abstract class AbstractMultivalueFunctionTestCase extends AbstractScalarF
         DataType expectedDataType,
         BiFunction<Integer, LongStream, Matcher<Object>> matcher
     ) {
-        if (EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG.isEnabled() == false) {
-            return;
-        }
         cases.add(
             new TestCaseSupplier(
                 name + "(epoch nanos)",

@@ -35,11 +35,9 @@ import org.elasticsearch.xpack.core.ml.inference.TrainedModelInput;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.InferenceConfigUpdate;
 import org.elasticsearch.xpack.core.ml.utils.MlPlatformArchitecturesUtil;
-import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 
 import java.io.IOException;
-import java.util.EnumSet;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.function.Consumer;
@@ -83,14 +81,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         this.clusterService = context.clusterService();
     }
 
-    /**
-     * The task types supported by the service
-     * @return Set of supported.
-     */
-    protected abstract EnumSet<TaskType> supportedTaskTypes();
-
     @Override
-    public void start(Model model, ActionListener<Boolean> finalListener) {
+    public void start(Model model, TimeValue timeout, ActionListener<Boolean> finalListener) {
         if (model instanceof ElasticsearchInternalModel esModel) {
             if (supportedTaskTypes().contains(model.getTaskType()) == false) {
                 finalListener.onFailure(
@@ -114,7 +106,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
                     }
                 })
                 .<Boolean>andThen((l2, modelDidPut) -> {
-                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest();
+                    var startRequest = esModel.getStartTrainedModelDeploymentActionRequest(timeout);
                     var responseListener = esModel.getCreateTrainedModelAssignmentActionListener(model, finalListener);
                     client.execute(StartTrainedModelDeploymentAction.INSTANCE, startRequest, responseListener);
                 })
@@ -156,8 +148,7 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         );
     }
 
-    @Override
-    public void putModel(Model model, ActionListener<Boolean> listener) {
+    protected void putModel(Model model, ActionListener<Boolean> listener) {
         if (model instanceof ElasticsearchInternalModel == false) {
             listener.onFailure(notElasticsearchModelException(model));
             return;
@@ -165,6 +156,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             putBuiltInModel(e5Model.getServiceSettings().modelId(), listener);
         } else if (model instanceof ElserInternalModel elserModel) {
             putBuiltInModel(elserModel.getServiceSettings().modelId(), listener);
+        } else if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            putBuiltInModel(elasticRerankerModel.getServiceSettings().modelId(), listener);
         } else if (model instanceof CustomElandModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);
@@ -304,16 +297,10 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
         InferModelAction.Request request,
         ActionListener<InferModelAction.Response> listener
     ) {
-        if (DefaultElserFeatureFlag.isEnabled() == false) {
-            listener.onFailure(e);
-            return;
-        }
-
         if (isDefaultId(model.getInferenceEntityId()) && ExceptionsHelper.unwrapCause(e) instanceof ResourceNotFoundException) {
-            this.start(
-                model,
-                listener.delegateFailureAndWrap((l, started) -> { client.execute(InferModelAction.INSTANCE, request, listener); })
-            );
+            this.start(model, request.getInferenceTimeout(), listener.delegateFailureAndWrap((l, started) -> {
+                client.execute(InferModelAction.INSTANCE, request, listener);
+            }));
         } else {
             listener.onFailure(e);
         }

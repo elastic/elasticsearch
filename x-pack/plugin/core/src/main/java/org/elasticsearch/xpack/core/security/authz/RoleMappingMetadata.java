@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.AbstractNamedDiffable;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NamedDiff;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -60,7 +61,12 @@ public final class RoleMappingMetadata extends AbstractNamedDiffable<Metadata.Pr
     private static final RoleMappingMetadata EMPTY = new RoleMappingMetadata(Set.of());
 
     public static RoleMappingMetadata getFromClusterState(ClusterState clusterState) {
-        return clusterState.metadata().getProject().custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
+        final ProjectMetadata project = clusterState.metadata().getProject();
+        return getFromProject(project);
+    }
+
+    public static RoleMappingMetadata getFromProject(ProjectMetadata project) {
+        return project.custom(RoleMappingMetadata.TYPE, RoleMappingMetadata.EMPTY);
     }
 
     private final Set<ExpressionRoleMapping> roleMappings;

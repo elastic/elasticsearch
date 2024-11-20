@@ -1687,27 +1687,15 @@ public class CompositeRolesStoreTests extends ESTestCase {
         verify(xPackLicenseState, times(2)).disableUsageTracking(Security.CUSTOM_ROLE_PROVIDERS_FEATURE, "custom");
     }
 
-    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
+    private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
         return dummyIndexState(true, indexStatus);
     }
 
-    public SecurityIndexManager.State dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            isIndexUpToDate,
-            true,
-            true,
-            true,
-            true,
-            null,
-            null,
-            null,
-            null,
-            concreteSecurityIndexName,
-            healthStatus,
-            IndexMetadata.State.OPEN,
-            "my_uuid",
-            Set.of()
+    public SecurityIndexManager.IndexState dummyIndexState(boolean isIndexUpToDate, ClusterHealthStatus healthStatus) {
+        var mgr = mock(SecurityIndexManager.class);
+        return mgr.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), isIndexUpToDate, true, true,
+            true, true, null, null, null, null, concreteSecurityIndexName, healthStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 
@@ -1739,27 +1727,27 @@ public class CompositeRolesStoreTests extends ESTestCase {
 
         int expectedInvalidation = 0;
         // existing to no longer present
-        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        SecurityIndexManager.State currentState = dummyState(null);
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        SecurityIndexManager.IndexState previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.IndexState currentState = dummyState(null);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, numInvalidation.get());
 
         // green to yellow or yellow to green
@@ -1767,7 +1755,7 @@ public class CompositeRolesStoreTests extends ESTestCase {
         currentState = dummyState(
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
-        compositeRolesStore.onSecurityIndexStateChange(previousState, currentState);
+        compositeRolesStore.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, numInvalidation.get());
     }
 
@@ -1796,10 +1784,18 @@ public class CompositeRolesStoreTests extends ESTestCase {
             null
         );
 
-        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(false, null), dummyIndexState(true, null));
+        compositeRolesStore.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
+            dummyIndexState(false, null),
+            dummyIndexState(true, null)
+        );
         assertEquals(1, numInvalidation.get());
 
-        compositeRolesStore.onSecurityIndexStateChange(dummyIndexState(true, null), dummyIndexState(false, null));
+        compositeRolesStore.onSecurityIndexStateChange(
+            Metadata.DEFAULT_PROJECT_ID,
+            dummyIndexState(true, null),
+            dummyIndexState(false, null)
+        );
         assertEquals(2, numInvalidation.get());
     }
 

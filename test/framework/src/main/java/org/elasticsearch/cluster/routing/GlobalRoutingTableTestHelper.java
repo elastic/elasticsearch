@@ -79,4 +79,19 @@ public final class GlobalRoutingTableTestHelper {
         // Utility class
     }
 
+    public static GlobalRoutingTable routingTable(ProjectId projectId, RoutingTable.Builder projectRouting) {
+        return routingTable(projectId, projectRouting.build());
+    }
+
+    public static GlobalRoutingTable routingTable(ProjectId projectId, RoutingTable projectRouting) {
+        return GlobalRoutingTable.builder().put(projectId, projectRouting).build();
+    }
+
+    public static GlobalRoutingTable routingTable(ProjectId projectId, IndexRoutingTable... indexRouting) {
+        final RoutingTable.Builder rt = RoutingTable.builder();
+        for (IndexRoutingTable irt : indexRouting) {
+            rt.add(irt);
+        }
+        return routingTable(projectId, rt);
+    }
 }

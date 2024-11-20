@@ -52,6 +52,7 @@ import org.elasticsearch.xpack.security.authc.service.ServiceAccount.ServiceAcco
 import org.elasticsearch.xpack.security.authc.service.ServiceAccountToken.ServiceAccountTokenId;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.io.IOException;
 import java.time.Clock;
@@ -102,27 +103,31 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
         final GetRequest getRequest = client.prepareGet(SECURITY_MAIN_ALIAS, docIdForToken(token.getQualifiedName()))
             .setFetchSource(true)
             .request();
-        securityIndex.checkIndexVersionThenExecute(
-            listener::onFailure,
-            () -> executeAsyncWithOrigin(
-                client,
-                SECURITY_ORIGIN,
-                TransportGetAction.TYPE,
-                getRequest,
-                ActionListener.<GetResponse>wrap(response -> {
-                    if (response.isExists()) {
-                        final String tokenHash = (String) response.getSource().get("password");
-                        assert tokenHash != null : "service account token hash cannot be null";
-                        listener.onResponse(
-                            new StoreAuthenticationResult(Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()), getTokenSource())
-                        );
-                    } else {
-                        logger.trace("service account token [{}] not found in index", token.getQualifiedName());
-                        listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
-                    }
-                }, listener::onFailure)
-            )
-        );
+        securityIndex.forCurrentProject()
+            .checkIndexVersionThenExecute(
+                listener::onFailure,
+                () -> executeAsyncWithOrigin(
+                    client,
+                    SECURITY_ORIGIN,
+                    TransportGetAction.TYPE,
+                    getRequest,
+                    ActionListener.<GetResponse>wrap(response -> {
+                        if (response.isExists()) {
+                            final String tokenHash = (String) response.getSource().get("password");
+                            assert tokenHash != null : "service account token hash cannot be null";
+                            listener.onResponse(
+                                new StoreAuthenticationResult(
+                                    Hasher.verifyHash(token.getSecret(), tokenHash.toCharArray()),
+                                    getTokenSource()
+                                )
+                            );
+                        } else {
+                            logger.trace("service account token [{}] not found in index", token.getQualifiedName());
+                            listener.onResponse(new StoreAuthenticationResult(false, getTokenSource()));
+                        }
+                    }, listener::onFailure)
+                )
+            );
     }
 
     @Override
@@ -150,7 +155,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
                 .request();
             final BulkRequest bulkRequest = toSingleItemBulkRequest(indexRequest);
 
-            securityIndex.prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
+            securityIndex.forCurrentProject().prepareIndexIfNeededThenExecute(listener::onFailure, () -> {
                 executeAsyncWithOrigin(
                     client,
                     SECURITY_ORIGIN,
@@ -169,13 +174,13 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void findTokensFor(ServiceAccountId accountId, ActionListener<Collection<TokenInfo>> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (false == frozenSecurityIndex.indexExists()) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             listener.onResponse(List.of());
-        } else if (false == frozenSecurityIndex.isAvailable(SEARCH_SHARDS)) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
+        } else if (false == projectSecurityIndex.isAvailable(SEARCH_SHARDS)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(SEARCH_SHARDS));
         } else {
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final Supplier<ThreadContext.StoredContext> contextSupplier = client.threadPool()
                     .getThreadContext()
                     .newRestorableContext(false);
@@ -205,11 +210,11 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
     }
 
     void deleteToken(DeleteServiceAccountTokenRequest request, ActionListener<Boolean> listener) {
-        final SecurityIndexManager frozenSecurityIndex = this.securityIndex.defensiveCopy();
-        if (false == frozenSecurityIndex.indexExists()) {
+        final IndexState projectSecurityIndex = this.securityIndex.forCurrentProject();
+        if (false == projectSecurityIndex.indexExists()) {
             listener.onResponse(false);
-        } else if (false == frozenSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
-            listener.onFailure(frozenSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
+        } else if (false == projectSecurityIndex.isAvailable(PRIMARY_SHARDS)) {
+            listener.onFailure(projectSecurityIndex.getUnavailableReason(PRIMARY_SHARDS));
         } else {
             final ServiceAccountId accountId = new ServiceAccountId(request.getNamespace(), request.getServiceName());
             if (false == ServiceAccountService.isServiceAccountPrincipal(accountId.asPrincipal())) {
@@ -218,7 +223,7 @@ public class IndexServiceAccountTokenStore extends CachingServiceAccountTokenSto
             }
             final ServiceAccountTokenId accountTokenId = new ServiceAccountTokenId(accountId, request.getTokenName());
             final String qualifiedTokenName = accountTokenId.getQualifiedName();
-            securityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
+            projectSecurityIndex.checkIndexVersionThenExecute(listener::onFailure, () -> {
                 final DeleteRequest deleteRequest = client.prepareDelete(SECURITY_MAIN_ALIAS, docIdForToken(qualifiedTokenName)).request();
                 deleteRequest.setRefreshPolicy(request.getRefreshPolicy());
                 executeAsyncWithOrigin(

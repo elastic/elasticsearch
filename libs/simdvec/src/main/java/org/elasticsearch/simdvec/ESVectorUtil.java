@@ -59,17 +59,7 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        int result = 0;
-        // now combine the two vectors, summing the byte dimensions where the bit in d is `1`
-        for (int i = 0; i < d.length; i++) {
-            byte mask = d[i];
-            for (int j = 0; j < Byte.SIZE; j++) {
-                if ((mask & (1 << j)) != 0) {
-                    result += q[i * Byte.SIZE + j];
-                }
-            }
-        }
-        return result;
+        return IMPL.ipByteBit(q, d);
     }
 
     /**
@@ -83,16 +73,7 @@ public class ESVectorUtil {
         if (q.length != d.length * Byte.SIZE) {
             throw new IllegalArgumentException("vector dimensions incompatible: " + q.length + "!= " + Byte.SIZE + " x " + d.length);
         }
-        float result = 0;
-        for (int i = 0; i < d.length; i++) {
-            byte mask = d[i];
-            for (int j = 0; j < Byte.SIZE; j++) {
-                if ((mask & (1 << j)) != 0) {
-                    result += q[i * Byte.SIZE + j];
-                }
-            }
-        }
-        return result;
+        return IMPL.ipFloatBit(q, d);
     }
 
     /**

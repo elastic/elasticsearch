@@ -314,6 +314,9 @@ tests:
 - class: org.elasticsearch.upgrades.IndexingIT
   method: testIndexing {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/117137
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testTsdb {upgradedNodes=2}
+  issue: https://github.com/elastic/elasticsearch/issues/117138
 
 # Examples:
 #

@@ -14,7 +14,6 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -1457,12 +1456,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
+        Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
+        index.startObject("mappings");
         mapping.accept(index);
+        index.endObject();
         index.endObject();
         String configStr = Strings.toString(index);
         logger.info("index: {} {}", name, configStr);
-        ESRestTestCase.createIndex(name, Settings.EMPTY, configStr);
+        request.setJsonEntity(configStr);
+        client().performRequest(request);
     }
 
     /**

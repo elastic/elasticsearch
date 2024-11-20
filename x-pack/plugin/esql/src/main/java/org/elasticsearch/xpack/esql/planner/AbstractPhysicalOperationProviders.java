@@ -53,6 +53,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         PhysicalOperation source,
         LocalExecutionPlannerContext context
     ) {
+        // The layout this operation will produce.
         Layout.Builder layout = new Layout.Builder();
         Operator.OperatorFactory operatorFactory = null;
         AggregatorMode aggregatorMode = aggregateExec.getMode();
@@ -102,12 +103,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     && group instanceof Alias as
                     && as.child() instanceof Categorize categorize)
                         ? Expressions.attribute(categorize.field())
-                        : Expressions.attribute(group);
+                        : groupAttribute;
                 if (sourceGroupAttribute == null) {
                     throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
                 }
                 Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), sourceGroupAttribute.dataType());
-                groupAttributeLayout.nameIds().add(sourceGroupAttribute.id());
+                groupAttributeLayout.nameIds().add(group instanceof Alias as &&
+                    as.child() instanceof Categorize
+                        ? groupAttribute.id() : sourceGroupAttribute.id());
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):
@@ -137,7 +140,7 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 }
                 layout.append(groupAttributeLayout);
                 Layout.ChannelAndType groupInput = source.layout.get(sourceGroupAttribute.id());
-                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), groupAttribute, group));
+                groupSpecs.add(new GroupSpec(groupInput == null ? null : groupInput.channel(), sourceGroupAttribute, group));
             }
 
             if (aggregatorMode == AggregatorMode.FINAL) {
@@ -159,7 +162,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 s -> aggregatorFactories.add(s.supplier.groupingAggregatorFactory(s.mode))
             );
 
-            // TODO: here
             if (groupSpecs.size() == 1 && groupSpecs.get(0).channel == null) {
                 operatorFactory = ordinalGroupingOperatorFactory(
                     source,
@@ -315,6 +317,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         throw new EsqlIllegalArgumentException("aggregate functions must extend ToAggregator");
     }
 
+    /**
+     * The input configuration of this group.
+     *
+     * @param channel The source channel of this group
+     * @param attribute The attribute, source of this group
+     * @param expression The expression being used to group
+     */
     private record GroupSpec(Integer channel, Attribute attribute, Expression expression) {
         BlockHash.GroupSpec toHashGroupSpec() {
             if (channel == null) {

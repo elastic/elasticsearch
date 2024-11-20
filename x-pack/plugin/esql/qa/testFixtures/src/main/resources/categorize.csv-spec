@@ -226,3 +226,34 @@ COUNT():long | category:keyword
            2 | .*?CONNECTED.+?TO.*?
            1 | .*?DISCONNECTED.*?
 ;
+
+row aliases
+required_capability: categorize
+
+ROW message = "connected to a"
+  | EVAL x = message
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           2 | .*?connected.+?to.*?
+           1 | .*?disconnected.*?
+;
+
+from aliases
+required_capability: categorize
+
+FROM sample_data
+  | EVAL x = message
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;

@@ -245,7 +245,7 @@ public class AzureHttpHandler implements HttpHandler {
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type().getXMsBlobType());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseContent.length());
+                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
                 responseContent.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {

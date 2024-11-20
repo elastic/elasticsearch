@@ -9,6 +9,7 @@
 
 package fixture.azure;
 
+import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -27,6 +28,7 @@ import java.util.stream.Collectors;
 public class MockAzureBlobStore {
 
     private static final Logger logger = LogManager.getLogger(MockAzureBlobStore.class);
+    private static final BytesReference EMPTY = new BytesArray(new byte[] {});
 
     public enum BlobType {
         BLOCK("BlockBlob") {
@@ -213,7 +215,7 @@ public class MockAzureBlobStore {
 
     private static class MockAzureBlockBlob extends AbstractAzureBlob implements AzureBlob {
         private final Map<String, BytesReference> blocks;
-        private BytesReference contents;
+        private BytesReference contents = EMPTY;
 
         private MockAzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();

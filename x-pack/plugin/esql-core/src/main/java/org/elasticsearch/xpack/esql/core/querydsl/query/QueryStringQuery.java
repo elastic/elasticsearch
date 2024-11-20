@@ -56,11 +56,11 @@ public class QueryStringQuery extends Query {
     private final Map<String, Float> fields;
     private final Map<String, String> options;
 
-    public QueryStringQuery(Source source, String query, Map<String, Float> fields) {
+    public QueryStringQuery(Source source, String query, Map<String, Float> fields, Map<String, String> options) {
         super(source);
         this.query = query;
         this.fields = fields;
-        this.options = Collections.emptyMap();
+        this.options = options == null ? Collections.emptyMap() : options;
     }
 
     @Override
@@ -101,7 +101,7 @@ public class QueryStringQuery extends Query {
         }
 
         QueryStringQuery other = (QueryStringQuery) obj;
-        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields);
+        return Objects.equals(query, other.query) && Objects.equals(fields, other.fields) && Objects.equals(options, other.options);
     }
 
     @Override

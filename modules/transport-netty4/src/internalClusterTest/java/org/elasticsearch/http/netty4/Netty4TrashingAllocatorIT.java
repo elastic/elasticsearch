@@ -55,7 +55,8 @@ public class Netty4TrashingAllocatorIT extends ESNetty4IntegTestCase {
     public void testTrashContent() throws InterruptedException {
         try (var client = new Netty4HttpClient()) {
             var addr = randomFrom(internalCluster().getInstance(HttpServerTransport.class).boundAddress().boundAddresses()).address();
-            var responses = client.post(addr, List.of(new Tuple<>(Handler.ROUTE, randomAlphaOfLength(between(1024, 2048)))));
+            var content = randomAlphaOfLength(between(1024, 2048));
+            var responses = client.post(addr, List.of(new Tuple<>(Handler.ROUTE, content)));
             assertEquals(HttpResponseStatus.OK, responses.stream().findFirst().get().status());
         }
     }
@@ -88,24 +89,31 @@ public class Netty4TrashingAllocatorIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-                    var iter = request.releasableContent().iterator();
+                    var content = request.releasableContent();
+                    var iter = content.iterator();
                     return (chan) -> {
                         request.getHttpRequest().release();
-                        var contentTrashed = true;
+                        assertFalse(content.hasReferences());
                         BytesRef br;
-                        while ((br = iter.next()) != null && contentTrashed) {
+                        while ((br = iter.next()) != null) {
                             for (int i = br.offset; i < br.offset + br.length; i++) {
                                 if (br.bytes[i] != 0) {
-                                    contentTrashed = false;
-                                    break;
+                                    fail(
+                                        new AssertionError(
+                                            "buffer is not trashed, off="
+                                                + br.offset
+                                                + " len="
+                                                + br.length
+                                                + " pos="
+                                                + i
+                                                + " ind="
+                                                + (i - br.offset)
+                                        )
+                                    );
                                 }
                             }
                         }
-                        if (contentTrashed) {
-                            chan.sendResponse(new RestResponse(RestStatus.OK, ""));
-                        } else {
-                            chan.sendResponse(new RestResponse(RestStatus.INTERNAL_SERVER_ERROR, ""));
-                        }
+                        chan.sendResponse(new RestResponse(RestStatus.OK, ""));
                     };
                 }
             });

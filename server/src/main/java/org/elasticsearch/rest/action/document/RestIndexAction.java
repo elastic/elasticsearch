@@ -107,7 +107,6 @@ public class RestIndexAction extends BaseRestHandler {
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
         ReleasableBytesReference source = request.requiredReleasableContent();
-        source.mustIncRef();
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));
@@ -130,13 +129,16 @@ public class RestIndexAction extends BaseRestHandler {
             indexRequest.opType(sOpType);
         }
 
-        return channel -> client.index(
-            indexRequest,
-            ActionListener.releaseAfter(
-                new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
-                source
-            )
-        );
+        return channel -> {
+            source.mustIncRef();
+            client.index(
+                indexRequest,
+                ActionListener.releaseAfter(
+                    new RestToXContentListener<>(channel, DocWriteResponse::status, r -> r.getLocation(indexRequest.routing())),
+                    source
+                )
+            );
+        };
     }
 
     @Override

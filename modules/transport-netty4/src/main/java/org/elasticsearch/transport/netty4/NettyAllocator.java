@@ -364,7 +364,7 @@ public class NettyAllocator {
 
     static class TrashingByteBuf extends WrappedByteBuf {
 
-        private volatile boolean trashed = false;
+        private boolean trashed = false;
 
         protected TrashingByteBuf(ByteBuf buf) {
             super(buf);
@@ -380,7 +380,7 @@ public class NettyAllocator {
 
         @Override
         public boolean release(int decrement) {
-            if (refCnt() == decrement) {
+            if (refCnt() == decrement && refCnt() > 0) {
                 trashContent();
             }
             return super.release(decrement);
@@ -398,14 +398,6 @@ public class NettyAllocator {
 
         TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
             super(alloc, direct, maxNumComponents);
-        }
-
-        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents, ByteBuf... buffers) {
-            super(alloc, direct, maxNumComponents, buffers);
-        }
-
-        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents, Iterable<ByteBuf> buffers) {
-            super(alloc, direct, maxNumComponents, buffers);
         }
 
         @Override

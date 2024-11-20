@@ -24,6 +24,10 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
+tasks.named('yamlRestTest').configure {
+  usesDefaultDistribution()
+}
+
 /**********************************
  * KQL parser configuration       *
  **********************************/

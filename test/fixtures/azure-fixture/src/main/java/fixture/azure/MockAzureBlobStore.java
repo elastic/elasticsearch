@@ -78,7 +78,7 @@ public class MockAzureBlobStore {
         this.blobs = new ConcurrentHashMap<>();
     }
 
-    public void putBlock(String path, String blockId, BytesReference content, String leaseId) {
+    public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
         blobs.compute(path, (p, existing) -> {
             if (existing != null) {
                 if (existing instanceof MockAzureBlockBlob mabb) {
@@ -95,7 +95,7 @@ public class MockAzureBlobStore {
         });
     }
 
-    public void putBlockList(String path, List<String> blockIds, String leaseId) {
+    public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
         if (azureBlob instanceof MockAzureBlockBlob mabb) {
             mabb.putBlockList(blockIds, leaseId);
@@ -104,7 +104,7 @@ public class MockAzureBlobStore {
         }
     }
 
-    public void putBlob(String path, BytesReference contents, BlobType blobType, @Nullable String ifNoneMatch, String leaseId) {
+    public void putBlob(String path, BytesReference contents, BlobType blobType, @Nullable String ifNoneMatch, @Nullable String leaseId) {
         blobs.compute(path, (p, existingValue) -> {
             if (existingValue != null) {
                 existingValue.setContents(contents, leaseId, ifNoneMatch);
@@ -117,19 +117,19 @@ public class MockAzureBlobStore {
         });
     }
 
-    public AzureBlob getBlob(String path, String leaseId) {
+    public AzureBlob getBlob(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
         azureBlob.assertCanRead(leaseId);
         return azureBlob;
     }
 
-    public void deleteBlob(String path, String leaseId) {
+    public void deleteBlob(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
         azureBlob.assertCanWrite(leaseId);
         blobs.remove(path);
     }
 
-    public Map<String, AzureBlob> listBlobs(String prefix, String leaseId) {
+    public Map<String, AzureBlob> listBlobs(String prefix, @Nullable String leaseId) {
         return blobs.entrySet().stream().filter(e -> {
             if (prefix == null || e.getKey().startsWith(prefix)) {
                 return true;
@@ -143,7 +143,7 @@ public class MockAzureBlobStore {
         return azureBlob.acquireLease(proposedLeaseId, leaseTimeSeconds);
     }
 
-    public void releaseLease(String path, String leaseId) {
+    public void releaseLease(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
         azureBlob.releaseLease(leaseId);
     }
@@ -162,9 +162,9 @@ public class MockAzureBlobStore {
 
     public interface AzureBlob {
 
-        void setContents(BytesReference contents, String leaseId);
+        void setContents(BytesReference contents, @Nullable String leaseId);
 
-        void setContents(BytesReference contents, String leaseId, String ifNoneMatchHeaderValue);
+        void setContents(BytesReference contents, @Nullable String leaseId, @Nullable String ifNoneMatchHeaderValue);
 
         BytesReference getContents();
 
@@ -174,13 +174,13 @@ public class MockAzureBlobStore {
 
         BytesReference slice(int from, int length);
 
-        String acquireLease(String leaseId, int leaseTimeSeconds);
+        String acquireLease(String proposedLeaseId, int leaseTimeSeconds);
 
         void releaseLease(String leaseId);
 
-        void assertCanRead(String leaseId);
+        void assertCanRead(@Nullable String leaseId);
 
-        void assertCanWrite(String leaseId);
+        void assertCanWrite(@Nullable String leaseId);
     }
 
     private abstract static class AbstractAzureBlob implements AzureBlob {
@@ -189,7 +189,7 @@ public class MockAzureBlobStore {
         protected final Lease lease = new Lease();
 
         @Override
-        public String acquireLease(String proposedLeaseId, int leaseTimeSeconds) {
+        public String acquireLease(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
             synchronized (writeLock) {
                 return lease.acquire(proposedLeaseId, leaseTimeSeconds);
             }
@@ -203,12 +203,12 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public void assertCanRead(String leaseId) {
+        public void assertCanRead(@Nullable String leaseId) {
             lease.assertCanRead(leaseId);
         }
 
         @Override
-        public void assertCanWrite(String leaseId) {
+        public void assertCanWrite(@Nullable String leaseId) {
             lease.assertCanWrite(leaseId);
         }
     }
@@ -221,14 +221,14 @@ public class MockAzureBlobStore {
             this.blocks = new ConcurrentHashMap<>();
         }
 
-        public void putBlock(String blockId, BytesReference content, String leaseId) {
+        public void putBlock(String blockId, BytesReference content, @Nullable String leaseId) {
             synchronized (writeLock) {
                 lease.assertCanWrite(leaseId);
                 this.blocks.put(blockId, content);
             }
         }
 
-        public void putBlockList(List<String> blockIds, String leaseId) throws BadRequestException {
+        public void putBlockList(List<String> blockIds, @Nullable String leaseId) throws BadRequestException {
             synchronized (writeLock) {
                 lease.assertCanWrite(leaseId);
                 final List<String> unresolvedBlocks = blockIds.stream().filter(bId -> blocks.containsKey(bId) == false).toList();
@@ -253,7 +253,7 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public synchronized void setContents(BytesReference contents, String leaseId) {
+        public synchronized void setContents(BytesReference contents, @Nullable String leaseId) {
             synchronized (writeLock) {
                 lease.assertCanWrite(leaseId);
                 this.contents = contents;
@@ -262,7 +262,7 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public void setContents(BytesReference contents, String leaseId, String ifNoneMatchHeaderValue) {
+        public void setContents(BytesReference contents, @Nullable String leaseId, @Nullable String ifNoneMatchHeaderValue) {
             synchronized (writeLock) {
                 if (matches(ifNoneMatchHeaderValue)) {
                     throw new PreconditionFailedException(
@@ -319,7 +319,7 @@ public class MockAzureBlobStore {
         private long expireTimeMillisSinceEpoch = Long.MAX_VALUE;
         private State state = State.Available;
 
-        public synchronized String acquire(String proposedLeaseId, int leaseTimeSeconds) {
+        public synchronized String acquire(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
             expireIfDue();
             switch (state) {
                 case Available, Expired -> {
@@ -370,7 +370,7 @@ public class MockAzureBlobStore {
             }
         }
 
-        public synchronized void assertCanWrite(String requestLeaseId) {
+        public synchronized void assertCanWrite(@Nullable String requestLeaseId) {
             expireIfDue();
             switch (state) {
                 case Available, Expired -> {
@@ -398,7 +398,7 @@ public class MockAzureBlobStore {
             }
         }
 
-        public synchronized void assertCanRead(String requestLeaseId) {
+        public synchronized void assertCanRead(@Nullable String requestLeaseId) {
             expireIfDue();
             switch (state) {
                 case Available, Expired -> {

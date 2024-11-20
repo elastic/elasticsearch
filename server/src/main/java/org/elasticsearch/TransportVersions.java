@@ -206,7 +206,6 @@ public class TransportVersions {
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
     public static final TransportVersion ESQL_MATCH_WITH_SEMANTIC_TEXT = def(8_798_00_0);
 
-
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

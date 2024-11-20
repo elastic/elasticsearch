@@ -339,7 +339,7 @@ public abstract class AggregatorBase extends Aggregator {
         throws IOException {
         final InternalAggregation[] results = new InternalAggregation[size];
         for (int i = 0; i < results.length; i++) {
-            checkRealMemoryCB("InternalAggregation");
+            checkRealMemoryCB("internal_aggregation");
             results[i] = aggFunction.apply(i);
         }
         return results;

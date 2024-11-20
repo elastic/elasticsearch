@@ -25,6 +25,8 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.query.QuerySearchResult;
 import org.elasticsearch.transport.Transport;
 
+import java.lang.invoke.MethodHandles;
+import java.lang.invoke.VarHandle;
 import java.util.Map;
 import java.util.concurrent.Executor;
 import java.util.function.BiFunction;
@@ -38,7 +40,20 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
     // informations to track the best bottom top doc globally.
     private final int topDocsSize;
     private final int trackTotalHitsUpTo;
+    @SuppressWarnings("unused") // updated via BOTTOM_SORT_VALUES_COLLECTOR_HANDLE
     private volatile BottomSortValuesCollector bottomSortCollector;
+
+    private static final VarHandle BOTTOM_SORT_VALUES_COLLECTOR_HANDLE;
+
+    static {
+        try {
+            BOTTOM_SORT_VALUES_COLLECTOR_HANDLE = MethodHandles.lookup()
+                .findVarHandle(SearchQueryThenFetchAsyncAction.class, "bottomSortCollector", BottomSortValuesCollector.class);
+        } catch (NoSuchFieldException | IllegalAccessException e) {
+            throw new ExceptionInInitializerError(e);
+        }
+    }
+
     private final Client client;
 
     SearchQueryThenFetchAsyncAction(
@@ -101,7 +116,19 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             listener.onFailure(e);
             return;
         }
-        ShardSearchRequest request = rewriteShardSearchRequest(super.buildShardSearchRequest(shardIt, listener.requestIndex));
+        ShardSearchRequest request = super.buildShardSearchRequest(shardIt, listener.requestIndex);
+        var bottomSortCollector = this.bottomSortCollector;
+        if (bottomSortCollector != null) {
+            // disable tracking total hits if we already reached the required estimation.
+            if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
+                request.source(request.source().shallowCopy().trackTotalHits(false));
+            }
+            // set the current best bottom field doc
+            var currentBottomSortValues = bottomSortCollector.getBottomSortValues();
+            if (currentBottomSortValues != null) {
+                request.setBottomSortValues(currentBottomSortValues);
+            }
+        }
         getSearchTransport().sendExecuteQuery(connection, request, getTask(), listener);
     }
 
@@ -121,14 +148,14 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
             && queryResult.topDocs() != null
             && queryResult.topDocs().topDocs.getClass() == TopFieldDocs.class) {
             TopFieldDocs topDocs = (TopFieldDocs) queryResult.topDocs().topDocs;
-            if (bottomSortCollector == null) {
-                synchronized (this) {
-                    if (bottomSortCollector == null) {
-                        bottomSortCollector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
-                    }
+            var collector = bottomSortCollector;
+            if (collector == null) {
+                collector = new BottomSortValuesCollector(topDocsSize, topDocs.fields);
+                if (BOTTOM_SORT_VALUES_COLLECTOR_HANDLE.compareAndSet(this, null, collector) == false) {
+                    collector = bottomSortCollector;
                 }
             }
-            bottomSortCollector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
+            collector.consumeTopDocs(topDocs, queryResult.sortValueFormats());
         }
         super.onShardResult(result, shardIt);
     }
@@ -151,20 +178,4 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
         return nextPhase(client, this, results, null);
     }
 
-    private ShardSearchRequest rewriteShardSearchRequest(ShardSearchRequest request) {
-        if (bottomSortCollector == null) {
-            return request;
-        }
-
-        // disable tracking total hits if we already reached the required estimation.
-        if (trackTotalHitsUpTo != SearchContext.TRACK_TOTAL_HITS_ACCURATE && bottomSortCollector.getTotalHits() > trackTotalHitsUpTo) {
-            request.source(request.source().shallowCopy().trackTotalHits(false));
-        }
-
-        // set the current best bottom field doc
-        if (bottomSortCollector.getBottomSortValues() != null) {
-            request.setBottomSortValues(bottomSortCollector.getBottomSortValues());
-        }
-        return request;
-    }
 }

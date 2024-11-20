@@ -47,7 +47,7 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
             nodeFeatureVersionMap.putAll(historical);
             featureNamesSet.addAll(names);
         });
-        //assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
+        // assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
         assertThat(featureNamesSet, not(empty()));
         assertThat(featureNamesSet, hasItem("test_features_enabled"));
 

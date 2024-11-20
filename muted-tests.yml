@@ -287,6 +287,9 @@ tests:
 - class: org.elasticsearch.upgrades.DownsampleIT
   method: testRollupIndex {upgradedNodes=3}
   issue: https://github.com/elastic/elasticsearch/issues/117122
+- class: org.elasticsearch.upgrades.DownsampleIT
+  method: testRollupIndex {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/117123
 
 # Examples:
 #

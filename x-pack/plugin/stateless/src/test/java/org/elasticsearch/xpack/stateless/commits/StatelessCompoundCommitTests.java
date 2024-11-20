@@ -292,7 +292,7 @@ public class StatelessCompoundCommitTests extends AbstractWireSerializingTestCas
                 InternalFilesReplicatedRanges.EMPTY,
                 StatelessCompoundCommit.CURRENT_VERSION,
                 new PositionTrackingOutputStreamStreamOutput(output),
-                false
+                randomBoolean()
             );
             // flip one byte anywhere
             byte[] bytes = BytesReference.toBytes(output.bytes());

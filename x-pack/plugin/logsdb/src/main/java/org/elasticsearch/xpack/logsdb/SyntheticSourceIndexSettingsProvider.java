@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -39,15 +40,18 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
+    private final Supplier<IndexVersion> createdIndexVersion;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
-        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider,
+        Supplier<IndexVersion> createdIndexVersion
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
         this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
+        this.createdIndexVersion = createdIndexVersion;
     }
 
     @Override
@@ -148,7 +152,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         );
         int shardReplicas = indexTemplateAndCreateRequestSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         var finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdIndexVersion.get())
             .put(indexTemplateAndCreateRequestSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)

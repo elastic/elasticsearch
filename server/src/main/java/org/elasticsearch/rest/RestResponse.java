@@ -16,10 +16,13 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -43,6 +46,7 @@ public final class RestResponse implements Releasable {
     static final String STATUS = "status";
 
     private static final Logger SUPPRESSED_ERROR_LOGGER = LogManager.getLogger("rest.suppressed");
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(AbstractRestChannel.class);
 
     private final RestStatus status;
 
@@ -142,6 +146,16 @@ public final class RestResponse implements Releasable {
         if (params.paramAsBoolean("error_trace", false) && status != RestStatus.UNAUTHORIZED) {
             params = new ToXContent.DelegatingMapParams(singletonMap(REST_EXCEPTION_SKIP_STACK_TRACE, "false"), params);
         }
+
+        if (channel.request().getRestApiVersion() == RestApiVersion.V_8 && channel.detailedErrorsEnabled() == false) {
+            deprecationLogger.warn(
+                DeprecationCategory.API,
+                "http_detailed_errors",
+                "The JSON format of non-detailed errors has changed in Elasticsearch 9.0 to match the JSON structure"
+                    + " used for detailed errors."
+            );
+        }
+
         try (XContentBuilder builder = channel.newErrorBuilder()) {
             build(builder, params, status, channel.detailedErrorsEnabled(), e);
             this.content = BytesReference.bytes(builder);

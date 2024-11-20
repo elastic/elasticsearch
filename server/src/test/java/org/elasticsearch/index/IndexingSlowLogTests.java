@@ -41,6 +41,7 @@ import org.junit.BeforeClass;
 import org.mockito.Mockito;
 
 import java.io.IOException;
+import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
@@ -217,7 +218,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -246,7 +248,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -276,7 +279,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
         Index index = new Index("foo", "123");
 
@@ -295,7 +299,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
         Index index = new Index("foo", "123");
         // Turning off document logging doesn't log source[]
@@ -327,7 +332,8 @@ public class IndexingSlowLogTests extends ESTestCase {
             source,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
 
         final XContentParseException e = expectThrows(

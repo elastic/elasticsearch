@@ -3395,7 +3395,8 @@ public class TranslogTests extends ESTestCase {
             B_1,
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
 
         Engine.Index eIndex = new Engine.Index(

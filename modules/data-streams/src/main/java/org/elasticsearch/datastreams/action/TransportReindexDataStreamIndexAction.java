@@ -25,6 +25,8 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -38,6 +40,7 @@ import org.elasticsearch.transport.TransportService;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 public class TransportReindexDataStreamIndexAction extends HandledTransportAction<
     ReindexDataStreamIndexAction.Request,
@@ -45,12 +48,19 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
 
     private static final Logger logger = LogManager.getLogger(TransportReindexDataStreamIndexAction.class);
 
+
+    private static final Map<String, Setting<?>> INDEX_SETTING_LOOKUP = IndexScopedSettings.BUILT_IN_INDEX_SETTINGS.stream()
+        .collect(Collectors.toMap(Setting::getKey, s -> s));
+
     // copied from
-    // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack/plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
+    // https://github.com/elastic/kibana/blob/8a8363f02cc990732eb9cbb60cd388643a336bed/x-pack
+    // /plugins/upgrade_assistant/server/lib/reindexing/index_settings.ts#L155
     private static final Set<String> DISALLOWED_SETTINGS = Set.of(
+        // Remove write block so can reindex
+        IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(),
+
         // Private ES settings
         "index.allocation.existing_shards_allocator",
-        "index.blocks.write",
         "index.creation_date",
         "index.frozen",
         "index.history.uuid",
@@ -73,10 +83,14 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         "index.store.snapshot.index_uuid",
 
         // TODO make sure has new value
-        "index.version.created",
+        "index.version.created"
+    );
 
-        // Deprecated in 9.0
-        "index.version.upgraded"
+    // Perhaps replace with string constant, since settings will be removed themselves in v9
+    // These settings are listed as deprecated, but do not have the
+    private static final Set<String> DEPRECATED_SETTINGS = Set.of(
+        IndexMetadata.SETTING_VERSION_UPGRADED,
+        IndexMetadata.SETTING_VERSION_UPGRADED_STRING
     );
 
     private static final IndicesOptions IGNORE_MISSING_OPTIONS = IndicesOptions.fromOptions(true, true, false, false);
@@ -120,9 +134,11 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
             );
         }
 
+        var sourceSettingsBefore = sourceIndex.getSettings();
+
         SubscribableListener.<AcknowledgedResponse>newForked(l -> setReadOnly(sourceIndexName, l))
             .<AcknowledgedResponse>andThen(l -> deleteDestIfExists(destIndexName, l))
-            .<CreateIndexResponse>andThen(l -> createIndexWithSettings(sourceIndex, destIndexName, l))
+            .<CreateIndexResponse>andThen(l -> createIndex(sourceSettingsBefore, sourceIndex, destIndexName, l))
             .<BulkByScrollResponse>andThen(l -> reindex(sourceIndexName, destIndexName, l))
             .<AcknowledgedResponse>andThen(l -> updateSettings(sourceIndex, destIndexName, l))
             // .<AcknowledgedResponse>andThen(l -> createSnapshot(sourceIndex, sourceIndexName, destIndexName, l))
@@ -131,7 +147,7 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
     }
 
     private void setReadOnly(String sourceIndexName, ActionListener<AcknowledgedResponse> listener) {
-        logger.info("Setting read only on source index [{}]", sourceIndexName);
+        logger.info("Setting source index [{}] to read-only", sourceIndexName);
         final Settings readOnlySettings = Settings.builder().put(IndexMetadata.INDEX_BLOCKS_WRITE_SETTING.getKey(), true).build();
         var updateSettingsRequest = new UpdateSettingsRequest(readOnlySettings, sourceIndexName);
         var errorMessage = String.format(Locale.ROOT, "Could not set read-only on source index [%s]", sourceIndexName);
@@ -146,11 +162,11 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
         client.admin().indices().delete(deleteIndexRequest, failIfNotAcknowledged(listener, errorMessage));
     }
 
-    private void createIndexWithSettings(IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
+    private void createIndex(Settings sourceSettingsBefore, IndexMetadata sourceIndex, String destIndexName, ActionListener<CreateIndexResponse> listener) {
         logger.info("Creating destination index [{}] for source index [{}]", destIndexName, sourceIndex.getIndex().getName());
 
         // Create destination with subset of source index settings that can be added before reindex
-        var settings = getPreSettings(sourceIndex);
+        var settings = getPreSettings(sourceSettingsBefore);
 
         var sourceMapping = sourceIndex.mapping();
         Map<String, Object> mapping = sourceMapping != null ? sourceMapping.rawSourceAsMap() : Map.of();
@@ -186,8 +202,27 @@ public class TransportReindexDataStreamIndexAction extends HandledTransportActio
 
     // Filter source index settings to subset of settings that can be included during reindex
     // TODO does tsdb start/end time get set in create request if copied into settings from source index
-    private Settings getPreSettings(IndexMetadata sourceIndex) {
-        return sourceIndex.getSettings().filter(settingName -> DISALLOWED_SETTINGS.contains(settingName) == false);
+    private Settings getPreSettings(Settings settings) {
+        return settings
+            // Remove settings with deprecated property
+            .filter(name -> settingHasProperty(name, Setting.Property.IndexSettingDeprecatedInV7AndRemovedInV8) == false)
+
+            // Remove deprecated settings that don't have deprecated property
+            .filter(name -> DEPRECATED_SETTINGS.contains(name) == false)
+
+            // Remove private settings
+            .filter(name -> settingHasProperty(name, Setting.Property.PrivateIndex) == false)
+
+            // Remove not copyable settings
+            .filter(name -> settingHasProperty(name, Setting.Property.NotCopyableOnResize) == false);
+    }
+
+    private boolean settingHasProperty(String name, Setting.Property property) {
+        Setting<?> setting = INDEX_SETTING_LOOKUP.get(name);
+        if (setting == null) {
+            return false;
+        }
+        return setting.getProperties().contains(property);
     }
 
     private Settings getPostSettings(IndexMetadata sourceIndex) {

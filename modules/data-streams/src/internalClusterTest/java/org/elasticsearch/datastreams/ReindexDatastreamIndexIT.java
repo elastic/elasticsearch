@@ -133,7 +133,6 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertEquals(numShards, Integer.parseInt(settingsResponse.getSetting(destIndex, IndexMetadata.SETTING_NUMBER_OF_SHARDS)));
     }
 
-    // TODO check if mappings are added to new index
     public void testMappingsAddedToDestIndex() throws Exception {
         var sourceIndex = randomAlphaOfLength(20).toLowerCase(Locale.ROOT);
         String mapping = """
@@ -155,13 +154,8 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
             .actionGet()
             .getDestIndex();
 
-        // assert number replicas set in both source and dest index
-
         var mappingsResponse = indicesAdmin().getMappings(new GetMappingsRequest().indices(sourceIndex, destIndex)).actionGet();
         Map<String, MappingMetadata> mappings = mappingsResponse.mappings();
-
-        assertThat(mappings, hasKey(destIndex));
-
         var destMappings = mappings.get(destIndex).sourceAsMap();
         var sourceMappings = mappings.get(destIndex).sourceAsMap();
 
@@ -169,6 +163,7 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         // sanity check specific value from dest mapping
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
+
 
     // TODO error on set read-only if don't have perms
 
@@ -179,6 +174,8 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
     // TODO check other metadata
 
     // TODO check logsdb/tsdb work
+
+    // TODO settings and mappings that come from template
 
     // TODO test that does not fail on create if index exists. (Not sure how to do this since relies on race condition)
     // Even though we delete the dest index, it could be created by another thread after the delete.

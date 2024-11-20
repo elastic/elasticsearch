@@ -95,19 +95,8 @@ public class UserAgentProcessor extends AbstractProcessor {
                     }
                     break;
                 case VERSION:
-                    StringBuilder version = new StringBuilder();
                     if (uaClient.userAgent() != null && uaClient.userAgent().major() != null) {
-                        version.append(uaClient.userAgent().major());
-                        if (uaClient.userAgent().minor() != null) {
-                            version.append(".").append(uaClient.userAgent().minor());
-                            if (uaClient.userAgent().patch() != null) {
-                                version.append(".").append(uaClient.userAgent().patch());
-                                if (uaClient.userAgent().build() != null) {
-                                    version.append(".").append(uaClient.userAgent().build());
-                                }
-                            }
-                        }
-                        uaDetails.put("version", version.toString());
+                        uaDetails.put("version", versionToString(uaClient.userAgent()));
                     }
                     break;
                 case OS:
@@ -115,20 +104,10 @@ public class UserAgentProcessor extends AbstractProcessor {
                         Map<String, String> osDetails = Maps.newMapWithExpectedSize(3);
                         if (uaClient.operatingSystem().name() != null) {
                             osDetails.put("name", uaClient.operatingSystem().name());
-                            StringBuilder sb = new StringBuilder();
                             if (uaClient.operatingSystem().major() != null) {
-                                sb.append(uaClient.operatingSystem().major());
-                                if (uaClient.operatingSystem().minor() != null) {
-                                    sb.append(".").append(uaClient.operatingSystem().minor());
-                                    if (uaClient.operatingSystem().patch() != null) {
-                                        sb.append(".").append(uaClient.operatingSystem().patch());
-                                        if (uaClient.operatingSystem().build() != null) {
-                                            sb.append(".").append(uaClient.operatingSystem().build());
-                                        }
-                                    }
-                                }
-                                osDetails.put("version", sb.toString());
-                                osDetails.put("full", uaClient.operatingSystem().name() + " " + sb.toString());
+                                String version = versionToString(uaClient.operatingSystem());
+                                osDetails.put("version", version);
+                                osDetails.put("full", uaClient.operatingSystem().name() + " " + version);
                             }
                             uaDetails.put("os", osDetails);
                         }
@@ -158,6 +137,23 @@ public class UserAgentProcessor extends AbstractProcessor {
 
         ingestDocument.setFieldValue(targetField, uaDetails);
         return ingestDocument;
+    }
+
+    private static String versionToString(UserAgentParser.VersionedName versionedName) {
+        StringBuilder version = new StringBuilder();
+        if (versionedName.major() != null) {
+            version.append(versionedName.major());
+            if (versionedName.minor() != null && versionedName.minor().length() > 0) {
+                version.append(".").append(versionedName.minor());
+                if (versionedName.patch() != null && versionedName.patch().length() > 0) {
+                    version.append(".").append(versionedName.patch());
+                    if (versionedName.build() != null && versionedName.build().length() > 0) {
+                        version.append(".").append(versionedName.build());
+                    }
+                }
+            }
+        }
+        return version.toString();
     }
 
     @Override

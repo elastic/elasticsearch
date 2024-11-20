@@ -1262,6 +1262,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         // Source commands
         assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
         assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
@@ -1319,6 +1322,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
@@ -1366,6 +1372,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionArgNotNullOrConstant() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         assertEquals(
             "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
             error("from test | where kql(first_name)")
@@ -1379,6 +1388,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithDisjunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
@@ -1440,6 +1452,9 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testKqlFunctionWithNonBooleanFunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 

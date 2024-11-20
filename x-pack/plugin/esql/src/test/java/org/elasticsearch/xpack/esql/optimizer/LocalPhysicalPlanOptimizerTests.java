@@ -711,6 +711,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       \_EsQueryExec[test], indexMode[standard], query[{"kql":{"query":"last_name: Smith"}}]
      */
     public void testKqlFunction() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         var plan = plannerOptimizer.plan("""
             from test
             | where kql("last_name: Smith")
@@ -739,6 +742,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *        "boost":1.0}}][_doc{f}#1423], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testKqlFunctionConjunctionWhereOperands() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         String queryText = """
             from test
             | where kql("last_name: Smith") and emp_no > 10010
@@ -773,6 +779,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "source":"cidr_match(ip, \"127.0.0.1/32\")@2:38"}}],"boost":1.0}}][_doc{f}#21], limit[1000], sort[] estimatedRowSize[354]
      */
     public void testKqlFunctionWithFunctionsPushedToLucene() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         String queryText = """
             from test
             | where kql("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
@@ -808,6 +817,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       "boost":1.0}}][_doc{f}#1167], limit[1000], sort[] estimatedRowSize[324]
      */
     public void testKqlFunctionMultipleWhereClauses() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         String queryText = """
             from test
             | where kql("last_name: Smith")
@@ -842,6 +854,9 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       {"kql":{"query":"emp_no > 10010"}}],"boost":1.0}}]
      */
     public void testKqlFunctionMultipleKqlClauses() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
         String queryText = """
             from test
             | where kql("last_name: Smith") and kql("emp_no > 10010")

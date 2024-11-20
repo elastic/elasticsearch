@@ -73,6 +73,7 @@ import org.elasticsearch.action.admin.cluster.snapshots.status.TransportSnapshot
 import org.elasticsearch.action.admin.cluster.state.ClusterStateAction;
 import org.elasticsearch.action.admin.cluster.state.TransportClusterStateAction;
 import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportRemoteClusterStatsAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptContextAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetScriptLanguageAction;
 import org.elasticsearch.action.admin.cluster.storedscripts.GetStoredScriptAction;
@@ -646,6 +647,7 @@ public class ActionModule extends AbstractModule {
         actions.register(TransportGetDesiredBalanceAction.TYPE, TransportGetDesiredBalanceAction.class);
         actions.register(TransportDeleteDesiredBalanceAction.TYPE, TransportDeleteDesiredBalanceAction.class);
         actions.register(TransportClusterStatsAction.TYPE, TransportClusterStatsAction.class);
+        actions.register(TransportRemoteClusterStatsAction.TYPE, TransportRemoteClusterStatsAction.class);
         actions.register(ClusterStateAction.INSTANCE, TransportClusterStateAction.class);
         actions.register(TransportClusterHealthAction.TYPE, TransportClusterHealthAction.class);
         actions.register(ClusterUpdateSettingsAction.INSTANCE, TransportClusterUpdateSettingsAction.class);

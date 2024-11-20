@@ -108,7 +108,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
     private final RemoteClusterService remoteClusterService;
-    private final TransportRemoteClusterStatsAction remoteClusterStatsAction;
 
     @Inject
     public TransportClusterStatsAction(
@@ -120,8 +119,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters,
-        Settings settings,
-        TransportRemoteClusterStatsAction remoteClusterStatsAction
+        Settings settings
     ) {
         super(
             TYPE.name(),
@@ -141,7 +139,6 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
-        this.remoteClusterStatsAction = remoteClusterStatsAction;
     }
 
     @Override

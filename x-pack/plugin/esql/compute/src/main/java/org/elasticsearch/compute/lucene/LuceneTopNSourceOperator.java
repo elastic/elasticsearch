@@ -19,6 +19,7 @@ import org.apache.lucene.search.Sort;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.search.TopDocsCollector;
 import org.apache.lucene.search.TopFieldCollectorManager;
+import org.apache.lucene.search.TopScoreDocCollectorManager;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.DocBlock;
@@ -281,14 +282,20 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             throw new IllegalStateException("sorts must not be disabled in TopN");
         }
         if (scoreMode.needsScores() == false) {
-            return new NonScoringPerShardCollector(shardContext, sortAndFormats.get(), limit);
+            return new NonScoringPerShardCollector(shardContext, sortAndFormats.get().sort, limit);
         } else {
-            var l = new ArrayList<>(Arrays.asList(sortAndFormats.get().sort.getSort()));
-            l.add(SortField.FIELD_DOC);
-            l.add(SortField.FIELD_SCORE);
-            var sort = new Sort(l.toArray(SortField[]::new));
-            // TODO : sorts are not used !!??
-            return new ScoringPerShardCollector(shardContext, sort, limit);
+            SortField[] sortFields = sortAndFormats.get().sort.getSort();
+            if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
+                // SORT _score DESC
+                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, 0, false).newCollector());
+            } else {
+                // SORT ..., _score, ...
+                var l = new ArrayList<>(Arrays.asList(sortFields));
+                l.add(SortField.FIELD_DOC);
+                l.add(SortField.FIELD_SCORE);
+                var sort = new Sort(l.toArray(SortField[]::new));
+                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
+            }
         }
     }
 
@@ -315,15 +322,15 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
     }
 
     static final class NonScoringPerShardCollector extends PerShardCollector {
-        NonScoringPerShardCollector(ShardContext shardContext, SortAndFormats sortAndFormats, int limit) {
+        NonScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
             // We don't use CollectorManager here as we don't retrieve the total hits and sort by score.
-            super(shardContext, new TopFieldCollectorManager(sortAndFormats.sort, limit, null, 0, false).newCollector());
+            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
         }
     }
 
     static final class ScoringPerShardCollector extends PerShardCollector {
-        ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
-            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
+        ScoringPerShardCollector(ShardContext shardContext, TopDocsCollector<?> topDocsCollector) {
+            super(shardContext, topDocsCollector);
         }
     }
 }

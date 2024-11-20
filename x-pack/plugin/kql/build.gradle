@@ -1,5 +1,3 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
@@ -28,12 +26,6 @@ dependencies {
 
 tasks.named('yamlRestTest').configure {
   usesDefaultDistribution()
-
-  /****************************************************************
-  *  Enable QA/rest integration tests for snapshot builds only   *
-  *  TODO: Enable for all builds upon this feature release       *
-    ****************************************************************/
-  enabled = buildParams.isSnapshotBuild()
 }
 
 /**********************************

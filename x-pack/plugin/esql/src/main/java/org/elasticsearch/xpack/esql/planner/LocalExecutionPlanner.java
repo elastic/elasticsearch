@@ -498,7 +498,8 @@ public class LocalExecutionPlanner {
                 enrichIndex,
                 enrich.matchType(),
                 enrich.policyMatchField(),
-                enrich.enrichFields()
+                enrich.enrichFields(),
+                enrich.source()
             ),
             layout
         );
@@ -609,7 +610,8 @@ public class LocalExecutionPlanner {
                 matchFields.get(0).type(),
                 localSourceExec.index().name(),
                 join.matchFields().get(0).name(),
-                join.addedFields().stream().map(f -> (NamedExpression) f).toList()
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                join.source()
             ),
             layout
         );

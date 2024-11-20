@@ -105,15 +105,21 @@ public class IndexResolver {
             String fullName = name;
             boolean isAlias = false;
             UnsupportedEsField firstUnsupportedParent = null;
+
+            int lastDot = fullName.lastIndexOf('.');
+            if (lastDot > 0) {
+                String fullParentName = fullName.substring(0, lastDot);
+                if (forbiddenFields.contains(fullParentName)) {
+                    continue name;
+                }
+            }
             while (true) {
                 int nextDot = name.indexOf('.');
                 if (nextDot < 0) {
                     break;
                 }
+
                 String parent = name.substring(0, nextDot);
-                if (forbiddenFields.contains(parent)) {
-                    continue name;
-                }
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
@@ -128,7 +134,7 @@ public class IndexResolver {
 
             List<IndexFieldCapabilities> caps = fieldsCaps.get(fullName);
             if (allNested(caps)) {
-                forbiddenFields.add(name);
+                forbiddenFields.add(fullName);
                 continue;
             }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?

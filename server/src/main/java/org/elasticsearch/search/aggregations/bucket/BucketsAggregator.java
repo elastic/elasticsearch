@@ -419,7 +419,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         docCountProvider.setLeafReaderContext(ctx);
     }
 
-    /** This method should be call whenever a new bucket object is created. It will che k the real memory
+    /** This method should be called whenever a new bucket object is created. It will check the real memory
      * circuit breaker in a sampling fashion. See {@link #checkRealMemoryCB(String)} */
     protected final void checkRealMemoryCBForInternalBucket() {
         checkRealMemoryCB("internal_bucket");

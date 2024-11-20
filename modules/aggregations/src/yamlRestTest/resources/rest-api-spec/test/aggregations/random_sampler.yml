@@ -142,6 +142,62 @@ setup:
           }
   - match: { aggregations.sampled.mean.value: 1.0 }
 ---
+"Test random_sampler aggregation with scored subagg":
+  - requires:
+      cluster_features: ["gte_v8.2.0"]
+      reason: added in 8.2.0
+  - do:
+      search:
+        index: data
+        size: 0
+        body: >
+          {
+            "query": {
+              "function_score": {
+                "random_score": {}
+              }
+            },
+            "aggs": {
+              "sampled": {
+                "random_sampler": {
+                  "probability": 0.5
+                },
+                "aggs": {
+                  "top": {
+                    "top_hits": {}
+                  }
+                }
+              }
+            }
+          }
+  - is_true: aggregations.sampled.top.hits
+  - do:
+      search:
+        index: data
+        size: 0
+        body: >
+          {
+            "query": {
+              "function_score": {
+                "random_score": {}
+              }
+            },
+            "aggs": {
+              "sampled": {
+                "random_sampler": {
+                  "probability": 1.0
+                },
+                "aggs": {
+                  "top": {
+                    "top_hits": {}
+                  }
+                }
+              }
+            }
+          }
+  - match: { aggregations.sampled.top.hits.total.value: 6 }
+  - is_true: aggregations.sampled.top.hits.hits.0._score
+---
 "Test random_sampler aggregation with poor settings":
   - requires:
       cluster_features: ["gte_v8.2.0"]

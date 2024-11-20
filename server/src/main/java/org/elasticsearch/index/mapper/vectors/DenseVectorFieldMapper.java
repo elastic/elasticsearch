@@ -30,7 +30,6 @@ import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.VectorEncoding;
 import org.apache.lucene.index.VectorSimilarityFunction;
-import org.apache.lucene.queries.function.FunctionScoreQuery;
 import org.apache.lucene.search.FieldExistsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.join.BitSetProducer;
@@ -71,6 +70,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
+import org.elasticsearch.search.vectors.KnnRescoreVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -2019,16 +2019,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     "to perform knn search on field [" + name() + "], its mapping must have [index] set to [true]"
                 );
             }
-            if (rescoreOversample != null && indexOptions.type.isQuantized() == false) {
-                throw new IllegalArgumentException(
-                    "cannot use rescore oversample on field ["
-                        + name()
-                        + "], that uses non-quantized type ["
-                        + indexOptions.type
-                        + "]. "
-                        + "Only quantized index option types support rescore oversample."
-                );
-            }
             return switch (getElementType()) {
                 case BYTE -> createKnnByteQuery(
                     queryVector.asByteVector(),
@@ -2060,6 +2050,10 @@ public class DenseVectorFieldMapper extends FieldMapper {
             };
         }
 
+        private boolean needsRescore(Float rescoreOversample) {
+            return rescoreOversample != null && (indexOptions == null || indexOptions.type == null || indexOptions.type.isQuantized());
+        }
+
         private Query createKnnBitQuery(
             byte[] queryVector,
             Integer k,
@@ -2084,17 +2078,6 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, elementType, dims)
                 );
             }
-            if (rescoreOversample != null) {
-                knnQuery = new FunctionScoreQuery(
-                    knnQuery,
-                    new VectorSimilarityByteValueSource(
-                        name(),
-                        queryVector,
-                        similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE)
-                    )
-                );
-
-            }
             return knnQuery;
         }
 
@@ -2113,7 +2096,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Integer adjustedK = k == null || rescoreOversample == null
+            Integer adjustedK = k == null || needsRescore(rescoreOversample) == false
                 ? null
                 : Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
             int adjustedNumCands = Math.max(adjustedK == null ? 0 : adjustedK, numCands);
@@ -2128,16 +2111,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, elementType, dims)
                 );
             }
-            if (rescoreOversample != null) {
-                knnQuery = new FunctionScoreQuery(
-                    knnQuery,
-                    new VectorSimilarityByteValueSource(
-                        name(),
-                        queryVector,
-                        similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE)
-                    )
+            if (needsRescore(rescoreOversample)) {
+                knnQuery = new KnnRescoreVectorQuery(
+                    name(),
+                    queryVector,
+                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE),
+                    k,
+                    knnQuery
                 );
-
             }
             return knnQuery;
         }
@@ -2167,7 +2148,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            Integer adjustedK = k == null || rescoreOversample == null
+            Integer adjustedK = k == null || needsRescore(rescoreOversample) == false
                 ? k
                 : Integer.valueOf(Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample)));
             int adjustedNumCands = adjustedK == null ? numCands : Math.max(adjustedK, numCands);
@@ -2181,16 +2162,14 @@ public class DenseVectorFieldMapper extends FieldMapper {
                     similarity.score(similarityThreshold, elementType, dims)
                 );
             }
-            if (rescoreOversample != null) {
-                knnQuery = new FunctionScoreQuery(
-                    knnQuery,
-                    new VectorSimilarityFloatValueSource(
-                        name(),
-                        queryVector,
-                        similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT)
-                    )
+            if (needsRescore(rescoreOversample)) {
+                knnQuery = new KnnRescoreVectorQuery(
+                    name(),
+                    queryVector,
+                    similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),
+                    k,
+                    knnQuery
                 );
-
             }
             return knnQuery;
         }

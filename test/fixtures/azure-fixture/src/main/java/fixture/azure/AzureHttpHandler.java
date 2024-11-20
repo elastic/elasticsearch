@@ -323,7 +323,6 @@ public class AzureHttpHandler implements HttpHandler {
 
                             // Process the deletion
                             try {
-                                // in bulks the paths look like: /{container}/{blob-path}
                                 mockAzureBlobStore.deleteBlob(toDelete, leaseId(exchange));
                                 final String acceptedPart = Strings.format("""
                                     --%s
@@ -349,7 +348,7 @@ public class AzureHttpHandler implements HttpHandler {
                                     requestId,
                                     DateTimeFormatter.ISO_OFFSET_DATE_TIME.format(ZonedDateTime.now(ZoneId.of("UTC")))
                                 );
-                                final String notFoundPart = Strings.format(
+                                final String errorResponsePart = Strings.format(
                                     """
                                         --%s
                                         Content-Type: application/http
@@ -373,7 +372,7 @@ public class AzureHttpHandler implements HttpHandler {
                                     errorResponseBody.length(),
                                     errorResponseBody
                                 ).replaceAll("\n", "\r\n");
-                                response.append(notFoundPart);
+                                response.append(errorResponsePart);
                             }
 
                             // Clear the state

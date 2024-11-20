@@ -13,14 +13,12 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("kql")
 public class KqlTests extends NoneFieldFullTextFunctionTestCase {
     @BeforeClass
     protected static void ensureKqlFunctionEnabled() {

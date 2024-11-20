@@ -15,6 +15,21 @@ index :
       dict_dec :
         type : dictionary_decompounder
         word_list : [donau, dampf, schiff, spargel, creme, suppe]
+      hyphenation_dec_only_longest_match :
+        type : hyphenation_decompounder
+        hyphenation_patterns_path : de_DR.xml
+        word_list : [fuss, fussball, ballpumpe, ball, pumpe, kaffee, fee, maschine]
+        only_longest_match : true
+      hyphenation_dec_no_sub_matches :
+        type : hyphenation_decompounder
+        hyphenation_patterns_path : de_DR.xml
+        word_list : [fuss, fussball, ballpumpe, ball, pumpe, kaffee, fee, maschine]
+        no_sub_matches : true
+      hyphenation_dec_no_overlapping_matches :
+        type : hyphenation_decompounder
+        hyphenation_patterns_path : de_DR.xml
+        word_list : [fuss, fussball, ballpumpe, ball, pumpe, kaffee, fee, maschine]
+        no_overlapping_matches: true
     analyzer :
       standard :
         type : standard
@@ -37,3 +52,13 @@ index :
       decompoundingAnalyzer :
         tokenizer : standard
         filter : [dict_dec]
+      hyphenationDecompoundingAnalyzerOnlyLongestMatch :
+        tokenizer : standard
+        filter : [hyphenation_dec_only_longest_match]
+      hyphenationDecompoundingAnalyzerNoSubMatches:
+        tokenizer: standard
+        filter : [hyphenation_dec_no_sub_matches]
+      hyphenationDecompoundingAnalyzerNoOverlappingMatches:
+        tokenizer: standard
+        filter : [hyphenation_dec_no_overlapping_matches]
+

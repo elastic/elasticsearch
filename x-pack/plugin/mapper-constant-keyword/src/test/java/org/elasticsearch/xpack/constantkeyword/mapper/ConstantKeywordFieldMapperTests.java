@@ -16,6 +16,7 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.BlockLoader;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
@@ -229,7 +230,7 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
      * contain the field.
      */
     public void testNullValueBlockLoader() throws IOException {
-        MapperService mapper = createMapperService(syntheticSourceMapping(b -> {
+        MapperService mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
@@ -238,6 +239,16 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
             @Override
             public String indexName() {
                 throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public IndexSettings indexSettings() {
+                throw new UnsupportedOperationException();
+            }
+
+            @Override
+            public MappedFieldType.FieldExtractPreference fieldExtractPreference() {
+                return MappedFieldType.FieldExtractPreference.NONE;
             }
 
             @Override
@@ -309,16 +320,16 @@ public class ConstantKeywordFieldMapperTests extends MapperTestCase {
     }
 
     @Override
-    protected Function<Object, Object> loadBlockExpected(MapperService mapper, String loaderFieldName) {
+    protected Function<Object, Object> loadBlockExpected() {
         return v -> ((BytesRef) v).utf8ToString();
     }
 
     public void testNullValueSyntheticSource() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("field");
             b.field("type", "constant_keyword");
             b.endObject();
-        }));
+        })).documentMapper();
         assertThat(syntheticSource(mapper, b -> {}), equalTo("{}"));
     }
 

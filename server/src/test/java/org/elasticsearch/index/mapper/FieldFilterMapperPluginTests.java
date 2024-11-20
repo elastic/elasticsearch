@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -17,6 +18,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.indices.IndicesModule;
+import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESSingleNodeTestCase;
@@ -32,7 +34,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertLeafs;
 import static org.elasticsearch.cluster.metadata.MetadataTests.assertMultiField;
@@ -121,8 +122,9 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
 
     private static Set<String> builtInMetadataFields() {
         Set<String> builtInMetadataFields = new HashSet<>(IndicesModule.getBuiltInMetadataFields());
-        // Index is not a time-series index, and it will not contain a _tsid field
+        // Index is not a time-series index, and it will not contain _tsid and _ts_routing_hash fields.
         builtInMetadataFields.remove(TimeSeriesIdFieldMapper.NAME);
+        builtInMetadataFields.remove(TimeSeriesRoutingHashFieldMapper.NAME);
         return builtInMetadataFields;
     }
 
@@ -245,8 +247,23 @@ public class FieldFilterMapperPluginTests extends ESSingleNodeTestCase {
     public static class FieldFilterPlugin extends Plugin implements MapperPlugin {
 
         @Override
-        public Function<String, Predicate<String>> getFieldFilter() {
-            return index -> index.equals("filtered") ? field -> field.endsWith("visible") : MapperPlugin.NOOP_FIELD_PREDICATE;
+        public Function<String, FieldPredicate> getFieldFilter() {
+            return index -> false == index.equals("filtered") ? FieldPredicate.ACCEPT_ALL : new FieldPredicate() {
+                @Override
+                public boolean test(String field) {
+                    return field.endsWith("visible");
+                }
+
+                @Override
+                public String modifyHash(String hash) {
+                    return "only-visible:" + hash;
+                }
+
+                @Override
+                public long ramBytesUsed() {
+                    return 0;
+                }
+            };
         }
     }
 

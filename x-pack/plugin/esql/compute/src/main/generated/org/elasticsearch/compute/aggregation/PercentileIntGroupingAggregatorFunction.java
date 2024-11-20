@@ -45,7 +45,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   public static PercentileIntGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, double percentile) {
-    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(driverContext.bigArrays(), percentile), driverContext, percentile);
+    return new PercentileIntGroupingAggregatorFunction(channels, PercentileIntAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -76,6 +76,10 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -88,12 +92,16 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
       }
+
+      @Override
+      public void close() {
+      }
     };
   }
 
   private void addRawInput(int positionOffset, IntVector groups, IntBlock values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       if (values.isNull(groupPosition + positionOffset)) {
         continue;
       }
@@ -107,7 +115,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
 
   private void addRawInput(int positionOffset, IntVector groups, IntVector values) {
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
     }
   }
@@ -120,7 +128,7 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         if (values.isNull(groupPosition + positionOffset)) {
           continue;
         }
@@ -141,20 +149,29 @@ public final class PercentileIntGroupingAggregatorFunction implements GroupingAg
       int groupStart = groups.getFirstValueIndex(groupPosition);
       int groupEnd = groupStart + groups.getValueCount(groupPosition);
       for (int g = groupStart; g < groupEnd; g++) {
-        int groupId = Math.toIntExact(groups.getInt(g));
+        int groupId = groups.getInt(g);
         PercentileIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
       }
     }
   }
 
   @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
+  }
+
+  @Override
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    BytesRefVector quart = page.<BytesRefBlock>getBlock(channels.get(0)).asVector();
+    Block quartUncast = page.getBlock(channels.get(0));
+    if (quartUncast.areAllValuesNull()) {
+      return;
+    }
+    BytesRefVector quart = ((BytesRefBlock) quartUncast).asVector();
     BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
-      int groupId = Math.toIntExact(groups.getInt(groupPosition));
+      int groupId = groups.getInt(groupPosition);
       PercentileIntAggregator.combineIntermediate(state, groupId, quart.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }

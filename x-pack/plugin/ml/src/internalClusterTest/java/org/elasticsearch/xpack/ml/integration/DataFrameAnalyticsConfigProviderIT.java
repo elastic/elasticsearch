@@ -332,7 +332,6 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
         assertThat(exceptionHolder.get(), is(instanceOf(ResourceNotFoundException.class)));
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/58814")
     public void testUpdate_UpdateCannotBeAppliedWhenTaskIsRunning() throws InterruptedException {
         String configId = "config-id";
         DataFrameAnalyticsConfig initialConfig = DataFrameAnalyticsConfigTests.createRandom(configId);
@@ -354,8 +353,10 @@ public class DataFrameAnalyticsConfigProviderIT extends MlSingleNodeTestCase {
             AtomicReference<DataFrameAnalyticsConfig> updatedConfigHolder = new AtomicReference<>();
             AtomicReference<Exception> exceptionHolder = new AtomicReference<>();
 
+            // Important: the new value specified here must be one that it's impossible for DataFrameAnalyticsConfigTests.createRandom
+            // to have used originally. If the update is a no-op then the test fails.
             DataFrameAnalyticsConfigUpdate configUpdate = new DataFrameAnalyticsConfigUpdate.Builder(configId).setModelMemoryLimit(
-                ByteSizeValue.ofMb(2048)
+                ByteSizeValue.ofMb(1234)
             ).build();
 
             ClusterState clusterState = clusterStateWithRunningAnalyticsTask(configId, DataFrameAnalyticsState.ANALYZING);

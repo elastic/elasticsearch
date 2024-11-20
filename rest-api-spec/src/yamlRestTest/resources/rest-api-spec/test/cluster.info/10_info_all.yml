@@ -1,7 +1,7 @@
 ---
 setup:
-  - skip:
-      version: " - 8.8.99"
+  - requires:
+      cluster_features: ["gte_v8.9.0"]
       reason: "/_info/_all only available from v8.9"
 
 ---

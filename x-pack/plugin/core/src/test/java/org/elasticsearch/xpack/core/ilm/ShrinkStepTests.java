@@ -7,10 +7,9 @@
 package org.elasticsearch.xpack.core.ilm;
 
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.rollover.RolloverResponse;
 import org.elasticsearch.action.admin.indices.shrink.ResizeRequest;
-import org.elasticsearch.action.admin.indices.shrink.ResizeResponse;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -100,7 +99,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
         Mockito.doAnswer(invocation -> {
             ResizeRequest request = (ResizeRequest) invocation.getArguments()[0];
             @SuppressWarnings("unchecked")
-            ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
+            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocation.getArguments()[1];
             assertThat(request.getSourceIndex(), equalTo(sourceIndexMetadata.getIndex().getName()));
             assertThat(request.getTargetIndexRequest().aliases(), equalTo(Collections.emptySet()));
 
@@ -119,11 +118,11 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
                 );
             }
             request.setMaxPrimaryShardSize(step.getMaxPrimaryShardSize());
-            listener.onResponse(new ResizeResponse(true, true, sourceIndexMetadata.getIndex().getName()));
+            listener.onResponse(new CreateIndexResponse(true, true, sourceIndexMetadata.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(sourceIndexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, sourceIndexMetadata, emptyClusterState(), null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -181,12 +180,12 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
 
         Mockito.doAnswer(invocation -> {
             @SuppressWarnings("unchecked")
-            ActionListener<ResizeResponse> listener = (ActionListener<ResizeResponse>) invocation.getArguments()[1];
-            listener.onResponse(new ResizeResponse(false, false, indexMetadata.getIndex().getName()));
+            ActionListener<CreateIndexResponse> listener = (ActionListener<CreateIndexResponse>) invocation.getArguments()[1];
+            listener.onResponse(new CreateIndexResponse(false, false, indexMetadata.getIndex().getName()));
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f));
+        performActionAndWait(step, indexMetadata, emptyClusterState(), null);
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();
@@ -212,13 +211,7 @@ public class ShrinkStepTests extends AbstractStepTestCase<ShrinkStep> {
             return null;
         }).when(indicesClient).resizeIndex(Mockito.any(), Mockito.any());
 
-        assertSame(
-            exception,
-            expectThrows(
-                Exception.class,
-                () -> PlainActionFuture.<Void, Exception>get(f -> step.performAction(indexMetadata, emptyClusterState(), null, f))
-            )
-        );
+        assertSame(exception, expectThrows(Exception.class, () -> performActionAndWait(step, indexMetadata, emptyClusterState(), null)));
 
         Mockito.verify(client, Mockito.only()).admin();
         Mockito.verify(adminClient, Mockito.only()).indices();

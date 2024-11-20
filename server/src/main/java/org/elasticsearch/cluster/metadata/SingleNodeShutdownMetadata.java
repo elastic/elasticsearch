@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -35,8 +36,8 @@ import static org.elasticsearch.core.Strings.format;
 public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShutdownMetadata>, ToXContentObject {
 
     public static final TransportVersion REPLACE_SHUTDOWN_TYPE_ADDED_VERSION = TransportVersions.V_7_16_0;
-    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_500_020;
-    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_500_020;
+    public static final TransportVersion SIGTERM_ADDED_VERSION = TransportVersions.V_8_9_X;
+    public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
@@ -265,7 +266,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
-            builder.timeField(STARTED_AT_MILLIS_FIELD.getPreferredName(), STARTED_AT_READABLE_FIELD, startedAtMillis);
+            builder.timestampFieldsFromUnixEpochMillis(
+                STARTED_AT_MILLIS_FIELD.getPreferredName(),
+                STARTED_AT_READABLE_FIELD,
+                startedAtMillis
+            );
             builder.field(NODE_SEEN_FIELD.getPreferredName(), nodeSeen);
             if (allocationDelay != null) {
                 builder.field(ALLOCATION_DELAY_FIELD.getPreferredName(), allocationDelay.getStringRep());

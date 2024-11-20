@@ -31,7 +31,6 @@ import org.elasticsearch.index.query.TermsQueryBuilder;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.SearchModule;
-import org.elasticsearch.search.aggregations.Aggregations;
 import org.elasticsearch.search.aggregations.AggregatorFactories;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
@@ -737,7 +736,7 @@ public class SearchActionTests extends ESTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggs = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggs = InternalAggregations.from(aggTree);
         when(response.getAggregations()).thenReturn(mockAggs);
         MultiSearchResponse.Item item = new MultiSearchResponse.Item(response, null);
         MultiSearchResponse msearchResponse = new MultiSearchResponse(new MultiSearchResponse.Item[] { item }, 1);
@@ -745,11 +744,13 @@ public class SearchActionTests extends ESTestCase {
             SearchResponse r = TransportRollupSearchAction.processResponses(
                 result,
                 msearchResponse,
-                InternalAggregationTestCase.emptyReduceContextBuilder()
+                InternalAggregationTestCase.emptyReduceContextBuilder(
+                    new AggregatorFactories.Builder().addAggregator(new SumAggregationBuilder("foo"))
+                )
             );
             try {
                 assertNotNull(r);
-                Aggregations responseAggs = r.getAggregations();
+                InternalAggregations responseAggs = r.getAggregations();
                 Avg avg = responseAggs.get("foo");
                 assertThat(avg.getValue(), IsEqual.equalTo(5.0));
             } finally {
@@ -844,7 +845,7 @@ public class SearchActionTests extends ESTestCase {
         List<InternalAggregation> protoAggTree = new ArrayList<>(1);
         InternalAvg internalAvg = new InternalAvg("foo", 10, 2, DocValueFormat.RAW, null);
         protoAggTree.add(internalAvg);
-        Aggregations protoMockAggs = InternalAggregations.from(protoAggTree);
+        InternalAggregations protoMockAggs = InternalAggregations.from(protoAggTree);
         when(protoResponse.getAggregations()).thenReturn(protoMockAggs);
         MultiSearchResponse.Item unrolledResponse = new MultiSearchResponse.Item(protoResponse, null);
 
@@ -874,7 +875,7 @@ public class SearchActionTests extends ESTestCase {
         when(filter.getName()).thenReturn("filter_foo");
         aggTree.add(filter);
 
-        Aggregations mockAggsWithout = InternalAggregations.from(aggTree);
+        InternalAggregations mockAggsWithout = InternalAggregations.from(aggTree);
         when(responseWithout.getAggregations()).thenReturn(mockAggsWithout);
         MultiSearchResponse.Item rolledResponse = new MultiSearchResponse.Item(responseWithout, null);
 
@@ -893,7 +894,7 @@ public class SearchActionTests extends ESTestCase {
             );
             try {
                 assertNotNull(response);
-                Aggregations responseAggs = response.getAggregations();
+                InternalAggregations responseAggs = response.getAggregations();
                 assertNotNull(responseAggs);
                 Avg avg = responseAggs.get("foo");
                 assertThat(avg.getValue(), IsEqual.equalTo(5.0));

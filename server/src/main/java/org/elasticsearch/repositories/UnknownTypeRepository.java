@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories;
@@ -15,17 +16,19 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
+import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.snapshots.IndexShardSnapshotStatus;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.indices.recovery.RecoveryState;
-import org.elasticsearch.snapshots.SnapshotDeleteListener;
 import org.elasticsearch.snapshots.SnapshotId;
+import org.elasticsearch.snapshots.SnapshotInfo;
 
 import java.io.IOException;
 import java.util.Collection;
 import java.util.concurrent.Executor;
+import java.util.function.BooleanSupplier;
 
 /**
  * This class represents a repository that could not be initialized due to unknown type.
@@ -52,8 +55,14 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
     }
 
     @Override
-    public void getSnapshotInfo(GetSnapshotInfoContext context) {
-        throw createUnknownTypeException();
+    public void getSnapshotInfo(
+        Collection<SnapshotId> snapshotIds,
+        boolean abortOnFailure,
+        BooleanSupplier isCancelled,
+        CheckedConsumer<SnapshotInfo, Exception> consumer,
+        ActionListener<Void> listener
+    ) {
+        listener.onFailure(createUnknownTypeException());
     }
 
     @Override
@@ -81,9 +90,10 @@ public class UnknownTypeRepository extends AbstractLifecycleComponent implements
         Collection<SnapshotId> snapshotIds,
         long repositoryDataGeneration,
         IndexVersion minimumNodeVersion,
-        SnapshotDeleteListener listener
+        ActionListener<RepositoryData> repositoryDataUpdateListener,
+        Runnable onCompletion
     ) {
-        listener.onFailure(createUnknownTypeException());
+        repositoryDataUpdateListener.onFailure(createUnknownTypeException());
     }
 
     @Override

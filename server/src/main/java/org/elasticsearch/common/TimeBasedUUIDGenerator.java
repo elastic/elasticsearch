@@ -1,16 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common;
 
-import java.util.Base64;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.function.Supplier;
 
 /**
  * These are essentially flake ids but we use 6 (not 8) bytes for timestamp, and use 3 (not 2) bytes for sequence number. We also reorder
@@ -19,15 +20,14 @@ import java.util.concurrent.atomic.AtomicLong;
  * For more information about flake ids, check out
  * https://archive.fo/2015.07.08-082503/http://www.boundary.com/blog/2012/01/flake-a-decentralized-k-ordered-unique-id-generator-in-erlang/
  */
-
 class TimeBasedUUIDGenerator implements UUIDGenerator {
 
     // We only use bottom 3 bytes for the sequence number. Paranoia: init with random int so that if JVM/OS/machine goes down, clock slips
     // backwards, and JVM comes back up, we are less likely to be on the same sequenceNumber at the same time:
-    private final AtomicInteger sequenceNumber = new AtomicInteger(SecureRandomHolder.INSTANCE.nextInt());
+    protected final AtomicInteger sequenceNumber;
+    protected final AtomicLong lastTimestamp;
 
-    // Used to ensure clock moves forward:
-    private final AtomicLong lastTimestamp = new AtomicLong(0);
+    protected final Supplier<Long> timestampSupplier;
 
     private static final byte[] SECURE_MUNGED_ADDRESS = MacAddressProvider.getSecureMungedAddress();
 
@@ -35,37 +35,41 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
         assert SECURE_MUNGED_ADDRESS.length == 6;
     }
 
-    // protected for testing
-    protected long currentTimeMillis() {
-        return System.currentTimeMillis();
+    static final int SIZE_IN_BYTES = 15;
+    private final byte[] macAddress;
+
+    TimeBasedUUIDGenerator(
+        final Supplier<Long> timestampSupplier,
+        final Supplier<Integer> sequenceIdSupplier,
+        final Supplier<byte[]> macAddressSupplier
+    ) {
+        this.timestampSupplier = timestampSupplier;
+        // NOTE: getting the mac address every time using the supplier is expensive, hence we cache it.
+        this.macAddress = macAddressSupplier.get();
+        this.sequenceNumber = new AtomicInteger(sequenceIdSupplier.get());
+        // Used to ensure clock moves forward:
+        this.lastTimestamp = new AtomicLong(0);
     }
 
-    // protected for testing
     protected byte[] macAddress() {
-        return SECURE_MUNGED_ADDRESS;
+        return macAddress;
     }
 
     @Override
     public String getBase64UUID() {
         final int sequenceId = sequenceNumber.incrementAndGet() & 0xffffff;
-        long currentTimeMillis = currentTimeMillis();
 
-        long timestamp = this.lastTimestamp.updateAndGet(lastTimestamp -> {
-            // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running). We are
-            // still vulnerable if we are shut down, clock goes backwards, and we restart... for this we
-            // randomize the sequenceNumber on init to decrease chance of collision:
-            long nonBackwardsTimestamp = Math.max(lastTimestamp, currentTimeMillis);
+        // Don't let timestamp go backwards, at least "on our watch" (while this JVM is running). We are
+        // still vulnerable if we are shut down, clock goes backwards, and we restart... for this we
+        // randomize the sequenceNumber on init to decrease chance of collision:
+        long timestamp = this.lastTimestamp.accumulateAndGet(
+            timestampSupplier.get(),
+            // Always force the clock to increment whenever sequence number is 0, in case we have a long
+            // time-slip backwards:
+            sequenceId == 0 ? (lastTimestamp, currentTimeMillis) -> Math.max(lastTimestamp, currentTimeMillis) + 1 : Math::max
+        );
 
-            if (sequenceId == 0) {
-                // Always force the clock to increment whenever sequence number is 0, in case we have a long
-                // time-slip backwards:
-                nonBackwardsTimestamp++;
-            }
-
-            return nonBackwardsTimestamp;
-        });
-
-        final byte[] uuidBytes = new byte[15];
+        final byte[] uuidBytes = new byte[SIZE_IN_BYTES];
         int i = 0;
 
         // We have auto-generated ids, which are usually used for append-only workloads.
@@ -106,6 +110,6 @@ class TimeBasedUUIDGenerator implements UUIDGenerator {
 
         assert i == uuidBytes.length;
 
-        return Base64.getUrlEncoder().withoutPadding().encodeToString(uuidBytes);
+        return Strings.BASE_64_NO_PADDING_URL_ENCODER.encodeToString(uuidBytes);
     }
 }

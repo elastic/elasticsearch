@@ -1,5 +1,0 @@
-pr: 103690
-summary: Restore inter-segment search concurrency with synthetic source is enabled
-area: Search
-type: bug
-issues: []

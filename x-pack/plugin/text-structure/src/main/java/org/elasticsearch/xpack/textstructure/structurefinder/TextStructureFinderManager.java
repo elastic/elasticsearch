@@ -13,7 +13,7 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.xpack.core.textstructure.action.FindStructureAction;
+import org.elasticsearch.xpack.core.textstructure.action.AbstractFindStructureRequest;
 import org.elasticsearch.xpack.core.textstructure.structurefinder.TextStructure;
 
 import java.io.BufferedInputStream;
@@ -310,7 +310,7 @@ public final class TextStructureFinderManager {
      * Given a stream of text data, determine its structure.
      * @param idealSampleLineCount Ideally, how many lines from the stream will be read to determine the structure?
      *                             If the stream has fewer lines then an attempt will still be made, providing at
-     *                             least {@link FindStructureAction#MIN_SAMPLE_LINE_COUNT} lines can be read.  If
+     *                             least {@link AbstractFindStructureRequest#MIN_SAMPLE_LINE_COUNT} lines can be read.  If
      *                             <code>null</code> the value of {@link #DEFAULT_IDEAL_SAMPLE_LINE_COUNT} will be used.
      * @param lineMergeSizeLimit Maximum number of characters permitted when lines are merged to create messages.
      *                           If <code>null</code> the value of {@link #DEFAULT_LINE_MERGE_SIZE_LIMIT} will be used.
@@ -383,11 +383,11 @@ public final class TextStructureFinderManager {
                 sampleReader = charsetMatch.getReader();
             }
 
-            assert idealSampleLineCount >= FindStructureAction.MIN_SAMPLE_LINE_COUNT;
+            assert idealSampleLineCount >= AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT;
             Tuple<String, Boolean> sampleInfo = sampleText(
                 sampleReader,
                 charsetName,
-                FindStructureAction.MIN_SAMPLE_LINE_COUNT,
+                AbstractFindStructureRequest.MIN_SAMPLE_LINE_COUNT,
                 idealSampleLineCount,
                 timeoutChecker
             );
@@ -401,6 +401,23 @@ public final class TextStructureFinderManager {
                 overrides,
                 timeoutChecker
             );
+        } catch (Exception e) {
+            // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
+            // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
+            if (explanation.isEmpty() == false) {
+                e.addSuppressed(
+                    new ElasticsearchException(explanation.stream().collect(Collectors.joining("]\n[", "Explanation so far:\n[", "]\n")))
+                );
+            }
+            throw e;
+        }
+    }
+
+    public TextStructureFinder findTextStructure(List<String> messages, TextStructureOverrides overrides, TimeValue timeout)
+        throws Exception {
+        List<String> explanation = new ArrayList<>();
+        try (TimeoutChecker timeoutChecker = new TimeoutChecker("structure analysis", timeout, scheduler)) {
+            return makeBestStructureFinder(explanation, messages, overrides, timeoutChecker);
         } catch (Exception e) {
             // Add a dummy exception containing the explanation so far - this can be invaluable for troubleshooting as incorrect
             // decisions made early on in the structure analysis can result in seemingly crazy decisions or timeouts later on
@@ -551,24 +568,12 @@ public final class TextStructureFinderManager {
         );
     }
 
-    TextStructureFinder makeBestStructureFinder(
-        List<String> explanation,
-        String sample,
-        String charsetName,
-        Boolean hasByteOrderMarker,
-        int lineMergeSizeLimit,
-        TextStructureOverrides overrides,
-        TimeoutChecker timeoutChecker
-    ) throws Exception {
-
+    List<TextStructureFinderFactory> getFactories(TextStructureOverrides overrides) {
         Character delimiter = overrides.getDelimiter();
         Character quote = overrides.getQuote();
         Boolean shouldTrimFields = overrides.getShouldTrimFields();
         List<TextStructureFinderFactory> factories;
-        double allowedFractionOfBadLines = 0.0;
         if (delimiter != null) {
-            allowedFractionOfBadLines = DelimitedTextStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
-
             // If a precise delimiter is specified, we only need one structure finder
             // factory, and we'll tolerate as little as one column in the input
             factories = Collections.singletonList(
@@ -581,8 +586,6 @@ public final class TextStructureFinderManager {
             );
 
         } else if (quote != null || shouldTrimFields != null || TextStructure.Format.DELIMITED.equals(overrides.getFormat())) {
-            allowedFractionOfBadLines = DelimitedTextStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
-
             // The delimiter is not specified, but some other aspect of delimited text is,
             // so clone our default delimited factories altering the overridden values
             factories = ORDERED_STRUCTURE_FACTORIES.stream()
@@ -599,6 +602,34 @@ public final class TextStructureFinderManager {
 
         }
 
+        return factories;
+    }
+
+    private double getAllowedFractionOfBadLines(TextStructureOverrides overrides) {
+        Character delimiter = overrides.getDelimiter();
+        Character quote = overrides.getQuote();
+        Boolean shouldTrimFields = overrides.getShouldTrimFields();
+        if (delimiter != null) {
+            return DelimitedTextStructureFinderFactory.DELIMITER_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
+        } else if (quote != null || shouldTrimFields != null || TextStructure.Format.DELIMITED.equals(overrides.getFormat())) {
+            return DelimitedTextStructureFinderFactory.FORMAT_OVERRIDDEN_ALLOWED_FRACTION_OF_BAD_LINES;
+        } else {
+            return 0.0;
+        }
+    }
+
+    TextStructureFinder makeBestStructureFinder(
+        List<String> explanation,
+        String sample,
+        String charsetName,
+        Boolean hasByteOrderMarker,
+        int lineMergeSizeLimit,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws Exception {
+        List<TextStructureFinderFactory> factories = getFactories(overrides);
+        double allowedFractionOfBadLines = getAllowedFractionOfBadLines(overrides);
+
         for (TextStructureFinderFactory factory : factories) {
             timeoutChecker.check("high level format detection");
             if (factory.canCreateFromSample(explanation, sample, allowedFractionOfBadLines)) {
@@ -611,6 +642,28 @@ public final class TextStructureFinderManager {
                     overrides,
                     timeoutChecker
                 );
+            }
+        }
+
+        throw new IllegalArgumentException(
+            "Input did not match "
+                + ((overrides.getFormat() == null) ? "any known formats" : "the specified format [" + overrides.getFormat() + "]")
+        );
+    }
+
+    private TextStructureFinder makeBestStructureFinder(
+        List<String> explanation,
+        List<String> messages,
+        TextStructureOverrides overrides,
+        TimeoutChecker timeoutChecker
+    ) throws Exception {
+        List<TextStructureFinderFactory> factories = getFactories(overrides);
+        double allowedFractionOfBadLines = getAllowedFractionOfBadLines(overrides);
+
+        for (TextStructureFinderFactory factory : factories) {
+            timeoutChecker.check("high level format detection");
+            if (factory.canCreateFromMessages(explanation, messages, allowedFractionOfBadLines)) {
+                return factory.createFromMessages(explanation, messages, overrides, timeoutChecker);
             }
         }
 

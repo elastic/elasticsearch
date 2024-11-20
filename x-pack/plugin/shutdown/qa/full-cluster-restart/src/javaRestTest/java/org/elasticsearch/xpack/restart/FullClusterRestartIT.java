@@ -8,14 +8,12 @@ package org.elasticsearch.xpack.restart;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.FeatureFlag;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
@@ -25,7 +23,6 @@ import org.elasticsearch.upgrades.FullClusterRestartUpgradeStatus;
 import org.elasticsearch.upgrades.ParameterizedFullClusterRestartTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
-import org.junit.BeforeClass;
 import org.junit.ClassRule;
 
 import java.io.IOException;
@@ -86,14 +83,6 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
             // account for delayed shards
             .put(ESRestTestCase.CLIENT_SOCKET_TIMEOUT, "90s")
             .build();
-    }
-
-    @BeforeClass
-    public static void checkClusterVersion() {
-        @UpdateForV9 // always true
-        var originalClusterSupportsShutdown = parseLegacyVersion(getOldClusterVersion()).map(v -> v.onOrAfter(Version.V_7_15_0))
-            .orElse(true);
-        assumeTrue("no shutdown in versions before 7.15", originalClusterSupportsShutdown);
     }
 
     @SuppressWarnings("unchecked")

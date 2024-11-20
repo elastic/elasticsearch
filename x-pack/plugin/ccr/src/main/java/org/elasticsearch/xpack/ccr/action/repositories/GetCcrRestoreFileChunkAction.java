@@ -10,16 +10,17 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.ByteArray;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -34,13 +35,21 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
     public static final String INTERNAL_NAME = "internal:admin/ccr/restore/file_chunk/get";
     public static final String NAME = "indices:internal/admin/ccr/restore/file_chunk/get";
     public static final GetCcrRestoreFileChunkAction INSTANCE = new GetCcrRestoreFileChunkAction(NAME);
+    public static final RemoteClusterActionType<GetCcrRestoreFileChunkResponse> REMOTE_TYPE = new RemoteClusterActionType<>(
+        NAME,
+        GetCcrRestoreFileChunkResponse::new
+    );
+    public static final RemoteClusterActionType<GetCcrRestoreFileChunkResponse> REMOTE_INTERNAL_TYPE = new RemoteClusterActionType<>(
+        INTERNAL_NAME,
+        GetCcrRestoreFileChunkResponse::new
+    );
 
     private GetCcrRestoreFileChunkAction() {
         this(INTERNAL_NAME);
     }
 
     private GetCcrRestoreFileChunkAction(String name) {
-        super(name, GetCcrRestoreFileChunkAction.GetCcrRestoreFileChunkResponse::new);
+        super(name);
     }
 
     abstract static class TransportGetCcrRestoreFileChunkAction extends HandledTransportAction<
@@ -83,7 +92,7 @@ public class GetCcrRestoreFileChunkAction extends ActionType<GetCcrRestoreFileCh
             BytesReference pagedBytesReference = BytesReference.fromByteArray(array, bytesRequested);
             try (ReleasableBytesReference reference = new ReleasableBytesReference(pagedBytesReference, array)) {
                 try (CcrRestoreSourceService.SessionReader sessionReader = restoreSourceService.getSessionReader(sessionUUID)) {
-                    long offsetAfterRead = sessionReader.readFileBytes(fileName, reference);
+                    long offsetAfterRead = sessionReader.readFileBytes(fileName, array);
                     long offsetBeforeRead = offsetAfterRead - reference.length();
                     ActionListener.respondAndRelease(listener, new GetCcrRestoreFileChunkResponse(offsetBeforeRead, reference));
                 }

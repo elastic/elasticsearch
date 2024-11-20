@@ -14,13 +14,15 @@ import org.elasticsearch.blobcache.common.ByteBufferReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Streams;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.NodeEnvironment;
-import org.elasticsearch.preallocate.Preallocate;
+import org.elasticsearch.nativeaccess.NativeAccess;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.RandomAccessFile;
 import java.nio.ByteBuffer;
 import java.nio.MappedByteBuffer;
 import java.nio.channels.FileChannel;
@@ -77,7 +79,7 @@ public class SharedBytes extends AbstractRefCounted {
         Path cacheFile = null;
         if (fileSize > 0) {
             cacheFile = findCacheSnapshotCacheFilePath(environment, fileSize);
-            Preallocate.preallocate(cacheFile, fileSize);
+            preallocate(cacheFile, fileSize);
             this.fileChannel = FileChannel.open(cacheFile, OPEN_OPTIONS);
             assert this.fileChannel.size() == fileSize : "expected file size " + fileSize + " but was " + fileChannel.size();
         } else {
@@ -140,6 +142,24 @@ public class SharedBytes extends AbstractRefCounted {
         }
     }
 
+    @SuppressForbidden(reason = "random access file needed to set file size")
+    static void preallocate(Path cacheFile, long fileSize) throws IOException {
+        // first try using native methods to preallocate space in the file
+        NativeAccess.instance().tryPreallocate(cacheFile, fileSize);
+        // even if allocation was successful above, verify again here
+        try (RandomAccessFile raf = new RandomAccessFile(cacheFile.toFile(), "rw")) {
+            if (raf.length() != fileSize) {
+                logger.info("pre-allocating cache file [{}] ({} bytes) using setLength method", cacheFile, fileSize);
+                raf.setLength(fileSize);
+                logger.debug("pre-allocated cache file [{}] using setLength method", cacheFile);
+            }
+        } catch (final Exception e) {
+            logger.warn(() -> "failed to pre-allocate cache file [" + cacheFile + "] using setLength method", e);
+            // if anything goes wrong, delete the potentially created file to not waste disk space
+            Files.deleteIfExists(cacheFile);
+        }
+    }
+
     /**
      * Copy {@code length} bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
      *
@@ -182,6 +202,50 @@ public class SharedBytes extends AbstractRefCounted {
             assert adjustedBytesCopied == length : adjustedBytesCopied + " vs " + length;
             progressUpdater.accept(adjustedBytesCopied);
         }
+    }
+
+    /**
+     * Copy all bytes from {@code input} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param input stream to read from
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param progressUpdater callback to invoke with the number of copied bytes as they are copied
+     * @param buffer bytebuffer to use for writing
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyToCacheFileAligned(IO fc, InputStream input, int fileChannelPos, IntConsumer progressUpdater, ByteBuffer buffer)
+        throws IOException {
+        int bytesCopied = 0;
+        while (true) {
+            final int bytesRead = Streams.read(input, buffer, buffer.remaining());
+            if (bytesRead <= 0) {
+                break;
+            }
+            bytesCopied += copyBufferToCacheFileAligned(fc, fileChannelPos + bytesCopied, buffer);
+            progressUpdater.accept(bytesCopied);
+        }
+        return bytesCopied;
+    }
+
+    /**
+     * Copy all bytes from {@code buffer} to {@code fc}, only doing writes aligned along {@link #PAGE_SIZE}.
+     *
+     * @param fc output cache file reference
+     * @param fileChannelPos position in {@code fc} to write to
+     * @param buffer bytebuffer to copy from
+     * @return the number of bytes copied
+     * @throws IOException on failure
+     */
+    public static int copyBufferToCacheFileAligned(IO fc, int fileChannelPos, ByteBuffer buffer) throws IOException {
+        if (buffer.hasRemaining()) {
+            // ensure the write is aligned on 4k boundaries (= page size)
+            final int remainder = buffer.position() % PAGE_SIZE;
+            final int adjustment = remainder == 0 ? 0 : PAGE_SIZE - remainder;
+            buffer.position(buffer.position() + adjustment);
+        }
+        return positionalWrite(fc, fileChannelPos, buffer);
     }
 
     private static int positionalWrite(IO fc, int start, ByteBuffer byteBuffer) throws IOException {

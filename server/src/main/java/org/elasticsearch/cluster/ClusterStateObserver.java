@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
@@ -33,8 +35,6 @@ public class ClusterStateObserver {
 
     public static final Predicate<ClusterState> NON_NULL_MASTER_PREDICATE = state -> state.nodes().getMasterNode() != null;
 
-    private static final Predicate<ClusterState> MATCH_ALL_CHANGES_PREDICATE = state -> true;
-
     private final ClusterApplierService clusterApplierService;
     private final ThreadPool threadPool;
     private final ThreadContext contextHolder;
@@ -46,10 +46,6 @@ public class ClusterStateObserver {
     final AtomicReference<ObservingContext> observingContext = new AtomicReference<>(null);
     volatile Long startTimeMS;
     volatile boolean timedOut;
-
-    public ClusterStateObserver(ClusterService clusterService, Logger logger, ThreadContext contextHolder) {
-        this(clusterService, new TimeValue(60000), logger, contextHolder);
-    }
 
     /**
      * @param timeout        a global timeout for this observer. After it has expired the observer
@@ -109,11 +105,11 @@ public class ClusterStateObserver {
     }
 
     public void waitForNextChange(Listener listener) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE);
+        waitForNextChange(listener, Predicates.always());
     }
 
     public void waitForNextChange(Listener listener, @Nullable TimeValue timeOutValue) {
-        waitForNextChange(listener, MATCH_ALL_CHANGES_PREDICATE, timeOutValue);
+        waitForNextChange(listener, Predicates.always(), timeOutValue);
     }
 
     public void waitForNextChange(Listener listener, Predicate<ClusterState> statePredicate) {
@@ -332,12 +328,21 @@ public class ClusterStateObserver {
 
     public interface Listener {
 
-        /** called when a new state is observed */
+        /**
+         * Called when a new state is observed. Implementations should avoid doing heavy operations on the calling thread and fork to
+         * a threadpool if necessary to avoid blocking the {@link ClusterApplierService}. Note that operations such as sending a new
+         * request (e.g. via {@link org.elasticsearch.client.internal.Client} or {@link org.elasticsearch.transport.TransportService})
+         * is cheap enough to be performed without forking.
+         */
         void onNewClusterState(ClusterState state);
 
         /** called when the cluster service is closed */
         void onClusterServiceClose();
 
+        /**
+         * Called when the {@link ClusterStateObserver} times out while waiting for a new matching cluster state if a timeout is
+         * used when creating the observer. Upon timeout, {@code onTimeout} is called on the GENERIC threadpool.
+         */
         void onTimeout(TimeValue timeout);
     }
 

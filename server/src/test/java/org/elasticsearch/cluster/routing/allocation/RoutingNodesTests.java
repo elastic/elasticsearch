@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -26,7 +27,6 @@ import org.elasticsearch.cluster.routing.RoutingChangesObserver;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.routing.allocation.decider.ClusterRebalanceAllocationDecider;
 import org.elasticsearch.cluster.routing.allocation.decider.ThrottlingAllocationDecider;
 import org.elasticsearch.common.UUIDs;
@@ -44,6 +44,7 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.oneOf;
@@ -434,8 +435,8 @@ public class RoutingNodesTests extends ESAllocationTestCase {
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
         var indexRoutingTable = IndexRoutingTable.builder(indexMetadata.getIndex())
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-1", null, true, STARTED, primaryRole))
-            .addShard(TestShardRouting.newShardRouting(shardId, "node-2", null, false, STARTED, replicaRole))
+            .addShard(shardRoutingBuilder(shardId, "node-1", true, STARTED).withRole(primaryRole).build())
+            .addShard(shardRoutingBuilder(shardId, "node-2", false, STARTED).withRole(replicaRole).build())
             .build();
 
         var node1 = newNode("node-1");
@@ -450,7 +451,7 @@ public class RoutingNodesTests extends ESAllocationTestCase {
 
         var routingNodes = clusterState.getRoutingNodes().mutableCopy();
 
-        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, new RoutingChangesObserver() {
+        routingNodes.relocateShard(routingNodes.node("node-1").getByShardId(shardId), "node-3", 0L, "test", new RoutingChangesObserver() {
         });
 
         assertThat(routingNodes.node("node-1").getByShardId(shardId).state(), equalTo(RELOCATING));

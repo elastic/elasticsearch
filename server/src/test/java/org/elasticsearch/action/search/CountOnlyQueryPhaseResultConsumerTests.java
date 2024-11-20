@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -41,8 +42,9 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
         );
         searchProgressListener.notifyListShards(searchShards, Collections.emptyList(), SearchResponse.Clusters.EMPTY, false, timeProvider);
 
-        CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(searchProgressListener, 10);
-        try {
+        try (
+            CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(searchProgressListener, 10)
+        ) {
             AtomicInteger nextCounter = new AtomicInteger(0);
             for (int i = 0; i < 10; i++) {
                 SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
@@ -58,14 +60,16 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
             assertEquals(10, nextCounter.get());
-        } finally {
-            queryPhaseResultConsumer.decRef();
         }
     }
 
     public void testNullShardResultHandling() throws Exception {
-        CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(SearchProgressListener.NOOP, 10);
-        try {
+        try (
+            CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(
+                SearchProgressListener.NOOP,
+                10
+            )
+        ) {
             AtomicInteger nextCounter = new AtomicInteger(0);
             for (int i = 0; i < 10; i++) {
                 SearchShardTarget searchShardTarget = new SearchShardTarget("node", new ShardId("index", "uuid", i), null);
@@ -75,24 +79,24 @@ public class CountOnlyQueryPhaseResultConsumerTests extends ESTestCase {
                 queryPhaseResultConsumer.consumeResult(querySearchResult, nextCounter::incrementAndGet);
             }
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertFalse(reducePhase.isEmptyResult());
             assertEquals(10, nextCounter.get());
-        } finally {
-            queryPhaseResultConsumer.decRef();
         }
     }
 
     public void testEmptyResults() throws Exception {
-        CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(SearchProgressListener.NOOP, 10);
-        try {
+        try (
+            CountOnlyQueryPhaseResultConsumer queryPhaseResultConsumer = new CountOnlyQueryPhaseResultConsumer(
+                SearchProgressListener.NOOP,
+                10
+            )
+        ) {
             var reducePhase = queryPhaseResultConsumer.reduce();
-            assertEquals(0, reducePhase.totalHits().value);
-            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation);
+            assertEquals(0, reducePhase.totalHits().value());
+            assertEquals(TotalHits.Relation.EQUAL_TO, reducePhase.totalHits().relation());
             assertTrue(reducePhase.isEmptyResult());
-        } finally {
-            queryPhaseResultConsumer.decRef();
         }
     }
 

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket;
@@ -16,7 +17,6 @@ import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.aggregations.AggregationIntegTestCase;
 import org.elasticsearch.aggregations.bucket.timeseries.InternalTimeSeries;
 import org.elasticsearch.aggregations.bucket.timeseries.TimeSeriesAggregationBuilder;
-import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -29,14 +29,11 @@ import org.elasticsearch.search.aggregations.metrics.InternalCardinality;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
-import org.hamcrest.Matchers;
 import org.junit.Before;
 
 import java.io.IOException;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
 import java.util.function.Supplier;
@@ -106,16 +103,11 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
         final String[] routingDimensions
     ) {
         return prepareCreate("index").setSettings(
-            Settings.builder()
-                .put("mode", "time_series")
+            indexSettings(randomIntBetween(1, 3), randomIntBetween(1, 3)).put("mode", "time_series")
                 .put("routing_path", String.join(",", routingDimensions))
-                .put("index.number_of_shards", randomIntBetween(1, 3))
-                .put("index.number_of_replicas", randomIntBetween(1, 3))
                 .put("time_series.start_time", startMillis)
                 .put("time_series.end_time", endMillis)
-                .put(MapperService.INDEX_MAPPING_DIMENSION_FIELDS_LIMIT_SETTING.getKey(), numberOfDimensions + 1)
                 .put(MapperService.INDEX_MAPPING_FIELD_NAME_LENGTH_LIMIT_SETTING.getKey(), 4192)
-                .build()
         ).setMapping(mapping).get();
     }
 
@@ -209,27 +201,14 @@ public class TimeSeriesNestedAggregationsIT extends AggregationIntegTestCase {
     }
 
     private static void assertTimeSeriesAggregation(final InternalTimeSeries timeSeriesAggregation) {
-        final List<Map<String, Object>> dimensions = timeSeriesAggregation.getBuckets()
-            .stream()
-            .map(InternalTimeSeries.InternalBucket::getKey)
-            .toList();
+        final var dimensions = timeSeriesAggregation.getBuckets().stream().map(InternalTimeSeries.InternalBucket::getKey).toList();
         // NOTE: only two time series expected as a result of having just two distinct values for the last dimension
         assertEquals(2, dimensions.size());
 
-        final Map<String, Object> firstTimeSeries = dimensions.get(0);
-        final Map<String, Object> secondTimeSeries = dimensions.get(1);
+        final Object firstTimeSeries = dimensions.get(0);
+        final Object secondTimeSeries = dimensions.get(1);
 
-        assertTsid(firstTimeSeries);
-        assertTsid(secondTimeSeries);
-    }
-
-    private static void assertTsid(final Map<String, Object> timeSeries) {
-        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).limit(numberOfDimensions - 2).forEach(entry -> {
-            assertThat(entry.getValue().toString(), Matchers.equalTo(FOO_DIM_VALUE));
-        });
-        timeSeries.entrySet().stream().sorted(Map.Entry.comparingByKey()).skip(numberOfDimensions - 1).forEach(entry -> {
-            assertThat(entry.getValue().toString(), Matchers.oneOf(BAR_DIM_VALUE, BAZ_DIM_VALUE));
-        });
+        assertNotEquals(firstTimeSeries, secondTimeSeries);
     }
 
     private static void assertCardinality(final InternalCardinality cardinalityAggregation, int expectedCardinality) {

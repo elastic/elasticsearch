@@ -17,6 +17,7 @@ import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.SearchHit;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.test.AnnotationTestOrdering;
 import org.elasticsearch.test.AnnotationTestOrdering.Order;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -359,9 +360,9 @@ public class RemoteClusterSecurityCcrMigrationIT extends AbstractRemoteClusterSe
                 throw new AssertionError(e);
             }
             assertOK(response);
-            final SearchResponse searchResponse = SearchResponse.fromXContent(responseAsParser(response));
+            final SearchResponse searchResponse = SearchResponseUtils.parseSearchResponse(responseAsParser(response));
             try {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(numberOfDocs));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(numberOfDocs));
                 assertThat(
                     Arrays.stream(searchResponse.getHits().getHits()).map(SearchHit::getIndex).collect(Collectors.toUnmodifiableSet()),
                     equalTo(Set.of(indices))

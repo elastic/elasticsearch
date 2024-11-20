@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -61,7 +62,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         isCustomDataPath = in.readBoolean();
         seqNoStats = in.readOptionalWriteable(SeqNoStats::new);
         retentionLeaseStats = in.readOptionalWriteable(RetentionLeaseStats::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             isSearchIdle = in.readBoolean();
             searchIdleTime = in.readVLong();
         } else {
@@ -215,7 +216,7 @@ public class ShardStats implements Writeable, ToXContentFragment {
         out.writeBoolean(isCustomDataPath);
         out.writeOptionalWriteable(seqNoStats);
         out.writeOptionalWriteable(retentionLeaseStats);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeBoolean(isSearchIdle);
             out.writeVLong(searchIdleTime);
         }

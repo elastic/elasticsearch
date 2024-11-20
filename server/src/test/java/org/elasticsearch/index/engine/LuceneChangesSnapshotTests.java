@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -15,6 +16,7 @@ import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.ParsedDocument;
+import org.elasticsearch.index.mapper.Uid;
 import org.elasticsearch.index.store.Store;
 import org.elasticsearch.index.translog.SnapshotMatchers;
 import org.elasticsearch.index.translog.Translog;
@@ -65,7 +67,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
             if (randomBoolean()) {
                 engine.index(indexForDoc(doc));
             } else {
-                engine.delete(new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get()));
+                engine.delete(new Engine.Delete(doc.id(), Uid.encodeId(doc.id()), primaryTerm.get()));
             }
             if (rarely()) {
                 if (randomBoolean()) {
@@ -270,7 +272,7 @@ public class LuceneChangesSnapshotTests extends EngineTestCase {
                 if (randomBoolean()) {
                     op = new Engine.Index(newUid(doc), primaryTerm.get(), doc);
                 } else {
-                    op = new Engine.Delete(doc.id(), newUid(doc.id()), primaryTerm.get());
+                    op = new Engine.Delete(doc.id(), Uid.encodeId(doc.id()), primaryTerm.get());
                 }
             } else {
                 if (randomBoolean()) {

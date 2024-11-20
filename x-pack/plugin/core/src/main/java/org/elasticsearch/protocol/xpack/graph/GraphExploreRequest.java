@@ -170,11 +170,6 @@ public class GraphExploreRequest extends ActionRequest implements IndicesRequest
         return this;
     }
 
-    public GraphExploreRequest timeout(String timeout) {
-        timeout(TimeValue.parseTimeValue(timeout, null, getClass().getSimpleName() + ".timeout"));
-        return this;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);

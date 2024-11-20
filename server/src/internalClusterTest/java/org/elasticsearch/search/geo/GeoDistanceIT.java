@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.geo;
@@ -22,7 +23,7 @@ import org.elasticsearch.script.MockScriptPlugin;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptType;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.range.InternalGeoDistance;
 import org.elasticsearch.search.aggregations.bucket.range.Range;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -216,7 +217,7 @@ public class GeoDistanceIT extends ESIntegTestCase {
                         .addRange(0, 25000)
                 ),
             response -> {
-                Aggregations aggregations = response.getAggregations();
+                InternalAggregations aggregations = response.getAggregations();
                 assertNotNull(aggregations);
                 InternalGeoDistance geoDistance = aggregations.get(name);
                 assertNotNull(geoDistance);

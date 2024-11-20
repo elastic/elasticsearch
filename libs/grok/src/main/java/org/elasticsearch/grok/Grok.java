@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -23,6 +24,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.function.Consumer;
+import java.util.function.Function;
 
 public final class Grok {
 
@@ -86,7 +88,7 @@ public final class Grok {
             expressionBytes.length,
             Option.DEFAULT,
             UTF8Encoding.INSTANCE,
-            message -> logCallBack.accept(message)
+            logCallBack::accept
         );
 
         List<GrokCaptureConfig> grokCaptureConfigs = new ArrayList<>();
@@ -116,7 +118,7 @@ public final class Grok {
      *
      * @return named regex expression
      */
-    protected String toRegex(PatternBank patternBank, String grokPattern) {
+    String toRegex(PatternBank patternBank, String grokPattern) {
         StringBuilder res = new StringBuilder();
         for (int i = 0; i < MAX_TO_REGEX_ITERATIONS; i++) {
             byte[] grokPatternBytes = grokPattern.getBytes(StandardCharsets.UTF_8);
@@ -189,8 +191,25 @@ public final class Grok {
      * @return a map containing field names and their respective coerced values that matched or null if the pattern didn't match
      */
     public Map<String, Object> captures(String text) {
+        return innerCaptures(text, cfg -> cfg::objectExtracter);
+    }
+
+    /**
+     * Matches and returns the ranges of any named captures.
+     *
+     * @param text the text to match and extract values from.
+     * @return a map containing field names and their respective ranges that matched or null if the pattern didn't match
+     */
+    public Map<String, Object> captureRanges(String text) {
+        return innerCaptures(text, cfg -> cfg::rangeExtracter);
+    }
+
+    private Map<String, Object> innerCaptures(
+        String text,
+        Function<GrokCaptureConfig, Function<Consumer<Object>, GrokCaptureExtracter>> getExtracter
+    ) {
         byte[] utf8Bytes = text.getBytes(StandardCharsets.UTF_8);
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig);
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(captureConfig, getExtracter);
         if (match(utf8Bytes, 0, utf8Bytes.length, extracter)) {
             return extracter.result();
         }

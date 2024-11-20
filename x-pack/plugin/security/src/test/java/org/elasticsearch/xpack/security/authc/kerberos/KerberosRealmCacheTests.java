@@ -65,7 +65,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verify(mockNativeRoleMappingStore).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }
@@ -74,7 +74,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
         final String outToken = randomAlphaOfLength(10);
         final List<String> userNames = Arrays.asList(randomPrincipalName(), randomPrincipalName());
         final KerberosRealm kerberosRealm = createKerberosRealm(userNames.toArray(new String[0]));
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
 
         final String authNUsername = randomFrom(userNames);
         final byte[] decodedTicket = randomByteArrayOfLength(10);
@@ -154,7 +154,7 @@ public class KerberosRealmCacheTests extends KerberosRealmTestCase {
             eq(krbDebug),
             anyActionListener()
         );
-        verify(mockNativeRoleMappingStore).refreshRealmOnChange(kerberosRealm);
+        verify(mockNativeRoleMappingStore).clearRealmCacheOnChange(kerberosRealm);
         verify(mockNativeRoleMappingStore, times(2)).resolveRoles(any(UserData.class), anyActionListener());
         verifyNoMoreInteractions(mockKerberosTicketValidator, mockNativeRoleMappingStore);
     }

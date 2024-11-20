@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.runtime;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.BytesRefBuilder;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
 import org.elasticsearch.script.Script;
 
@@ -68,18 +70,19 @@ public class StringScriptFieldFuzzyQueryTests extends AbstractStringScriptFieldQ
     @Override
     public void testMatches() {
         StringScriptFieldFuzzyQuery query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 1, 0, false);
-        assertTrue(query.matches(List.of("foo")));
-        assertTrue(query.matches(List.of("foa")));
-        assertTrue(query.matches(List.of("foo", "bar")));
-        assertFalse(query.matches(List.of("bar")));
+        BytesRefBuilder scratch = new BytesRefBuilder();
+        assertTrue(query.matches(List.of("foo"), scratch));
+        assertTrue(query.matches(List.of("foa"), scratch));
+        assertTrue(query.matches(List.of("foo", "bar"), scratch));
+        assertFalse(query.matches(List.of("bar"), scratch));
         query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 0, 0, false);
-        assertTrue(query.matches(List.of("foo")));
-        assertFalse(query.matches(List.of("foa")));
+        assertTrue(query.matches(List.of("foo"), scratch));
+        assertFalse(query.matches(List.of("foa"), scratch));
         query = StringScriptFieldFuzzyQuery.build(randomScript(), leafFactory, "test", "foo", 2, 0, false);
-        assertTrue(query.matches(List.of("foo")));
-        assertTrue(query.matches(List.of("foa")));
-        assertTrue(query.matches(List.of("faa")));
-        assertFalse(query.matches(List.of("faaa")));
+        assertTrue(query.matches(List.of("foo"), scratch));
+        assertTrue(query.matches(List.of("foa"), scratch));
+        assertTrue(query.matches(List.of("faa"), scratch));
+        assertFalse(query.matches(List.of("faaa"), scratch));
     }
 
     @Override

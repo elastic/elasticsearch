@@ -59,6 +59,10 @@ abstract class AbstractNonThreadSafeRefCounted implements RefCounted, Releasable
         decRef();
     }
 
+    public final boolean isReleased() {
+        return hasReferences() == false;
+    }
+
     /**
      * This is called when the number of references reaches zero.
      * This is where resources should be released (adjusting circuit breakers if needed).

@@ -52,7 +52,7 @@ public class SlackMessageDefaults {
 
     @Override
     public int hashCode() {
-        return Objects.hash(to, icon, text, attachment);
+        return Objects.hash(Arrays.hashCode(to), icon, text, attachment);
     }
 
     static class AttachmentDefaults {

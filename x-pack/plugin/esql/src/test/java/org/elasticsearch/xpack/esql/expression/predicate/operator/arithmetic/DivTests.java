@@ -10,148 +10,174 @@ package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
+import org.hamcrest.Matcher;
 
 import java.math.BigInteger;
+import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import java.util.function.BiFunction;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.compute.data.BlockUtils.toJavaObject;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.ZERO_AS_UNSIGNED_LONG;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.asLongUnsigned;
-import static org.elasticsearch.xpack.ql.util.NumericUtils.unsignedLongAsBigInteger;
 import static org.hamcrest.Matchers.equalTo;
 
-public class DivTests extends AbstractArithmeticTestCase {
+public class DivTests extends AbstractScalarFunctionTestCase {
     public DivTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();
     }
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Int / Int", () -> {
-            int lhs = randomInt();
-            int rhs;
-            do {
-                rhs = randomInt();
-            } while (rhs == 0);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.INTEGER, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.INTEGER, "rhs")
+        List<TestCaseSupplier> suppliers = new ArrayList<>();
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryWithWidening(
+                new TestCaseSupplier.NumericTypeTestConfigs<Number>(
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Integer.MIN_VALUE >> 1) - 1,
+                        (Integer.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.intValue() / r.intValue(),
+                        "DivIntsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(
+                        (Long.MIN_VALUE >> 1) - 1,
+                        (Long.MAX_VALUE >> 1) - 1,
+                        (l, r) -> l.longValue() / r.longValue(),
+                        "DivLongsEvaluator"
+                    ),
+                    new TestCaseSupplier.NumericTypeTestConfig<>(Double.NEGATIVE_INFINITY, Double.POSITIVE_INFINITY, (l, r) -> {
+                        double v = l.doubleValue() / r.doubleValue();
+                        if (Double.isFinite(v)) {
+                            return v;
+                        }
+                        return null;
+                    }, "DivDoublesEvaluator")
                 ),
-                "DivIntsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.INTEGER,
-                equalTo(lhs / rhs)
-            );
-        }), new TestCaseSupplier("Long / Long", () -> {
-            long lhs = randomLong();
-            long rhs;
-            do {
-                rhs = randomLong();
-            } while (rhs == 0);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.LONG, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.LONG, "rhs")
-                ),
-                "DivLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.LONG,
-                equalTo(lhs / rhs)
-            );
-        }), new TestCaseSupplier("Double / Double", () -> {
-            double lhs = randomDouble();
-            double rhs;
-            do {
-                rhs = randomDouble();
-            } while (rhs == 0);
-            return new TestCaseSupplier.TestCase(
-                List.of(
-                    new TestCaseSupplier.TypedData(lhs, DataTypes.DOUBLE, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataTypes.DOUBLE, "rhs")
-                ),
-                "DivDoublesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                DataTypes.DOUBLE,
-                equalTo(lhs / rhs)
-            );
-        })/*, new TestCaseSupplier("ULong / ULong", () -> {
-            // Ensure we don't have an overflow
-            long lhs = randomLong();
-            long rhs;
-            do {
-                rhs = randomLong();
-            } while (rhs == 0);
-            BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-            BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-            return new TestCase(
-                Source.EMPTY,
-                List.of(new TypedData(lhs, DataTypes.UNSIGNED_LONG, "lhs"), new TypedData(rhs, DataTypes.UNSIGNED_LONG, "rhs")),
-                "DivUnsignedLongsEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
-                equalTo(asLongUnsigned(lhsBI.divide(rhsBI).longValue()))
-            );
-          })
-          */
-        ));
-    }
+                "lhs",
+                "rhs",
+                (lhs, rhs) -> {
+                    if (lhs.type() != DataType.DOUBLE || rhs.type() != DataType.DOUBLE) {
+                        return List.of();
+                    }
+                    double v = ((Double) lhs.getValue()) / ((Double) rhs.getValue());
+                    if (Double.isFinite(v)) {
+                        return List.of();
+                    }
+                    return List.of(
+                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    );
+                },
+                false
+            )
+        );
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "DivUnsignedLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> (((BigInteger) l).divide((BigInteger) r)),
+                DataType.UNSIGNED_LONG,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ONE, BigInteger.valueOf(Long.MAX_VALUE), true),
+                List.of(),
+                false
+            )
+        );
 
-    // run dedicated test to avoid the JVM optimized ArithmeticException that lacks a message
-    public void testDivisionByZero() {
-        DataType testCaseType = testCase.getData().get(0).type();
-        List<Object> data = switch (testCaseType.typeName()) {
-            case "INTEGER" -> List.of(randomInt(), 0);
-            case "LONG" -> List.of(randomLong(), 0L);
-            case "UNSIGNED_LONG" -> List.of(randomLong(), ZERO_AS_UNSIGNED_LONG);
-            default -> null;
-        };
-        if (data != null) {
-            var op = build(Source.EMPTY, field("lhs", testCaseType), field("rhs", testCaseType));
-            try (Block block = evaluator(op).get(driverContext()).eval(row(data))) {
-                assertCriticalWarnings(
-                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+        suppliers = errorsForCasesWithoutExamples(anyNullIsNull(true, suppliers), DivTests::divErrorMessageString);
+
+        // Divide by zero cases - all of these should warn and return null
+        TestCaseSupplier.NumericTypeTestConfigs<Number> typeStuff = new TestCaseSupplier.NumericTypeTestConfigs<>(
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                (Integer.MIN_VALUE >> 1) - 1,
+                (Integer.MAX_VALUE >> 1) - 1,
+                (l, r) -> null,
+                "DivIntsEvaluator"
+            ),
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                (Long.MIN_VALUE >> 1) - 1,
+                (Long.MAX_VALUE >> 1) - 1,
+                (l, r) -> null,
+                "DivLongsEvaluator"
+            ),
+            new TestCaseSupplier.NumericTypeTestConfig<>(
+                Double.NEGATIVE_INFINITY,
+                Double.POSITIVE_INFINITY,
+                (l, r) -> null,
+                "DivDoublesEvaluator"
+            )
+        );
+        List<DataType> numericTypes = List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE);
+
+        for (DataType lhsType : numericTypes) {
+            for (DataType rhsType : numericTypes) {
+                DataType expected = TestCaseSupplier.widen(lhsType, rhsType);
+                TestCaseSupplier.NumericTypeTestConfig<Number> expectedTypeStuff = typeStuff.get(expected);
+                BiFunction<DataType, DataType, Matcher<String>> evaluatorToString = (lhs, rhs) -> equalTo(
+                    expectedTypeStuff.evaluatorName()
+                        + "["
+                        + "lhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=0]", lhs, expected)
+                        + ", "
+                        + "rhs"
+                        + "="
+                        + TestCaseSupplier.getCastEvaluator("Attribute[channel=1]", rhs, expected)
+                        + "]"
                 );
-                assertNull(toJavaObject(block, 0));
+                TestCaseSupplier.casesCrossProduct(
+                    (l1, r1) -> expectedTypeStuff.expected().apply((Number) l1, (Number) r1),
+                    TestCaseSupplier.getSuppliersForNumericType(lhsType, expectedTypeStuff.min(), expectedTypeStuff.max(), true),
+                    TestCaseSupplier.getSuppliersForNumericType(rhsType, 0, 0, true),
+                    evaluatorToString,
+                    (lhs, rhs) -> List.of(
+                        "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                    ),
+                    suppliers,
+                    expected,
+                    false
+                );
             }
         }
+
+        suppliers.addAll(
+            TestCaseSupplier.forBinaryNotCasting(
+                "DivUnsignedLongsEvaluator",
+                "lhs",
+                "rhs",
+                (l, r) -> null,
+                DataType.UNSIGNED_LONG,
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.valueOf(Long.MAX_VALUE), true),
+                TestCaseSupplier.ulongCases(BigInteger.ZERO, BigInteger.ZERO, true),
+                List.of(
+                    "Line -1:-1: evaluation of [] failed, treating result as null. Only first 20 failures recorded.",
+                    "Line -1:-1: java.lang.ArithmeticException: / by zero"
+                ),
+                false
+            )
+        );
+
+        return parameterSuppliersFromTypedData(suppliers);
     }
 
-    @Override
-    protected boolean rhsOk(Object o) {
-        if (o instanceof Number n) {
-            return n.doubleValue() != 0;
+    private static String divErrorMessageString(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
+        try {
+            return typeErrorMessage(includeOrdinal, validPerPosition, types, (a, b) -> "numeric");
+        } catch (IllegalStateException e) {
+            // This means all the positional args were okay, so the expected error is from the combination
+            return "[/] has arguments with incompatible types [" + types.get(0).typeName() + "] and [" + types.get(1).typeName() + "]";
+
         }
-        return true;
     }
 
     @Override
-    protected Div build(Source source, Expression lhs, Expression rhs) {
-        return new Div(source, lhs, rhs);
-    }
-
-    @Override
-    protected double expectedValue(double lhs, double rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected int expectedValue(int lhs, int rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected long expectedValue(long lhs, long rhs) {
-        return lhs / rhs;
-    }
-
-    @Override
-    protected long expectedUnsignedLongValue(long lhs, long rhs) {
-        BigInteger lhsBI = unsignedLongAsBigInteger(lhs);
-        BigInteger rhsBI = unsignedLongAsBigInteger(rhs);
-        return asLongUnsigned(lhsBI.divide(rhsBI).longValue());
+    protected Expression build(Source source, List<Expression> args) {
+        return new Div(source, args.get(0), args.get(1));
     }
 }

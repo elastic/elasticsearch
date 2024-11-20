@@ -13,6 +13,7 @@ import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.MasterNodeRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -29,7 +30,7 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
     public static final String NAME = "cluster:admin/xpack/ccr/resume_follow";
 
     private ResumeFollowAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<Request> implements ToXContentObject {
@@ -43,9 +44,10 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
             FollowParameters.initParser(PARSER);
         }
 
-        public static Request fromXContent(final XContentParser parser, final String followerIndex) throws IOException {
+        public static Request fromXContent(TimeValue masterNodeTimeout, final XContentParser parser, final String followerIndex)
+            throws IOException {
             FollowParameters parameters = PARSER.parse(parser, null);
-            Request request = new Request();
+            Request request = new Request(masterNodeTimeout);
             request.setFollowerIndex(followerIndex);
             request.setParameters(parameters);
             return request;
@@ -54,7 +56,9 @@ public final class ResumeFollowAction extends ActionType<AcknowledgedResponse> {
         private String followerIndex;
         private FollowParameters parameters = new FollowParameters();
 
-        public Request() {}
+        public Request(TimeValue masterNodeTimeout) {
+            super(masterNodeTimeout);
+        }
 
         public String getFollowerIndex() {
             return followerIndex;

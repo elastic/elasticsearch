@@ -23,13 +23,16 @@ import org.elasticsearch.rest.AbstractRestChannel;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.action.RestToXContentListener;
+import org.elasticsearch.telemetry.metric.MeterRegistry;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
+import org.elasticsearch.threadpool.DefaultBuiltInExecutorBuilders;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.core.security.action.apikey.ApiKey;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequest;
+import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyRequestBuilderFactory;
 import org.elasticsearch.xpack.core.security.action.apikey.CreateApiKeyResponse;
 
 import java.time.Duration;
@@ -54,7 +57,7 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
             .put("node.name", "test-" + getTestName())
             .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
             .build();
-        threadPool = new ThreadPool(settings);
+        threadPool = new ThreadPool(settings, MeterRegistry.NOOP, new DefaultBuiltInExecutorBuilders());
     }
 
     @Override
@@ -104,7 +107,11 @@ public class RestCreateApiKeyActionTests extends ESTestCase {
                 }
             }
         };
-        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(Settings.EMPTY, mockLicenseState);
+        final RestCreateApiKeyAction restCreateApiKeyAction = new RestCreateApiKeyAction(
+            Settings.EMPTY,
+            mockLicenseState,
+            new CreateApiKeyRequestBuilderFactory.Default()
+        );
         restCreateApiKeyAction.handleRequest(restRequest, restChannel, client);
 
         final RestResponse restResponse = responseSetOnce.get();

@@ -1,5 +1,0 @@
-pr: 102673
-summary: "ESQL: Share constant null Blocks"
-area: ES|QL
-type: enhancement
-issues: []

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -25,6 +26,7 @@ import org.elasticsearch.plugins.ReloadablePlugin;
 import org.elasticsearch.plugins.RepositoryPlugin;
 import org.elasticsearch.repositories.RepositoriesMetrics;
 import org.elasticsearch.repositories.Repository;
+import org.elasticsearch.watcher.ResourceWatcherService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 
 import java.io.IOException;
@@ -77,20 +79,20 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        final RepositoriesMetrics repositoriesMetrics
+        final S3RepositoriesMetrics s3RepositoriesMetrics
     ) {
-        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, repositoriesMetrics);
+        return new S3Repository(metadata, registry, service.get(), clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics);
     }
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
-        service.set(s3Service(services.environment(), services.clusterService().getSettings()));
+        service.set(s3Service(services.environment(), services.clusterService().getSettings(), services.resourceWatcherService()));
         this.service.get().refreshAndClearCache(S3ClientSettings.load(settings));
         return List.of(service);
     }
 
-    S3Service s3Service(Environment environment, Settings nodeSettings) {
-        return new S3Service(environment, nodeSettings);
+    S3Service s3Service(Environment environment, Settings nodeSettings, ResourceWatcherService resourceWatcherService) {
+        return new S3Service(environment, nodeSettings, resourceWatcherService);
     }
 
     @Override
@@ -100,11 +102,12 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
         final ClusterService clusterService,
         final BigArrays bigArrays,
         final RecoverySettings recoverySettings,
-        RepositoriesMetrics repositoriesMetrics
+        final RepositoriesMetrics repositoriesMetrics
     ) {
+        final S3RepositoriesMetrics s3RepositoriesMetrics = new S3RepositoriesMetrics(repositoriesMetrics);
         return Collections.singletonMap(
             S3Repository.TYPE,
-            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, repositoriesMetrics)
+            metadata -> createRepository(metadata, registry, clusterService, bigArrays, recoverySettings, s3RepositoriesMetrics)
         );
     }
 
@@ -123,6 +126,7 @@ public class S3RepositoryPlugin extends Plugin implements RepositoryPlugin, Relo
             S3ClientSettings.PROXY_USERNAME_SETTING,
             S3ClientSettings.PROXY_PASSWORD_SETTING,
             S3ClientSettings.READ_TIMEOUT_SETTING,
+            S3ClientSettings.MAX_CONNECTIONS_SETTING,
             S3ClientSettings.MAX_RETRIES_SETTING,
             S3ClientSettings.USE_THROTTLE_RETRIES_SETTING,
             S3ClientSettings.USE_PATH_STYLE_ACCESS,

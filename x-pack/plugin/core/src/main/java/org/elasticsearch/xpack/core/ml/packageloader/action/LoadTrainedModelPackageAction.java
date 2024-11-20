@@ -29,7 +29,7 @@ public class LoadTrainedModelPackageAction extends ActionType<AcknowledgedRespon
     public static final LoadTrainedModelPackageAction INSTANCE = new LoadTrainedModelPackageAction();
 
     private LoadTrainedModelPackageAction() {
-        super(NAME, AcknowledgedResponse::readFrom);
+        super(NAME);
     }
 
     public static class Request extends MasterNodeRequest<LoadTrainedModelPackageAction.Request> {
@@ -39,6 +39,7 @@ public class LoadTrainedModelPackageAction extends ActionType<AcknowledgedRespon
         private final boolean waitForCompletion;
 
         public Request(String modelId, ModelPackageConfig modelPackageConfig, boolean waitForCompletion) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
             this.modelId = modelId;
             this.modelPackageConfig = modelPackageConfig;
             this.waitForCompletion = waitForCompletion;

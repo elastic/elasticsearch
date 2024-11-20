@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -13,7 +14,6 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.client.methods.HttpGet;
 import org.apache.http.client.methods.HttpPost;
 import org.apache.http.util.EntityUtils;
-import org.elasticsearch.Version;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -42,30 +42,18 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThan;
 import static org.hamcrest.Matchers.notNullValue;
 
-public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase {
+public class SnapshotBasedRecoveryIT extends AbstractRollingUpgradeTestCase {
 
     public SnapshotBasedRecoveryIT(@Name("upgradedNodes") int upgradedNodes) {
         super(upgradedNodes);
     }
 
     public void testSnapshotBasedRecovery() throws Exception {
-
-        assumeFalse(
-            "Cancel shard allocation command is broken for initial desired balance versions and might allocate shard "
-                + "on the node where it is not supposed to be. Fixed by https://github.com/elastic/elasticsearch/pull/93635",
-            getOldClusterVersion() == Version.V_8_6_0
-                || getOldClusterVersion() == Version.V_8_6_1
-                || getOldClusterVersion() == Version.V_8_7_0
-        );
-
         final String indexName = "snapshot_based_recovery";
         final String repositoryName = "snapshot_based_recovery_repo";
         final int numDocs = 200;
         if (isOldCluster()) {
-            Settings.Builder settings = Settings.builder()
-                .put(IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.getKey(), 1)
-                .put(IndexMetadata.INDEX_NUMBER_OF_REPLICAS_SETTING.getKey(), 0)
-                .put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
+            Settings.Builder settings = indexSettings(1, 0).put(INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING.getKey(), "100ms")
                 .put(SETTING_ALLOCATION_MAX_RETRY.getKey(), "0"); // fail faster
             createIndex(indexName, settings.build());
             ensureGreen(indexName);
@@ -208,7 +196,7 @@ public class SnapshotBasedRecoveryIT extends ParameterizedRollingUpgradeTestCase
             }
             builder.endObject();
 
-            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty&metric=none");
+            Request request = new Request(HttpPost.METHOD_NAME, "/_cluster/reroute?pretty");
             request.setJsonEntity(Strings.toString(builder));
             Response response = client().performRequest(request);
             logger.info("--> Relocated primary to an older version {}", EntityUtils.toString(response.getEntity()));

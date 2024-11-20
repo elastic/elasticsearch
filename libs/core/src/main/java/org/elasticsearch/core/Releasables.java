@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core;
@@ -30,10 +31,8 @@ public enum Releasables {
 
     /** Release the provided {@link Releasable}. */
     public static void close(@Nullable Releasable releasable) {
-        try {
-            IOUtils.close(releasable);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        if (releasable != null) {
+            releasable.close();
         }
     }
 
@@ -151,8 +150,9 @@ public enum Releasables {
                 private final AtomicReference<Exception> firstCompletion = new AtomicReference<>();
 
                 private void assertFirstRun() {
-                    var previousRun = firstCompletion.compareAndExchange(null, new Exception(delegate.toString()));
-                    assert previousRun == null : previousRun; // reports the stack traces of both completions
+                    var previousRun = firstCompletion.compareAndExchange(null, new Exception("already executed"));
+                    // reports the stack traces of both completions
+                    assert previousRun == null : new AssertionError(delegate.toString(), previousRun);
                 }
 
                 @Override
@@ -192,10 +192,7 @@ public enum Releasables {
 
         @Override
         public void close() {
-            final var acquired = getAndSet(null);
-            if (acquired != null) {
-                acquired.close();
-            }
+            Releasables.close(getAndSet(null));
         }
 
         @Override

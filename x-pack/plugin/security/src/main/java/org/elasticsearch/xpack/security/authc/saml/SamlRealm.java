@@ -49,9 +49,11 @@ import org.elasticsearch.xpack.core.security.authc.support.UserRoleMapper;
 import org.elasticsearch.xpack.core.security.user.User;
 import org.elasticsearch.xpack.core.ssl.CertParsingUtils;
 import org.elasticsearch.xpack.core.ssl.SSLService;
+import org.elasticsearch.xpack.security.PrivilegedFileWatcher;
 import org.elasticsearch.xpack.security.authc.Realms;
 import org.elasticsearch.xpack.security.authc.TokenService;
 import org.elasticsearch.xpack.security.authc.support.DelegatedAuthorizationSupport;
+import org.elasticsearch.xpack.security.authc.support.mapper.ExcludingRoleMapper;
 import org.opensaml.core.criterion.EntityIdCriterion;
 import org.opensaml.saml.common.xml.SAMLConstants;
 import org.opensaml.saml.criterion.EntityRoleCriterion;
@@ -110,6 +112,7 @@ import javax.net.ssl.X509KeyManager;
 
 import static org.elasticsearch.common.Strings.collectionToCommaDelimitedString;
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.transport.Transports.assertNotTransportThread;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.CLOCK_SKEW;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.DN_ATTRIBUTE;
 import static org.elasticsearch.xpack.core.security.authc.saml.SamlRealmSettings.ENCRYPTION_KEY_ALIAS;
@@ -260,7 +263,11 @@ public final class SamlRealm extends Realm implements Releasable {
     ) throws Exception {
         super(config);
 
-        this.roleMapper = roleMapper;
+        if (config.hasSetting(SamlRealmSettings.EXCLUDE_ROLES)) {
+            this.roleMapper = new ExcludingRoleMapper(roleMapper, config.getSetting(SamlRealmSettings.EXCLUDE_ROLES));
+        } else {
+            this.roleMapper = roleMapper;
+        }
         this.authenticator = authenticator;
         this.logoutHandler = logoutHandler;
         this.logoutResponseHandler = logoutResponseHandler;
@@ -746,6 +753,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         @Override
         protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a URL");
             try {
                 return AccessController.doPrivileged(
                     (PrivilegedExceptionAction<byte[]>) () -> PrivilegedHTTPMetadataResolver.super.fetchMetadata()
@@ -755,6 +763,24 @@ public final class SamlRealm extends Realm implements Releasable {
             }
         }
 
+    }
+
+    @SuppressForbidden(reason = "uses java.io.File")
+    private static final class SamlFilesystemMetadataResolver extends FilesystemMetadataResolver {
+
+        SamlFilesystemMetadataResolver(final java.io.File metadata) throws ResolverException {
+            super(metadata);
+        }
+
+        @Override
+        protected byte[] fetchMetadata() throws ResolverException {
+            assert assertNotTransportThread("fetching SAML metadata from a file");
+            try {
+                return AccessController.doPrivileged((PrivilegedExceptionAction<byte[]>) () -> super.fetchMetadata());
+            } catch (PrivilegedActionException e) {
+                throw (ResolverException) e.getException();
+            }
+        }
     }
 
     @SuppressForbidden(reason = "uses toFile")
@@ -767,7 +793,7 @@ public final class SamlRealm extends Realm implements Releasable {
 
         final String entityId = require(config, IDP_ENTITY_ID);
         final Path path = config.env().configFile().resolve(metadataPath);
-        final FilesystemMetadataResolver resolver = new FilesystemMetadataResolver(path.toFile());
+        final FilesystemMetadataResolver resolver = new SamlFilesystemMetadataResolver(path.toFile());
 
         for (var httpSetting : List.of(IDP_METADATA_HTTP_REFRESH, IDP_METADATA_HTTP_MIN_REFRESH, IDP_METADATA_HTTP_FAIL_ON_ERROR)) {
             if (config.hasSetting(httpSetting)) {
@@ -785,7 +811,7 @@ public final class SamlRealm extends Realm implements Releasable {
         resolver.setMaxRefreshDelay(oneDayMs);
         initialiseResolver(resolver, config);
 
-        FileWatcher watcher = new FileWatcher(path);
+        FileWatcher watcher = new PrivilegedFileWatcher(path);
         watcher.addListener(new FileListener(logger, resolver::refresh));
         watcherService.add(watcher, ResourceWatcherService.Frequency.MEDIUM);
         return new Tuple<>(resolver, () -> resolveEntityDescriptor(resolver, entityId, path.toString(), true));

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.network.CloseableChannel;
 import org.elasticsearch.common.network.HandlingTimeTracker;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.transport.NetworkExceptionHelper;
-import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -30,6 +30,8 @@ import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 
 import java.io.IOException;
+
+import static org.elasticsearch.core.Strings.format;
 
 final class OutboundHandler {
 
@@ -69,6 +71,14 @@ final class OutboundHandler {
         this.slowLogThresholdMs = slowLogThreshold.getMillis();
     }
 
+    /**
+     * Send a raw message over the given channel.
+     *
+     * @param listener completed when the message has been sent, on the network thread (unless the network thread has shut down). Take care
+     *                 if calling back into the network layer from this listener without dispatching to a new thread since if we do that
+     *                 too many times in a row it can cause a stack overflow. When in doubt, dispatch any follow-up work onto a separate
+     *                 thread.
+     */
     void sendBytes(TcpChannel channel, BytesReference bytes, ActionListener<Void> listener) {
         internalSend(channel, bytes, null, listener);
     }
@@ -126,7 +136,7 @@ final class OutboundHandler {
         final Compression.Scheme compressionScheme,
         final boolean isHandshake,
         final ResponseStatsConsumer responseStatsConsumer
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         OutboundMessage.Response message = new OutboundMessage.Response(
             threadPool.getThreadContext(),
@@ -136,13 +146,26 @@ final class OutboundHandler {
             isHandshake,
             compressionScheme
         );
-        sendMessage(channel, message, responseStatsConsumer, () -> {
-            try {
-                messageListener.onResponseSent(requestId, action, response);
-            } finally {
-                response.decRef();
+        response.mustIncRef();
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> {
+                try {
+                    messageListener.onResponseSent(requestId, action, response);
+                } finally {
+                    response.decRef();
+                }
+            });
+        } catch (Exception ex) {
+            if (isHandshake) {
+                logger.error(
+                    () -> format("Failed to send handshake response version [%s] received on [%s], closing channel", version, channel),
+                    ex
+                );
+                channel.close();
+            } else {
+                sendErrorResponse(transportVersion, channel, requestId, action, responseStatsConsumer, ex);
             }
-        });
+        }
     }
 
     /**
@@ -155,11 +178,17 @@ final class OutboundHandler {
         final String action,
         final ResponseStatsConsumer responseStatsConsumer,
         final Exception error
-    ) throws IOException {
+    ) {
         TransportVersion version = TransportVersion.min(this.version, transportVersion);
         RemoteTransportException tx = new RemoteTransportException(nodeName, channel.getLocalAddress(), action, error);
         OutboundMessage.Response message = new OutboundMessage.Response(threadPool.getThreadContext(), tx, version, requestId, false, null);
-        sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        try {
+            sendMessage(channel, message, responseStatsConsumer, () -> messageListener.onResponseSent(requestId, action, error));
+        } catch (Exception sendException) {
+            sendException.addSuppressed(error);
+            logger.error(() -> format("Failed to send error response on channel [%s], closing channel", channel), sendException);
+            channel.close();
+        }
     }
 
     private void sendMessage(
@@ -207,7 +236,7 @@ final class OutboundHandler {
         final long messageSize = reference.length();
         TransportLogger.logOutboundMessage(channel, reference);
         // stash thread context so that channel event loop is not polluted by thread context
-        try (ThreadContext.StoredContext existing = threadPool.getThreadContext().stashContext()) {
+        try (var ignored = threadPool.getThreadContext().newEmptyContext()) {
             channel.sendMessage(reference, new ActionListener<>() {
                 @Override
                 public void onResponse(Void v) {

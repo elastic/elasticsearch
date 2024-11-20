@@ -7,79 +7,88 @@
 
 package org.elasticsearch.xpack.inference.services.openai.embeddings;
 
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionVisitor;
+import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.openai.OpenAiModel;
-import org.elasticsearch.xpack.inference.services.openai.OpenAiServiceSettings;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
+
+import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
 public class OpenAiEmbeddingsModel extends OpenAiModel {
 
+    public static OpenAiEmbeddingsModel of(OpenAiEmbeddingsModel model, Map<String, Object> taskSettings) {
+        if (taskSettings == null || taskSettings.isEmpty()) {
+            return model;
+        }
+
+        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
+        return new OpenAiEmbeddingsModel(model, OpenAiEmbeddingsTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+    }
+
     public OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
         Map<String, Object> serviceSettings,
         Map<String, Object> taskSettings,
-        @Nullable Map<String, Object> secrets
+        ChunkingSettings chunkingSettings,
+        @Nullable Map<String, Object> secrets,
+        ConfigurationParseContext context
     ) {
         this(
-            modelId,
+            inferenceEntityId,
             taskType,
             service,
-            OpenAiServiceSettings.fromMap(serviceSettings),
-            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings),
+            OpenAiEmbeddingsServiceSettings.fromMap(serviceSettings, context),
+            OpenAiEmbeddingsTaskSettings.fromMap(taskSettings, context),
+            chunkingSettings,
             DefaultSecretSettings.fromMap(secrets)
         );
     }
 
     // Should only be used directly for testing
     OpenAiEmbeddingsModel(
-        String modelId,
+        String inferenceEntityId,
         TaskType taskType,
         String service,
-        OpenAiServiceSettings serviceSettings,
+        OpenAiEmbeddingsServiceSettings serviceSettings,
         OpenAiEmbeddingsTaskSettings taskSettings,
+        ChunkingSettings chunkingSettings,
         @Nullable DefaultSecretSettings secrets
     ) {
-        super(new ModelConfigurations(modelId, taskType, service, serviceSettings, taskSettings), new ModelSecrets(secrets));
+        super(
+            new ModelConfigurations(inferenceEntityId, taskType, service, serviceSettings, taskSettings, chunkingSettings),
+            new ModelSecrets(secrets),
+            serviceSettings,
+            secrets
+        );
     }
 
     private OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsTaskSettings taskSettings) {
-        super(
-            new ModelConfigurations(
-                originalModel.getConfigurations().getModelId(),
-                originalModel.getConfigurations().getTaskType(),
-                originalModel.getConfigurations().getService(),
-                originalModel.getServiceSettings(),
-                taskSettings
-            ),
-            new ModelSecrets(originalModel.getSecretSettings())
-        );
+        super(originalModel, taskSettings);
     }
 
-    public OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiServiceSettings serviceSettings) {
-        super(
-            new ModelConfigurations(
-                originalModel.getConfigurations().getModelId(),
-                originalModel.getConfigurations().getTaskType(),
-                originalModel.getConfigurations().getService(),
-                serviceSettings,
-                originalModel.getTaskSettings()
-            ),
-            new ModelSecrets(originalModel.getSecretSettings())
-        );
+    public OpenAiEmbeddingsModel(OpenAiEmbeddingsModel originalModel, OpenAiEmbeddingsServiceSettings serviceSettings) {
+        super(originalModel, serviceSettings);
     }
 
     @Override
-    public OpenAiServiceSettings getServiceSettings() {
-        return (OpenAiServiceSettings) super.getServiceSettings();
+    public OpenAiEmbeddingsServiceSettings getServiceSettings() {
+        return (OpenAiEmbeddingsServiceSettings) super.getServiceSettings();
     }
 
     @Override
@@ -97,12 +106,29 @@ public class OpenAiEmbeddingsModel extends OpenAiModel {
         return creator.create(this, taskSettings);
     }
 
-    public OpenAiEmbeddingsModel overrideWith(Map<String, Object> taskSettings) {
-        if (taskSettings == null || taskSettings.isEmpty()) {
-            return this;
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
         }
 
-        var requestTaskSettings = OpenAiEmbeddingsRequestTaskSettings.fromMap(taskSettings);
-        return new OpenAiEmbeddingsModel(this, getTaskSettings().overrideWith(requestTaskSettings));
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    USER,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("User")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Specifies the user issuing the request.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .setValue("")
+                        .build()
+                );
+
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

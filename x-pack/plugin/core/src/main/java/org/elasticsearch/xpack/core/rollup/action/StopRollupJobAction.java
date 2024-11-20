@@ -35,7 +35,7 @@ public class StopRollupJobAction extends ActionType<StopRollupJobAction.Response
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopRollupJobAction() {
-        super(NAME, StopRollupJobAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> implements ToXContentObject {

@@ -16,10 +16,12 @@ import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.alias.Alias;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequestBuilder;
+import org.elasticsearch.action.admin.indices.alias.IndicesAliasesResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequestBuilder;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.put.TransportPutComposableIndexTemplateAction;
+import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -104,6 +106,7 @@ public final class MlIndexAndAlias {
         String indexPatternPrefix,
         String alias,
         TimeValue masterNodeTimeout,
+        ActiveShardCount waitForShardCount,
         ActionListener<Boolean> finalListener
     ) {
 
@@ -132,7 +135,7 @@ public final class MlIndexAndAlias {
 
         if (concreteIndexNames.length == 0) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
             logger.error(
@@ -143,7 +146,7 @@ public final class MlIndexAndAlias {
             );
         } else if (concreteIndexNames.length == 1 && concreteIndexNames[0].equals(legacyIndexWithoutSuffix)) {
             if (indexPointedByCurrentWriteAlias.isEmpty()) {
-                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, indexCreatedListener);
+                createFirstConcreteIndex(client, firstConcreteIndex, alias, true, waitForShardCount, indexCreatedListener);
                 return;
             }
             if (indexPointedByCurrentWriteAlias.get().equals(legacyIndexWithoutSuffix)) {
@@ -152,6 +155,7 @@ public final class MlIndexAndAlias {
                     firstConcreteIndex,
                     alias,
                     false,
+                    waitForShardCount,
                     indexCreatedListener.delegateFailureAndWrap(
                         (l, unused) -> updateWriteAlias(client, alias, legacyIndexWithoutSuffix, firstConcreteIndex, l)
                     )
@@ -223,10 +227,9 @@ public final class MlIndexAndAlias {
     }
 
     private static void waitForShardsReady(Client client, String index, TimeValue masterNodeTimeout, ActionListener<Boolean> listener) {
-        ClusterHealthRequest healthRequest = new ClusterHealthRequest(index).waitForYellowStatus()
+        ClusterHealthRequest healthRequest = new ClusterHealthRequest(masterNodeTimeout, index).waitForYellowStatus()
             .waitForNoRelocatingShards(true)
-            .waitForNoInitializingShards(true)
-            .masterNodeTimeout(masterNodeTimeout);
+            .waitForNoInitializingShards(true);
         executeAsyncWithOrigin(
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
@@ -241,6 +244,7 @@ public final class MlIndexAndAlias {
         String index,
         String alias,
         boolean addAlias,
+        ActiveShardCount waitForShardCount,
         ActionListener<Boolean> listener
     ) {
         logger.info("About to create first concrete index [{}] with alias [{}]", index, alias);
@@ -248,6 +252,7 @@ public final class MlIndexAndAlias {
         if (addAlias) {
             requestBuilder.addAlias(new Alias(alias).isHidden(true));
         }
+        requestBuilder.setWaitForActiveShards(waitForShardCount);
         CreateIndexRequest request = requestBuilder.request();
 
         executeAsyncWithOrigin(
@@ -295,7 +300,7 @@ public final class MlIndexAndAlias {
             client.threadPool().getThreadContext(),
             ML_ORIGIN,
             request,
-            listener.<AcknowledgedResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
+            listener.<IndicesAliasesResponse>delegateFailureAndWrap((l, resp) -> l.onResponse(resp.isAcknowledged())),
             client.admin().indices()::aliases
         );
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -56,6 +57,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public short readShort() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 2) {
             return slice.getShort();
         } else {
@@ -66,6 +69,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int readInt() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 4) {
             return slice.getInt();
         } else {
@@ -76,6 +81,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readLong() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 8) {
             return slice.getLong();
         } else {
@@ -85,7 +92,29 @@ class BytesReferenceStreamInput extends StreamInput {
     }
 
     @Override
+    public String readString() throws IOException {
+        final int chars = readArraySize();
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
+        if (slice.hasArray()) {
+            // attempt reading bytes directly into a string to minimize copying
+            final String string = tryReadStringFromBytes(
+                slice.array(),
+                slice.position() + slice.arrayOffset(),
+                slice.limit() + slice.arrayOffset(),
+                chars
+            );
+            if (string != null) {
+                return string;
+            }
+        }
+        return doReadString(chars);
+    }
+
+    @Override
     public int readVInt() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 5) {
             return ByteBufferStreamInput.readVInt(slice);
         }
@@ -94,6 +123,8 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public long readVLong() throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
         if (slice.remaining() >= 10) {
             return ByteBufferStreamInput.readVLong(slice);
         } else {
@@ -143,6 +174,16 @@ class BytesReferenceStreamInput extends StreamInput {
 
     @Override
     public int read(final byte[] b, final int bOffset, final int len) throws IOException {
+        // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+        final ByteBuffer slice = this.slice;
+        if (slice.remaining() >= len) {
+            slice.get(b, bOffset, len);
+            return len;
+        }
+        return readFromMultipleSlices(b, bOffset, len);
+    }
+
+    private int readFromMultipleSlices(byte[] b, int bOffset, int len) throws IOException {
         final int length = bytesReference.length();
         final int offset = offset();
         if (offset >= length) {
@@ -186,12 +227,22 @@ class BytesReferenceStreamInput extends StreamInput {
         if (n <= 0L) {
             return 0L;
         }
+        if (n <= slice.remaining()) {
+            slice.position(slice.position() + (int) n);
+            return n;
+        }
+        return skipMultiple(n);
+    }
+
+    private int skipMultiple(long n) throws IOException {
         assert offset() <= bytesReference.length() : offset() + " vs " + bytesReference.length();
         // definitely >= 0 and <= Integer.MAX_VALUE so casting is ok
         final int numBytesSkipped = (int) Math.min(n, bytesReference.length() - offset());
         int remaining = numBytesSkipped;
         while (remaining > 0) {
             maybeNextSlice();
+            // cache object fields (even when final this is a valid optimization, see https://openjdk.org/jeps/8132243)
+            final ByteBuffer slice = this.slice;
             int currentLen = Math.min(remaining, slice.remaining());
             remaining -= currentLen;
             slice.position(slice.position() + currentLen);
@@ -211,6 +262,16 @@ class BytesReferenceStreamInput extends StreamInput {
             final long skipped = skip(mark);
             assert skipped == mark : skipped + " vs " + mark;
         }
+    }
+
+    @Override
+    public BytesReference readSlicedBytesReference() throws IOException {
+        int len = readVInt();
+        int pos = offset();
+        if (len != skip(len)) {
+            throw new EOFException();
+        }
+        return bytesReference.slice(pos, len);
     }
 
     @Override

@@ -16,8 +16,11 @@ import org.elasticsearch.rest.action.RestRefCountedChunkedToXContentListener;
 import org.elasticsearch.xpack.core.async.GetAsyncResultRequest;
 
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.esql.action.EsqlQueryResponse.DROP_NULL_COLUMNS_OPTION;
+import static org.elasticsearch.xpack.esql.formatter.TextFormat.URL_PARAM_DELIMITER;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestEsqlGetAsyncResultAction extends BaseRestHandler {
@@ -41,5 +44,10 @@ public class RestEsqlGetAsyncResultAction extends BaseRestHandler {
             get.setKeepAlive(request.paramAsTime("keep_alive", get.getKeepAlive()));
         }
         return channel -> client.execute(EsqlAsyncGetResultAction.INSTANCE, get, new RestRefCountedChunkedToXContentListener<>(channel));
+    }
+
+    @Override
+    protected Set<String> responseParams() {
+        return Set.of(URL_PARAM_DELIMITER, DROP_NULL_COLUMNS_OPTION);
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -34,6 +35,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.function.BiConsumer;
 
 import static org.elasticsearch.common.xcontent.support.XContentMapValues.nodeBooleanValue;
@@ -43,6 +45,7 @@ import static org.elasticsearch.index.mapper.TypeParsers.parseDateTimeFormatter;
 
 public class RootObjectMapper extends ObjectMapper {
     private static final DeprecationLogger DEPRECATION_LOGGER = DeprecationLogger.getLogger(RootObjectMapper.class);
+    private static final int MAX_NESTING_LEVEL_FOR_PASS_THROUGH_OBJECTS = 20;
 
     /**
      * Parameter used when serializing {@link RootObjectMapper} and request that the runtime section is skipped.
@@ -74,7 +77,7 @@ public class RootObjectMapper extends ObjectMapper {
         protected Explicit<Boolean> dateDetection = Defaults.DATE_DETECTION;
         protected Explicit<Boolean> numericDetection = Defaults.NUMERIC_DETECTION;
 
-        public Builder(String name, Explicit<Boolean> subobjects) {
+        public Builder(String name, Optional<Subobjects> subobjects) {
             super(name, subobjects);
         }
 
@@ -107,11 +110,12 @@ public class RootObjectMapper extends ObjectMapper {
         @Override
         public RootObjectMapper build(MapperBuilderContext context) {
             return new RootObjectMapper(
-                name,
+                leafName(),
                 enabled,
                 subobjects,
+                sourceKeepMode,
                 dynamic,
-                buildMappers(context),
+                buildMappers(context.createChildContext(null, dynamic)),
                 new HashMap<>(runtimeFields),
                 dynamicDateTimeFormatters,
                 dynamicTemplates,
@@ -130,7 +134,8 @@ public class RootObjectMapper extends ObjectMapper {
     RootObjectMapper(
         String name,
         Explicit<Boolean> enabled,
-        Explicit<Boolean> subobjects,
+        Optional<Subobjects> subobjects,
+        Optional<SourceKeepMode> sourceKeepMode,
         Dynamic dynamic,
         Map<String, Mapper> mappers,
         Map<String, RuntimeField> runtimeFields,
@@ -139,20 +144,42 @@ public class RootObjectMapper extends ObjectMapper {
         Explicit<Boolean> dateDetection,
         Explicit<Boolean> numericDetection
     ) {
-        super(name, name, enabled, subobjects, dynamic, mappers);
+        super(name, name, enabled, subobjects, sourceKeepMode, dynamic, mappers);
         this.runtimeFields = runtimeFields;
         this.dynamicTemplates = dynamicTemplates;
         this.dynamicDateTimeFormatters = dynamicDateTimeFormatters;
         this.dateDetection = dateDetection;
         this.numericDetection = numericDetection;
+        if (sourceKeepMode.orElse(SourceKeepMode.NONE) == SourceKeepMode.ALL) {
+            throw new MapperParsingException(
+                "root object can't be configured with [" + Mapper.SYNTHETIC_SOURCE_KEEP_PARAM + ":" + SourceKeepMode.ALL + "]"
+            );
+        }
     }
 
     @Override
     public RootObjectMapper.Builder newBuilder(IndexVersion indexVersionCreated) {
-        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(name(), subobjects);
+        RootObjectMapper.Builder builder = new RootObjectMapper.Builder(this.fullPath(), subobjects);
         builder.enabled = enabled;
         builder.dynamic = dynamic;
         return builder;
+    }
+
+    @Override
+    RootObjectMapper withoutMappers() {
+        return new RootObjectMapper(
+            leafName(),
+            enabled,
+            subobjects,
+            sourceKeepMode,
+            dynamic,
+            Map.of(),
+            Map.of(),
+            dynamicDateTimeFormatters,
+            dynamicTemplates,
+            dateDetection,
+            numericDetection
+        );
     }
 
     /**
@@ -192,16 +219,20 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected MapperBuilderContext createChildContext(MapperBuilderContext mapperBuilderContext, String name) {
-        assert Objects.equals(mapperBuilderContext.buildFullName("foo"), "foo");
-        return mapperBuilderContext;
+    protected MapperMergeContext createChildContext(MapperMergeContext mapperMergeContext, String name) {
+        assert Objects.equals(mapperMergeContext.getMapperBuilderContext().buildFullName("foo"), "foo");
+        return mapperMergeContext.createChildContext(null, dynamic);
     }
 
     @Override
-    public RootObjectMapper merge(Mapper mergeWith, MergeReason reason, MapperBuilderContext parentBuilderContext) {
-        final var mergeResult = MergeResult.build(this, mergeWith, reason, parentBuilderContext);
-        final Explicit<Boolean> numericDetection;
+    public RootObjectMapper merge(Mapper mergeWith, MapperMergeContext parentMergeContext) {
+        if (mergeWith instanceof RootObjectMapper == false) {
+            MapperErrors.throwObjectMappingConflictError(mergeWith.fullPath());
+        }
+
         RootObjectMapper mergeWithObject = (RootObjectMapper) mergeWith;
+        final var mergeResult = MergeResult.build(this, mergeWithObject, parentMergeContext);
+        final Explicit<Boolean> numericDetection;
         if (mergeWithObject.numericDetection.explicit()) {
             numericDetection = mergeWithObject.numericDetection;
         } else {
@@ -224,7 +255,7 @@ public class RootObjectMapper extends ObjectMapper {
 
         final Explicit<DynamicTemplate[]> dynamicTemplates;
         if (mergeWithObject.dynamicTemplates.explicit()) {
-            if (reason == MergeReason.INDEX_TEMPLATE) {
+            if (parentMergeContext.getMapperBuilderContext().getMergeReason() == MergeReason.INDEX_TEMPLATE) {
                 Map<String, DynamicTemplate> templatesByKey = new LinkedHashMap<>();
                 for (DynamicTemplate template : this.dynamicTemplates.value()) {
                     templatesByKey.put(template.name(), template);
@@ -242,19 +273,21 @@ public class RootObjectMapper extends ObjectMapper {
             dynamicTemplates = this.dynamicTemplates;
         }
         final Map<String, RuntimeField> runtimeFields = new HashMap<>(this.runtimeFields);
-        assert this.runtimeFields != mergeWithObject.runtimeFields;
         for (Map.Entry<String, RuntimeField> runtimeField : mergeWithObject.runtimeFields.entrySet()) {
             if (runtimeField.getValue() == null) {
                 runtimeFields.remove(runtimeField.getKey());
-            } else {
+            } else if (runtimeFields.containsKey(runtimeField.getKey())) {
                 runtimeFields.put(runtimeField.getKey(), runtimeField.getValue());
+            } else if (parentMergeContext.decrementFieldBudgetIfPossible(1)) {
+                runtimeFields.put(runtimeField.getValue().name(), runtimeField.getValue());
             }
         }
 
         return new RootObjectMapper(
-            simpleName(),
+            leafName(),
             mergeResult.enabled(),
             mergeResult.subObjects(),
+            mergeResult.sourceKeepMode(),
             mergeResult.dynamic(),
             mergeResult.mappers(),
             Map.copyOf(runtimeFields),
@@ -410,13 +443,13 @@ public class RootObjectMapper extends ObjectMapper {
     }
 
     @Override
-    protected void startSyntheticField(XContentBuilder b) throws IOException {
-        b.startObject();
+    protected boolean isRoot() {
+        return true;
     }
 
     public static RootObjectMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
         throws MapperParsingException {
-        Explicit<Boolean> subobjects = parseSubobjects(node);
+        Optional<Subobjects> subobjects = parseSubobjects(node);
         RootObjectMapper.Builder builder = new Builder(name, subobjects);
         Iterator<Map.Entry<String, Object>> iterator = node.entrySet().iterator();
         while (iterator.hasNext()) {
@@ -480,7 +513,7 @@ public class RootObjectMapper extends ObjectMapper {
                 String templateName = entry.getKey();
                 Map<String, Object> templateParams = (Map<String, Object>) entry.getValue();
                 DynamicTemplate template = DynamicTemplate.parse(templateName, templateParams);
-                validateDynamicTemplate(parserContext, template);
+                validateDynamicTemplate(parserContext.createDynamicTemplateContext(null), template);
                 templates.add(template);
             }
             builder.dynamicTemplates(templates);
@@ -501,5 +534,10 @@ public class RootObjectMapper extends ObjectMapper {
             }
         }
         return false;
+    }
+
+    @Override
+    public int getTotalFieldsCount() {
+        return mappers.values().stream().mapToInt(Mapper::getTotalFieldsCount).sum() + runtimeFields.size();
     }
 }

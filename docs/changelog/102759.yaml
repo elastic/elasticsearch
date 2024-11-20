@@ -1,6 +1,0 @@
-pr: 102759
-summary: Close rather than stop `HttpServerTransport` on shutdown
-area: Infra/Node Lifecycle
-type: bug
-issues:
- - 102501

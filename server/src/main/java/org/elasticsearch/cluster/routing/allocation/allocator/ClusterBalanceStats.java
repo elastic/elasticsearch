@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -75,8 +76,8 @@ public record ClusterBalanceStats(
 
     public static ClusterBalanceStats readFrom(StreamInput in) throws IOException {
         return new ClusterBalanceStats(
-            in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED) ? in.readVInt() : -1,
-            in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED) ? in.readVInt() : -1,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
+            in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
             in.readImmutableMap(TierBalanceStats::readFrom),
             in.readImmutableMap(NodeBalanceStats::readFrom)
         );
@@ -84,10 +85,8 @@ public record ClusterBalanceStats(
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeVInt(shards);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)) {
             out.writeVInt(undesiredShardAllocations);
         }
         out.writeMap(tiers, StreamOutput::writeWriteable);
@@ -125,7 +124,7 @@ public record ClusterBalanceStats(
         public static TierBalanceStats readFrom(StreamInput in) throws IOException {
             return new TierBalanceStats(
                 MetricStats.readFrom(in),
-                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)
                     ? MetricStats.readFrom(in)
                     : new MetricStats(0.0, 0.0, 0.0, 0.0, 0.0),
                 MetricStats.readFrom(in),
@@ -137,7 +136,7 @@ public record ClusterBalanceStats(
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             shardCount.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 undesiredShardAllocations.writeTo(out);
             }
             forecastWriteLoad.writeTo(out);
@@ -268,7 +267,7 @@ public record ClusterBalanceStats(
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readString() : UNKNOWN_NODE_ID,
                 in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) ? in.readStringCollectionAsList() : List.of(),
                 in.readInt(),
-                in.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED) ? in.readVInt() : -1,
+                in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0) ? in.readVInt() : -1,
                 in.readDouble(),
                 in.readLong(),
                 in.readLong()
@@ -279,12 +278,10 @@ public record ClusterBalanceStats(
         public void writeTo(StreamOutput out) throws IOException {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeString(nodeId);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
                 out.writeStringCollection(roles);
             }
             out.writeInt(shards);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.UNDESIRED_SHARD_ALLOCATIONS_COUNT_ADDED)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
                 out.writeVInt(undesiredShardAllocations);
             }
             out.writeDouble(forecastWriteLoad);

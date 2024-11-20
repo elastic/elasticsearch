@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation.CommonFields;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -25,7 +25,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.NoSuchElementException;
-import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptyMap;
@@ -70,19 +69,6 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
         boolean empty
     );
 
-    protected abstract Class<? extends ParsedPercentiles> implementationClass();
-
-    public void testPercentilesIterators() throws IOException {
-        final T aggregation = createTestInstance();
-        final Iterable<Percentile> parsedAggregation = parseAndAssert(aggregation, false, false);
-
-        Iterator<Percentile> it = aggregation.iterator();
-        Iterator<Percentile> parsedIt = parsedAggregation.iterator();
-        while (it.hasNext()) {
-            assertEquals(it.next(), parsedIt.next());
-        }
-    }
-
     public static double[] randomPercents(boolean sorted) {
         List<Double> randomCdfValues = randomSubsetOf(randomIntBetween(1, 7), 0.01d, 0.05d, 0.25d, 0.50d, 0.75d, 0.95d, 0.99d);
         double[] percents = new double[randomCdfValues.size()];
@@ -93,11 +79,6 @@ public abstract class AbstractPercentilesTestCase<T extends InternalAggregation 
             Arrays.sort(percents);
         }
         return percents;
-    }
-
-    @Override
-    protected Predicate<String> excludePathsFromXContentInsertion() {
-        return path -> path.endsWith(CommonFields.VALUES.getPreferredName());
     }
 
     protected abstract void assertPercentile(T agg, Double value);

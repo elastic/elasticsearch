@@ -16,6 +16,6 @@ public class GetSecretAction extends ActionType<GetSecretResponse> {
     public static final GetSecretAction INSTANCE = new GetSecretAction();
 
     private GetSecretAction() {
-        super(NAME, GetSecretResponse::new);
+        super(NAME);
     }
 }

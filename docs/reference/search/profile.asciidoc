@@ -198,6 +198,17 @@ The API returns the following result:
           },
           "children": [
             {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1044,6 +1055,17 @@ And here is the fetch profile:
           },
           "children": [
             {
+              "type" : "FetchFieldsPhase",
+              "description" : "",
+              "time_in_nanos" : 238762,
+              "breakdown" : {
+                "process_count" : 5,
+                "process" : 227914,
+                "next_reader" : 10848,
+                "next_reader_count" : 1
+              }
+            },
+            {
               "type": "FetchSourcePhase",
               "description": "",
               "time_in_nanos": 20443,
@@ -1276,7 +1298,7 @@ One of the `dfs.knn` sections for a shard looks like the following:
         "query" : [
             {
                 "type" : "DocAndScoreQuery",
-                "description" : "DocAndScore[100]",
+                "description" : "DocAndScoreQuery[0,...][0.008961825,...],0.008961825",
                 "time_in_nanos" : 444414,
                 "breakdown" : {
                   "set_min_competitive_score_count" : 0,

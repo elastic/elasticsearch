@@ -159,13 +159,13 @@ public class BasicQueryClient implements QueryClient {
                     return;
                 }
                 // otherwise proceed
-                List<SearchHit> docs = RuntimeUtils.searchHits(item.getResponse());
                 // for each doc, find its reference and its position inside the matrix
-                for (SearchHit doc : docs) {
+                for (SearchHit doc : item.getResponse().getHits()) {
                     HitReference docRef = new HitReference(doc);
                     List<Integer> positions = referenceToPosition.get(docRef);
                     positions.forEach(pos -> {
-                        SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc);
+                        // TODO: stop using unpooled
+                        SearchHit previous = seq.get(pos / listSize).set(pos % listSize, doc.asUnpooled());
                         if (previous != null) {
                             throw new EqlIllegalArgumentException(
                                 "Overriding sequence match [{}] with [{}]",

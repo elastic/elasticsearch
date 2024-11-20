@@ -44,23 +44,23 @@ used to limit the request.
 [[get-index-settings-api-query-params]]
 ==== {api-query-parms-title}
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=allow-no-indices]
 +
 Defaults to `true`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=expand-wildcards]
 +
 Defaults to `open`.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=flat-settings]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=include-defaults]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=index-ignore-unavailable]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=local]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=local]
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=master-timeout]
 
 
 [[get-index-settings-api-example]]

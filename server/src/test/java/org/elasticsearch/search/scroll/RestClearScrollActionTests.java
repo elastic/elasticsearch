@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.scroll;
@@ -53,7 +54,7 @@ public class RestClearScrollActionTests extends ESTestCase {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(
                 Collections.singletonMap("scroll_id", "QUERY_STRING")
             ).withContent(new BytesArray("{\"scroll_id\": [\"BODY\"]}"), XContentType.JSON).build();
-            FakeRestChannel channel = new FakeRestChannel(request, false, 0);
+            FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 0);
             action.handleRequest(request, channel, nodeClient);
 
             assertThat(scrollCalled.get(), equalTo(true));

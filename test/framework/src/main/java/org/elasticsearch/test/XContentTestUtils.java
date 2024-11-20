@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -277,7 +278,7 @@ public final class XContentTestUtils {
         // parser.currentName() can be null for root object and unnamed objects in arrays
         if (parser.currentName() != null) {
             // dots in randomized field names need to be escaped, we use that character as the path separator
-            currentPath.addLast(parser.currentName().replaceAll("\\.", "\\\\."));
+            currentPath.addLast(parser.currentName().replace(".", "\\."));
         }
         if (parser.currentToken() == XContentParser.Token.START_OBJECT) {
             validPaths.add(String.join(".", currentPath));
@@ -353,6 +354,11 @@ public final class XContentTestUtils {
                 }
             }
             return (T) context;
+        }
+
+        @Override
+        public String toString() {
+            return "JsonMapView{map=" + map + '}';
         }
     }
 }

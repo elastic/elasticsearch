@@ -155,8 +155,8 @@
 
 ---
 "date_nanos":
-  - skip:
-      version: " - 7.9.99"
+  - requires:
+      cluster_features: ["gte_v7.10.0"]
       reason: fixed in 7.10.0
 
   - do:
@@ -221,9 +221,9 @@
 
 ---
 "_shard_doc sort":
-  - skip:
-        version: " - 7.11.99"
-        reason: _shard_doc sort was added in 7.12
+  - requires:
+      cluster_features: ["gte_v7.12.0"]
+      reason: _shard_doc sort was added in 7.12
 
   - do:
       indices.create:
@@ -245,8 +245,8 @@
 
 ---
 "Format sort values":
-  - skip:
-      version: " - 7.12.99"
+  - requires:
+      cluster_features: ["gte_v7.13.0"]
       reason: Format sort output is introduced in 7.13
 
   - do:

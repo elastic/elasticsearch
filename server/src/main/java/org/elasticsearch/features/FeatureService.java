@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.features;
@@ -20,7 +21,8 @@ import java.util.NavigableMap;
 import java.util.Set;
 
 /**
- * Manages information on the features supported by nodes in the cluster
+ * Manages information on the features supported by nodes in the cluster.
+ * For more information, see {@link FeatureSpecification}.
  */
 public class FeatureService {
 
@@ -28,6 +30,7 @@ public class FeatureService {
      * A feature indicating that node features are supported.
      */
     public static final NodeFeature FEATURES_SUPPORTED = new NodeFeature("features_supported");
+    public static final NodeFeature TEST_FEATURES_ENABLED = new NodeFeature("test_features_enabled");
 
     private static final Logger logger = LogManager.getLogger(FeatureService.class);
 
@@ -36,6 +39,10 @@ public class FeatureService {
     private final NavigableMap<Version, Set<String>> historicalFeatures;
     private final Map<String, NodeFeature> nodeFeatures;
 
+    /**
+     * Creates a new {@code FeatureService}, reporting all the features declared in {@code specs}
+     * as the local node's supported feature set
+     */
     public FeatureService(List<? extends FeatureSpecification> specs) {
 
         var featureData = FeatureData.createFromSpecifications(specs);
@@ -47,6 +54,7 @@ public class FeatureService {
 
     /**
      * The non-historical features supported by this node.
+     * @return Map of {@code feature-id} to its declaring {@code NodeFeature} object.
      */
     public Map<String, NodeFeature> getNodeFeatures() {
         return nodeFeatures;

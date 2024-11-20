@@ -11,6 +11,8 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
+import static org.elasticsearch.xpack.inference.Utils.mockClusterServiceEmpty;
+
 public class RetrySettingsTests extends ESTestCase {
 
     /**
@@ -24,7 +26,7 @@ public class RetrySettingsTests extends ESTestCase {
     public static RetrySettings createRetrySettings(TimeValue initialDelay, TimeValue maxDelayBound, TimeValue timeout) {
         var settings = buildSettingsWithRetryFields(initialDelay, maxDelayBound, timeout);
 
-        return new RetrySettings(settings);
+        return new RetrySettings(settings, mockClusterServiceEmpty());
     }
 
     public static Settings buildSettingsWithRetryFields(TimeValue initialDelay, TimeValue maxDelayBound, TimeValue timeout) {

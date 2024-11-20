@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.core.security.action.realm;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public class ClearRealmCacheAction extends ActionType<ClearRealmCacheResponse> {
 
@@ -15,6 +14,6 @@ public class ClearRealmCacheAction extends ActionType<ClearRealmCacheResponse> {
     public static final String NAME = "cluster:admin/xpack/security/realm/cache/clear";
 
     protected ClearRealmCacheAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

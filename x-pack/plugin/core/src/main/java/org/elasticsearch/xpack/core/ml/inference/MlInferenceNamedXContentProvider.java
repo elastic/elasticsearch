@@ -23,12 +23,14 @@ import org.elasticsearch.xpack.core.ml.inference.preprocessing.TargetMeanEncodin
 import org.elasticsearch.xpack.core.ml.inference.results.ClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.FillMaskResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextEmbeddingFloatResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlChunkedTextExpansionResults;
+import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NerResults;
 import org.elasticsearch.xpack.core.ml.inference.results.NlpClassificationInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.PyTorchPassThroughResults;
 import org.elasticsearch.xpack.core.ml.inference.results.QuestionAnsweringInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.RegressionInferenceResults;
-import org.elasticsearch.xpack.core.ml.inference.results.TextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextSimilarityInferenceResults;
 import org.elasticsearch.xpack.core.ml.inference.results.WarningInferenceResults;
@@ -38,6 +40,8 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.ClassificationConfigUpdate;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.EmptyConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.FillMaskConfigUpdate;
@@ -72,6 +76,7 @@ import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextExpansionConfi
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfig;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TextSimilarityConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationConfigUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TokenizationUpdate;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModel;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.TrainedModelLocation;
@@ -544,6 +549,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 (p, c) -> XLMRobertaTokenization.fromXContent(p, (boolean) c)
             )
         );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                Tokenization.class,
+                new ParseField(DebertaV2Tokenization.NAME),
+                (p, c) -> DebertaV2Tokenization.fromXContent(p, (boolean) c)
+            )
+        );
 
         namedXContent.add(
             new NamedXContentRegistry.Entry(
@@ -578,6 +590,13 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TokenizationUpdate.class,
                 XLMRobertaTokenizationUpdate.NAME,
                 (p, c) -> XLMRobertaTokenizationUpdate.fromXContent(p)
+            )
+        );
+        namedXContent.add(
+            new NamedXContentRegistry.Entry(
+                TokenizationUpdate.class,
+                DebertaV2TokenizationUpdate.NAME,
+                (p, c) -> DebertaV2TokenizationUpdate.fromXContent(p)
             )
         );
 
@@ -649,7 +668,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
             new NamedWriteableRegistry.Entry(InferenceResults.class, PyTorchPassThroughResults.NAME, PyTorchPassThroughResults::new)
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextExpansionResults.NAME, TextExpansionResults::new));
-        namedWriteables.add(new NamedWriteableRegistry.Entry(InferenceResults.class, TextEmbeddingResults.NAME, TextEmbeddingResults::new));
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, MlTextEmbeddingResults.NAME, MlTextEmbeddingResults::new)
+        );
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
                 InferenceResults.class,
@@ -671,6 +692,17 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 TextSimilarityInferenceResults::new
             )
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                InferenceResults.class,
+                MlChunkedTextEmbeddingFloatResults.NAME,
+                MlChunkedTextEmbeddingFloatResults::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceResults.class, MlChunkedTextExpansionResults.NAME, MlChunkedTextExpansionResults::new)
+        );
+
         // Inference Configs
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfig.class, ClassificationConfig.NAME.getPreferredName(), ClassificationConfig::new)
@@ -750,6 +782,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TextSimilarityConfigUpdate.NAME, TextSimilarityConfigUpdate::new)
         );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(InferenceConfigUpdate.class, TokenizationConfigUpdate.NAME, TokenizationConfigUpdate::new)
+        );
 
         // Location
         namedWriteables.add(
@@ -772,6 +807,7 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
         );
         namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, RobertaTokenization.NAME, RobertaTokenization::new));
         namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, XLMRobertaTokenization.NAME, XLMRobertaTokenization::new));
+        namedWriteables.add(new NamedWriteableRegistry.Entry(Tokenization.class, DebertaV2Tokenization.NAME, DebertaV2Tokenization::new));
 
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(
@@ -807,6 +843,9 @@ public class MlInferenceNamedXContentProvider implements NamedXContentProvider {
                 XLMRobertaTokenizationUpdate.NAME.getPreferredName(),
                 XLMRobertaTokenizationUpdate::new
             )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(TokenizationUpdate.class, DebertaV2Tokenization.NAME, DebertaV2TokenizationUpdate::new)
         );
 
         return namedWriteables;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -24,9 +25,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.settings.SettingsException;
 import org.elasticsearch.common.unit.ByteSizeValue;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.snapshots.SnapshotShardSizeInfo;
 
 import java.util.Map;
@@ -71,25 +70,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public static final String NAME = "disk_threshold";
 
-    @UpdateForV9
-    public static final Setting<Boolean> ENABLE_FOR_SINGLE_DATA_NODE = Setting.boolSetting(
-        "cluster.routing.allocation.disk.watermark.enable_for_single_data_node",
-        true,
-        new Setting.Validator<>() {
-            @Override
-            public void validate(Boolean value) {
-                if (value == Boolean.FALSE) {
-                    throw new SettingsException(
-                        "setting [{}=false] is not allowed, only true is valid",
-                        ENABLE_FOR_SINGLE_DATA_NODE.getKey()
-                    );
-                }
-            }
-        },
-        Setting.Property.NodeScope,
-        Setting.Property.DeprecatedWarning
-    );
-
     public static final Setting<Boolean> SETTING_IGNORE_DISK_WATERMARKS = Setting.boolSetting(
         "index.routing.allocation.disk.watermark.ignore",
         false,
@@ -101,9 +81,6 @@ public class DiskThresholdDecider extends AllocationDecider {
 
     public DiskThresholdDecider(Settings settings, ClusterSettings clusterSettings) {
         this.diskThresholdSettings = new DiskThresholdSettings(settings, clusterSettings);
-        // get deprecation warnings.
-        boolean enabledForSingleDataNode = ENABLE_FOR_SINGLE_DATA_NODE.get(settings);
-        assert enabledForSingleDataNode;
     }
 
     /**
@@ -472,9 +449,9 @@ public class DiskThresholdDecider extends AllocationDecider {
             logger.debug(
                 "unable to determine disk usage for {}, defaulting to average across nodes [{} total] [{} free] [{}% free]",
                 node.nodeId(),
-                usage.getTotalBytes(),
-                usage.getFreeBytes(),
-                usage.getFreeDiskAsPercentage()
+                usage.totalBytes(),
+                usage.freeBytes(),
+                usage.freeDiskAsPercentage()
             );
         }
 
@@ -483,7 +460,7 @@ public class DiskThresholdDecider extends AllocationDecider {
             sizeOfUnaccountedShards(
                 node,
                 subtractLeavingShards,
-                usage.getPath(),
+                usage.path(),
                 allocation.clusterInfo(),
                 allocation.snapshotShardSizeInfo(),
                 allocation.metadata(),
@@ -509,8 +486,8 @@ public class DiskThresholdDecider extends AllocationDecider {
         long totalBytes = 0;
         long freeBytes = 0;
         for (DiskUsage du : usages.values()) {
-            totalBytes += du.getTotalBytes();
-            freeBytes += du.getFreeBytes();
+            totalBytes += du.totalBytes();
+            freeBytes += du.freeBytes();
         }
         return new DiskUsage(node.nodeId(), node.node().getName(), "_na_", totalBytes / usages.size(), freeBytes / usages.size());
     }
@@ -548,18 +525,18 @@ public class DiskThresholdDecider extends AllocationDecider {
 
         long getFreeBytes() {
             try {
-                return Math.subtractExact(diskUsage.getFreeBytes(), relocatingShardSize);
+                return Math.subtractExact(diskUsage.freeBytes(), relocatingShardSize);
             } catch (ArithmeticException e) {
                 return Long.MAX_VALUE;
             }
         }
 
         String getPath() {
-            return diskUsage.getPath();
+            return diskUsage.path();
         }
 
         long getTotalBytes() {
-            return diskUsage.getTotalBytes();
+            return diskUsage.totalBytes();
         }
     }
 

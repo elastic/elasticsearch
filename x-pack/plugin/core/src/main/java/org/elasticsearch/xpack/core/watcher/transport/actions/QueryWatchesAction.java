@@ -41,7 +41,7 @@ public class QueryWatchesAction extends ActionType<QueryWatchesAction.Response> 
     public static final String NAME = "cluster:monitor/xpack/watcher/watch/query";
 
     private QueryWatchesAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

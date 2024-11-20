@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins.interceptor;
@@ -14,8 +15,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.rest.RestController;
-import org.elasticsearch.rest.RestHandler;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.rest.RestInterceptor;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.usage.UsageService;
 
 import java.util.function.UnaryOperator;
@@ -46,7 +47,7 @@ public interface RestServerActionPlugin extends ActionPlugin {
      *
      * Note: Only one installed plugin may implement a rest interceptor.
      */
-    UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext);
+    RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext);
 
     /**
      * Returns a replacement {@link RestController} to be used in the server.
@@ -54,11 +55,11 @@ public interface RestServerActionPlugin extends ActionPlugin {
      */
     @Nullable
     default RestController getRestController(
-        @Nullable UnaryOperator<RestHandler> handlerWrapper,
+        @Nullable RestInterceptor interceptor,
         NodeClient client,
         CircuitBreakerService circuitBreakerService,
         UsageService usageService,
-        Tracer tracer
+        TelemetryProvider telemetryProvider
     ) {
         return null;
     }

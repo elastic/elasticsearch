@@ -19,7 +19,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Base64;
 import java.util.Set;
 
-import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTests.randomUniquelyNamedRoleDescriptors;
+import static org.elasticsearch.xpack.core.security.authz.RoleDescriptorTestHelper.randomUniquelyNamedRoleDescriptors;
 import static org.elasticsearch.xpack.security.authc.CrossClusterAccessHeaders.CROSS_CLUSTER_ACCESS_CREDENTIALS_HEADER_KEY;
 import static org.hamcrest.Matchers.equalTo;
 

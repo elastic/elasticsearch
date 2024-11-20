@@ -38,12 +38,15 @@ import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.simplify.SimplificationErrorCalculator;
 import org.elasticsearch.geometry.simplify.StreamingGeometrySimplifier;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DataStreamTimestampFieldMapper;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
+import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
@@ -55,15 +58,14 @@ import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilde
 import org.elasticsearch.search.aggregations.support.MultiValuesSourceFieldConfig;
 import org.elasticsearch.search.sort.SortOrder;
 import org.elasticsearch.xpack.spatial.SpatialPlugin;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.Matchers;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -96,6 +98,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         long lonLat = (((long) GeoEncodingUtils.encodeLongitude(90.0)) << 32) | GeoEncodingUtils.encodeLatitude(45.0) & 0xffffffffL;
@@ -146,6 +149,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         // input
@@ -177,6 +181,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .size(10);
 
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
 
         testCase(aggregationBuilder, iw -> {
@@ -317,6 +322,7 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
             .sort(sortConfig)
             .size(size);
         TermsAggregationBuilder aggregationBuilder = new TermsAggregationBuilder("groups").field("group_id")
+
             .subAggregation(lineAggregationBuilder);
         double lon = GeoEncodingUtils.decodeLongitude(randomInt());
         double lat = GeoEncodingUtils.decodeLatitude(randomInt());
@@ -453,11 +459,11 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
     }
 
-    private Matcher<long[]> isGeoLine(int checkCount, long[] line) {
+    private static Matcher<long[]> isGeoLine(int checkCount, long[] line) {
         return new TestGeoLineLongArrayMatcher(checkCount, line);
     }
 
-    private static class TestGeoLineLongArrayMatcher extends BaseMatcher<long[]> {
+    private static class TestGeoLineLongArrayMatcher extends TypeSafeMatcher<long[]> {
         private final int checkCount;
         private final long[] expectedLine;
         private final ArrayList<String> failures = new ArrayList<>();
@@ -468,26 +474,23 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
         }
 
         @Override
-        public boolean matches(Object actualObj) {
+        public boolean matchesSafely(long[] actualLine) {
             failures.clear();
-            if (actualObj instanceof long[] actualLine) {
-                if (checkCount == expectedLine.length && actualLine.length != expectedLine.length) {
-                    failures.add("Expected length " + expectedLine.length + " but got " + actualLine.length);
-                }
-                for (int i = 0; i < checkCount; i++) {
-                    Point actual = asPoint(actualLine[i]);
-                    Point expected = asPoint(expectedLine[i]);
-                    if (actual.equals(expected) == false) {
-                        failures.add("At line position " + i + " expected " + expected + " but got " + actual);
-                    }
-                }
-                return failures.size() == 0;
+            if (checkCount == expectedLine.length && actualLine.length != expectedLine.length) {
+                failures.add("Expected length " + expectedLine.length + " but got " + actualLine.length);
             }
-            return false;
+            for (int i = 0; i < checkCount; i++) {
+                Point actual = asPoint(actualLine[i]);
+                Point expected = asPoint(expectedLine[i]);
+                if (actual.equals(expected) == false) {
+                    failures.add("At line position " + i + " expected " + expected + " but got " + actual);
+                }
+            }
+            return failures.isEmpty();
         }
 
         @Override
-        public void describeMismatch(Object item, Description description) {
+        public void describeMismatchSafely(long[] item, Description description) {
             description.appendText("had ").appendValue(failures.size()).appendText(" failures");
             for (String failure : failures) {
                 description.appendText("\n\t").appendText(failure);
@@ -795,12 +798,12 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 ArrayList<GeoPoint> points = testData.pointsForGroup(g);
                 ArrayList<Long> timestamps = testData.timestampsForGroup(g);
                 for (int i = 0; i < points.size(); i++) {
-                    final TimeSeriesIdFieldMapper.TimeSeriesIdBuilder builder = new TimeSeriesIdFieldMapper.TimeSeriesIdBuilder(null);
-                    builder.addString("group_id", testData.groups[g]);
+                    var routingFields = new RoutingPathFields(null);
+                    routingFields.addString("group_id", testData.groups[g]);
                     ArrayList<Field> fields = new ArrayList<>(
                         Arrays.asList(
                             new SortedDocValuesField("group_id", new BytesRef(testData.groups[g])),
-                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, builder.build().toBytesRef())
+                            new SortedDocValuesField(TimeSeriesIdFieldMapper.NAME, routingFields.buildHash().toBytesRef())
                         )
                     );
                     GeoPoint point = points.get(i);
@@ -947,7 +950,13 @@ public class GeoLineAggregatorTests extends AggregatorTestCase {
                 fieldTypes.add(new GeoPointFieldMapper.GeoPointFieldType("value_field"));
             }
             fieldTypes.add(new DateFieldMapper.DateFieldType("time_field"));
-            fieldTypes.add(new KeywordFieldMapper.KeywordFieldType("group_id", false, true, Collections.emptyMap()));
+            fieldTypes.add(
+                new KeywordFieldMapper.Builder("group_id", IndexVersion.current()).dimension(true)
+                    .docValues(true)
+                    .indexed(false)
+                    .build(MapperBuilderContext.root(true, true))
+                    .fieldType()
+            );
             fieldTypes.add(new NumberFieldMapper.NumberFieldType("sort_field", NumberFieldMapper.NumberType.LONG));
             AggTestConfig aggTestConfig = new AggTestConfig(aggregationBuilder, fieldTypes.toArray(new MappedFieldType[0]));
 

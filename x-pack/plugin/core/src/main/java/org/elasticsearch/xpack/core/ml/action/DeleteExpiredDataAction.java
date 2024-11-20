@@ -21,6 +21,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xpack.core.ml.job.config.Job;
 
 import java.io.IOException;
+import java.util.Arrays;
 import java.util.Objects;
 
 public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.Response> {
@@ -29,7 +30,7 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
     public static final String NAME = "cluster:admin/xpack/ml/delete_expired_data";
 
     private DeleteExpiredDataAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest {
@@ -130,13 +131,13 @@ public class DeleteExpiredDataAction extends ActionType<DeleteExpiredDataAction.
             Request request = (Request) o;
             return Objects.equals(requestsPerSecond, request.requestsPerSecond)
                 && Objects.equals(jobId, request.jobId)
-                && Objects.equals(expandedJobIds, request.expandedJobIds)
+                && Arrays.equals(expandedJobIds, request.expandedJobIds)
                 && Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(requestsPerSecond, timeout, jobId, expandedJobIds);
+            return Objects.hash(requestsPerSecond, timeout, jobId, Arrays.hashCode(expandedJobIds));
         }
 
         @Override

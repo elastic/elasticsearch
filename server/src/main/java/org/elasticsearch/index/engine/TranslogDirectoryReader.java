@@ -1,22 +1,23 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
 
-import org.apache.lucene.analysis.Analyzer;
 import org.apache.lucene.index.BaseTermsEnum;
 import org.apache.lucene.index.BinaryDocValues;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.DocValuesSkipIndexType;
+import org.apache.lucene.index.DocValuesSkipper;
 import org.apache.lucene.index.DocValuesType;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FieldInfos;
-import org.apache.lucene.index.Fields;
 import org.apache.lucene.index.FloatVectorValues;
 import org.apache.lucene.index.ImpactsEnum;
 import org.apache.lucene.index.IndexCommit;
@@ -63,7 +64,6 @@ import org.elasticsearch.index.translog.Translog;
 
 import java.io.IOException;
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 
@@ -83,10 +83,10 @@ final class TranslogDirectoryReader extends DirectoryReader {
         Translog.Index operation,
         MappingLookup mappingLookup,
         DocumentParser documentParser,
-        Analyzer analyzer,
+        EngineConfig engineConfig,
         Runnable onSegmentCreated
     ) throws IOException {
-        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, analyzer, onSegmentCreated));
+        this(new TranslogLeafReader(shardId, operation, mappingLookup, documentParser, engineConfig, onSegmentCreated));
     }
 
     private TranslogDirectoryReader(TranslogLeafReader leafReader) throws IOException {
@@ -153,6 +153,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -161,6 +162,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ROUTING_FIELD = new FieldInfo(
@@ -171,6 +173,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.NONE,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -179,6 +182,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final FieldInfo FAKE_ID_FIELD = new FieldInfo(
@@ -189,6 +193,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             false,
             IndexOptions.DOCS,
             DocValuesType.NONE,
+            DocValuesSkipIndexType.NONE,
             -1,
             Collections.emptyMap(),
             0,
@@ -197,6 +202,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
             0,
             VectorEncoding.FLOAT32,
             VectorSimilarityFunction.EUCLIDEAN,
+            false,
             false
         );
         private static final Set<String> TRANSLOG_FIELD_NAMES = Set.of(SourceFieldMapper.NAME, RoutingFieldMapper.NAME, IdFieldMapper.NAME);
@@ -205,7 +211,7 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private final Translog.Index operation;
         private final MappingLookup mappingLookup;
         private final DocumentParser documentParser;
-        private final Analyzer analyzer;
+        private final EngineConfig engineConfig;
         private final Directory directory;
         private final Runnable onSegmentCreated;
 
@@ -217,14 +223,14 @@ final class TranslogDirectoryReader extends DirectoryReader {
             Translog.Index operation,
             MappingLookup mappingLookup,
             DocumentParser documentParser,
-            Analyzer analyzer,
+            EngineConfig engineConfig,
             Runnable onSegmentCreated
         ) {
             this.shardId = shardId;
             this.operation = operation;
             this.mappingLookup = mappingLookup;
             this.documentParser = documentParser;
-            this.analyzer = analyzer;
+            this.engineConfig = engineConfig;
             this.onSegmentCreated = onSegmentCreated;
             this.directory = new ByteBuffersDirectory();
             this.uid = Uid.encodeId(operation.id());
@@ -251,20 +257,16 @@ final class TranslogDirectoryReader extends DirectoryReader {
         private LeafReader createInMemoryLeafReader() {
             assert Thread.holdsLock(this);
             final ParsedDocument parsedDocs = documentParser.parseDocument(
-                new SourceToParse(
-                    operation.id(),
-                    operation.source(),
-                    XContentHelper.xContentType(operation.source()),
-                    operation.routing(),
-                    Map.of(),
-                    false
-                ),
+                new SourceToParse(operation.id(), operation.source(), XContentHelper.xContentType(operation.source()), operation.routing()),
                 mappingLookup
             );
 
             parsedDocs.updateSeqID(operation.seqNo(), operation.primaryTerm());
             parsedDocs.version().setLongValue(operation.version());
-            final IndexWriterConfig writeConfig = new IndexWriterConfig(analyzer).setOpenMode(IndexWriterConfig.OpenMode.CREATE);
+            // To guarantee indexability, we configure the analyzer and codec using the main engine configuration
+            final IndexWriterConfig writeConfig = new IndexWriterConfig(engineConfig.getAnalyzer()).setOpenMode(
+                IndexWriterConfig.OpenMode.CREATE
+            ).setCodec(engineConfig.getCodec());
             try (IndexWriter writer = new IndexWriter(directory, writeConfig)) {
                 writer.addDocument(parsedDocs.rootDoc());
                 final DirectoryReader reader = open(writer);
@@ -349,6 +351,11 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
+        public DocValuesSkipper getDocValuesSkipper(String field) throws IOException {
+            return getDelegate().getDocValuesSkipper(field);
+        }
+
+        @Override
         public FloatVectorValues getFloatVectorValues(String field) throws IOException {
             return getDelegate().getFloatVectorValues(field);
         }
@@ -392,11 +399,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            return getDelegate().getTermVectors(docID);
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             return getDelegate().termVectors();
         }
@@ -429,11 +431,6 @@ final class TranslogDirectoryReader extends DirectoryReader {
         @Override
         public int maxDoc() {
             return 1;
-        }
-
-        @Override
-        public void document(int docID, StoredFieldVisitor visitor) throws IOException {
-            storedFields().document(docID, visitor);
         }
 
         private void readStoredFieldsDirectly(StoredFieldVisitor visitor) throws IOException {

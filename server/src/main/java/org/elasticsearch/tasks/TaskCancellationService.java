@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -25,7 +26,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.NodeDisconnectedException;
 import org.elasticsearch.transport.NodeNotConnectedException;
 import org.elasticsearch.transport.Transport;
@@ -48,7 +48,9 @@ import static org.elasticsearch.core.Strings.format;
 
 public class TaskCancellationService {
     public static final String BAN_PARENT_ACTION_NAME = "internal:admin/tasks/ban";
+    public static final String REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME = "cluster:internal/admin/tasks/ban";
     public static final String CANCEL_CHILD_ACTION_NAME = "internal:admin/tasks/cancel_child";
+    public static final String REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME = "cluster:internal/admin/tasks/cancel_child";
     public static final TransportVersion VERSION_SUPPORTING_CANCEL_CHILD_ACTION = TransportVersions.V_8_8_0;
     private static final Logger logger = LogManager.getLogger(TaskCancellationService.class);
     private final TransportService transportService;
@@ -66,7 +68,19 @@ public class TaskCancellationService {
             new BanParentRequestHandler()
         );
         transportService.registerRequestHandler(
+            REMOTE_CLUSTER_BAN_PARENT_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            BanParentTaskRequest::new,
+            new BanParentRequestHandler()
+        );
+        transportService.registerRequestHandler(
             CANCEL_CHILD_ACTION_NAME,
+            EsExecutors.DIRECT_EXECUTOR_SERVICE,
+            CancelChildRequest::new,
+            new CancelChildRequestHandler()
+        );
+        transportService.registerRequestHandler(
+            REMOTE_CLUSTER_CANCEL_CHILD_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             CancelChildRequest::new,
             new CancelChildRequestHandler()
@@ -186,7 +200,7 @@ public class TaskCancellationService {
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -199,7 +213,7 @@ public class TaskCancellationService {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false;
+                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
                                 () -> format("cannot send ban for tasks with the parent [%s] on connection [%s]", taskId, connection),
@@ -238,7 +252,7 @@ public class TaskCancellationService {
                 TransportRequestOptions.EMPTY,
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -248,7 +262,7 @@ public class TaskCancellationService {
                     @Override
                     public void handleException(TransportException exp) {
                         final Throwable cause = ExceptionsHelper.unwrapCause(exp);
-                        assert cause instanceof ElasticsearchSecurityException == false;
+                        assert cause instanceof ElasticsearchSecurityException == false : new AssertionError(exp);
                         if (isUnimportantBanFailure(cause)) {
                             logger.debug(
                                 () -> format(
@@ -426,7 +440,7 @@ public class TaskCancellationService {
                 reason
             );
             final CancelChildRequest request = CancelChildRequest.createCancelChildRequest(parentTask, childRequestId, reason);
-            transportService.sendRequest(childNode, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
+            transportService.sendRequest(childConnection, CANCEL_CHILD_ACTION_NAME, request, TransportRequestOptions.EMPTY, NOOP_HANDLER);
         }
     }
 

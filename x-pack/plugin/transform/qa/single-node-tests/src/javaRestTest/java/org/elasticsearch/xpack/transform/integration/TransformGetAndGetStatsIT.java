@@ -26,6 +26,7 @@ import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.xpack.core.transform.TransformField.BASIC_STATS;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.hasEntry;
@@ -35,7 +36,6 @@ import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
 import static org.hamcrest.Matchers.oneOf;
 
-@SuppressWarnings("removal")
 public class TransformGetAndGetStatsIT extends TransformRestTestCase {
 
     private static final String TEST_USER_NAME = "transform_user";
@@ -159,6 +159,83 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", false);
     }
 
+    /**
+     * Verify the basic stats API, which includes state, health, and optionally progress (if it exists).
+     * These are required for Kibana 8.13+.
+     */
+    @SuppressWarnings("unchecked")
+    public void testGetAndGetBasicStats() throws Exception {
+        createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
+        createContinuousPivotReviewsTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        startAndWaitForTransform("pivot_1", "pivot_reviews_1");
+        startAndWaitForContinuousTransform("pivot_continuous", "pivot_reviews_continuous", null);
+
+        stopTransform("pivot_1", false);
+        // Alternate testing between admin and lowly user, as both should be able to get the configs and stats
+        var authHeader = randomFrom(BASIC_AUTH_VALUE_TRANSFORM_USER, BASIC_AUTH_VALUE_TRANSFORM_ADMIN);
+
+        // Check all the different ways to retrieve transform stats
+        var basicStats = "_stats?" + BASIC_STATS.getPreferredName() + "=true";
+        var getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + basicStats, authHeader, randomTimeout());
+        var stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "_all/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "*/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_*/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(2, XContentMapValues.extractValue("count", stats));
+
+        // verify pivot_1 has basic stats
+        getRequest = createRequestWithAuthAndTimeout("GET", getTransformEndpoint() + "pivot_1/" + basicStats, authHeader, randomTimeout());
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        var transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats)).get(0);
+
+        // verify state exists
+        assertEquals("stopped", XContentMapValues.extractValue("state", transform));
+
+        // verify health exists
+        assertEquals("green", XContentMapValues.extractValue("health.status", transform));
+
+        // verify checkpointing exists
+        assertThat(
+            "percent_complete is not 100.0",
+            XContentMapValues.extractValue("checkpointing.next.checkpoint_progress.percent_complete", transform),
+            equalTo(100.0)
+        );
+
+        // verify pivot_continuous has basic stats
+        getRequest = createRequestWithAuthAndTimeout(
+            "GET",
+            getTransformEndpoint() + "pivot_continuous/" + basicStats,
+            authHeader,
+            randomTimeout()
+        );
+        stats = entityAsMap(client().performRequest(getRequest));
+        assertEquals(1, XContentMapValues.extractValue("count", stats));
+        transform = ((List<Map<String, Object>>) XContentMapValues.extractValue("transforms", stats)).get(0);
+
+        // verify state exists
+        assertEquals("started", XContentMapValues.extractValue("state", transform));
+
+        // verify health exists
+        assertEquals("green", XContentMapValues.extractValue("health.status", transform));
+
+        // We aren't testing for 'checkpointing.next.checkpoint_progress.percent_complete'.
+        // It's difficult to get the integration test to reliably call the stats API while that data is available, since continuous
+        // transforms start and finish the next checkpoint quickly (<1ms).
+
+        stopTransform("pivot_continuous", false);
+    }
+
     @SuppressWarnings("unchecked")
     public void testGetAndGetStatsForTransformWithoutConfig() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
@@ -219,7 +296,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         stopTransform("pivot_continuous", true);
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetAndGetStatsWhenTransformInternalIndexDisappears() throws Exception {
         createPivotReviewsTransform("pivot_1", "pivot_reviews_1", null);
         createPivotReviewsTransform("pivot_2", "pivot_reviews_2", null);
@@ -327,7 +403,6 @@ public class TransformGetAndGetStatsIT extends TransformRestTestCase {
         return transformsStats;
     }
 
-    @SuppressWarnings("unchecked")
     public void testGetPersistedStatsWithoutTask() throws Exception {
         createPivotReviewsTransform("pivot_stats_1", "pivot_reviews_stats_1", null);
         startAndWaitForTransform("pivot_stats_1", "pivot_reviews_stats_1");

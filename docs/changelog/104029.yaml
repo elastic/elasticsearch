@@ -1,5 +1,0 @@
-pr: 104029
-summary: '`AsyncOperator#isFinished` must never return true on failure'
-area: ES|QL
-type: bug
-issues: []

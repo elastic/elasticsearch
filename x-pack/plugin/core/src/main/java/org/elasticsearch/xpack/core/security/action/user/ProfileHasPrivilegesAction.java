@@ -15,6 +15,6 @@ public class ProfileHasPrivilegesAction extends ActionType<ProfileHasPrivilegesR
     public static final String NAME = "cluster:admin/xpack/security/profile/has_privileges";
 
     private ProfileHasPrivilegesAction() {
-        super(NAME, ProfileHasPrivilegesResponse::new);
+        super(NAME);
     }
 }

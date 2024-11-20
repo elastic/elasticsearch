@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.core.security.authc.Authentication;
 import org.elasticsearch.xpack.core.security.authc.Authentication.RealmRef;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationField;
 import org.elasticsearch.xpack.core.security.authc.AuthenticationTestHelper;
+import org.elasticsearch.xpack.core.security.authc.support.SecondaryAuthentication;
 import org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.IndicesAccessControl;
 import org.elasticsearch.xpack.core.security.user.InternalUsers;
@@ -47,8 +48,10 @@ import org.elasticsearch.xpack.security.audit.AuditUtil;
 import org.elasticsearch.xpack.security.authc.AuthenticationService;
 import org.elasticsearch.xpack.security.authz.AuthorizationService;
 import org.junit.Before;
+import org.mockito.ArgumentCaptor;
 
 import java.util.Collections;
+import java.util.Set;
 
 import static org.elasticsearch.test.ActionListenerUtils.anyActionListener;
 import static org.elasticsearch.xpack.core.security.authz.AuthorizationServiceField.INDICES_PERMISSIONS_KEY;
@@ -62,6 +65,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
@@ -114,7 +118,8 @@ public class SecurityActionFilterTests extends ESTestCase {
             licenseState,
             threadPool,
             securityContext,
-            destructiveOperations
+            destructiveOperations,
+            () -> Set.of("_action_secondary_auth")
         );
     }
 
@@ -304,6 +309,79 @@ public class SecurityActionFilterTests extends ESTestCase {
         filter.apply(task, "_action", request, listener, chain);
         verify(listener).onFailure(exception);
         verifyNoMoreInteractions(chain);
+    }
+
+    public void testSecondaryAuth() throws Exception {
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        User user1 = new User("user1", "r1", "r2");
+        User user2 = new User("user2", "r3", "r4");
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user1)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        Authentication secondaryAuth = AuthenticationTestHelper.builder()
+            .user(user2)
+            .realmRef(new RealmRef("test2", "test2", "foo2"))
+            .build(false);
+        String requestId = UUIDs.randomBase64UUID();
+
+        // mock primary and secondary authentication headers already set
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+        assertNull(threadContext.getTransient(SecondaryAuthentication.THREAD_CTX_KEY));
+        threadContext.putTransient(SecondaryAuthentication.THREAD_CTX_KEY, secondaryAuth);
+        threadContext.putHeader(SecondaryAuthentication.THREAD_CTX_KEY, secondaryAuth.encode());
+
+        String actionName = "_action_secondary_auth";
+        // ensure that the filter swaps out to the secondary user
+        doAnswer(i -> {
+            final Object[] args = i.getArguments();
+            assertThat(args, arrayWithSize(4));
+            ActionListener callback = (ActionListener) args[args.length - 1];
+            assertSame(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY), secondaryAuth);
+            assertEquals(threadContext.getHeader(AuthenticationField.AUTHENTICATION_KEY), secondaryAuth.encode());
+            threadContext.putHeader("_xpack_audit_request_id", requestId);
+            callback.onResponse(secondaryAuth);
+            return Void.TYPE;
+        }).when(authcService).authenticate(eq(actionName), eq(request), eq(InternalUsers.SYSTEM_USER), anyActionListener());
+
+        mockAuthorize();
+        ActionResponse actionResponse = mock(ActionResponse.class);
+        mockChain(task, actionName, request, actionResponse);
+        filter.apply(task, actionName, request, listener, chain);
+        verify(authzService).authorize(eq(secondaryAuth), eq(actionName), eq(request), anyActionListener());
+        verify(auditTrail).coordinatingActionResponse(eq(requestId), eq(secondaryAuth), eq(actionName), eq(request), eq(actionResponse));
+    }
+
+    public void testSecondaryAuthRequired() throws Exception {
+        ActionRequest request = mock(ActionRequest.class);
+        ActionListener listener = mock(ActionListener.class);
+        Task task = mock(Task.class);
+        User user1 = new User("user1", "r1", "r2");
+        Authentication authentication = AuthenticationTestHelper.builder()
+            .user(user1)
+            .realmRef(new RealmRef("test", "test", "foo"))
+            .build(false);
+        // mock primary but not secondary authentication headers already set
+        assertNull(threadContext.getTransient(AuthenticationField.AUTHENTICATION_KEY));
+        threadContext.putTransient(AuthenticationField.AUTHENTICATION_KEY, authentication);
+        threadContext.putHeader(AuthenticationField.AUTHENTICATION_KEY, authentication.encode());
+        String actionName = "_action_secondary_auth";
+        ActionResponse actionResponse = mock(ActionResponse.class);
+        mockChain(task, actionName, request, actionResponse);
+        filter.apply(task, actionName, request, listener, chain);
+        ArgumentCaptor<Exception> exceptionCaptor = ArgumentCaptor.forClass(Exception.class);
+        verify(listener).onFailure(exceptionCaptor.capture());
+        assertTrue(exceptionCaptor.getValue() instanceof IllegalArgumentException);
+        assertEquals(
+            "es-secondary-authorization header must be used to call action [" + actionName + "]",
+            exceptionCaptor.getValue().getMessage()
+        );
+        verifyNoInteractions(authcService);
+        verifyNoInteractions(authzService);
     }
 
     private void mockAuthentication(ActionRequest request, Authentication authentication, String requestId) {

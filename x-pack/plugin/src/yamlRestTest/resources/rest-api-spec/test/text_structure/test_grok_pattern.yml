@@ -1,0 +1,43 @@
+"Grok pattern with two named fields":
+  - do:
+      text_structure.test_grok_pattern:
+        body:
+          grok_pattern: "%{WORD}.*%{WORD:first_name} %{WORD:last_name}!"
+          text:
+            - "Hello   Dave Roberts!"
+            - "this does not match"
+  - match:
+      matches:
+        - matched: true
+          fields:
+            first_name:
+              - match: Dave
+                offset: 8
+                length: 4
+            last_name:
+              - match: Roberts
+                offset: 13
+                length: 7
+        - matched: false
+---
+"Grok pattern with two identically named fields":
+  - do:
+      text_structure.test_grok_pattern:
+        ecs_compatibility: v1
+        body:
+          grok_pattern: "%{WORD}.*%{WORD:name} %{WORD:name}!"
+          text:
+            - "Hello   Dave Roberts!"
+            - "this does not match"
+  - match:
+      matches:
+        - matched: true
+          fields:
+            name:
+              - match: Dave
+                offset: 8
+                length: 4
+              - match: Roberts
+                offset: 13
+                length: 7
+        - matched: false

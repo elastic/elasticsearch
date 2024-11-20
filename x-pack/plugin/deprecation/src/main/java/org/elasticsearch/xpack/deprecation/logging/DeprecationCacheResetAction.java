@@ -34,10 +34,10 @@ public class DeprecationCacheResetAction extends ActionType<DeprecationCacheRese
     public static final String NAME = "cluster:admin/deprecation/cache/reset";
 
     private DeprecationCacheResetAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
         public Request() {
             super((String[]) null);
         }

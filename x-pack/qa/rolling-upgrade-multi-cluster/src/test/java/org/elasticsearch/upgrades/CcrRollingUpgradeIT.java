@@ -28,7 +28,6 @@ import static org.hamcrest.Matchers.equalTo;
 
 public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102000")
     public void testUniDirectionalIndexFollowing() throws Exception {
         logger.info("clusterName={}, upgradeState={}", clusterName, upgradeState);
 
@@ -235,6 +234,10 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
                         containsString("] which is higher than the version used by this node [")
                     ),
                     allOf(
+                        containsString("the snapshot was created with version ["),
+                        containsString("] which is higher than the version of this node [")
+                    ),
+                    allOf(
                         containsString("the snapshot was created with Elasticsearch version ["),
                         containsString("] which is higher than the version of this node [")
                     )
@@ -402,13 +405,8 @@ public class CcrRollingUpgradeIT extends AbstractMultiClusterUpgradeTestCase {
         assertOK(client.performRequest(new Request("POST", "/" + followerIndex + "/_ccr/resume_follow")));
     }
 
-    private static void ensureGreen(RestClient client, String index) throws IOException {
-        Request request = new Request("GET", "/_cluster/health/" + index);
-        request.addParameter("wait_for_status", "green");
-        request.addParameter("wait_for_no_relocating_shards", "true");
-        request.addParameter("timeout", "70s");
-        request.addParameter("level", "shards");
-        client.performRequest(request);
+    @Override
+    protected final String getEnsureGreenTimeout() {
+        return "70s";
     }
-
 }

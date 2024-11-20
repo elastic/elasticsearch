@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -51,7 +52,7 @@ import java.util.Map;
 import static java.util.Collections.emptySet;
 import static org.elasticsearch.cluster.ClusterInfo.shardIdentifierFromRouting;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.hamcrest.Matchers.containsString;
@@ -527,13 +528,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         for (int i = 0; i < searchableSnapshotIndex.getNumberOfShards(); i++) {
             long expectedSize = randomLongBetween(10, 50);
             // a searchable snapshot shard without corresponding entry in cluster info
-            ShardRouting startedShardWithExpectedSize = newShardRouting(
+            ShardRouting startedShardWithExpectedSize = shardRoutingBuilder(
                 new ShardId(searchableSnapshotIndex.getIndex(), i),
                 nodeId,
                 true,
-                ShardRoutingState.STARTED,
-                expectedSize
-            );
+                ShardRoutingState.STARTED
+            ).withExpectedShardSize(expectedSize).build();
             searchableSnapshotIndexRoutingTableBuilder.addShard(startedShardWithExpectedSize);
             unaccountedSearchableSnapshotSizes += expectedSize;
         }
@@ -541,13 +541,12 @@ public class DiskThresholdDeciderUnitTests extends ESAllocationTestCase {
         for (int i = 0; i < searchableSnapshotIndex.getNumberOfShards(); i++) {
             var shardSize = randomLongBetween(10, 50);
             // a shard relocating to this node
-            ShardRouting initializingShard = newShardRouting(
+            ShardRouting initializingShard = shardRoutingBuilder(
                 new ShardId(regularIndex.getIndex(), i),
                 nodeId,
                 true,
-                ShardRoutingState.INITIALIZING,
-                PeerRecoverySource.INSTANCE
-            );
+                ShardRoutingState.INITIALIZING
+            ).withRecoverySource(PeerRecoverySource.INSTANCE).build();
             regularIndexRoutingTableBuilder.addShard(initializingShard);
             knownShardSizes.put(shardIdentifierFromRouting(initializingShard), shardSize);
             relocatingShardsSizes += shardSize;

@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.analytics.multiterms;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.MockPageCacheRecycler;
@@ -18,16 +17,13 @@ import org.elasticsearch.indices.breaker.NoneCircuitBreakerService;
 import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
-import org.elasticsearch.xcontent.NamedXContentRegistry;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xpack.analytics.AnalyticsPlugin;
 
 import java.util.ArrayList;
@@ -266,11 +262,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
     }
 
     @Override
-    protected void assertFromXContent(InternalMultiTerms min, ParsedAggregation parsedAggregation) {
-        // There is no ParsedMultiTerms yet so we cannot test it here
-    }
-
-    @Override
     protected InternalMultiTerms mutateInstance(InternalMultiTerms instance) {
         String name = instance.getName();
         Map<String, Object> metadata = instance.getMetadata();
@@ -302,17 +293,6 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             instance.formats,
             instance.keyConverters,
             metadata
-        );
-    }
-
-    @Override
-    protected List<NamedXContentRegistry.Entry> getNamedXContents() {
-        return CollectionUtils.appendToCopy(
-            super.getNamedXContents(),
-            new NamedXContentRegistry.Entry(Aggregation.class, new ParseField(MultiTermsAggregationBuilder.NAME), (p, c) -> {
-                assumeTrue("There is no ParsedMultiTerms yet", false);
-                return null;
-            })
         );
     }
 
@@ -379,18 +359,20 @@ public class InternalMultiTermsTests extends InternalAggregationTestCase<Interna
             keyConverters2,
             null
         );
-        AggregationReduceContext context = new AggregationReduceContext.ForPartial(
+        AggregationReduceContext context = new AggregationReduceContext.ForFinal(
             bigArrays,
             mockScriptService,
             () -> false,
-            mock(AggregationBuilder.class)
+            mock(AggregationBuilder.class),
+            i -> {},
+            PipelineAggregator.PipelineTree.EMPTY
         );
 
-        InternalMultiTerms result = (InternalMultiTerms) terms1.reduce(List.of(terms1, terms2), context);
+        InternalMultiTerms result = (InternalMultiTerms) InternalAggregationTestCase.reduce(List.of(terms1, terms2), context);
         assertThat(result.buckets, hasSize(3));
-        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
+        assertThat(result.buckets.get(0).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
         assertThat(result.buckets.get(0).getDocCount(), equalTo(3L));
-        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|1.0"));
+        assertThat(result.buckets.get(1).getKeyAsString(), equalTo("4|9.223372036854776E18|4.0"));
         assertThat(result.buckets.get(1).getDocCount(), equalTo(3L));
         assertThat(result.buckets.get(2).getKeyAsString(), equalTo("3|9.223372036854776E18|3.0"));
         assertThat(result.buckets.get(2).getDocCount(), equalTo(2L));

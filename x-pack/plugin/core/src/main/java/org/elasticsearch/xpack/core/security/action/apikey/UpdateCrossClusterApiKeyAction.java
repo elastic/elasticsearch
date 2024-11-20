@@ -15,6 +15,6 @@ public final class UpdateCrossClusterApiKeyAction extends ActionType<UpdateApiKe
     public static final UpdateCrossClusterApiKeyAction INSTANCE = new UpdateCrossClusterApiKeyAction();
 
     private UpdateCrossClusterApiKeyAction() {
-        super(NAME, UpdateApiKeyResponse::new);
+        super(NAME);
     }
 }

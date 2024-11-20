@@ -14,12 +14,11 @@ import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationErrors;
 import org.elasticsearch.search.aggregations.AggregationExecutionException;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.BucketOrder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalOrder;
-import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.terms.AbstractInternalTerms;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -37,7 +36,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     public static final TermsComparator TERMS_COMPARATOR = new TermsComparator();
 
-    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket implements KeyComparable<Bucket> {
+    public static class Bucket extends AbstractInternalTerms.AbstractTermsBucket<Bucket> {
 
         long bucketOrd;
 
@@ -118,7 +117,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
 
         @Override
-        public Aggregations getAggregations() {
+        public InternalAggregations getAggregations() {
             return aggregations;
         }
 
@@ -440,44 +439,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    /**
-     * Checks if any keys need to be promoted to double from long or unsigned_long
-     */
-    private boolean[] needsPromotionToDouble(List<InternalAggregation> aggregations) {
-        if (aggregations.size() < 2) {
-            return null;
-        }
-        boolean[] promotions = null;
-
-        for (int i = 0; i < keyConverters.size(); i++) {
-            boolean hasLong = false;
-            boolean hasUnsignedLong = false;
-            boolean hasDouble = false;
-            boolean hasNonNumber = false;
-            for (InternalAggregation aggregation : aggregations) {
-                InternalMultiTerms agg = (InternalMultiTerms) aggregation;
-                KeyConverter keyConverter = agg.keyConverters.get(i);
-                switch (keyConverter) {
-                    case DOUBLE -> hasDouble = true;
-                    case LONG -> hasLong = true;
-                    case UNSIGNED_LONG -> hasUnsignedLong = true;
-                    default -> hasNonNumber = true;
-                }
-            }
-            if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
-                throw AggregationErrors.reduceTypeMismatch(name, Optional.of(i + 1));
-            }
-            // Promotion to double is required if at least 2 of these 3 conditions are true.
-            if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {
-                if (promotions == null) {
-                    promotions = new boolean[keyConverters.size()];
-                }
-                promotions[i] = true;
-            }
-        }
-        return promotions;
-    }
-
     private InternalAggregation promoteToDouble(InternalAggregation aggregation, boolean[] needsPromotion) {
         InternalMultiTerms multiTerms = (InternalMultiTerms) aggregation;
         List<Bucket> multiTermsBuckets = multiTerms.getBuckets();
@@ -540,25 +501,80 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         );
     }
 
-    public InternalAggregation reduce(
-        List<InternalAggregation> aggregations,
-        AggregationReduceContext reduceContext,
-        boolean[] needsPromotionToDouble
-    ) {
-        if (needsPromotionToDouble != null) {
-            List<InternalAggregation> newAggs = new ArrayList<>(aggregations.size());
-            for (InternalAggregation agg : aggregations) {
-                newAggs.add(promoteToDouble(agg, needsPromotionToDouble));
-            }
-            return ((InternalMultiTerms) newAggs.get(0)).reduce(newAggs, reduceContext, null);
-        } else {
-            return super.reduce(aggregations, reduceContext);
-        }
-    }
-
     @Override
-    public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        return reduce(aggregations, reduceContext, needsPromotionToDouble(aggregations));
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+
+            private List<InternalAggregation> aggregations = new ArrayList<>(size);
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                aggregations.add(aggregation);
+            }
+
+            private List<InternalAggregation> getProcessedAggs(List<InternalAggregation> aggregations, boolean[] needsPromotionToDouble) {
+                if (needsPromotionToDouble != null) {
+                    aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
+                }
+                return aggregations;
+            }
+
+            /**
+             * Checks if any keys need to be promoted to double from long or unsigned_long
+             */
+            private boolean[] needsPromotionToDouble(List<InternalAggregation> aggregations) {
+                if (aggregations.size() < 2) {
+                    return null;
+                }
+                boolean[] promotions = null;
+
+                for (int i = 0; i < keyConverters.size(); i++) {
+                    boolean hasLong = false;
+                    boolean hasUnsignedLong = false;
+                    boolean hasDouble = false;
+                    boolean hasNonNumber = false;
+                    for (InternalAggregation aggregation : aggregations) {
+                        InternalMultiTerms agg = (InternalMultiTerms) aggregation;
+                        KeyConverter keyConverter = agg.keyConverters.get(i);
+                        switch (keyConverter) {
+                            case DOUBLE -> hasDouble = true;
+                            case LONG -> hasLong = true;
+                            case UNSIGNED_LONG -> hasUnsignedLong = true;
+                            default -> hasNonNumber = true;
+                        }
+                    }
+                    if (hasNonNumber && (hasDouble || hasUnsignedLong || hasLong)) {
+                        throw AggregationErrors.reduceTypeMismatch(name, Optional.of(i + 1));
+                    }
+                    // Promotion to double is required if at least 2 of these 3 conditions are true.
+                    if ((hasDouble ? 1 : 0) + (hasUnsignedLong ? 1 : 0) + (hasLong ? 1 : 0) > 1) {
+                        if (promotions == null) {
+                            promotions = new boolean[keyConverters.size()];
+                        }
+                        promotions[i] = true;
+                    }
+                }
+                return promotions;
+            }
+
+            @Override
+            public InternalAggregation get() {
+                final boolean[] needsPromotionToDouble = needsPromotionToDouble(aggregations);
+                if (needsPromotionToDouble != null) {
+                    aggregations.replaceAll(agg -> promoteToDouble(agg, needsPromotionToDouble));
+                }
+                try (
+                    AggregatorReducer processor = ((AbstractInternalTerms<?, ?>) aggregations.get(0)).termsAggregationReducer(
+                        reduceContext,
+                        size
+                    )
+                ) {
+                    aggregations.forEach(processor::accept);
+                    aggregations = null; // release memory
+                    return processor.get();
+                }
+            }
+        };
     }
 
     @Override

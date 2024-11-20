@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.discovery.ec2;
@@ -117,6 +118,19 @@ public class Ec2DiscoveryPluginTests extends ESTestCase {
             exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
             exchange.close();
         }, "/latest/api/token", HttpExchange::close)) {
+            assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
+        }
+    }
+
+    public void testTokenMetadataApiDoesNotRespond() throws Exception {
+        try (var metadataServer = new MetadataServer("/metadata", exchange -> {
+            assertNull(exchange.getRequestHeaders().getFirst("X-aws-ec2-metadata-token"));
+            exchange.sendResponseHeaders(200, 0);
+            exchange.getResponseBody().write("us-east-1c".getBytes(StandardCharsets.UTF_8));
+            exchange.close();
+        }, "/latest/api/token", ex -> {
+            // Intentionally don't close the connection, so the client has to time out
+        })) {
             assertNodeAttributes(Settings.EMPTY, metadataServer.metadataUri(), metadataServer.tokenUri(), "us-east-1c");
         }
     }

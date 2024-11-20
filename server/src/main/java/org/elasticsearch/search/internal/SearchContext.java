@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.internal;
 
@@ -41,7 +42,8 @@ import org.elasticsearch.search.fetch.subphase.ScriptFieldsContext;
 import org.elasticsearch.search.fetch.subphase.highlight.SearchHighlightContext;
 import org.elasticsearch.search.profile.Profilers;
 import org.elasticsearch.search.query.QuerySearchResult;
-import org.elasticsearch.search.rank.RankShardContext;
+import org.elasticsearch.search.rank.context.QueryPhaseRankShardContext;
+import org.elasticsearch.search.rank.feature.RankFeatureResult;
 import org.elasticsearch.search.rescore.RescoreContext;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.suggest.SuggestionSearchContext;
@@ -122,8 +124,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SearchContext aggregations(SearchContextAggregations aggregations);
 
-    public abstract void addSearchExt(SearchExtBuilder searchExtBuilder);
-
     public abstract SearchExtBuilder getSearchExt(String name);
 
     public abstract SearchHighlightContext highlight();
@@ -139,11 +139,9 @@ public abstract class SearchContext implements Releasable {
 
     public abstract SuggestionSearchContext suggest();
 
-    public abstract void suggest(SuggestionSearchContext suggest);
+    public abstract QueryPhaseRankShardContext queryPhaseRankShardContext();
 
-    public abstract RankShardContext rankShardContext();
-
-    public abstract void rankShardContext(RankShardContext rankShardContext);
+    public abstract void queryPhaseRankShardContext(QueryPhaseRankShardContext queryPhaseRankShardContext);
 
     /**
      * @return list of all rescore contexts.  empty if there aren't any.
@@ -217,8 +215,6 @@ public abstract class SearchContext implements Releasable {
 
     public abstract TimeValue timeout();
 
-    public abstract void timeout(TimeValue timeout);
-
     public abstract int terminateAfter();
 
     public abstract void terminateAfter(int terminateAfter);
@@ -254,8 +250,6 @@ public abstract class SearchContext implements Releasable {
     public abstract SearchContext searchAfter(FieldDoc searchAfter);
 
     public abstract FieldDoc searchAfter();
-
-    public abstract SearchContext collapse(CollapseContext collapse);
 
     public abstract CollapseContext collapse();
 
@@ -310,8 +304,6 @@ public abstract class SearchContext implements Releasable {
     @Nullable
     public abstract List<String> groupStats();
 
-    public abstract void groupStats(List<String> groupStats);
-
     public abstract boolean version();
 
     public abstract void version(boolean version);
@@ -342,6 +334,10 @@ public abstract class SearchContext implements Releasable {
 
     public abstract float getMaxScore();
 
+    public abstract void addRankFeatureResult();
+
+    public abstract RankFeatureResult rankFeatureResult();
+
     public abstract FetchPhase fetchPhase();
 
     public abstract FetchSearchResult fetchResult();
@@ -361,6 +357,7 @@ public abstract class SearchContext implements Releasable {
      * Adds a releasable that will be freed when this context is closed.
      */
     public void addReleasable(Releasable releasable) {   // TODO most Releasables are managed by their callers. We probably don't need this.
+        assert closed.get() == false;
         releasables.add(releasable);
     }
 
@@ -368,7 +365,8 @@ public abstract class SearchContext implements Releasable {
      * @return true if the request contains only suggest
      */
     public final boolean hasOnlySuggest() {
-        return request().source() != null && request().source().isSuggestOnly();
+        var source = request().source();
+        return source != null && source.isSuggestOnly();
     }
 
     /**

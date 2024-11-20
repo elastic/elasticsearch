@@ -20,6 +20,7 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     @ClassRule
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("constant-keyword")
+        .module("counted-keyword")
         .module("data-streams")
         .module("ingest-common")
         .module("ingest-geoip")
@@ -33,7 +34,6 @@ public class APMYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
         .module("x-pack-ilm")
         .module("x-pack-stack")
         .setting("ingest.geoip.downloader.enabled", "false")
-        .setting("xpack.apm_data.enabled", "true")
         .build();
 
     public APMYamlTestSuiteIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {

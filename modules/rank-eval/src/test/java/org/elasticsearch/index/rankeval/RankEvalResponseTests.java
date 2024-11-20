@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.rankeval;
@@ -69,7 +70,7 @@ public class RankEvalResponseTests extends ESTestCase {
         PARSER.declareDouble(ConstructingObjectParser.constructorArg(), EvalQueryQuality.METRIC_SCORE_FIELD);
         PARSER.declareNamedObjects(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c, n) -> EvalQueryQuality.fromXContent(p, n),
+            (p, c, n) -> EvalQueryQualityTests.parseInstance(p, n),
             new ParseField("details")
         );
         PARSER.declareNamedObjects(ConstructingObjectParser.optionalConstructorArg(), (p, c, n) -> {
@@ -226,7 +227,7 @@ public class RankEvalResponseTests extends ESTestCase {
     }
 
     private static RatedSearchHit searchHit(String index, int docId, Integer rating) {
-        SearchHit hit = new SearchHit(docId, docId + "");
+        SearchHit hit = SearchHit.unpooled(docId, docId + "");
         hit.shard(new SearchShardTarget("testnode", new ShardId(index, "uuid", 0), null));
         hit.score(1.0f);
         return new RatedSearchHit(hit, rating != null ? OptionalInt.of(rating) : OptionalInt.empty());

@@ -17,6 +17,7 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.license.MockLicenseState;
 import org.elasticsearch.license.XPackLicenseState;
@@ -28,6 +29,7 @@ import org.mockito.Mockito;
 import java.nio.file.Path;
 import java.util.Collection;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
@@ -77,7 +79,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
         IndexScopedSettings indexScopedSettings,
         SettingsFilter settingsFilter,
         IndexNameExpressionResolver indexNameExpressionResolver,
-        Supplier<DiscoveryNodes> nodesInCluster
+        Supplier<DiscoveryNodes> nodesInCluster,
+        Predicate<NodeFeature> clusterSupportsFeature
     ) {
         return entSearchPlugin.getRestHandlers(
             settings,
@@ -87,7 +90,8 @@ public class LocalStateEnterpriseSearch extends LocalStateCompositeXPackPlugin {
             indexScopedSettings,
             settingsFilter,
             indexNameExpressionResolver,
-            nodesInCluster
+            nodesInCluster,
+            clusterSupportsFeature
         );
     }
 

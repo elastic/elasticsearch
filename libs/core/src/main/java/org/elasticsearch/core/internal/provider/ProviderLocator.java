@@ -1,12 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.core.internal.provider;
+
+import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 
 import java.io.IOException;
 import java.io.UncheckedIOException;
@@ -21,6 +24,8 @@ import java.util.ServiceConfigurationError;
 import java.util.ServiceLoader;
 import java.util.Set;
 import java.util.function.Supplier;
+
+import static org.elasticsearch.jdk.ModuleQualifiedExportsService.exposeQualifiedExportsAndOpens;
 
 /**
  * A provider locator that finds the implementation of the specified provider.
@@ -120,6 +125,10 @@ public final class ProviderLocator<T> implements Supplier<T> {
         ModuleLayer parentLayer = ModuleLayer.boot();
         Configuration cf = parentLayer.configuration().resolve(ModuleFinder.of(), moduleFinder, Set.of(providerModuleName));
         ModuleLayer layer = parentLayer.defineModules(cf, nm -> loader); // all modules in one loader
+        // check each module for boot modules that have qualified exports/opens to it
+        for (Module m : layer.modules()) {
+            exposeQualifiedExportsAndOpens(m, ModuleQualifiedExportsService.getBootServices());
+        }
         ServiceLoader<T> sl = ServiceLoader.load(layer, providerType);
         return sl.findFirst().orElseThrow(newIllegalStateException(providerName));
     }

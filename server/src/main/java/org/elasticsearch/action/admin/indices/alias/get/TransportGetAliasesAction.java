@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.admin.indices.alias.get;
 
@@ -19,14 +20,13 @@ import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.core.UpdateForV9;
+import org.elasticsearch.core.Predicates;
 import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.indices.SystemIndices.SystemIndexAccessLevel;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -40,11 +40,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.function.Predicate;
 
-/**
- * NB prior to 8.12 this was a TransportMasterNodeReadAction so for BwC it must be registered with the TransportService (i.e. a
- * HandledTransportAction) until we no longer need to support calling this action remotely.
- */
-@UpdateForV9 // remove the HandledTransportAction superclass, this action need not be registered with the TransportService
 public class TransportGetAliasesAction extends TransportLocalClusterStateAction<GetAliasesRequest, GetAliasesResponse> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TransportGetAliasesAction.class);
 
@@ -62,10 +57,9 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
     ) {
         super(
             GetAliasesAction.NAME,
-            clusterService,
-            transportService,
             actionFilters,
-            GetAliasesRequest::new,
+            transportService.getTaskManager(),
+            clusterService,
             clusterService.threadPool().executor(ThreadPool.Names.MANAGEMENT)
         );
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -147,21 +141,9 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
         ClusterState state
     ) {
         Map<String, List<DataStreamAlias>> result = new HashMap<>();
-        boolean noAliasesSpecified = request.getOriginalAliases() == null || request.getOriginalAliases().length == 0;
         List<String> requestedDataStreams = resolver.dataStreamNames(state, request.indicesOptions(), request.indices());
-        for (String requestedDataStream : requestedDataStreams) {
-            List<DataStreamAlias> aliases = state.metadata()
-                .dataStreamAliases()
-                .values()
-                .stream()
-                .filter(alias -> alias.getDataStreams().contains(requestedDataStream))
-                .filter(alias -> noAliasesSpecified || Regex.simpleMatch(request.aliases(), alias.getName()))
-                .toList();
-            if (aliases.isEmpty() == false) {
-                result.put(requestedDataStream, aliases);
-            }
-        }
-        return result;
+
+        return state.metadata().findDataStreamAliases(request.aliases(), requestedDataStreams.toArray(new String[0]));
     }
 
     private static void checkSystemIndexAccess(
@@ -173,7 +155,7 @@ public class TransportGetAliasesAction extends TransportLocalClusterStateAction<
     ) {
         final Predicate<String> systemIndexAccessAllowPredicate;
         if (systemIndexAccessLevel == SystemIndexAccessLevel.NONE) {
-            systemIndexAccessAllowPredicate = indexName -> false;
+            systemIndexAccessAllowPredicate = Predicates.never();
         } else if (systemIndexAccessLevel == SystemIndexAccessLevel.RESTRICTED) {
             systemIndexAccessAllowPredicate = systemIndices.getProductSystemIndexNamePredicate(threadContext);
         } else {

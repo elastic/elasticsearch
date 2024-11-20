@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.coordination.FollowersChecker;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.transport.MockTransportService;
@@ -55,7 +57,7 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
             assertBusy(() -> {
                 final ClusterHealthStatus indexHealthStatus = client(master).admin()
                     .cluster()
-                    .health(new ClusterHealthRequest("test"))
+                    .health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test"))
                     .actionGet()
                     .getStatus();
                 assertThat(indexHealthStatus, Matchers.is(ClusterHealthStatus.RED));
@@ -70,7 +72,10 @@ public class SearchServiceCleanupOnLostMasterIT extends ESIntegTestCase {
 
         index("test", "test", "{}");
 
-        assertResponse(prepareSearch("test").setScroll("30m"), response -> assertThat(response.getScrollId(), is(notNullValue())));
+        assertResponse(
+            prepareSearch("test").setScroll(TimeValue.timeValueMinutes(30)),
+            response -> assertThat(response.getScrollId(), is(notNullValue()))
+        );
         loseMaster.accept(master, dataNode);
         // in the past, this failed because the search context for the scroll would prevent the shard lock from being released.
         ensureYellow();

@@ -1,17 +1,18 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.desirednodes;
 
 import org.elasticsearch.ResourceNotFoundException;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.desirednodes.VersionConflictException;
@@ -59,23 +60,19 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     public void testDryRunUpdateDoesNotUpdateEmptyDesiredNodes() {
-        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
-        );
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         expectThrows(ResourceNotFoundException.class, this::getLatestDesiredNodes);
     }
 
     public void testDryRunUpdateDoesNotUpdateExistingDesiredNodes() {
-        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY));
+        UpdateDesiredNodesResponse response = updateDesiredNodes(randomUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(response.dryRun(), is(equalTo(false)));
 
         DesiredNodes desiredNodes = getLatestDesiredNodes();
 
-        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(
-            randomDryRunUpdateDesiredNodesRequest(Version.CURRENT, Settings.EMPTY)
-        );
+        UpdateDesiredNodesResponse dryRunResponse = updateDesiredNodes(randomDryRunUpdateDesiredNodesRequest(Settings.EMPTY));
         assertThat(dryRunResponse.dryRun(), is(equalTo(true)));
 
         assertEquals(getLatestDesiredNodes(), desiredNodes);
@@ -91,6 +88,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         }
 
         final var equivalentUpdateRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             desiredNodesList,
@@ -109,6 +108,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         final var backwardsUpdateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion() - 1,
             updateDesiredNodesRequest.getNodes(),
@@ -127,6 +128,8 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         updateDesiredNodes(updateDesiredNodesRequest);
 
         final var updateDesiredNodesRequestWithSameHistoryIdAndVersionAndDifferentSpecs = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             updateDesiredNodesRequest.getHistoryID(),
             updateDesiredNodesRequest.getVersion(),
             randomList(1, 10, DesiredNodesTestCase::randomDesiredNode),
@@ -182,7 +185,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
 
     public void testUnknownSettingsAreAllowedInFutureVersions() {
         final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(
-            Version.fromString("99.9.0"),
             Settings.builder().put("desired_nodes.random_setting", Integer.MIN_VALUE).build()
         );
 
@@ -197,16 +199,14 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         // This test verifies that the validation doesn't throw on desired nodes
         // with a higher number of available processors than the node running the tests.
         final var updateDesiredNodesRequest = new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(1, 20),
             randomList(
                 1,
                 20,
-                () -> randomDesiredNode(
-                    Version.CURRENT,
-                    Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(),
-                    numProcessors
-                )
+                () -> randomDesiredNode(Settings.builder().put(NODE_PROCESSORS_SETTING.getKey(), numProcessors).build(), numProcessors)
             ),
             false
         );
@@ -221,19 +221,6 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             final var desiredNode = desiredNodeWithStatus.desiredNode();
             assertThat(desiredNode.settings().get(NODE_PROCESSORS_SETTING.getKey()), is(equalTo(Integer.toString(numProcessors))));
         }
-    }
-
-    public void testNodeVersionIsValidated() {
-        final var updateDesiredNodesRequest = randomUpdateDesiredNodesRequest(Version.CURRENT.previousMajor(), Settings.EMPTY);
-
-        final IllegalArgumentException exception = expectThrows(
-            IllegalArgumentException.class,
-            () -> updateDesiredNodes(updateDesiredNodesRequest)
-        );
-        assertThat(exception.getMessage(), containsString("Nodes with ids"));
-        assertThat(exception.getMessage(), containsString("contain invalid settings"));
-        assertThat(exception.getSuppressed().length > 0, is(equalTo(true)));
-        assertThat(exception.getSuppressed()[0].getMessage(), containsString("Illegal node version"));
     }
 
     public void testUpdateDesiredNodesTasksAreBatchedCorrectly() throws Exception {
@@ -272,7 +259,10 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
         final List<ActionFuture<ActionResponse.Empty>> deleteDesiredNodesFutures = new ArrayList<>(15);
         for (int i = 0; i < 15; i++) {
             deleteDesiredNodesFutures.add(
-                client().execute(TransportDeleteDesiredNodesAction.TYPE, new TransportDeleteDesiredNodesAction.Request())
+                client().execute(
+                    TransportDeleteDesiredNodesAction.TYPE,
+                    new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
+                )
             );
         }
 
@@ -286,7 +276,7 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
             future.actionGet();
         }
 
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final DesiredNodes latestDesiredNodes = DesiredNodes.latestFromClusterState(state);
         assertThat(latestDesiredNodes, is(nullValue()));
     }
@@ -327,34 +317,34 @@ public class TransportDesiredNodesActionsIT extends ESIntegTestCase {
     }
 
     private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Settings settings) {
-        return randomUpdateDesiredNodesRequest(Version.CURRENT, settings);
-    }
-
-    private UpdateDesiredNodesRequest randomUpdateDesiredNodesRequest(Version version, Settings settings) {
         return new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            randomList(2, 10, () -> randomDesiredNode(settings)),
             false
         );
     }
 
-    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Version version, Settings settings) {
+    private UpdateDesiredNodesRequest randomDryRunUpdateDesiredNodesRequest(Settings settings) {
         return new UpdateDesiredNodesRequest(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             UUIDs.randomBase64UUID(),
             randomIntBetween(2, 20),
-            randomList(2, 10, () -> randomDesiredNode(version, settings)),
+            randomList(2, 10, () -> randomDesiredNode(settings)),
             true
         );
     }
 
     private void deleteDesiredNodes() {
-        final TransportDeleteDesiredNodesAction.Request request = new TransportDeleteDesiredNodesAction.Request();
-        client().execute(TransportDeleteDesiredNodesAction.TYPE, request).actionGet();
+        client().execute(TransportDeleteDesiredNodesAction.TYPE, new AcknowledgedRequest.Plain(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT))
+            .actionGet();
     }
 
     private DesiredNodes getLatestDesiredNodes() {
-        final GetDesiredNodesAction.Request request = new GetDesiredNodesAction.Request();
+        final GetDesiredNodesAction.Request request = new GetDesiredNodesAction.Request(TEST_REQUEST_TIMEOUT);
         final GetDesiredNodesAction.Response response = client().execute(GetDesiredNodesAction.INSTANCE, request).actionGet();
         return response.getDesiredNodes();
     }

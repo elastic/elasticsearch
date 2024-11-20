@@ -59,7 +59,7 @@ See also <<pipelines-for-fleet-elastic-agent>>.
 version. If specified and the update is successful, the pipeline's
 version is incremented.
 
-include::{es-repo-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
+include::{es-ref-dir}/rest-api/common-parms.asciidoc[tag=timeoutparms]
 
 [[put-pipeline-api-request-body]]
 ==== {api-request-body-title}

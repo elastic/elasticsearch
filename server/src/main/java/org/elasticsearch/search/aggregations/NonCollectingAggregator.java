@@ -1,13 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
 
 import java.io.IOException;
@@ -38,9 +40,9 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
+        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
             results[ordIdx] = buildEmptyAggregation();
         }
         return results;

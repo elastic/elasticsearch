@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -18,6 +19,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
+import java.util.function.BiFunction;
 import java.util.function.ToLongFunction;
 
 /**
@@ -128,8 +130,14 @@ public abstract class BucketOrder implements ToXContentObject, Writeable {
 
     /**
      * Build a comparator for {@link DelayedBucket}, a wrapper that delays bucket reduction.
+     *
+     * The comparator might need to reduce the {@link DelayedBucket} and therefore we need to provide the
+     * reducer and the reduce context.The context must be on the final reduce phase.
      */
-    abstract Comparator<DelayedBucket<? extends Bucket>> delayedBucketComparator();
+    abstract <B extends InternalMultiBucketAggregation.InternalBucket> Comparator<DelayedBucket<B>> delayedBucketComparator(
+        BiFunction<List<B>, AggregationReduceContext, B> reduce,
+        AggregationReduceContext reduceContext
+    );
 
     /**
      * @return unique internal ID used for reading/writing this order from/to a stream.

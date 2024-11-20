@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.internal.precommit;
 
@@ -12,7 +13,6 @@ import de.thetaphi.forbiddenapis.cli.CliMain;
 import org.apache.commons.io.output.NullOutputStream;
 import org.elasticsearch.gradle.OS;
 import org.elasticsearch.gradle.VersionProperties;
-import org.elasticsearch.gradle.internal.info.BuildParams;
 import org.gradle.api.DefaultTask;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.file.ArchiveOperations;
@@ -60,6 +60,7 @@ import javax.inject.Inject;
 import static org.gradle.api.JavaVersion.VERSION_20;
 import static org.gradle.api.JavaVersion.VERSION_21;
 import static org.gradle.api.JavaVersion.VERSION_22;
+import static org.gradle.api.JavaVersion.VERSION_23;
 
 @CacheableTask
 public abstract class ThirdPartyAuditTask extends DefaultTask {
@@ -118,8 +119,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
         return targetCompatibility;
     }
 
+    @Classpath
     @InputFiles
-    @PathSensitive(PathSensitivity.NAME_ONLY)
     public abstract ConfigurableFileCollection getForbiddenAPIsClasspath();
 
     @InputFile
@@ -191,6 +192,15 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
     @Classpath
     @SkipWhenEmpty
     public abstract ConfigurableFileCollection getJarsToScan();
+
+    @Input
+    @Optional
+    public abstract Property<JavaVersion> getRuntimeJavaVersion();
+
+    @Classpath
+    public FileCollection getClasspath() {
+        return classpath;
+    }
 
     @TaskAction
     public void runThirdPartyAudit() throws IOException {
@@ -336,8 +346,8 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
                 spec.setExecutable(javaHome.get() + "/bin/java");
             }
             spec.classpath(getForbiddenAPIsClasspath(), classpath);
-            // Enable explicitly for each release as appropriate. Just JDK 20/21/22 for now, and just the vector module.
-            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22)) {
+            // Enable explicitly for each release as appropriate. Just JDK 20/21/22/23 for now, and just the vector module.
+            if (isJavaVersion(VERSION_20) || isJavaVersion(VERSION_21) || isJavaVersion(VERSION_22) || isJavaVersion(VERSION_23)) {
                 spec.jvmArgs("--add-modules", "jdk.incubator.vector");
             }
             spec.jvmArgs("-Xmx1g");
@@ -364,14 +374,10 @@ public abstract class ThirdPartyAuditTask extends DefaultTask {
 
     /** Returns true iff the build Java version is the same as the given version. */
     private boolean isJavaVersion(JavaVersion version) {
-        if (BuildParams.getIsRuntimeJavaHomeSet()) {
-            if (version.equals(BuildParams.getRuntimeJavaVersion())) {
-                return true;
-            }
-        } else if (version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion())) {
-            return true;
+        if (getRuntimeJavaVersion().isPresent()) {
+            return getRuntimeJavaVersion().get().equals(version);
         }
-        return false;
+        return version.getMajorVersion().equals(VersionProperties.getBundledJdkMajorVersion());
     }
 
     private Set<String> runJdkJarHellCheck() throws IOException {

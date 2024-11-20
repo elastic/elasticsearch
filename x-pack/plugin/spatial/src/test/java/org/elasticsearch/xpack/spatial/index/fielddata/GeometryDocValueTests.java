@@ -22,10 +22,14 @@ import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.ShapeType;
 import org.elasticsearch.geometry.utils.StandardValidator;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.lucene.spatial.CoordinateEncoder;
+import org.elasticsearch.lucene.spatial.DimensionalShapeType;
+import org.elasticsearch.lucene.spatial.Extent;
+import org.elasticsearch.lucene.spatial.GeometryDocValueReader;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xpack.spatial.util.GeoTestUtils;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
+import org.hamcrest.TypeSafeMatcher;
 
 import java.io.BufferedReader;
 import java.io.IOException;
@@ -222,7 +226,7 @@ public class GeometryDocValueTests extends ESTestCase {
         return new RectangleLabelPosition(rectangles);
     }
 
-    private static class RectangleLabelPosition extends BaseMatcher<GeoPoint> {
+    private static class RectangleLabelPosition extends TypeSafeMatcher<GeoPoint> {
         private final Point[] encodedPositions;
 
         private RectangleLabelPosition(Rectangle... rectangles) {
@@ -253,14 +257,10 @@ public class GeometryDocValueTests extends ESTestCase {
         }
 
         @Override
-        public boolean matches(Object actual) {
-            if (actual instanceof GeoPoint) {
-                GeoPoint point = (GeoPoint) actual;
-                int x = CoordinateEncoder.GEO.encodeX(point.lon());
-                int y = CoordinateEncoder.GEO.encodeY(point.lat());
-                return is(oneOf(encodedPositions)).matches(new Point(x, y));
-            }
-            return false;
+        public boolean matchesSafely(GeoPoint point) {
+            int x = CoordinateEncoder.GEO.encodeX(point.lon());
+            int y = CoordinateEncoder.GEO.encodeY(point.lat());
+            return is(oneOf(encodedPositions)).matches(new Point(x, y));
         }
 
         @Override

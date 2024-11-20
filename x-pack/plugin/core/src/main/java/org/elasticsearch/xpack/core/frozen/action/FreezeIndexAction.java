@@ -15,6 +15,6 @@ public class FreezeIndexAction extends ActionType<FreezeResponse> {
     public static final String NAME = "indices:admin/freeze";
 
     private FreezeIndexAction() {
-        super(NAME, FreezeResponse::new);
+        super(NAME);
     }
 }

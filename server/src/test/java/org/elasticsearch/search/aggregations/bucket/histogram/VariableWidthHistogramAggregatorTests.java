@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -11,10 +12,14 @@ package org.elasticsearch.search.aggregations.bucket.histogram;
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
+import org.apache.lucene.index.IndexWriterConfig;
+import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.store.Directory;
+import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.RandomIndexWriter;
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.NumericUtils;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.settings.Settings;
@@ -603,7 +608,10 @@ public class VariableWidthHistogramAggregatorTests extends AggregatorTestCase {
         final Consumer<InternalVariableWidthHistogram> verify
     ) throws IOException {
         try (Directory directory = newDirectory()) {
-            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory)) {
+            IndexWriterConfig config = LuceneTestCase.newIndexWriterConfig(random(), new MockAnalyzer(random()));
+            // Use LogDocMergePolicy to avoid randomization issues with the doc retrieval order.
+            config.setMergePolicy(new LogDocMergePolicy());
+            try (RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config)) {
                 indexSampleData(dataset, indexWriter, multipleSegments);
             }
 

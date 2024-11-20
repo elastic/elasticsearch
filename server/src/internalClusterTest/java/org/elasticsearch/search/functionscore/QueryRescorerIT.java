@@ -1,37 +1,55 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.functionscore;
 
+import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.search.Explanation;
 import org.apache.lucene.tests.util.English;
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
 import org.elasticsearch.action.search.SearchType;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.search.function.CombineFunction;
+import org.elasticsearch.common.lucene.search.function.LeafScoreFunction;
+import org.elasticsearch.common.lucene.search.function.ScoreFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.Settings.Builder;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.Operator;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilder;
 import org.elasticsearch.index.query.functionscore.ScoreFunctionBuilders;
+import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.SearchPlugin;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.collapse.CollapseBuilder;
 import org.elasticsearch.search.rescore.QueryRescoreMode;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.sort.SortBuilders;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 
+import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Comparator;
+import java.util.List;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.SETTING_NUMBER_OF_SHARDS;
 import static org.elasticsearch.common.lucene.search.function.CombineFunction.REPLACE;
@@ -131,7 +149,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
                     5
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getMaxScore(), equalTo(response.getHits().getHits()[0].getScore()));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -411,7 +429,7 @@ public class QueryRescorerIT extends ESIntegTestCase {
         assertNoFailures(rescored);
         SearchHits leftHits = plain.getHits();
         SearchHits rightHits = rescored.getHits();
-        assertThat(leftHits.getTotalHits().value, equalTo(rightHits.getTotalHits().value));
+        assertThat(leftHits.getTotalHits().value(), equalTo(rightHits.getTotalHits().value()));
         assertThat(leftHits.getHits().length, equalTo(rightHits.getHits().length));
         SearchHit[] hits = leftHits.getHits();
         SearchHit[] rHits = rightHits.getHits();
@@ -837,12 +855,257 @@ public class QueryRescorerIT extends ESIntegTestCase {
                 .setTrackScores(true)
                 .addRescorer(new QueryRescorerBuilder(matchAllQuery()).setRescoreQueryWeight(100.0f), 50),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(5L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(5L));
                 assertThat(response.getHits().getHits().length, equalTo(5));
                 for (SearchHit hit : response.getHits().getHits()) {
                     assertThat(hit.getScore(), equalTo(101f));
                 }
             }
         );
+    }
+
+    record GroupDoc(String id, String group, float firstPassScore, float secondPassScore, boolean shouldFilter) {}
+
+    public void testRescoreAfterCollapse() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        GroupDoc[] groupDocs = new GroupDoc[] {
+            new GroupDoc("1", "c", 200, 1, false),
+            new GroupDoc("2", "a", 1, 10, true),
+            new GroupDoc("3", "b", 2, 30, false),
+            new GroupDoc("4", "c", 1, 1000, false),
+            // should be highest on rescore, but filtered out during collapse
+            new GroupDoc("5", "b", 1, 40, false),
+            new GroupDoc("6", "a", 2, 20, false) };
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (var groupDoc : groupDocs) {
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")))
+            .setCollapse(new CollapseBuilder("group"));
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(5L));
+            assertThat(resp.getHits().getHits().length, equalTo(3));
+
+            SearchHit hit1 = resp.getHits().getAt(0);
+            assertThat(hit1.getId(), equalTo("1"));
+            assertThat(hit1.getScore(), equalTo(201F));
+            assertThat(hit1.field("group").getValues().size(), equalTo(1));
+            assertThat(hit1.field("group").getValues().get(0), equalTo("c"));
+
+            SearchHit hit2 = resp.getHits().getAt(1);
+            assertThat(hit2.getId(), equalTo("3"));
+            assertThat(hit2.getScore(), equalTo(32F));
+            assertThat(hit2.field("group").getValues().size(), equalTo(1));
+            assertThat(hit2.field("group").getValues().get(0), equalTo("b"));
+
+            SearchHit hit3 = resp.getHits().getAt(2);
+            assertThat(hit3.getId(), equalTo("6"));
+            assertThat(hit3.getScore(), equalTo(22F));
+            assertThat(hit3.field("group").getValues().size(), equalTo(1));
+            assertThat(hit3.field("group").getValues().get(0), equalTo("a"));
+        });
+    }
+
+    public void testRescoreAfterCollapseRandom() throws Exception {
+        assertAcked(prepareCreate("test").setMapping("group", "type=keyword", "shouldFilter", "type=boolean"));
+        ensureGreen("test");
+        int numGroups = randomIntBetween(1, 100);
+        int numDocs = atLeast(100);
+        GroupDoc[] groups = new GroupDoc[numGroups];
+        int numHits = 0;
+        List<IndexRequestBuilder> requests = new ArrayList<>();
+        for (int i = 0; i < numDocs; i++) {
+            int group = randomIntBetween(0, numGroups - 1);
+            boolean shouldFilter = rarely();
+            String id = randomUUID();
+            float firstPassScore = randomFloat();
+            float secondPassScore = randomFloat();
+            float bestScore = groups[group] == null ? -1 : groups[group].firstPassScore;
+            var groupDoc = new GroupDoc(id, Integer.toString(group), firstPassScore, secondPassScore, shouldFilter);
+            if (shouldFilter == false) {
+                if (firstPassScore == bestScore) {
+                    // avoid tiebreaker
+                    continue;
+                }
+
+                numHits++;
+                if (firstPassScore > bestScore) {
+                    groups[group] = groupDoc;
+                }
+            }
+            requests.add(
+                client().prepareIndex("test")
+                    .setId(groupDoc.id())
+                    .setRouting(groupDoc.group())
+                    .setSource(
+                        "group",
+                        groupDoc.group(),
+                        "firstPassScore",
+                        groupDoc.firstPassScore(),
+                        "secondPassScore",
+                        groupDoc.secondPassScore(),
+                        "shouldFilter",
+                        groupDoc.shouldFilter()
+                    )
+            );
+        }
+        indexRandom(true, requests);
+
+        GroupDoc[] sortedGroups = Arrays.stream(groups)
+            .filter(g -> g != null)
+            .sorted(Comparator.comparingDouble(GroupDoc::secondPassScore).reversed())
+            .toArray(GroupDoc[]::new);
+
+        var request = client().prepareSearch("test")
+            .setQuery(fieldValueScoreQuery("firstPassScore"))
+            .addRescorer(new QueryRescorerBuilder(fieldValueScoreQuery("secondPassScore")).setQueryWeight(0f).windowSize(numGroups))
+            .setCollapse(new CollapseBuilder("group"))
+            .setSize(Math.min(numGroups, 10));
+        long expectedNumHits = numHits;
+        assertResponse(request, resp -> {
+            assertThat(resp.getHits().getTotalHits().value(), equalTo(expectedNumHits));
+            for (int pos = 0; pos < resp.getHits().getHits().length; pos++) {
+                SearchHit hit = resp.getHits().getAt(pos);
+                assertThat(hit.getId(), equalTo(sortedGroups[pos].id()));
+                String group = hit.field("group").getValue();
+                assertThat(group, equalTo(sortedGroups[pos].group()));
+                assertThat(hit.getScore(), equalTo(sortedGroups[pos].secondPassScore));
+            }
+        });
+    }
+
+    public void testRescoreWithTimeout() throws Exception {
+        // no dummy docs since merges can change scores while we run queries.
+        int numDocs = indexRandomNumbers("whitespace", -1, false);
+
+        String intToEnglish = English.intToEnglish(between(0, numDocs - 1));
+        String query = intToEnglish.split(" ")[0];
+        assertResponse(
+            prepareSearch().setSearchType(SearchType.QUERY_THEN_FETCH)
+                .setQuery(QueryBuilders.matchQuery("field1", query).operator(Operator.OR))
+                .setSize(10)
+                .addRescorer(new QueryRescorerBuilder(functionScoreQuery(new TestTimedScoreFunctionBuilder())).windowSize(100))
+                .setTimeout(TimeValue.timeValueMillis(10)),
+            r -> assertTrue(r.isTimedOut())
+        );
+    }
+
+    @Override
+    protected Collection<Class<? extends Plugin>> nodePlugins() {
+        return List.of(TestTimedQueryPlugin.class);
+    }
+
+    private QueryBuilder fieldValueScoreQuery(String scoreField) {
+        return functionScoreQuery(termQuery("shouldFilter", false), ScoreFunctionBuilders.fieldValueFactorFunction(scoreField)).boostMode(
+            CombineFunction.REPLACE
+        );
+    }
+
+    public static class TestTimedQueryPlugin extends Plugin implements SearchPlugin {
+        @Override
+        public List<ScoreFunctionSpec<?>> getScoreFunctions() {
+            return List.of(
+                new ScoreFunctionSpec<>(
+                    new ParseField("timed"),
+                    TestTimedScoreFunctionBuilder::new,
+                    p -> new TestTimedScoreFunctionBuilder()
+                )
+            );
+        }
+    }
+
+    static class TestTimedScoreFunctionBuilder extends ScoreFunctionBuilder<TestTimedScoreFunctionBuilder> {
+        private final long time = 500;
+
+        TestTimedScoreFunctionBuilder() {}
+
+        TestTimedScoreFunctionBuilder(StreamInput in) throws IOException {
+            super(in);
+        }
+
+        @Override
+        protected void doWriteTo(StreamOutput out) {}
+
+        @Override
+        public String getName() {
+            return "timed";
+        }
+
+        @Override
+        protected void doXContent(XContentBuilder builder, Params params) {}
+
+        @Override
+        protected boolean doEquals(TestTimedScoreFunctionBuilder functionBuilder) {
+            return false;
+        }
+
+        @Override
+        protected int doHashCode() {
+            return 0;
+        }
+
+        @Override
+        protected ScoreFunction doToFunction(SearchExecutionContext context) throws IOException {
+            return new ScoreFunction(REPLACE) {
+                @Override
+                public LeafScoreFunction getLeafScoreFunction(LeafReaderContext ctx) throws IOException {
+                    return new LeafScoreFunction() {
+                        @Override
+                        public double score(int docId, float subQueryScore) {
+                            try {
+                                Thread.sleep(time);
+                            } catch (InterruptedException e) {
+                                Thread.currentThread().interrupt();
+                            }
+                            return time;
+                        }
+
+                        @Override
+                        public Explanation explainScore(int docId, Explanation subQueryScore) {
+                            return null;
+                        }
+                    };
+                }
+
+                @Override
+                public boolean needsScores() {
+                    return true;
+                }
+
+                @Override
+                protected boolean doEquals(ScoreFunction other) {
+                    return false;
+                }
+
+                @Override
+                protected int doHashCode() {
+                    return 0;
+                }
+            };
+        }
+
+        @Override
+        public TransportVersion getMinimalSupportedVersion() {
+            return TransportVersion.current();
+        }
     }
 }

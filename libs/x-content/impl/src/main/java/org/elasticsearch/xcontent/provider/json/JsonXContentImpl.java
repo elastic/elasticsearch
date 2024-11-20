@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.xcontent.provider.json;
@@ -54,6 +55,8 @@ public class JsonXContentImpl implements XContent {
         jsonFactory.configure(JsonGenerator.Feature.AUTO_CLOSE_JSON_CONTENT, false);
         jsonFactory.configure(JsonParser.Feature.STRICT_DUPLICATE_DETECTION, true);
         jsonFactory.configure(JsonParser.Feature.USE_FAST_DOUBLE_PARSER, true);
+        // keeping existing behavior of including source, for now
+        jsonFactory.configure(JsonParser.Feature.INCLUDE_SOURCE_IN_LOCATION, true);
         jsonXContent = new JsonXContentImpl();
     }
 
@@ -65,7 +68,7 @@ public class JsonXContentImpl implements XContent {
     }
 
     @Override
-    public byte streamSeparator() {
+    public byte bulkSeparator() {
         return '\n';
     }
 

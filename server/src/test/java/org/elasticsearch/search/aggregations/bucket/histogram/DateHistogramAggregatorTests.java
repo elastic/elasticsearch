@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.histogram;
@@ -40,6 +41,7 @@ import org.elasticsearch.search.aggregations.bucket.terms.StringTerms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
 import org.elasticsearch.search.aggregations.pipeline.PipelineAggregator.PipelineTree;
 import org.elasticsearch.search.aggregations.support.AggregationContext;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.hamcrest.Matcher;
 
 import java.io.IOException;
@@ -1062,7 +1064,7 @@ public class DateHistogramAggregatorTests extends DateHistogramAggregatorTestCas
                 agg.preCollection();
                 context.searcher().search(context.query(), agg.asCollector());
                 InternalDateHistogram result = (InternalDateHistogram) agg.buildTopLevel();
-                result = (InternalDateHistogram) result.reduce(
+                result = (InternalDateHistogram) InternalAggregationTestCase.reduce(
                     List.of(result),
                     new AggregationReduceContext.ForFinal(
                         context.bigArrays(),

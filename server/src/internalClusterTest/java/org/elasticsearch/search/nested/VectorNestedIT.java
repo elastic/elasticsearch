@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.nested;
@@ -11,6 +12,7 @@ package org.elasticsearch.search.nested;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.search.vectors.KnnSearchBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
 
@@ -66,8 +68,9 @@ public class VectorNestedIT extends ESIntegTestCase {
         refresh();
 
         assertResponse(
-            prepareSearch("test").setKnnSearch(List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null)))
-                .setAllowPartialSearchResults(false),
+            prepareSearch("test").setKnnSearch(
+                List.of(new KnnSearchBuilder("nested.vector", new float[] { 1, 1, 1 }, 1, 1, null).innerHit(new InnerHitBuilder()))
+            ).setAllowPartialSearchResults(false),
             response -> assertThat(response.getHits().getHits().length, greaterThan(0))
         );
     }

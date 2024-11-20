@@ -6,7 +6,6 @@ apply plugin: 'elasticsearch.legacy-java-rest-test'
 dependencies {
   javaRestTestImplementation(testArtifact(project(xpackModule('core'))))
   javaRestTestImplementation project(xpackModule('slm'))
-  javaRestTestImplementation project(":client:rest-high-level")
 }
 
 File repoDir = file("$buildDir/testclusters/repo")
@@ -32,7 +31,7 @@ testClusters.configureEach {
   setting 'logger.org.elasticsearch.xpack.slm', 'TRACE'
 }
 
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // Test clusters run with security disabled
   tasks.named("javaRestTest").configure{enabled = false }
 }

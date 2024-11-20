@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.shrink;
@@ -11,6 +12,7 @@ package org.elasticsearch.action.admin.indices.shrink;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexClusterStateUpdateRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
+import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.stats.IndexShardStats;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsAction;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsRequest;
@@ -26,12 +28,12 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.routing.IndexRouting;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -41,7 +43,7 @@ import java.util.Locale;
 /**
  * Main class to initiate resizing (shrink / split) an index into a new index
  */
-public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, ResizeResponse> {
+public class TransportResizeAction extends TransportMasterNodeAction<ResizeRequest, CreateIndexResponse> {
 
     private final MetadataCreateIndexService createIndexService;
     private final Client client;
@@ -86,7 +88,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             actionFilters,
             ResizeRequest::new,
             indexNameExpressionResolver,
-            ResizeResponse::new,
+            CreateIndexResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );
         this.createIndexService = createIndexService;
@@ -103,7 +105,7 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
         Task task,
         final ResizeRequest resizeRequest,
         final ClusterState state,
-        final ActionListener<ResizeResponse> listener
+        final ActionListener<CreateIndexResponse> listener
     ) {
 
         // there is no need to fetch docs stats for split but we keep it simple and do it anyway for simplicity of the code
@@ -134,9 +136,16 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
                     return;
                 }
                 createIndexService.createIndex(
+                    resizeRequest.masterNodeTimeout(),
+                    resizeRequest.ackTimeout(),
+                    resizeRequest.ackTimeout(),
                     updateRequest,
                     delegatedListener.map(
-                        response -> new ResizeResponse(response.isAcknowledged(), response.isShardsAcknowledged(), updateRequest.index())
+                        response -> new CreateIndexResponse(
+                            response.isAcknowledged(),
+                            response.isShardsAcknowledged(),
+                            updateRequest.index()
+                        )
                     )
                 );
             })
@@ -228,8 +237,6 @@ public class TransportResizeAction extends TransportMasterNodeAction<ResizeReque
             // mappings are updated on the node when creating in the shards, this prevents race-conditions since all mapping must be
             // applied once we took the snapshot and if somebody messes things up and switches the index read/write and adds docs we
             // miss the mappings for everything is corrupted and hard to debug
-            .ackTimeout(targetIndex.timeout())
-            .masterNodeTimeout(targetIndex.masterNodeTimeout())
             .settings(targetIndex.settings())
             .aliases(targetIndex.aliases())
             .waitForActiveShards(targetIndex.waitForActiveShards())

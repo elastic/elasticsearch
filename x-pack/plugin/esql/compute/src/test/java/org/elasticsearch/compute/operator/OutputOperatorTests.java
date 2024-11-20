@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.operator;
 
+import org.hamcrest.Matcher;
+
 import java.util.List;
 import java.util.stream.IntStream;
 
@@ -19,12 +21,12 @@ public class OutputOperatorTests extends AnyOperatorTestCase {
     }
 
     @Override
-    protected String expectedDescriptionOfSimple() {
-        return "OutputOperator[columns = [a]]";
+    protected Matcher<String> expectedDescriptionOfSimple() {
+        return equalTo("OutputOperator[columns = [a]]");
     }
 
     @Override
-    protected String expectedToStringOfSimple() {
+    protected Matcher<String> expectedToStringOfSimple() {
         return expectedDescriptionOfSimple();
     }
 

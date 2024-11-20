@@ -12,6 +12,8 @@ import org.apache.lucene.store.ByteBuffersDirectory;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.store.FilterDirectory;
 import org.elasticsearch.ResourceNotFoundException;
+import org.elasticsearch.action.admin.cluster.allocation.ClusterAllocationExplainRequest;
+import org.elasticsearch.action.admin.cluster.allocation.TransportClusterAllocationExplainAction;
 import org.elasticsearch.action.admin.cluster.snapshots.restore.RestoreSnapshotResponse;
 import org.elasticsearch.action.admin.cluster.snapshots.status.SnapshotIndexShardStatus;
 import org.elasticsearch.action.admin.indices.alias.IndicesAliasesRequest;
@@ -102,7 +104,10 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         // we can bypass this by forcing soft deletes to be used. TODO this restriction can be lifted when #55142 is resolved.
         final Settings.Builder originalIndexSettings = Settings.builder().put(INDEX_SOFT_DELETES_SETTING.getKey(), true);
         if (randomBoolean()) {
-            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), randomFrom("false", "true", "checksum"));
+            // INDEX_CHECK_ON_STARTUP requires expensive processing due to verification the integrity of many important files during
+            // a shard recovery or relocation. Therefore, it takes lots of time for the files to clean up and the assertShardFolder
+            // check may not complete in 30s.
+            originalIndexSettings.put(IndexSettings.INDEX_CHECK_ON_STARTUP.getKey(), "false");
         }
         assertAcked(prepareCreate(indexName, originalIndexSettings));
         assertAcked(indicesAdmin().prepareAliases().addAlias(indexName, aliasName));
@@ -142,7 +147,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertShardFolders(indexName, false);
 
         assertThat(
-            clusterAdmin().prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(indexName)
@@ -220,6 +225,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         statsWatcher.start();
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -233,7 +239,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         final RestoreSnapshotResponse restoreSnapshotResponse = client().execute(MountSearchableSnapshotAction.INSTANCE, req).get();
         assertThat(restoreSnapshotResponse.getRestoreInfo().failedShards(), equalTo(0));
 
-        final Map<Integer, SnapshotIndexShardStatus> snapshotShards = clusterAdmin().prepareSnapshotStatus(fsRepoName)
+        final Map<Integer, SnapshotIndexShardStatus> snapshotShards = clusterAdmin().prepareSnapshotStatus(TEST_REQUEST_TIMEOUT, fsRepoName)
             .setSnapshots(snapshotInfo.snapshotId().getName())
             .get()
             .getSnapshots()
@@ -305,7 +311,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertBusy(() -> assertShardFolders(restoredIndexName, true), 30, TimeUnit.SECONDS);
 
         assertThat(
-            clusterAdmin().prepareState()
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
                 .clear()
                 .setMetadata(true)
                 .setIndices(restoredIndexName)
@@ -331,13 +337,11 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         assertThat(indicesAdmin().prepareGetAliases(aliasName).get().getAliases().size(), equalTo(1));
         assertTotalHits(aliasName, originalAllHits, originalBarHits);
 
-        final Decision diskDeciderDecision = clusterAdmin().prepareAllocationExplain()
-            .setIndex(restoredIndexName)
+        final var request = new ClusterAllocationExplainRequest(TEST_REQUEST_TIMEOUT).setIndex(restoredIndexName)
             .setShard(0)
-            .setPrimary(true)
-            .setIncludeYesDecisions(true)
-            .get()
-            .getExplanation()
+            .setPrimary(true);
+        request.includeYesDecisions(true);
+        final var diskDeciderDecision = safeGet(client().execute(TransportClusterAllocationExplainAction.TYPE, request)).getExplanation()
             .getShardAllocationDecision()
             .getMoveDecision()
             .getCanRemainDecision()
@@ -361,7 +365,9 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         internalCluster().ensureAtLeastNumDataNodes(2);
 
-        final DiscoveryNode dataNode = randomFrom(clusterAdmin().prepareState().get().getState().nodes().getDataNodes().values());
+        final DiscoveryNode dataNode = randomFrom(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getDataNodes().values()
+        );
 
         updateIndexSettings(
             Settings.builder()
@@ -374,7 +380,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
         );
 
         assertFalse(
-            clusterAdmin().prepareHealth(restoredIndexName)
+            clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, restoredIndexName)
                 .setWaitForNoRelocatingShards(true)
                 .setWaitForEvents(Priority.LANGUID)
                 .get()
@@ -450,6 +456,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
 
         Settings.Builder indexSettingsBuilder = Settings.builder().put(SearchableSnapshots.SNAPSHOT_CACHE_ENABLED_SETTING.getKey(), true);
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             "test-index",
             "repo",
             "snap",
@@ -562,6 +569,7 @@ public class FrozenSearchableSnapshotsIntegTests extends BaseFrozenSearchableSna
             .putNull(DataTier.TIER_PREFERENCE);
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),

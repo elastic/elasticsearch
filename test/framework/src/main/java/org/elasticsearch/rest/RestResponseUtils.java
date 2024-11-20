@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest;
@@ -28,8 +29,8 @@ public class RestResponseUtils {
             return restResponse.content();
         }
 
-        final var chunkedRestResponseBody = restResponse.chunkedContent();
-        assert chunkedRestResponseBody.isDone() == false;
+        final var firstResponseBodyPart = restResponse.chunkedContent();
+        assert firstResponseBodyPart.isPartComplete() == false;
 
         final int pageSize;
         try (var page = NON_RECYCLING_INSTANCE.obtain()) {
@@ -37,11 +38,12 @@ public class RestResponseUtils {
         }
 
         try (var out = new BytesStreamOutput()) {
-            while (chunkedRestResponseBody.isDone() == false) {
-                try (var chunk = chunkedRestResponseBody.encodeChunk(pageSize, NON_RECYCLING_INSTANCE)) {
+            while (firstResponseBodyPart.isPartComplete() == false) {
+                try (var chunk = firstResponseBodyPart.encodeChunk(pageSize, NON_RECYCLING_INSTANCE)) {
                     chunk.writeTo(out);
                 }
             }
+            assert firstResponseBodyPart.isLastPart() : "RestResponseUtils#getBodyContent does not support continuations (yet)";
 
             out.flush();
             return out.bytes();

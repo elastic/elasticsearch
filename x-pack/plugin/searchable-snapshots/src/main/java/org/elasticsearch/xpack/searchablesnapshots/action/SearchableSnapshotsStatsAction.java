@@ -14,6 +14,6 @@ public class SearchableSnapshotsStatsAction extends ActionType<SearchableSnapsho
     static final String NAME = "cluster:monitor/xpack/searchable_snapshots/stats";
 
     private SearchableSnapshotsStatsAction() {
-        super(NAME, SearchableSnapshotsStatsResponse::new);
+        super(NAME);
     }
 }

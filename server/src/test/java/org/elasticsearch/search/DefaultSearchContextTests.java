@@ -1,14 +1,19 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
 
 import org.apache.lucene.document.Document;
+import org.apache.lucene.document.Field;
+import org.apache.lucene.document.IntField;
+import org.apache.lucene.document.LongField;
+import org.apache.lucene.document.SortedNumericDocValuesField;
 import org.apache.lucene.document.SortedSetDocValuesField;
 import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexReader;
@@ -38,11 +43,14 @@ import org.elasticsearch.index.cache.IndexCache;
 import org.elasticsearch.index.cache.query.QueryCache;
 import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
+import org.elasticsearch.index.fielddata.IndexNumericFieldData;
 import org.elasticsearch.index.fielddata.plain.BinaryIndexFieldData;
+import org.elasticsearch.index.fielddata.plain.SortedNumericIndexFieldData;
 import org.elasticsearch.index.fielddata.plain.SortedOrdinalsIndexFieldData;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.MapperServiceTestCase;
 import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.ParsedQuery;
@@ -65,14 +73,15 @@ import org.elasticsearch.search.slice.SliceBuilder;
 import org.elasticsearch.search.sort.FieldSortBuilder;
 import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilders;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.UUID;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ThreadPoolExecutor;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import java.util.function.ToLongFunction;
@@ -87,7 +96,7 @@ import static org.mockito.ArgumentMatchers.nullable;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class DefaultSearchContextTests extends ESTestCase {
+public class DefaultSearchContextTests extends MapperServiceTestCase {
 
     public void testPreProcess() throws Exception {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
@@ -116,7 +125,7 @@ public class DefaultSearchContextTests extends ESTestCase {
         when(indexCache.query()).thenReturn(queryCache);
         when(indexService.cache()).thenReturn(indexCache);
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
-        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
+        when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any(), any()))
             .thenReturn(searchExecutionContext);
         MapperService mapperService = mock(MapperService.class);
         when(mapperService.hasNested()).thenReturn(randomBoolean());
@@ -475,10 +484,34 @@ public class DefaultSearchContextTests extends ESTestCase {
         }
     }
 
-    public void testDetermineMaximumNumberOfSlices() {
+    public void testNewIdLoaderWithTsdbAndRoutingPathMatch() throws Exception {
+        Settings settings = Settings.builder()
+            .put(IndexSettings.MODE.getKey(), "time_series")
+            .put(IndexSettings.TIME_SERIES_START_TIME.getKey(), "2000-01-01T00:00:00.000Z")
+            .put(IndexSettings.TIME_SERIES_END_TIME.getKey(), "2001-01-01T00:00:00.000Z")
+            .put(IndexMetadata.INDEX_ROUTING_PATH.getKey(), "labels.*")
+            .build();
+
+        XContentBuilder mappings = mapping(b -> {
+            b.startObject("labels").field("type", "object");
+            {
+                b.startObject("properties");
+                b.startObject("dim").field("type", "keyword").field("time_series_dimension", true).endObject();
+                b.endObject();
+            }
+            b.endObject();
+        });
+
+        try (DefaultSearchContext context = createDefaultSearchContext(settings, mappings)) {
+            assertThat(context.newIdLoader(), instanceOf(IdLoader.TsIdLoader.class));
+            context.indexShard().getThreadPool().shutdown();
+        }
+    }
+
+    private static ShardSearchRequest createParallelRequest() {
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
-        ShardSearchRequest parallelReq = new ShardSearchRequest(
+        return new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(randomBoolean()),
             indexShard.shardId(),
@@ -489,6 +522,104 @@ public class DefaultSearchContextTests extends ESTestCase {
             System.currentTimeMillis(),
             null
         );
+
+    }
+
+    public void testDetermineMaximumNumberOfSlicesNoExecutor() {
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                null,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                null,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesNotThreadPoolExecutor() {
+        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                notThreadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesEnableQueryPhaseParallelCollection() {
+        int executorPoolSize = randomIntBetween(1, 100);
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
+            "test",
+            executorPoolSize,
+            0,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
+        );
+        ToLongFunction<String> fieldCardinality = name -> -1;
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                true,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            1,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.QUERY,
+                false,
+                fieldCardinality
+            )
+        );
+        assertEquals(
+            executorPoolSize,
+            DefaultSearchContext.determineMaximumNumberOfSlices(
+                threadPoolExecutor,
+                createParallelRequest(),
+                SearchService.ResultsType.DFS,
+                randomBoolean(),
+                fieldCardinality
+            )
+        );
+    }
+
+    public void testDetermineMaximumNumberOfSlicesSingleSortByField() {
+        IndexShard indexShard = mock(IndexShard.class);
+        when(indexShard.shardId()).thenReturn(new ShardId("index", "uuid", 0));
         ShardSearchRequest singleSliceReq = new ShardSearchRequest(
             OriginalIndices.NONE,
             new SearchRequest().allowPartialSearchResults(randomBoolean())
@@ -501,8 +632,9 @@ public class DefaultSearchContextTests extends ESTestCase {
             System.currentTimeMillis(),
             null
         );
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
         int executorPoolSize = randomIntBetween(1, 100);
-        ExecutorService threadPoolExecutor = EsExecutors.newFixed(
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
             "test",
             executorPoolSize,
             0,
@@ -510,39 +642,13 @@ public class DefaultSearchContextTests extends ESTestCase {
             new ThreadContext(Settings.EMPTY),
             EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-        ExecutorService notThreadPoolExecutor = Executors.newWorkStealingPool();
-        ToLongFunction<String> fieldCardinality = name -> -1;
-
-        assertEquals(
-            executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
+        // DFS concurrency does not rely on slices, hence it kicks in regardless of the request (supportsParallelCollection is not called)
         assertEquals(
             executorPoolSize,
             DefaultSearchContext.determineMaximumNumberOfSlices(
                 threadPoolExecutor,
                 singleSliceReq,
                 SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, true, fieldCardinality)
-        );
-        assertEquals(
-            executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.QUERY,
                 true,
                 fieldCardinality
             )
@@ -557,55 +663,66 @@ public class DefaultSearchContextTests extends ESTestCase {
                 fieldCardinality
             )
         );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                notThreadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                true,
-                fieldCardinality
-            )
-        );
+    }
 
-        assertEquals(
+    public void testDetermineMaximumNumberOfSlicesWithQueue() {
+        int executorPoolSize = randomIntBetween(1, 100);
+        ThreadPoolExecutor threadPoolExecutor = EsExecutors.newFixed(
+            "test",
             executorPoolSize,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                false,
-                fieldCardinality
-            )
+            1000,
+            Thread::new,
+            new ThreadContext(Settings.EMPTY),
+            EsExecutors.TaskTrackingConfig.DO_NOT_TRACK
         );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.DFS, false, fieldCardinality)
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                threadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.QUERY,
-                false,
-                fieldCardinality
-            )
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(null, parallelReq, SearchService.ResultsType.QUERY, false, fieldCardinality)
-        );
-        assertEquals(
-            1,
-            DefaultSearchContext.determineMaximumNumberOfSlices(
-                notThreadPoolExecutor,
-                parallelReq,
-                SearchService.ResultsType.DFS,
-                false,
-                fieldCardinality
-            )
-        );
+        ToLongFunction<String> fieldCardinality = name -> { throw new UnsupportedOperationException(); };
+
+        for (int i = 0; i < executorPoolSize; i++) {
+            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
+            assertEquals(
+                executorPoolSize,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.DFS,
+                    true,
+                    fieldCardinality
+                )
+            );
+            assertEquals(
+                executorPoolSize,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.QUERY,
+                    true,
+                    fieldCardinality
+                )
+            );
+        }
+        for (int i = 0; i < 100; i++) {
+            assertTrue(threadPoolExecutor.getQueue().offer(() -> {}));
+            assertEquals(
+                1,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.DFS,
+                    true,
+                    fieldCardinality
+                )
+            );
+            assertEquals(
+                1,
+                DefaultSearchContext.determineMaximumNumberOfSlices(
+                    threadPoolExecutor,
+                    createParallelRequest(),
+                    SearchService.ResultsType.QUERY,
+                    true,
+                    fieldCardinality
+                )
+            );
+        }
     }
 
     public void testIsParallelCollectionSupportedForResults() {
@@ -613,8 +730,8 @@ public class DefaultSearchContextTests extends ESTestCase {
         ToLongFunction<String> fieldCardinality = name -> -1;
         for (var resultsType : SearchService.ResultsType.values()) {
             switch (resultsType) {
-                case NONE, FETCH -> assertFalse(
-                    "NONE and FETCH phases do not support parallel collection.",
+                case NONE, RANK_FEATURE, FETCH -> assertFalse(
+                    "NONE, RANK_FEATURE, and FETCH phases do not support parallel collection.",
                     DefaultSearchContext.isParallelCollectionSupportedForResults(
                         resultsType,
                         searchSourceBuilderOrNull,
@@ -774,6 +891,58 @@ public class DefaultSearchContextTests extends ESTestCase {
         }
     }
 
+    public void testGetFieldCardinalityNumeric() throws IOException {
+        try (BaseDirectoryWrapper dir = newDirectory()) {
+            final int numDocs = scaledRandomIntBetween(100, 200);
+            try (RandomIndexWriter w = new RandomIndexWriter(random(), dir, new IndexWriterConfig())) {
+                for (int i = 0; i < numDocs; ++i) {
+                    Document doc = new Document();
+                    doc.add(new LongField("long", i, Field.Store.NO));
+                    doc.add(new IntField("int", i, Field.Store.NO));
+                    doc.add(new SortedNumericDocValuesField("no_index", i));
+                    w.addDocument(doc);
+                }
+            }
+            try (DirectoryReader reader = DirectoryReader.open(dir)) {
+                final SortedNumericIndexFieldData longFieldData = new SortedNumericIndexFieldData(
+                    "long",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(longFieldData, reader));
+
+                final SortedNumericIndexFieldData integerFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.INT,
+                    IndexNumericFieldData.NumericType.INT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(integerFieldData, reader));
+
+                final SortedNumericIndexFieldData shortFieldData = new SortedNumericIndexFieldData(
+                    "int",
+                    IndexNumericFieldData.NumericType.SHORT,
+                    IndexNumericFieldData.NumericType.SHORT.getValuesSourceType(),
+                    null,
+                    true
+                );
+                assertEquals(numDocs, DefaultSearchContext.getFieldCardinality(shortFieldData, reader));
+
+                final SortedNumericIndexFieldData noIndexFieldata = new SortedNumericIndexFieldData(
+                    "no_index",
+                    IndexNumericFieldData.NumericType.LONG,
+                    IndexNumericFieldData.NumericType.LONG.getValuesSourceType(),
+                    null,
+                    false
+                );
+                assertEquals(-1, DefaultSearchContext.getFieldCardinality(noIndexFieldata, reader));
+            }
+        }
+    }
+
     public void testGetFieldCardinalityUnmappedField() {
         MapperService mapperService = mock(MapperService.class);
         IndexService indexService = mock(IndexService.class);
@@ -791,6 +960,10 @@ public class DefaultSearchContextTests extends ESTestCase {
     }
 
     private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings) throws IOException {
+        return createDefaultSearchContext(providedIndexSettings, null);
+    }
+
+    private DefaultSearchContext createDefaultSearchContext(Settings providedIndexSettings, XContentBuilder mappings) throws IOException {
         TimeValue timeout = new TimeValue(randomIntBetween(1, 100));
         ShardSearchRequest shardSearchRequest = mock(ShardSearchRequest.class);
         when(shardSearchRequest.searchType()).thenReturn(SearchType.DEFAULT);
@@ -813,15 +986,23 @@ public class DefaultSearchContextTests extends ESTestCase {
         SearchExecutionContext searchExecutionContext = mock(SearchExecutionContext.class);
         when(indexService.newSearchExecutionContext(eq(shardId.id()), eq(shardId.id()), any(), any(), nullable(String.class), any()))
             .thenReturn(searchExecutionContext);
-        MapperService mapperService = mock(MapperService.class);
-        when(mapperService.hasNested()).thenReturn(randomBoolean());
-        when(indexService.mapperService()).thenReturn(mapperService);
 
         IndexMetadata indexMetadata = IndexMetadata.builder("index").settings(settings).build();
-        IndexSettings indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+        IndexSettings indexSettings;
+        MapperService mapperService;
+        if (mappings != null) {
+            mapperService = createMapperService(settings, mappings);
+            indexSettings = mapperService.getIndexSettings();
+        } else {
+            indexSettings = new IndexSettings(indexMetadata, Settings.EMPTY);
+            mapperService = mock(MapperService.class);
+            when(mapperService.hasNested()).thenReturn(randomBoolean());
+            when(indexService.mapperService()).thenReturn(mapperService);
+            when(mapperService.getIndexSettings()).thenReturn(indexSettings);
+        }
         when(indexService.getIndexSettings()).thenReturn(indexSettings);
+        when(indexService.mapperService()).thenReturn(mapperService);
         when(indexService.getMetadata()).thenReturn(indexMetadata);
-        when(mapperService.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.getIndexSettings()).thenReturn(indexSettings);
         when(searchExecutionContext.indexVersionCreated()).thenReturn(indexSettings.getIndexVersionCreated());
 

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http.snapshots;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.snapshots.get.GetSnapshotsAction;
+import org.elasticsearch.action.admin.cluster.snapshots.get.TransportGetSnapshotsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -48,13 +49,13 @@ public class RestGetSnapshotsCancellationIT extends AbstractSnapshotRestTestCase
         final Cancellable cancellable = getRestClient().performRequestAsync(request, wrapAsRestResponseListener(future));
 
         assertThat(future.isDone(), equalTo(false));
-        awaitTaskWithPrefix(GetSnapshotsAction.NAME);
+        awaitTaskWithPrefix(TransportGetSnapshotsAction.TYPE.name());
         assertBusy(() -> assertTrue(repository.blocked()), 30L, TimeUnit.SECONDS);
         cancellable.cancel();
-        assertAllCancellableTasksAreCancelled(GetSnapshotsAction.NAME);
+        assertAllCancellableTasksAreCancelled(TransportGetSnapshotsAction.TYPE.name());
         repository.unblock();
         expectThrows(CancellationException.class, future::actionGet);
 
-        assertAllTasksHaveFinished(GetSnapshotsAction.NAME);
+        assertAllTasksHaveFinished(TransportGetSnapshotsAction.TYPE.name());
     }
 }

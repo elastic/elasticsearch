@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -23,6 +24,7 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -229,7 +231,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
     private TransportRequestHandler<TestRequest> requestHandlerRepliesNormally() {
         return (request, channel, task) -> {
             logger.debug("got a dummy request, replying normally...");
-            channel.sendResponse(new TestResponse());
+            try (var responseRef = ReleasableRef.of(new TestResponse())) {
+                channel.sendResponse(responseRef.get());
+            }
         };
     }
 
@@ -255,7 +259,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -279,7 +283,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -305,7 +309,7 @@ public class DisruptableMockTransportTests extends ESTestCase {
             }
 
             @Override
-            public Executor executor(ThreadPool threadPool) {
+            public Executor executor() {
                 return TransportResponseHandler.TRANSPORT_WORKER;
             }
 
@@ -415,7 +419,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNull(responseHandlerException.get());
 
         disconnectedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
         deterministicTaskQueue.runAllTasks();
         deliverBlackholedRequests.run();
         deterministicTaskQueue.runAllTasks();
@@ -453,7 +459,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
         assertNotNull(responseHandlerChannel.get());
 
         blackholedLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
         deterministicTaskQueue.runAllRunnableTasks();
     }
 
@@ -485,7 +493,9 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
         blackholedRequestLinks.add(Tuple.tuple(node2, node1));
-        responseHandlerChannel.get().sendResponse(new TestResponse());
+        try (var responseRef = ReleasableRef.of(new TestResponse())) {
+            responseHandlerChannel.get().sendResponse(responseRef.get());
+        }
 
         deterministicTaskQueue.runAllRunnableTasks();
         assertTrue(responseHandlerCalled.get());
@@ -584,32 +594,28 @@ public class DisruptableMockTransportTests extends ESTestCase {
 
         disconnectedLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [DISCONNECTED] not [CONNECTED]")
         );
         disconnectedLinks.clear();
 
         blackholedLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [BLACK_HOLE] not [CONNECTED]")
         );
         blackholedLinks.clear();
 
         blackholedRequestLinks.add(Tuple.tuple(node1, node2));
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node2))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node2, null).getMessage(),
             endsWith("is [BLACK_HOLE_REQUESTS_ONLY] not [CONNECTED]")
         );
         blackholedRequestLinks.clear();
 
         final DiscoveryNode node3 = DiscoveryNodeUtils.create("node3");
         assertThat(
-            expectThrows(ConnectTransportException.class, () -> AbstractSimpleTransportTestCase.connectToNode(service1, node3))
-                .getMessage(),
+            AbstractSimpleTransportTestCase.connectToNodeExpectFailure(service1, node3, null).getMessage(),
             endsWith("does not exist")
         );
     }

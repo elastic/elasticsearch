@@ -17,11 +17,11 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.client.internal.ElasticsearchClient;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -53,7 +53,7 @@ public class EnrichCoordinatorProxyAction extends ActionType<SearchResponse> {
     public static final String NAME = "indices:data/read/xpack/enrich/coordinate_lookups";
 
     private EnrichCoordinatorProxyAction() {
-        super(NAME, SearchResponse::new);
+        super(NAME);
     }
 
     public static class TransportAction extends HandledTransportAction<SearchRequest, SearchResponse> {

@@ -24,7 +24,8 @@ reporting that the coordinating node is waiting for all other nodes to
 confirm they are on mapping update request.
 
 * Discover's **Fields for wildcard** page-loading API command or {kibana-ref}/console-kibana.html[Dev Tools] page-refreshing Autocomplete API commands are taking a long time (more than 10 seconds) or
-timing out in the browser's Developer Tools Network tab.
+timing out in the browser's Developer Tools Network tab. For more 
+information, refer to our https://www.elastic.co/blog/troubleshooting-guide-common-issues-kibana-discover-load[walkthrough on troubleshooting Discover].
 
 * Discover's **Available fields** taking a long time to compile Javascript in the browser's Developer Tools Performance tab. This may potentially escalate to temporary browser page unresponsiveness.
 
@@ -41,12 +42,15 @@ timing out in the browser's Developer Tools Network tab.
 doesn't normally cause problems unless it's combined with overriding
 <<mapping-settings-limit,`index.mapping.total_fields.limit`>>. The
 default `1000` limit is considered generous, though overriding to `10000`
-doesn't cause noticable impact depending on use case. However, to give
+doesn't cause noticeable impact depending on use case. However, to give
 a bad example, overriding to `100000` and this limit being hit
 by mapping totals would usually have strong performance implications.
 
 If your index mapped fields expect to contain a large, arbitrary set of
 keys, you may instead consider:
+
+* Setting <<mapping-settings-limit,`index.mapping.total_fields.ignore_dynamic_beyond_limit`>> to `true`.
+Instead of rejecting documents that exceed the field limit, this will ignore dynamic fields once the limit is reached.
 
 * Using the <<flattened,flattened>> data type. Please note,
 however, that flattened objects is link:https://github.com/elastic/kibana/issues/25820[not fully supported in {kib}] yet. For example, this could apply to sub-mappings like { `host.name` ,

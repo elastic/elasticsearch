@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index;
@@ -141,6 +142,14 @@ public record IndexVersion(int id, Version luceneVersion) implements VersionId<I
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         return builder.value(id);
+    }
+
+    /**
+     * Returns a string representing the Elasticsearch release version of this index version,
+     * if applicable for this deployment, otherwise the raw version number.
+     */
+    public String toReleaseVersion() {
+        return IndexVersions.VERSION_LOOKUP.apply(id);
     }
 
     @Override

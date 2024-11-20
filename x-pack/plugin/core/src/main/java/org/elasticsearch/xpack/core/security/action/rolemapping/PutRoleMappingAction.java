@@ -17,6 +17,6 @@ public class PutRoleMappingAction extends ActionType<PutRoleMappingResponse> {
     public static final String NAME = "cluster:admin/xpack/security/role_mapping/put";
 
     private PutRoleMappingAction() {
-        super(NAME, PutRoleMappingResponse::new);
+        super(NAME);
     }
 }

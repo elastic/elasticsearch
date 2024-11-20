@@ -15,6 +15,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
 
+import java.util.Arrays;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -58,7 +59,7 @@ public class CopySettingsStep extends ClusterStateActionStep {
 
     BiFunction<String, LifecycleExecutionState, String> getTargetIndexNameSupplier() {
         return targetIndexNameSupplier;
-    };
+    }
 
     @Override
     public ClusterState performAction(Index index, ClusterState clusterState) {
@@ -115,11 +116,11 @@ public class CopySettingsStep extends ClusterStateActionStep {
         CopySettingsStep that = (CopySettingsStep) o;
         return super.equals(o)
             && Objects.equals(targetIndexNameSupplier, that.targetIndexNameSupplier)
-            && Objects.equals(settingsKeys, that.settingsKeys);
+            && Arrays.equals(settingsKeys, that.settingsKeys);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), targetIndexNameSupplier, settingsKeys);
+        return Objects.hash(super.hashCode(), targetIndexNameSupplier, Arrays.hashCode(settingsKeys));
     }
 }

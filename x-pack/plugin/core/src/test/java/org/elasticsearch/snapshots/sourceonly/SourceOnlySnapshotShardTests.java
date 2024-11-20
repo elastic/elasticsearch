@@ -11,6 +11,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexableField;
 import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.LeafReaderContext;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.index.Term;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.MatchAllDocsQuery;
@@ -33,7 +34,6 @@ import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.routing.RecoverySource;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -53,6 +53,7 @@ import org.elasticsearch.index.engine.EngineException;
 import org.elasticsearch.index.engine.InternalEngineFactory;
 import org.elasticsearch.index.fieldvisitor.FieldsVisitor;
 import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.seqno.SeqNoStats;
@@ -85,21 +86,21 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.nio.file.Path;
 import java.util.Collections;
-import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutionException;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
+
 public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
 
     public void testSourceIncomplete() throws IOException {
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -117,6 +118,55 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             final String id = Integer.toString(i);
             indexDoc(shard, "_doc", id);
         }
+        SnapshotId snapshotId = new SnapshotId("test", "test");
+        IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
+        SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
+        repository.start();
+        try (Engine.IndexCommitRef snapshotRef = shard.acquireLastIndexCommit(true)) {
+            IndexShardSnapshotStatus indexShardSnapshotStatus = IndexShardSnapshotStatus.newInitializing(new ShardGeneration(-1L));
+            final PlainActionFuture<ShardSnapshotResult> future = new PlainActionFuture<>();
+            runAsSnapshot(
+                shard.getThreadPool(),
+                () -> repository.snapshotShard(
+                    new SnapshotShardContext(
+                        shard.store(),
+                        shard.mapperService(),
+                        snapshotId,
+                        indexId,
+                        new SnapshotIndexCommit(snapshotRef),
+                        null,
+                        indexShardSnapshotStatus,
+                        IndexVersion.current(),
+                        randomMillisUpToYear9999(),
+                        future
+                    )
+                )
+            );
+            IllegalStateException illegalStateException = expectThrows(IllegalStateException.class, future::actionGet);
+            assertEquals(
+                "Can't snapshot _source only on an index that has incomplete source ie. has _source disabled or filters the source",
+                illegalStateException.getMessage()
+            );
+        }
+        closeShards(shard);
+    }
+
+    public void testSourceIncompleteSyntheticSourceNoDoc() throws IOException {
+        ShardRouting shardRouting = shardRoutingBuilder(
+            new ShardId("index", "_na_", 0),
+            randomAlphaOfLength(10),
+            true,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
+        Settings settings = Settings.builder()
+            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
+            .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, 1)
+            .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            .build();
+        IndexMetadata metadata = IndexMetadata.builder(shardRouting.getIndexName()).settings(settings).primaryTerm(0, primaryTerm).build();
+        IndexShard shard = newShard(shardRouting, metadata, null, new InternalEngineFactory());
+        recoverShardFromStore(shard);
         SnapshotId snapshotId = new SnapshotId("test", "test");
         IndexId indexId = new IndexId(shard.shardId().getIndexName(), shard.shardId().getIndex().getUUID());
         SourceOnlySnapshotRepository repository = new SourceOnlySnapshotRepository(createRepository());
@@ -351,25 +401,24 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(copy.getStage(), IndexShardSnapshotStatus.Stage.DONE);
         }
         shard.refresh("test");
-        ShardRouting shardRouting = TestShardRouting.newShardRouting(
+        ShardRouting shardRouting = shardRoutingBuilder(
             new ShardId("index", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(
             new RecoverySource.SnapshotRecoverySource(
                 UUIDs.randomBase64UUID(),
                 new Snapshot("src_only", snapshotId),
                 IndexVersion.current(),
                 indexId
             )
-        );
-        IndexMetadata metadata = runAsSnapshot(
-            threadPool,
-            () -> repository.getSnapshotIndexMetaData(
-                PlainActionFuture.get(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
-                snapshotId,
-                indexId
-            )
+        ).build();
+
+        IndexMetadata metadata = repository.getSnapshotIndexMetaData(
+            safeAwait(listener -> repository.getRepositoryData(EsExecutors.DIRECT_EXECUTOR_SERVICE, listener)),
+            snapshotId,
+            indexId
         );
         IndexShard restoredShard = newShard(
             shardRouting,
@@ -402,14 +451,14 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
         try (Engine.Searcher searcher = restoredShard.acquireSearcher("test")) {
             assertEquals(searcher.getIndexReader().maxDoc(), seqNoStats.getLocalCheckpoint());
             TopDocs search = searcher.search(new MatchAllDocsQuery(), Integer.MAX_VALUE);
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             search = searcher.search(
                 new MatchAllDocsQuery(),
                 Integer.MAX_VALUE,
                 new Sort(new SortField(SeqNoFieldMapper.NAME, SortField.Type.LONG)),
                 false
             );
-            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value);
+            assertEquals(searcher.getIndexReader().numDocs(), search.totalHits.value());
             long previous = -1;
             for (ScoreDoc doc : search.scoreDocs) {
                 FieldDoc fieldDoc = (FieldDoc) doc;
@@ -432,8 +481,9 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
             assertEquals(original.exists(), restored.exists());
 
             if (original.exists()) {
-                Document document = original.docIdAndVersion().reader.document(original.docIdAndVersion().docId);
-                Document restoredDocument = restored.docIdAndVersion().reader.document(restored.docIdAndVersion().docId);
+                StoredFields storedFields = original.docIdAndVersion().reader.storedFields();
+                Document document = storedFields.document(original.docIdAndVersion().docId);
+                Document restoredDocument = storedFields.document(restored.docIdAndVersion().docId);
                 for (IndexableField field : document) {
                     assertEquals(document.get(field.name()), restoredDocument.get(field.name()));
                 }
@@ -445,13 +495,12 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
     }
 
     public IndexShard reindex(DirectoryReader reader, MappingMetadata mapping) throws IOException {
-        ShardRouting targetShardRouting = TestShardRouting.newShardRouting(
+        ShardRouting targetShardRouting = shardRoutingBuilder(
             new ShardId("target", "_na_", 0),
             randomAlphaOfLength(10),
             true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.EmptyStoreRecoverySource.INSTANCE
-        );
+            ShardRoutingState.INITIALIZING
+        ).withRecoverySource(RecoverySource.EmptyStoreRecoverySource.INSTANCE).build();
         Settings settings = Settings.builder()
             .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
@@ -473,7 +522,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                 for (int i = 0; i < leafReader.maxDoc(); i++) {
                     if (liveDocs == null || liveDocs.get(i)) {
                         rootFieldsVisitor.reset();
-                        leafReader.document(i, rootFieldsVisitor);
+                        leafReader.storedFields().document(i, rootFieldsVisitor);
                         rootFieldsVisitor.postProcess(targetShard.mapperService()::fieldType);
                         String id = rootFieldsVisitor.id();
                         BytesReference source = rootFieldsVisitor.source();
@@ -481,14 +530,7 @@ public class SourceOnlySnapshotShardTests extends IndexShardTestCase {
                         Engine.Result result = targetShard.applyIndexOperationOnPrimary(
                             Versions.MATCH_ANY,
                             VersionType.INTERNAL,
-                            new SourceToParse(
-                                id,
-                                source,
-                                XContentHelper.xContentType(source),
-                                rootFieldsVisitor.routing(),
-                                Map.of(),
-                                false
-                            ),
+                            new SourceToParse(id, source, XContentHelper.xContentType(source), rootFieldsVisitor.routing()),
                             SequenceNumbers.UNASSIGNED_SEQ_NO,
                             0,
                             IndexRequest.UNSET_AUTO_GENERATED_TIMESTAMP,

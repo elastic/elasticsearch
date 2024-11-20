@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.join.query;
@@ -51,8 +52,8 @@ public final class ParentIdQueryBuilder extends AbstractQueryBuilder<ParentIdQue
     private boolean ignoreUnmapped = DEFAULT_IGNORE_UNMAPPED;
 
     public ParentIdQueryBuilder(String type, String id) {
-        this.type = type;
-        this.id = id;
+        this.type = requireValue(type, "[" + NAME + "] requires '" + TYPE_FIELD.getPreferredName() + "' field");
+        this.id = requireValue(id, "[" + NAME + "] requires '" + ID_FIELD.getPreferredName() + "' field");
     }
 
     /**

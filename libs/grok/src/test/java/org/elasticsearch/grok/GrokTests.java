@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.grok;
@@ -82,11 +83,59 @@ public class GrokTests extends ESTestCase {
     }
 
     private Map<String, Object> captureBytes(Grok grok, byte[] utf8, int offset, int length) {
-        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(grok.captureConfig());
+        GrokCaptureExtracter.MapExtracter extracter = new GrokCaptureExtracter.MapExtracter(
+            grok.captureConfig(),
+            cfg -> cfg::objectExtracter
+        );
         if (grok.match(utf8, offset, length, extracter)) {
             return extracter.result();
         }
         return null;
+    }
+
+    public void testCaptureRanges() {
+        captureRanges(false);
+        captureRanges(true);
+    }
+
+    private void captureRanges(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertThat(
+            grok.captureRanges("xx aaaaa bbb 1234 yyy"),
+            equalTo(
+                Map.of(
+                    "a",
+                    new GrokCaptureExtracter.Range("aaaaa", 3, 5),
+                    "b",
+                    new GrokCaptureExtracter.Range("bbb", 9, 3),
+                    "c",
+                    new GrokCaptureExtracter.Range("1234", 13, 4)
+                )
+            )
+        );
+    }
+
+    public void testCaptureRanges_noMatch() {
+        captureRanges_noMatch(false);
+        captureRanges_noMatch(true);
+    }
+
+    private void captureRanges_noMatch(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:a} %{WORD:b} %{NUMBER:c:int}", logger::warn);
+        assertNull(grok.captureRanges("xx aaaaa bbb ccc yyy"));
+    }
+
+    public void testCaptureRanges_multipleNamedCapturesWithSameName() {
+        captureRanges_multipleNamedCapturesWithSameName(false);
+        captureRanges_multipleNamedCapturesWithSameName(true);
+    }
+
+    private void captureRanges_multipleNamedCapturesWithSameName(boolean ecsCompatibility) {
+        Grok grok = new Grok(GrokBuiltinPatterns.get(ecsCompatibility), "%{WORD:parts} %{WORD:parts}", logger::warn);
+        assertThat(
+            grok.captureRanges("  aa bbb c ddd e  "),
+            equalTo(Map.of("parts", List.of(new GrokCaptureExtracter.Range("aa", 2, 2), new GrokCaptureExtracter.Range("bbb", 5, 3))))
+        );
     }
 
     public void testNoMatchingPatternInDictionary() {

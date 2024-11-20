@@ -107,6 +107,11 @@ public class RobertaTokenizer extends NlpTokenizer {
     }
 
     @Override
+    int numExtraTokensForSingleSequence() {
+        return 2;
+    }
+
+    @Override
     int clsTokenId() {
         return clsTokenId;
     }
@@ -131,10 +136,10 @@ public class RobertaTokenizer extends NlpTokenizer {
 
     @Override
     public NlpTask.RequestBuilder requestBuilder() {
-        return (inputs, requestId, truncate, span) -> buildTokenizationResult(
+        return (inputs, requestId, truncate, span, windowSize) -> buildTokenizationResult(
             IntStream.range(0, inputs.size())
                 .boxed()
-                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId).stream())
+                .flatMap(seqId -> tokenize(inputs.get(seqId), truncate, span, seqId, windowSize).stream())
                 .collect(Collectors.toList())
         ).buildRequest(requestId, truncate);
     }
@@ -168,6 +173,10 @@ public class RobertaTokenizer extends NlpTokenizer {
         return new RobertaTokenizationResult.RobertaTokensBuilder(withSpecialTokens, clsTokenId, sepTokenId);
     }
 
+    /**
+     * @param seq cannot be null
+     * @return InnerTokenization
+     */
     @Override
     public InnerTokenization innerTokenize(String seq) {
         List<Integer> tokenPositionMap = new ArrayList<>();

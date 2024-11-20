@@ -11,6 +11,7 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.cluster.ClusterInfoService;
 import org.elasticsearch.cluster.ClusterInfoServiceUtils;
+import org.elasticsearch.cluster.DiskUsage;
 import org.elasticsearch.cluster.DiskUsageIntegTestCase;
 import org.elasticsearch.cluster.InternalClusterInfoService;
 import org.elasticsearch.cluster.metadata.RepositoryMetadata;
@@ -149,14 +150,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
     private void createRepository(String name, String type) {
         assertAcked(
-            clusterAdmin().preparePutRepository(name)
+            clusterAdmin().preparePutRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, name)
                 .setType(type)
                 .setSettings(Settings.builder().put("location", randomRepoPath()).build())
         );
     }
 
     private void createSnapshot(String repository, String snapshot, int nbIndices) {
-        var snapshotInfo = clusterAdmin().prepareCreateSnapshot(repository, snapshot)
+        var snapshotInfo = clusterAdmin().prepareCreateSnapshot(TEST_REQUEST_TIMEOUT, repository, snapshot)
             .setIndices("index-*")
             .setIncludeGlobalState(false)
             .setWaitForCompletion(true)
@@ -176,6 +177,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             client().execute(
                 MountSearchableSnapshotAction.INSTANCE,
                 new MountSearchableSnapshotRequest(
+                    TEST_REQUEST_TIMEOUT,
                     prefix + index,
                     repositoryName,
                     snapshotName,
@@ -232,16 +234,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         final var masterInfoService = (InternalClusterInfoService) internalCluster().getCurrentMasterNodeInstance(ClusterInfoService.class);
         ClusterInfoServiceUtils.refresh(masterInfoService);
 
-        assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId).getTotalBytes(),
-            equalTo(totalSpace)
-        );
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(otherDataNodeId);
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         mountIndices(indicesStoresSizes.keySet(), "mounted-", repositoryName, snapshot, storage);
 
         // The cold/frozen data node has enough disk space to hold all the shards
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -257,7 +257,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mountIndices(indicesStoresSizes.keySet(), "extra-", repositoryName, snapshot, storage);
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -294,7 +294,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         );
         ensureStableCluster(3);
 
-        String coldNodeId = clusterAdmin().prepareState().get().getState().nodes().resolveNode(coldNodeName).getId();
+        String coldNodeId = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().resolveNode(coldNodeName).getId();
         logger.info("--> reducing disk size of node [{}/{}] so that all shards except one can fit on the node", coldNodeName, coldNodeId);
         String indexToSkip = randomFrom(indicesStoresSizes.keySet());
         Map<String, Long> indicesToBeMounted = indicesStoresSizes.entrySet()
@@ -309,16 +309,14 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
             ClusterInfoService.class
         );
         ClusterInfoServiceUtils.refresh(masterInfoService);
-        assertThat(
-            masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId).getTotalBytes(),
-            equalTo(totalSpace)
-        );
+        DiskUsage usage = masterInfoService.getClusterInfo().getNodeMostAvailableDiskUsages().get(coldNodeId);
+        assertThat(usage.totalBytes(), equalTo(totalSpace));
 
         String prefix = "mounted-";
         mountIndices(indicesToBeMounted.keySet(), prefix, repositoryName, snapshotName, FULL_COPY);
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(
                 state.routingTable()
                     .allShards()
@@ -335,7 +333,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
 
         mountIndices(List.of(indexToSkip), prefix, repositoryName, snapshotName, FULL_COPY);
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
         });
 
@@ -345,7 +343,7 @@ public class SearchableSnapshotDiskThresholdIntegTests extends DiskUsageIntegTes
         mockRepository.unlockRestore();
 
         assertBusy(() -> {
-            var state = clusterAdmin().prepareState().setRoutingTable(true).get().getState();
+            var state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setRoutingTable(true).get().getState();
             assertThat(state.routingTable().index(prefix + indexToSkip).shardsWithState(ShardRoutingState.UNASSIGNED).size(), equalTo(1));
             assertThat(
                 state.routingTable()

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test.hamcrest;
 
@@ -13,23 +14,26 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestBuilder;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.RequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthRequestBuilder;
 import org.elasticsearch.action.admin.cluster.health.ClusterHealthResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetIndexTemplatesResponse;
 import org.elasticsearch.action.bulk.BulkResponse;
 import org.elasticsearch.action.get.GetResponse;
+import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchPhaseExecutionException;
 import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchScrollRequestBuilder;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.DefaultShardOperationFailedException;
 import org.elasticsearch.action.support.broadcast.BaseBroadcastResponse;
 import org.elasticsearch.action.support.master.IsAcknowledgedSupplier;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -50,6 +54,7 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xcontent.XContentType;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 
 import java.io.IOException;
 import java.nio.file.Files;
@@ -63,14 +68,13 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
+import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
 
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrows;
 import static org.apache.lucene.tests.util.LuceneTestCase.expectThrowsAnyOf;
-import static org.elasticsearch.test.ESIntegTestCase.clearScroll;
-import static org.elasticsearch.test.ESIntegTestCase.client;
 import static org.elasticsearch.test.LambdaMatchers.transformedArrayItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedItemsMatch;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
@@ -99,7 +103,7 @@ import static org.junit.Assert.fail;
 
 public class ElasticsearchAssertions {
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder) {
         assertAcked(builder, TimeValue.timeValueSeconds(30));
     }
 
@@ -107,7 +111,7 @@ public class ElasticsearchAssertions {
         assertAcked(future.actionGet());
     }
 
-    public static void assertAcked(ActionRequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
+    public static void assertAcked(RequestBuilder<?, ? extends IsAcknowledgedSupplier> builder, TimeValue timeValue) {
         assertAcked(builder.get(timeValue));
     }
 
@@ -141,7 +145,7 @@ public class ElasticsearchAssertions {
      *
      * @param builder the request builder
      */
-    public static void assertBlocked(ActionRequestBuilder<?, ?> builder) {
+    public static void assertBlocked(RequestBuilder<?, ?> builder) {
         assertBlocked(builder, (ClusterBlock) null);
     }
 
@@ -179,11 +183,18 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlockId the expected block id
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
-        var e = ESTestCase.expectThrows(ClusterBlockException.class, builder);
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final Integer expectedBlockId) {
+        assertBlocked(expectedBlockId, ESTestCase.expectThrows(ClusterBlockException.class, builder));
+    }
+
+    /**
+     * Checks that the given exception is a {@link ClusterBlockException}; if the given block ID is not {@code null} then the given
+     * exception must match that ID.
+     */
+    public static void assertBlocked(@Nullable final Integer expectedBlockId, Exception exception) {
+        final var e = ESTestCase.asInstanceOf(ClusterBlockException.class, exception);
         assertThat(e.blocks(), not(empty()));
-        RestStatus status = checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN;
-        assertThat(e.status(), equalTo(status));
+        assertThat(e.status(), equalTo(checkRetryableBlock(e.blocks()) ? RestStatus.TOO_MANY_REQUESTS : RestStatus.FORBIDDEN));
 
         if (expectedBlockId != null) {
             assertThat(
@@ -200,7 +211,7 @@ public class ElasticsearchAssertions {
      * @param builder the request builder
      * @param expectedBlock the expected block
      */
-    public static void assertBlocked(final ActionRequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
+    public static void assertBlocked(final RequestBuilder<?, ?> builder, @Nullable final ClusterBlock expectedBlock) {
         assertBlocked(builder, expectedBlock != null ? expectedBlock.id() : null);
     }
 
@@ -294,6 +305,10 @@ public class ElasticsearchAssertions {
         assertResponse(searchRequestBuilder, res -> assertHitCount(res, expectedHitCount));
     }
 
+    public static void assertHitCount(long expectedHitCount, SearchRequestBuilder... searchRequestBuilders) {
+        assertResponses(res -> assertHitCount(res, expectedHitCount), searchRequestBuilders);
+    }
+
     public static void assertHitCount(ActionFuture<SearchResponse> responseFuture, long expectedHitCount) {
         try {
             assertResponse(responseFuture, res -> assertHitCount(res, expectedHitCount));
@@ -304,7 +319,7 @@ public class ElasticsearchAssertions {
 
     public static void assertHitCount(SearchResponse countResponse, long expectedHitCount) {
         final TotalHits totalHits = countResponse.getHits().getTotalHits();
-        if (totalHits.relation != TotalHits.Relation.EQUAL_TO || totalHits.value != expectedHitCount) {
+        if (totalHits.relation() != TotalHits.Relation.EQUAL_TO || totalHits.value() != expectedHitCount) {
             fail("Count is " + totalHits + " but " + expectedHitCount + " was expected. " + formatShardStatus(countResponse));
         }
     }
@@ -336,16 +351,16 @@ public class ElasticsearchAssertions {
 
     public static void assertSearchHit(SearchResponse searchResponse, int number, Matcher<SearchHit> matcher) {
         assertThat("SearchHit number must be greater than 0", number, greaterThan(0));
-        assertThat(searchResponse.getHits().getTotalHits().value, greaterThanOrEqualTo((long) number));
+        assertThat(searchResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo((long) number));
         assertThat(searchResponse.getHits().getAt(number - 1), matcher);
     }
 
-    public static void assertNoFailures(ActionRequestBuilder<?, SearchResponse> searchRequestBuilder) {
+    public static void assertNoFailures(RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder) {
         assertNoFailuresAndResponse(searchRequestBuilder, r -> {});
     }
 
     public static void assertNoFailuresAndResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<? extends ActionRequest, SearchResponse> searchRequestBuilder,
         Consumer<SearchResponse> consumer
     ) {
         assertResponse(searchRequestBuilder, res -> {
@@ -365,8 +380,39 @@ public class ElasticsearchAssertions {
         }
     }
 
+    /**
+     * Same as {@link #assertResponse(RequestBuilder, Consumer)} but runs the same assertion on multiple requests that are started
+     * concurrently.
+     */
+    @SafeVarargs
+    public static <Q extends ActionRequest, R extends ActionResponse> void assertResponses(
+        Consumer<R> consumer,
+        RequestBuilder<Q, R>... searchRequestBuilder
+    ) {
+        List<Future<R>> futures = new ArrayList<>(searchRequestBuilder.length);
+        for (RequestBuilder<Q, R> builder : searchRequestBuilder) {
+            futures.add(builder.execute());
+        }
+        Throwable tr = null;
+        for (Future<R> f : futures) {
+            try {
+                var res = f.get();
+                try {
+                    consumer.accept(res);
+                } finally {
+                    res.decRef();
+                }
+            } catch (Throwable t) {
+                tr = ExceptionsHelper.useOrSuppress(tr, t);
+            }
+        }
+        if (tr != null) {
+            throw new AssertionError(tr);
+        }
+    }
+
     public static <Q extends ActionRequest, R extends ActionResponse> void assertResponse(
-        ActionRequestBuilder<Q, R> searchRequestBuilder,
+        RequestBuilder<Q, R> searchRequestBuilder,
         Consumer<R> consumer
     ) {
         var res = searchRequestBuilder.get();
@@ -387,6 +433,7 @@ public class ElasticsearchAssertions {
      *                              respNum starts at 1, which contains the resp from the initial request.
      */
     public static void assertScrollResponsesAndHitCount(
+        Client client,
         TimeValue keepAlive,
         SearchRequestBuilder searchRequestBuilder,
         int expectedTotalHitCount,
@@ -398,25 +445,22 @@ public class ElasticsearchAssertions {
         responses.add(scrollResponse);
         int retrievedDocsCount = 0;
         try {
-            assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+            assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) expectedTotalHitCount));
             retrievedDocsCount += scrollResponse.getHits().getHits().length;
             responseConsumer.accept(responses.size(), scrollResponse);
             while (scrollResponse.getHits().getHits().length > 0) {
-                scrollResponse = prepareScrollSearch(scrollResponse.getScrollId(), keepAlive).get();
+                scrollResponse = client.prepareSearchScroll(scrollResponse.getScrollId()).setScroll(keepAlive).get();
                 responses.add(scrollResponse);
-                assertThat(scrollResponse.getHits().getTotalHits().value, equalTo((long) expectedTotalHitCount));
+                assertThat(scrollResponse.getHits().getTotalHits().value(), equalTo((long) expectedTotalHitCount));
                 retrievedDocsCount += scrollResponse.getHits().getHits().length;
                 responseConsumer.accept(responses.size(), scrollResponse);
             }
         } finally {
-            clearScroll(scrollResponse.getScrollId());
+            ClearScrollResponse clearResponse = client.prepareClearScroll().setScrollIds(Arrays.asList(scrollResponse.getScrollId())).get();
             responses.forEach(SearchResponse::decRef);
+            assertThat(clearResponse.isSucceeded(), Matchers.equalTo(true));
         }
         assertThat(retrievedDocsCount, equalTo(expectedTotalHitCount));
-    }
-
-    public static SearchScrollRequestBuilder prepareScrollSearch(String scrollId, TimeValue timeout) {
-        return client().prepareSearchScroll(scrollId).setScroll(timeout);
     }
 
     public static <R extends ActionResponse> void assertResponse(ActionFuture<R> responseFuture, Consumer<R> consumer)
@@ -430,7 +474,7 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertCheckedResponse(
-        ActionRequestBuilder<?, SearchResponse> searchRequestBuilder,
+        RequestBuilder<?, SearchResponse> searchRequestBuilder,
         CheckedConsumer<SearchResponse, IOException> consumer
     ) throws IOException {
         var res = searchRequestBuilder.get();
@@ -470,21 +514,29 @@ public class ElasticsearchAssertions {
     }
 
     public static void assertFailures(SearchRequestBuilder searchRequestBuilder, RestStatus restStatus, Matcher<String> reasonMatcher) {
+        assertFailures(searchRequestBuilder, Set.of(restStatus), reasonMatcher);
+    }
+
+    public static void assertFailures(
+        SearchRequestBuilder searchRequestBuilder,
+        Set<RestStatus> restStatuses,
+        Matcher<String> reasonMatcher
+    ) {
         // when the number for shards is randomized and we expect failures
         // we can either run into partial or total failures depending on the current number of shards
         try {
             assertResponse(searchRequestBuilder, response -> {
                 assertThat("Expected shard failures, got none", response.getShardFailures(), not(emptyArray()));
                 for (ShardSearchFailure shardSearchFailure : response.getShardFailures()) {
-                    assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                    assertThat(restStatuses, hasItem(shardSearchFailure.status()));
                     assertThat(shardSearchFailure.reason(), reasonMatcher);
                 }
             });
         } catch (SearchPhaseExecutionException e) {
-            assertThat(e.status(), equalTo(restStatus));
+            assertThat(restStatuses, hasItem(e.status()));
             assertThat(e.toString(), reasonMatcher);
             for (ShardSearchFailure shardSearchFailure : e.shardFailures()) {
-                assertThat(shardSearchFailure.status(), equalTo(restStatus));
+                assertThat(restStatuses, hasItem(shardSearchFailure.status()));
                 assertThat(shardSearchFailure.reason(), reasonMatcher);
             }
         } catch (Exception e) {
@@ -680,19 +732,23 @@ public class ElasticsearchAssertions {
         return transformedMatch(SearchHit::getScore, equalTo(score));
     }
 
+    public static Matcher<SearchHit> hasRank(final int rank) {
+        return transformedMatch(SearchHit::getRank, equalTo(rank));
+    }
+
     public static <T extends Query> T assertBooleanSubQuery(Query query, Class<T> subqueryType, int i) {
         assertThat(query, instanceOf(BooleanQuery.class));
         BooleanQuery q = (BooleanQuery) query;
         assertThat(q.clauses(), hasSize(greaterThan(i)));
-        assertThat(q.clauses().get(i).getQuery(), instanceOf(subqueryType));
-        return subqueryType.cast(q.clauses().get(i).getQuery());
+        assertThat(q.clauses().get(i).query(), instanceOf(subqueryType));
+        return subqueryType.cast(q.clauses().get(i).query());
     }
 
     /**
      * Run the request from a given builder and check that it throws an exception of the right type, with a given {@link RestStatus}
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         RestStatus status
     ) {
@@ -705,7 +761,7 @@ public class ElasticsearchAssertions {
      * @param extraInfo extra information to add to the failure message
      */
     public static <E extends Throwable> void assertRequestBuilderThrows(
-        ActionRequestBuilder<?, ?> builder,
+        RequestBuilder<?, ?> builder,
         Class<E> exceptionClass,
         String extraInfo
     ) {
@@ -767,11 +823,11 @@ public class ElasticsearchAssertions {
         }
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status) {
         assertFutureThrows(builder.execute(), status);
     }
 
-    public static void assertRequestBuilderThrows(ActionRequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
+    public static void assertRequestBuilderThrows(RequestBuilder<?, ?> builder, RestStatus status, String extraInfo) {
         assertFutureThrows(builder.execute(), status, extraInfo);
     }
 
@@ -853,6 +909,73 @@ public class ElasticsearchAssertions {
         String message = String.format(Locale.ROOT, "expected latch to be counted down after %s, but was not", timeValue);
         boolean isCountedDown = latch.await(timeout, unit);
         assertThat(message, isCountedDown, is(true));
+    }
+
+    /**
+     * Check the response of a client request to ensure it has a warning header that contains the provided string
+     *
+     * Currently, this allows a fixed 10 seconds for response to be received
+     * @param client Client making the request - Required to access the response headers
+     * @param requestBuilder Request to be made
+     * @param toMatch String to match in the warning headers
+     * @param <T> Type of the response
+     * @throws InterruptedException If the request times out
+     */
+    public static <T extends ActionResponse> void assertWarningHeaderOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        String toMatch
+    ) throws InterruptedException {
+        assertWarningHeaderMatchOnResponse(client, requestBuilder, hasItem(containsString(toMatch)));
+    }
+
+    /**
+     * Check the response of a client request to ensure it does not have a warning header that contains the provided string
+     *
+     * Currently, this allows a fixed 10 seconds for response to be received
+     * @param client Client making the request - Required to access the response headers
+     * @param requestBuilder Request to be made
+     * @param toMatch String to not match in the warning headers
+     * @param <T> Type of the response
+     * @throws InterruptedException If the request times out
+     */
+    public static <T extends ActionResponse> void assertNoWarningHeaderOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        String toMatch
+    ) throws InterruptedException {
+        assertWarningHeaderMatchOnResponse(client, requestBuilder, not(hasItem(containsString(toMatch))));
+    }
+
+    private static <T extends ActionResponse> void assertWarningHeaderMatchOnResponse(
+        Client client,
+        ActionRequestBuilder<?, T> requestBuilder,
+        Matcher<? super List<String>> matcher
+    ) throws InterruptedException {
+        CountDownLatch latch = new CountDownLatch(1);
+        requestBuilder.execute(new ActionListener<>() {
+            @Override
+            public void onResponse(T response) {
+                try {
+                    final var warningHeaders = client.threadPool().getThreadContext().getResponseHeaders().get("Warning");
+                    assertThat(warningHeaders, matcher);
+                } finally {
+                    latch.countDown();
+                }
+            }
+
+            @Override
+            public void onFailure(Exception e) {
+                try {
+                    throw new AssertionError("Failed to execute request", e);
+                } finally {
+                    latch.countDown();
+                }
+            }
+        });
+        if (latch.await(10, TimeUnit.SECONDS) == false) {
+            fail("Did not receive request response before timeout");
+        }
     }
 
     /**

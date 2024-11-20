@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.store;
@@ -32,6 +33,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.NIOFSDirectory;
+import org.apache.lucene.store.ReadAdvice;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.Version;
@@ -146,7 +148,15 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
      * Specific {@link IOContext} indicating that we will read only the Lucene file footer (containing the file checksum)
      * See {@link MetadataSnapshot#checksumFromLuceneFile}.
      */
-    public static final IOContext READONCE_CHECKSUM = new IOContext(IOContext.READONCE, true);
+    public static final IOContext READONCE_CHECKSUM = createReadOnceContext();
+
+    // while equivalent, these different read once contexts are checked by identity in directory implementations
+    private static IOContext createReadOnceContext() {
+        var context = IOContext.READONCE.withReadAdvice(ReadAdvice.SEQUENTIAL);
+        assert context != IOContext.READONCE;
+        assert context.equals(IOContext.READONCE);
+        return context;
+    }
 
     private final AtomicBoolean isClosed = new AtomicBoolean(false);
     private final StoreDirectory directory;
@@ -155,12 +165,20 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
     private final OnClose onClose;
 
     private final AbstractRefCounted refCounter = AbstractRefCounted.of(this::closeInternal); // close us once we are done
+    private boolean hasIndexSort;
 
     public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock) {
-        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY);
+        this(shardId, indexSettings, directory, shardLock, OnClose.EMPTY, false);
     }
 
-    public Store(ShardId shardId, IndexSettings indexSettings, Directory directory, ShardLock shardLock, OnClose onClose) {
+    public Store(
+        ShardId shardId,
+        IndexSettings indexSettings,
+        Directory directory,
+        ShardLock shardLock,
+        OnClose onClose,
+        boolean hasIndexSort
+    ) {
         super(shardId, indexSettings);
         this.directory = new StoreDirectory(
             byteSizeDirectory(directory, indexSettings, logger),
@@ -168,6 +186,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         );
         this.shardLock = shardLock;
         this.onClose = onClose;
+        this.hasIndexSort = hasIndexSort;
 
         assert onClose != null;
         assert shardLock != null;
@@ -622,7 +641,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         List<CorruptIndexException> ex = new ArrayList<>();
         for (String file : files) {
             if (file.startsWith(CORRUPTED_MARKER_NAME_PREFIX)) {
-                try (ChecksumIndexInput input = directory.openChecksumInput(file, IOContext.READONCE)) {
+                try (ChecksumIndexInput input = directory.openChecksumInput(file)) {
                     CodecUtil.checkHeader(input, CODEC, CORRUPTED_MARKER_CODEC_VERSION, CORRUPTED_MARKER_CODEC_VERSION);
                     final int size = input.readVInt();
                     final byte[] buffer = new byte[size];
@@ -677,7 +696,12 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
                 }
             }
             directory.syncMetaData();
-            final Store.MetadataSnapshot metadataOrEmpty = getMetadata(null);
+            Store.MetadataSnapshot metadataOrEmpty;
+            try {
+                metadataOrEmpty = getMetadata(null);
+            } catch (IndexNotFoundException e) {
+                metadataOrEmpty = MetadataSnapshot.EMPTY;
+            }
             verifyAfterCleanup(sourceMetadata, metadataOrEmpty);
         } finally {
             metadataLock.writeLock().unlock();
@@ -909,7 +933,10 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             boolean readFileAsHash,
             BytesRef writerUuid
         ) throws IOException {
-            try (IndexInput in = directory.openInput(file, READONCE_CHECKSUM)) {
+            // We select the read once context carefully here since these constants, while equivalent are
+            // checked by identity in the different directory implementations.
+            var context = file.startsWith(IndexFileNames.SEGMENTS) ? IOContext.READONCE : READONCE_CHECKSUM;
+            try (IndexInput in = directory.openInput(file, context)) {
                 final long length = in.length();
                 if (length < CodecUtil.footerLength()) {
                     // If the file isn't long enough to contain the footer then verifying it triggers an IAE, but really it's corrupted
@@ -1128,14 +1155,6 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
             return count;
         }
 
-        /**
-         * Returns the sync id of the commit point that this MetadataSnapshot represents.
-         *
-         * @return sync id if exists, else null
-         */
-        public String getSyncId() {
-            return commitUserData.get(Engine.SYNC_COMMIT_ID);
-        }
     }
 
     /**
@@ -1520,7 +1539,7 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         final IndexCommit safeCommit = CombinedDeletionPolicy.findSafeCommitPoint(commits, globalCheckpoint);
         final SequenceNumbers.CommitInfo commitInfo = SequenceNumbers.loadSeqNoInfoFromLuceneCommit(safeCommit.getUserData().entrySet());
         // all operations of the safe commit must be at most the global checkpoint.
-        if (commitInfo.maxSeqNo <= globalCheckpoint) {
+        if (commitInfo.maxSeqNo() <= globalCheckpoint) {
             return Optional.of(commitInfo);
         } else {
             return Optional.empty();
@@ -1541,20 +1560,25 @@ public class Store extends AbstractIndexShardComponent implements Closeable, Ref
         return userData;
     }
 
-    private static IndexWriter newTemporaryAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
+    private IndexWriter newTemporaryAppendingIndexWriter(final Directory dir, final IndexCommit commit) throws IOException {
         IndexWriterConfig iwc = newTemporaryIndexWriterConfig().setIndexCommit(commit).setOpenMode(IndexWriterConfig.OpenMode.APPEND);
         return new IndexWriter(dir, iwc);
     }
 
-    private static IndexWriter newTemporaryEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
+    private IndexWriter newTemporaryEmptyIndexWriter(final Directory dir, final Version luceneVersion) throws IOException {
         IndexWriterConfig iwc = newTemporaryIndexWriterConfig().setOpenMode(IndexWriterConfig.OpenMode.CREATE)
             .setIndexCreatedVersionMajor(luceneVersion.major);
         return new IndexWriter(dir, iwc);
     }
 
-    private static IndexWriterConfig newTemporaryIndexWriterConfig() {
+    private IndexWriterConfig newTemporaryIndexWriterConfig() {
         // this config is only used for temporary IndexWriter instances, used to initialize the index or update the commit data,
         // so we don't want any merges to happen
-        return indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
+        var iwc = indexWriterConfigWithNoMerging(null).setSoftDeletesField(Lucene.SOFT_DELETES_FIELD).setCommitOnClose(false);
+        if (hasIndexSort && indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INDEX_SORTING_ON_NESTED)) {
+            // Needed to support index sorting in the presence of nested objects.
+            iwc.setParentField(Engine.ROOT_DOC_FIELD_NAME);
+        }
+        return iwc;
     }
 }

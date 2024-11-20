@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -53,7 +54,13 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         searchPhaseController = new SearchPhaseController((t, s) -> new AggregationReduceContext.Builder() {
             @Override
             public AggregationReduceContext forPartialReduction() {
-                return new AggregationReduceContext.ForPartial(BigArrays.NON_RECYCLING_INSTANCE, null, t, mock(AggregationBuilder.class));
+                return new AggregationReduceContext.ForPartial(
+                    BigArrays.NON_RECYCLING_INSTANCE,
+                    null,
+                    t,
+                    mock(AggregationBuilder.class),
+                    b -> {}
+                );
             }
 
             public AggregationReduceContext forFinalReduction() {
@@ -103,20 +110,21 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
         SearchRequest searchRequest = new SearchRequest("index");
         searchRequest.setBatchedReduceSize(2);
         AtomicReference<Exception> onPartialMergeFailure = new AtomicReference<>();
-        QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
-            searchRequest,
-            executor,
-            new NoopCircuitBreaker(CircuitBreaker.REQUEST),
-            searchPhaseController,
-            () -> false,
-            searchProgressListener,
-            10,
-            e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
-                curr.addSuppressed(prev);
-                return curr;
-            })
-        );
-        try {
+        try (
+            QueryPhaseResultConsumer queryPhaseResultConsumer = new QueryPhaseResultConsumer(
+                searchRequest,
+                executor,
+                new NoopCircuitBreaker(CircuitBreaker.REQUEST),
+                searchPhaseController,
+                () -> false,
+                searchProgressListener,
+                10,
+                e -> onPartialMergeFailure.accumulateAndGet(e, (prev, curr) -> {
+                    curr.addSuppressed(prev);
+                    return curr;
+                })
+            )
+        ) {
 
             CountDownLatch partialReduceLatch = new CountDownLatch(10);
 
@@ -137,8 +145,6 @@ public class QueryPhaseResultConsumerTests extends ESTestCase {
 
             queryPhaseResultConsumer.reduce();
             assertEquals(1, searchProgressListener.onFinalReduce.get());
-        } finally {
-            queryPhaseResultConsumer.decRef();
         }
     }
 

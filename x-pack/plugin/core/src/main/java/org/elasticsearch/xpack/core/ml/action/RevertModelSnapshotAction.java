@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.core.ml.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -31,7 +30,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
     public static final String NAME = "cluster:admin/xpack/ml/job/model_snapshots/revert";
 
     private RevertModelSnapshotAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends AcknowledgedRequest<Request> implements ToXContentObject {
@@ -64,7 +63,9 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         private boolean deleteInterveningResults;
         private boolean force;
 
-        public Request() {}
+        public Request() {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
+        }
 
         public Request(StreamInput in) throws IOException {
             super(in);
@@ -75,6 +76,7 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
         }
 
         public Request(String jobId, String snapshotId) {
+            super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
             this.jobId = ExceptionsHelper.requireNonNull(jobId, Job.ID.getPreferredName());
             this.snapshotId = ExceptionsHelper.requireNonNull(snapshotId, SNAPSHOT_ID.getPreferredName());
         }
@@ -101,11 +103,6 @@ public class RevertModelSnapshotAction extends ActionType<RevertModelSnapshotAct
 
         public void setForce(boolean force) {
             this.force = force;
-        }
-
-        @Override
-        public ActionRequestValidationException validate() {
-            return null;
         }
 
         @Override

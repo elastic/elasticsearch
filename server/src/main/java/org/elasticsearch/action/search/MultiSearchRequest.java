@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -12,7 +13,6 @@ import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.CompositeIndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.action.support.IndicesOptions.WildcardStates;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriFunction;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -207,7 +207,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
         TriFunction<String, Object, SearchRequest, Boolean> extraParamParser
     ) throws IOException {
         int from = 0;
-        byte marker = xContent.streamSeparator();
+        byte marker = xContent.bulkSeparator();
         while (true) {
             int nextMarker = findNextMarker(marker, from, data);
             if (nextMarker == -1) {
@@ -344,7 +344,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 writeSearchRequestParams(request, xContentBuilder);
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
             try (XContentBuilder xContentBuilder = XContentBuilder.builder(xContent)) {
                 if (request.source() != null) {
                     request.source().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
@@ -354,7 +354,7 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 }
                 BytesReference.bytes(xContentBuilder).writeTo(output);
             }
-            output.write(xContent.streamSeparator());
+            output.write(xContent.bulkSeparator());
         }
         return output.toByteArray();
     }
@@ -365,9 +365,8 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
             xContentBuilder.field("index", request.indices());
         }
         if (request.indicesOptions().equals(SearchRequest.DEFAULT_INDICES_OPTIONS) == false) {
-            WildcardStates.toXContent(request.indicesOptions().expandWildcards(), xContentBuilder);
-            xContentBuilder.field("ignore_unavailable", request.indicesOptions().ignoreUnavailable());
-            xContentBuilder.field("allow_no_indices", request.indicesOptions().allowNoIndices());
+            request.indicesOptions().wildcardOptions().toXContent(xContentBuilder, true);
+            request.indicesOptions().concreteTargetOptions().toXContent(xContentBuilder, ToXContent.EMPTY_PARAMS);
         }
         if (request.searchType() != null) {
             xContentBuilder.field("search_type", request.searchType().name().toLowerCase(Locale.ROOT));

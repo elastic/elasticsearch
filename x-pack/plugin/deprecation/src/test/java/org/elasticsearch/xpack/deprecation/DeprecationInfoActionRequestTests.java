@@ -13,7 +13,7 @@ public class DeprecationInfoActionRequestTests extends AbstractWireSerializingTe
 
     @Override
     protected DeprecationInfoAction.Request createTestInstance() {
-        return new DeprecationInfoAction.Request(randomAlphaOfLength(10));
+        return new DeprecationInfoAction.Request(randomTimeValue(), randomAlphaOfLength(10));
     }
 
     @Override

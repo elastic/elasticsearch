@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.inference;
@@ -23,12 +24,26 @@ public class Model {
         this.secrets = Objects.requireNonNull(secrets);
     }
 
+    public Model(Model model, TaskSettings taskSettings) {
+        Objects.requireNonNull(model);
+
+        configurations = ModelConfigurations.of(model, taskSettings);
+        secrets = model.getSecrets();
+    }
+
+    public Model(Model model, ServiceSettings serviceSettings) {
+        Objects.requireNonNull(model);
+
+        configurations = ModelConfigurations.of(model, serviceSettings);
+        secrets = model.getSecrets();
+    }
+
     public Model(ModelConfigurations configurations) {
         this(configurations, new ModelSecrets());
     }
 
-    public String getModelId() {
-        return configurations.getModelId();
+    public String getInferenceEntityId() {
+        return configurations.getInferenceEntityId();
     }
 
     public TaskType getTaskType() {

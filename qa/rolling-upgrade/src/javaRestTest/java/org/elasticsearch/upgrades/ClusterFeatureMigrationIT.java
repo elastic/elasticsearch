@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.upgrades;
@@ -13,7 +14,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.features.FeatureService;
-import org.junit.BeforeClass;
+import org.junit.Before;
 
 import java.io.IOException;
 import java.util.List;
@@ -24,13 +25,13 @@ import java.util.stream.Collectors;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 
-public class ClusterFeatureMigrationIT extends ParameterizedRollingUpgradeTestCase {
+public class ClusterFeatureMigrationIT extends AbstractRollingUpgradeTestCase {
 
-    @BeforeClass
-    public static void checkMigrationVersion() {
-        assumeTrue(
+    @Before
+    public void checkMigrationVersion() {
+        assumeFalse(
             "This checks migrations from before cluster features were introduced",
-            getOldClusterVersion().before(FeatureService.CLUSTER_FEATURES_ADDED_VERSION)
+            oldClusterHasFeature(FeatureService.FEATURES_SUPPORTED)
         );
     }
 

@@ -2,6 +2,9 @@
 [[esql-limit]]
 === `LIMIT`
 
+The `LIMIT` processing command enables you to limit the number of rows that are
+returned.
+
 **Syntax**
 
 [source,esql]
@@ -43,5 +46,5 @@ settings:
 
 [source,esql]
 ----
-include::{esql-specs}/docs.csv-spec[tag=limit]
+include::{esql-specs}/limit.csv-spec[tag=basic]
 ----

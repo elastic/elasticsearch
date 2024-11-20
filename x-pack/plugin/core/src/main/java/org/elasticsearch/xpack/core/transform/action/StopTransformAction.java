@@ -43,7 +43,7 @@ public class StopTransformAction extends ActionType<StopTransformAction.Response
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopTransformAction() {
-        super(NAME, StopTransformAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends BaseTasksRequest<Request> {

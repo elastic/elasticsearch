@@ -12,12 +12,12 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.xcontent.XContentHelper;
+import org.elasticsearch.test.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.core.ml.AbstractBWCSerializationTestCase;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStrings;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelPrefixStringsTests;
 import org.elasticsearch.xpack.core.ml.inference.TrainedModelType;
@@ -125,10 +125,10 @@ public class ModelPackageConfigTests extends AbstractBWCSerializationTestCase<Mo
     @Override
     protected ModelPackageConfig mutateInstanceForVersion(ModelPackageConfig instance, TransportVersion version) {
         var builder = new ModelPackageConfig.Builder(instance);
-        if (version.before(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (version.before(TransportVersions.V_8_11_X)) {
             builder.setPlatformArchitecture(null);
         }
-        if (version.before(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (version.before(TransportVersions.V_8_12_0)) {
             builder.setPrefixStrings(null);
         }
         return builder.build();

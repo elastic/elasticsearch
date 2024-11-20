@@ -42,7 +42,7 @@ public class StopDataFrameAnalyticsAction extends ActionType<StopDataFrameAnalyt
     public static final TimeValue DEFAULT_TIMEOUT = new TimeValue(30, TimeUnit.SECONDS);
 
     private StopDataFrameAnalyticsAction() {
-        super(NAME, StopDataFrameAnalyticsAction.Response::new);
+        super(NAME);
     }
 
     public static final class Request extends BaseTasksRequest<Request> implements ToXContentObject {

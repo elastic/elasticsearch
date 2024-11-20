@@ -23,10 +23,11 @@ import org.elasticsearch.cluster.metadata.NodesShutdownMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.service.MasterService;
 import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
@@ -44,8 +45,6 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
 
     private final AllocationService allocationService;
     private final MasterServiceTaskQueue<PutShutdownNodeTask> taskQueue;
-
-    private final PutShutdownNodeExecutor executor = new PutShutdownNodeExecutor();
 
     private static boolean putShutdownNodeState(
         Map<String, SingleNodeShutdownMetadata> shutdownMetadata,
@@ -84,7 +83,11 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
     record PutShutdownNodeTask(Request request, ActionListener<AcknowledgedResponse> listener) implements ClusterStateTaskListener {
         @Override
         public void onFailure(Exception e) {
-            logger.error(() -> "failed to put shutdown for node [" + request.getNodeId() + "]", e);
+            if (MasterService.isPublishFailureException(e)) {
+                logger.info(() -> "failed to put shutdown for node [" + request.getNodeId() + "], attempting retry", e);
+            } else {
+                logger.error(() -> "failed to put shutdown for node [" + request.getNodeId() + "]", e);
+            }
             listener.onFailure(e);
         }
     }

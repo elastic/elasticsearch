@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -122,14 +123,14 @@ public class ClusterInfoSimulator {
         if (diskUsage == null) {
             return;
         }
-        var path = diskUsage.getPath();
+        var path = diskUsage.path();
         updateDiskUsage(leastAvailableSpaceUsage, nodeId, path, freeDelta);
         updateDiskUsage(mostAvailableSpaceUsage, nodeId, path, freeDelta);
     }
 
     private void updateDiskUsage(Map<String, DiskUsage> availableSpaceUsage, String nodeId, String path, long freeDelta) {
         var usage = availableSpaceUsage.get(nodeId);
-        if (usage != null && Objects.equals(usage.getPath(), path)) {
+        if (usage != null && Objects.equals(usage.path(), path)) {
             // ensure new value is within bounds
             availableSpaceUsage.put(nodeId, updateWithFreeBytes(usage, freeDelta));
         }
@@ -139,7 +140,7 @@ public class ClusterInfoSimulator {
         // free bytes might go out of range in case when multiple data path are used
         // we might not know exact disk used to allocate a shard and conservatively update
         // most used disk on a target node and least used disk on a source node
-        var freeBytes = withinRange(0, usage.getTotalBytes(), usage.freeBytes() + delta);
+        var freeBytes = withinRange(0, usage.totalBytes(), usage.freeBytes() + delta);
         return usage.copyWithFreeBytes(freeBytes);
     }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.component.Lifecycle;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.FeatureService;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -26,6 +27,7 @@ import org.elasticsearch.xpack.core.watcher.watch.ClockMock;
 import org.junit.After;
 import org.junit.Before;
 
+import java.util.List;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
@@ -64,7 +66,14 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
     protected void setInitialState(License license, XPackLicenseState licenseState, Settings settings, String selfGeneratedType) {
         licenseType = selfGeneratedType;
         settings = Settings.builder().put(settings).put(LicenseSettings.SELF_GENERATED_LICENSE_TYPE.getKey(), licenseType).build();
-        licenseService = new ClusterStateLicenseService(settings, threadPool, clusterService, clock, licenseState);
+        licenseService = new ClusterStateLicenseService(
+            settings,
+            threadPool,
+            clusterService,
+            clock,
+            licenseState,
+            new FeatureService(List.of())
+        );
         ClusterState state = mock(ClusterState.class);
         final ClusterBlocks noBlock = ClusterBlocks.builder().build();
         when(state.blocks()).thenReturn(noBlock);
@@ -76,7 +85,6 @@ public abstract class AbstractClusterStateLicenseServiceTestCase extends ESTestC
         when(discoveryNodes.stream()).thenAnswer(i -> Stream.of(mockNode));
         when(discoveryNodes.iterator()).thenAnswer(i -> Iterators.single(mockNode));
         when(discoveryNodes.isLocalNodeElectedMaster()).thenReturn(false);
-        when(discoveryNodes.getMinNodeVersion()).thenReturn(mockNode.getVersion());
         when(state.nodes()).thenReturn(discoveryNodes);
         when(state.getNodes()).thenReturn(discoveryNodes); // it is really ridiculous we have nodes() and getNodes()...
         when(clusterService.state()).thenReturn(state);

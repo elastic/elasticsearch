@@ -12,8 +12,8 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
-import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksResponse;
 import org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskRequest;
+import org.elasticsearch.action.admin.cluster.node.tasks.list.ListTasksResponse;
 import org.elasticsearch.action.admin.indices.create.CreateIndexResponse;
 import org.elasticsearch.action.admin.indices.get.GetIndexAction;
 import org.elasticsearch.action.admin.indices.get.GetIndexRequest;
@@ -278,7 +278,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
 
         // We need to cancel the reindexing task within context with ML origin as we started the task
         // from the same context
-        CancelTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
+        ListTasksResponse cancelReindexResponse = cancelTaskWithinMlOriginContext(cancelReindex);
 
         Throwable firstError = null;
         if (cancelReindexResponse.getNodeFailures().isEmpty() == false) {
@@ -296,7 +296,7 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
         }
     }
 
-    private CancelTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
+    private ListTasksResponse cancelTaskWithinMlOriginContext(CancelTasksRequest cancelTasksRequest) {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         try (ThreadContext.StoredContext ignore = threadContext.stashWithOrigin(ML_ORIGIN)) {
             return client.admin().cluster().cancelTasks(cancelTasksRequest).actionGet();

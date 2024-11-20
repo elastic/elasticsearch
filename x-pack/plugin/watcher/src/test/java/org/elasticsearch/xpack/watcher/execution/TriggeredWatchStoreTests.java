@@ -11,11 +11,11 @@ import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshAction;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkProcessor2;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.action.search.ClearScrollResponse;
 import org.elasticsearch.action.search.SearchResponse;
@@ -210,14 +210,14 @@ public class TriggeredWatchStoreTests extends ESTestCase {
         SearchResponse searchResponse1 = mock(SearchResponse.class);
         when(searchResponse1.getSuccessfulShards()).thenReturn(1);
         when(searchResponse1.getTotalShards()).thenReturn(1);
-        final BytesArray source = new BytesArray("{}");
+        BytesArray source = new BytesArray("{}");
         {
-            final SearchHit hit = new SearchHit(0, "first_foo");
+            SearchHit hit = SearchHit.unpooled(0, "first_foo");
             hit.version(1L);
             hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
             hit.sourceRef(source);
             when(searchResponse1.getHits()).thenReturn(
-                new SearchHits(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
+                SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f)
             );
         }
         when(searchResponse1.getScrollId()).thenReturn("_scrollId");
@@ -228,20 +228,20 @@ public class TriggeredWatchStoreTests extends ESTestCase {
             return null;
         }).when(client).execute(eq(TransportSearchAction.TYPE), any(), any());
 
-        // First return a scroll response with a single hit and then with no hits
         doAnswer(invocation -> {
             SearchScrollRequest request = (SearchScrollRequest) invocation.getArguments()[1];
             @SuppressWarnings("unchecked")
             ActionListener<SearchResponse> listener = (ActionListener<SearchResponse>) invocation.getArguments()[2];
             if (request.scrollId().equals("_scrollId")) {
-                final var hit2 = new SearchHit(0, "second_foo");
-                hit2.version(1L);
-                hit2.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
-                hit2.sourceRef(source);
+                // First return a scroll response with a single hit and then with no hits
+                var hit = SearchHit.unpooled(0, "second_foo");
+                hit.version(1L);
+                hit.shard(new SearchShardTarget("_node_id", new ShardId(index, 0), null));
+                hit.sourceRef(source);
                 ActionListener.respondAndRelease(
                     listener,
                     new SearchResponse(
-                        new SearchHits(new SearchHit[] { hit2 }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
+                        SearchHits.unpooled(new SearchHit[] { hit }, new TotalHits(1, TotalHits.Relation.EQUAL_TO), 1.0f),
                         null,
                         null,
                         false,
@@ -472,7 +472,7 @@ public class TriggeredWatchStoreTests extends ESTestCase {
 
             listener.onResponse(new BulkResponse(bulkItemResponse, 123));
             return null;
-        }).when(client).execute(eq(BulkAction.INSTANCE), any(), any());
+        }).when(client).execute(eq(TransportBulkAction.TYPE), any(), any());
 
         BulkResponse response = triggeredWatchStore.putAll(triggeredWatches);
         assertThat(response.hasFailures(), is(false));

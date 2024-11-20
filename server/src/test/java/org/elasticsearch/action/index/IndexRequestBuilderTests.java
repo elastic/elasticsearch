@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.index;
@@ -53,16 +54,20 @@ public class IndexRequestBuilderTests extends ESTestCase {
         indexRequestBuilder.setSource(source);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource(source, XContentType.JSON);
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource("SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
         // force the Object... setter
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         indexRequestBuilder.setSource((Object) "SomeKey", "SomeValue");
         assertEquals(EXPECTED_SOURCE, XContentHelper.convertToJson(indexRequestBuilder.request().source(), true));
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         ByteArrayOutputStream docOut = new ByteArrayOutputStream();
         XContentBuilder doc = XContentFactory.jsonBuilder(docOut).startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
@@ -72,6 +77,7 @@ public class IndexRequestBuilderTests extends ESTestCase {
             XContentHelper.convertToJson(indexRequestBuilder.request().source(), true, indexRequestBuilder.request().getContentType())
         );
 
+        indexRequestBuilder = new IndexRequestBuilder(this.testClient);
         doc = XContentFactory.jsonBuilder().startObject().field("SomeKey", "SomeValue").endObject();
         doc.close();
         indexRequestBuilder.setSource(doc);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
@@ -14,6 +15,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
+import org.elasticsearch.search.aggregations.AggregatorReducer;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -23,7 +25,6 @@ import java.nio.ByteBuffer;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.Iterator;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.zip.DataFormatException;
@@ -152,23 +153,27 @@ abstract class AbstractInternalHDRPercentiles extends InternalNumericMetricsAggr
     }
 
     @Override
-    public AbstractInternalHDRPercentiles reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-        DoubleHistogram merged = null;
-        for (InternalAggregation aggregation : aggregations) {
-            final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
-            if (percentiles.state == null) {
-                continue;
+    protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+        return new AggregatorReducer() {
+            DoubleHistogram merged = null;
+
+            @Override
+            public void accept(InternalAggregation aggregation) {
+                final AbstractInternalHDRPercentiles percentiles = (AbstractInternalHDRPercentiles) aggregation;
+                if (percentiles.state != null) {
+                    if (merged == null) {
+                        merged = new DoubleHistogram(percentiles.state);
+                        merged.setAutoResize(true);
+                    }
+                    merged = merge(merged, percentiles.state);
+                }
             }
-            if (merged == null) {
-                merged = new DoubleHistogram(percentiles.state);
-                merged.setAutoResize(true);
+
+            @Override
+            public InternalAggregation get() {
+                return createReduced(getName(), keys, merged == null ? EMPTY_HISTOGRAM_ZERO_DIGITS : merged, keyed, getMetadata());
             }
-            merged = merge(merged, percentiles.state);
-        }
-        if (merged == null) {
-            merged = EMPTY_HISTOGRAM_ZERO_DIGITS;
-        }
-        return createReduced(getName(), keys, merged, keyed, getMetadata());
+        };
     }
 
     /**

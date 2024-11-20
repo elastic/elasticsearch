@@ -29,6 +29,8 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
 import org.elasticsearch.common.breaker.NoopCircuitBreaker;
 import org.elasticsearch.common.breaker.TestCircuitBreaker;
+import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
@@ -107,11 +109,11 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         public void query(QueryRequest r, ActionListener<SearchResponse> l) {
             int ordinal = r.searchSource().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             ActionListener.respondAndRelease(
                 l,
                 new SearchResponse(searchHits, null, null, false, false, null, 0, null, 0, 1, 0, 0, null, Clusters.EMPTY)
@@ -124,7 +126,7 @@ public class CircuitBreakerTests extends ESTestCase {
             for (List<HitReference> ref : refs) {
                 List<SearchHit> hits = new ArrayList<>(ref.size());
                 for (HitReference hitRef : ref) {
-                    hits.add(new SearchHit(-1, hitRef.id()));
+                    hits.add(SearchHit.unpooled(-1, hitRef.id()));
                 }
                 searchHits.add(hits);
             }
@@ -243,7 +245,9 @@ public class CircuitBreakerTests extends ESTestCase {
         final int searchRequestsExpectedCount = 2;
 
         // let the parent circuit breaker fail, setting its limit to zero
-        Settings settings = Settings.builder().put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), 0).build();
+        Settings settings = Settings.builder()
+            .put(HierarchyCircuitBreakerService.TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), "0%")
+            .build();
 
         try (
             CircuitBreakerService service = new HierarchyCircuitBreakerService(
@@ -275,6 +279,7 @@ public class CircuitBreakerTests extends ESTestCase {
             TumblingWindow window = new TumblingWindow(eqlClient, criteria, null, matcher, Collections.emptyList());
             window.execute(wrap(p -> fail(), ex -> assertTrue(ex instanceof CircuitBreakingException)));
         }
+        assertCriticalWarnings("[indices.breaker.total.limit] setting of [0%] is below the recommended minimum of 50.0% of the heap");
     }
 
     private List<BreakerSettings> breakerSettings() {
@@ -370,7 +375,7 @@ public class CircuitBreakerTests extends ESTestCase {
         protected final CircuitBreaker circuitBreaker;
         // private final String pitId;
         private int searchRequestsRemainingCount;
-        private final String pitId = "test_pit_id";
+        private final BytesReference pitId = new BytesArray("test_pit_id");
 
         ESMockClient(ThreadPool threadPool, CircuitBreaker circuitBreaker, int searchRequestsRemainingCount) {
             super(threadPool);
@@ -389,7 +394,7 @@ public class CircuitBreakerTests extends ESTestCase {
         ) {
             if (request instanceof OpenPointInTimeRequest) {
                 pitContextCounter.incrementAndGet();
-                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId);
+                OpenPointInTimeResponse response = new OpenPointInTimeResponse(pitId, 1, 1, 0, 0);
                 listener.onResponse((Response) response);
             } else if (request instanceof ClosePointInTimeRequest) {
                 ClosePointInTimeResponse response = new ClosePointInTimeResponse(true, 1);
@@ -425,12 +430,12 @@ public class CircuitBreakerTests extends ESTestCase {
         @Override
         <Response extends ActionResponse> void handleSearchRequest(ActionListener<Response> listener, SearchRequest searchRequest) {
             int ordinal = searchRequest.source().terminateAfter();
-            SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+            SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
             searchHit.sortValues(
                 new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
             );
 
-            SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+            SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
             SearchResponse response = new SearchResponse(
                 searchHits,
                 null,
@@ -477,11 +482,11 @@ public class CircuitBreakerTests extends ESTestCase {
                 assertEquals(0, circuitBreaker.getUsed());
 
                 int ordinal = searchRequest.source().terminateAfter();
-                SearchHit searchHit = new SearchHit(ordinal, String.valueOf(ordinal));
+                SearchHit searchHit = SearchHit.unpooled(ordinal, String.valueOf(ordinal));
                 searchHit.sortValues(
                     new SearchSortValues(new Long[] { (long) ordinal, 1L }, new DocValueFormat[] { DocValueFormat.RAW, DocValueFormat.RAW })
                 );
-                SearchHits searchHits = new SearchHits(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
+                SearchHits searchHits = SearchHits.unpooled(new SearchHit[] { searchHit }, new TotalHits(1, Relation.EQUAL_TO), 0.0f);
                 ActionListener.respondAndRelease(
                     listener,
                     (Response) new SearchResponse(
@@ -519,7 +524,11 @@ public class CircuitBreakerTests extends ESTestCase {
                     ActionListener.respondAndRelease(
                         listener,
                         (Response) new SearchResponse(
-                            new SearchHits(new SearchHit[] { new SearchHit(1) }, new TotalHits(1L, TotalHits.Relation.EQUAL_TO), 1.0f),
+                            SearchHits.unpooled(
+                                new SearchHit[] { SearchHit.unpooled(1) },
+                                new TotalHits(1L, TotalHits.Relation.EQUAL_TO),
+                                1.0f
+                            ),
                             null,
                             new Suggest(Collections.emptyList()),
                             false,

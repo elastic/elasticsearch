@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health;
@@ -24,6 +25,7 @@ import org.elasticsearch.test.junit.annotations.TestLogging;
 import java.util.Collection;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.TimeUnit;
 
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.notNullValue;
@@ -77,7 +79,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
         assertThat(newHealthNode, notNullValue());
         logger.info("Previous health node {}, new health node {}.", healthNodeToBeShutDown, newHealthNode);
-        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null), 30, TimeUnit.SECONDS);
     }
 
     @TestLogging(value = "org.elasticsearch.health.node:DEBUG", reason = "https://github.com/elastic/elasticsearch/issues/97213")
@@ -93,7 +95,7 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
         ensureStableCluster(nodeIds.length);
         DiscoveryNode newHealthNode = waitAndGetHealthNode(internalCluster);
         assertThat(newHealthNode, notNullValue());
-        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null));
+        assertBusy(() -> assertResultsCanBeFetched(internalCluster, newHealthNode, List.of(nodeIds), null), 30, TimeUnit.SECONDS);
     }
 
     /**
@@ -135,13 +137,22 @@ public class UpdateHealthInfoCacheIT extends ESIntegTestCase {
             .admin()
             .cluster()
             .updateSettings(
-                new ClusterUpdateSettingsRequest().persistentSettings(
+                new ClusterUpdateSettingsRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT).persistentSettings(
                     Settings.builder().put(LocalHealthMonitor.POLL_INTERVAL_SETTING.getKey(), TimeValue.timeValueSeconds(10))
                 )
             );
     }
 
     private static Map<String, DiscoveryNode> getNodes(InternalTestCluster internalCluster) {
-        return internalCluster.client().admin().cluster().prepareState().clear().setNodes(true).get().getState().getNodes().getNodes();
+        return internalCluster.client()
+            .admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setNodes(true)
+            .get()
+            .getState()
+            .getNodes()
+            .getNodes();
     }
 }

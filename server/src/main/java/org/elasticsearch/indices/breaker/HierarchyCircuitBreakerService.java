@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.breaker;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.breaker.ChildMemoryCircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.breaker.CircuitBreakingException;
@@ -20,6 +22,7 @@ import org.elasticsearch.common.settings.Setting.Property;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.common.util.concurrent.ReleasableLock;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.SuppressForbidden;
@@ -65,7 +68,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         Property.NodeScope
     );
 
-    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = Setting.memorySizeSetting(
+    public static final Setting<ByteSizeValue> TOTAL_CIRCUIT_BREAKER_LIMIT_SETTING = new Setting<>(
         "indices.breaker.total.limit",
         settings -> {
             if (USE_REAL_MEMORY_USAGE_SETTING.get(settings)) {
@@ -74,6 +77,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 return "70%";
             }
         },
+        (s) -> MemorySizeValue.parseHeapRatioOrDeprecatedByteSizeValue(s, "indices.breaker.total.limit", 50),
         Property.Dynamic,
         Property.NodeScope
     );
@@ -471,7 +475,8 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 appendBytesSafe(message, (long) (breaker.getUsed() * breaker.getOverhead()));
             }
         });
-        message.append("]");
+        message.append("]; for more information, see ");
+        message.append(ReferenceDocs.CIRCUIT_BREAKER_ERRORS);
         return message.toString();
     }
 
@@ -520,7 +525,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                 createYoungGcCountSupplier(),
                 System::currentTimeMillis,
                 500,
-                5000,
+                2000,
                 lockTimeout,
                 fullGCLockTimeout
             );
@@ -601,7 +606,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
         }
 
         static long fallbackRegionSize(JvmInfo jvmInfo) {
-            // mimick JDK calculation based on JDK 14 source:
+            // mimic JDK calculation based on JDK 14 source:
             // https://hg.openjdk.java.net/jdk/jdk14/file/6c954123ee8d/src/hotspot/share/gc/g1/heapRegion.cpp#l65
             // notice that newer JDKs will have a slight variant only considering max-heap:
             // https://hg.openjdk.java.net/jdk/jdk/file/e7d0ec2d06e8/src/hotspot/share/gc/g1/heapRegion.cpp#l67
@@ -739,6 +744,7 @@ public class HierarchyCircuitBreakerService extends CircuitBreakerService {
                     if (initialCollectionCount != gcCountSupplier.getAsLong()) {
                         break;
                     }
+                    // noinspection ArrayHashCode - prevent array allocation from being optimized away
                     localBlackHole += new byte[allocationSize].hashCode();
                 }
 

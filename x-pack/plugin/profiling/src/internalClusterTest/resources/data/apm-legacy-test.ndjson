@@ -1,0 +1,4 @@
+{"create": {"_index": "apm-legacy-test-001"}}
+{"@timestamp": "1698624000", "transaction.name":  "encodeSha1"}
+{"create": {"_index": "apm-legacy-test-001"}}
+{"@timestamp": "1698624001", "transaction.name":  "encodeSha1"}

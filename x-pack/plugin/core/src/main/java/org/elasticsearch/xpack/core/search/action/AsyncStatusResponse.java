@@ -134,12 +134,12 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         this.skippedShards = in.readVInt();
         this.failedShards = in.readVInt();
         this.completionStatus = (this.isRunning == false) ? RestStatus.readFrom(in) : null;
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             this.clusters = in.readOptionalWriteable(SearchResponse.Clusters::new);
         } else {
             this.clusters = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.completionTimeMillis = in.readOptionalVLong();
         } else {
             this.completionTimeMillis = null;
@@ -160,11 +160,11 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         if (isRunning == false) {
             RestStatus.writeTo(out, completionStatus);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             // optional since only CCS uses is; it is null for local-only searches
             out.writeOptionalWriteable(clusters);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeOptionalVLong(completionTimeMillis);
         }
     }
@@ -175,10 +175,10 @@ public class AsyncStatusResponse extends ActionResponse implements SearchStatusR
         builder.field("id", id);
         builder.field("is_running", isRunning);
         builder.field("is_partial", isPartial);
-        builder.timeField("start_time_in_millis", "start_time", startTimeMillis);
-        builder.timeField("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
+        builder.timestampFieldsFromUnixEpochMillis("start_time_in_millis", "start_time", startTimeMillis);
+        builder.timestampFieldsFromUnixEpochMillis("expiration_time_in_millis", "expiration_time", expirationTimeMillis);
         if (completionTimeMillis != null) {
-            builder.timeField("completion_time_in_millis", "completion_time", completionTimeMillis);
+            builder.timestampFieldsFromUnixEpochMillis("completion_time_in_millis", "completion_time", completionTimeMillis);
         }
         RestActions.buildBroadcastShardsHeader(builder, params, totalShards, successfulShards, skippedShards, failedShards, null);
         if (clusters != null) {

@@ -7,7 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
-import java.util.Arrays;
+import org.apache.lucene.util.ArrayUtil;
+
 import java.util.BitSet;
 import java.util.stream.IntStream;
 
@@ -78,6 +79,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     }
 
     public AbstractBlockBuilder endPositionEntry() {
+        assert valueCount > firstValueIndexes[positionCount] : "use appendNull to build an empty position";
         positionCount++;
         positionEntryIsOpen = false;
         if (hasMultiValues == false && valueCount != positionCount) {
@@ -119,6 +121,11 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         }
     }
 
+    @Override
+    public long estimatedBytes() {
+        return estimatedBytes;
+    }
+
     /**
      * Called during implementations of {@link Block.Builder#build} as a last step
      * to mark the Builder as closed and make sure that further closes don't double
@@ -139,7 +146,7 @@ abstract class AbstractBlockBuilder implements Block.Builder {
         if (valueCount < valuesLength) {
             return;
         }
-        int newSize = calculateNewArraySize(valuesLength);
+        int newSize = ArrayUtil.oversize(valueCount, elementSize());
         adjustBreaker(newSize * elementSize());
         growValuesArray(newSize);
         adjustBreaker(-valuesLength * elementSize());
@@ -159,11 +166,6 @@ abstract class AbstractBlockBuilder implements Block.Builder {
      */
     protected void extraClose() {}
 
-    static int calculateNewArraySize(int currentSize) {
-        // trivially, grows array by 50%
-        return currentSize + (currentSize >> 1);
-    }
-
     protected void adjustBreaker(long deltaBytes) {
         blockFactory.adjustBreaker(deltaBytes);
         estimatedBytes += deltaBytes;
@@ -173,8 +175,11 @@ abstract class AbstractBlockBuilder implements Block.Builder {
     private void setFirstValue(int position, int value) {
         if (position >= firstValueIndexes.length) {
             final int currentSize = firstValueIndexes.length;
-            adjustBreaker((long) (position + 1 - currentSize) * Integer.BYTES);
-            firstValueIndexes = Arrays.copyOf(firstValueIndexes, position + 1);
+            // We grow the `firstValueIndexes` at the same rate as the `values` array, but independently.
+            final int newLength = ArrayUtil.oversize(position + 1, Integer.BYTES);
+            adjustBreaker((long) newLength * Integer.BYTES);
+            firstValueIndexes = ArrayUtil.growExact(firstValueIndexes, newLength);
+            adjustBreaker(-(long) currentSize * Integer.BYTES);
         }
         firstValueIndexes[position] = value;
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation;
@@ -68,7 +69,7 @@ import static org.elasticsearch.cluster.routing.ShardRoutingState.INITIALIZING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.RELOCATING;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.STARTED;
 import static org.elasticsearch.cluster.routing.ShardRoutingState.UNASSIGNED;
-import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -705,8 +706,8 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
             .build();
         var shardId = new ShardId(indexMetadata.getIndex(), 0);
 
-        ShardRouting primary = newShardRouting(shardId, "node-0", null, true, STARTED, allocationId1);
-        ShardRouting replica = newShardRouting(shardId, "node-1", null, false, STARTED, allocationId2);
+        ShardRouting primary = shardRoutingBuilder(shardId, "node-0", true, STARTED).withAllocationId(allocationId1).build();
+        ShardRouting replica = shardRoutingBuilder(shardId, "node-1", false, STARTED).withAllocationId(allocationId2).build();
 
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .nodes(

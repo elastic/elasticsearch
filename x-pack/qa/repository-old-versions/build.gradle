@@ -26,7 +26,6 @@ configurations {
 
 dependencies {
   oldesFixture project(':test:fixtures:old-elasticsearch')
-  testImplementation project(':client:rest-high-level')
 }
 
 jdks {
@@ -67,7 +66,7 @@ if (OS.current() == OS.WINDOWS) {
   });
 
   int currentMajorVersion = org.elasticsearch.gradle.VersionProperties.elasticsearchVersion.major
-  assert (currentMajorVersion - 2) == 6 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
+  assert (currentMajorVersion - 2) == 7 : "add archive BWC tests for major version " + (currentMajorVersion - 2)
   for (String versionString : ['5.0.0', '5.6.16', '6.0.0', '6.8.20']) {
     Version version = Version.fromString(versionString)
     String packageName = 'org.elasticsearch.distribution.zip'
@@ -99,7 +98,7 @@ if (OS.current() == OS.WINDOWS) {
 
     TaskProvider<AntFixture> fixture = tasks.register("oldES${versionNoDots}Fixture", AntFixture) {
       dependsOn project.configurations.oldesFixture, jdks.legacy, config
-      executable = "${BuildParams.runtimeJavaHome}/bin/java"
+      executable = "${buildParams.runtimeJavaHome.get()}/bin/java"
       env 'CLASSPATH', "${-> project.configurations.oldesFixture.asPath}"
       // old versions of Elasticsearch need JAVA_HOME
       env 'JAVA_HOME', jdks.legacy.javaHomePath

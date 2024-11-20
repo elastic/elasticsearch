@@ -19,7 +19,8 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 
-import static org.elasticsearch.action.admin.cluster.node.tasks.get.GetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.admin.cluster.node.tasks.get.TransportGetTaskAction.TASKS_ORIGIN;
+import static org.elasticsearch.action.bulk.TransportBulkAction.LAZY_ROLLOVER_ORIGIN;
 import static org.elasticsearch.action.support.replication.PostWriteRefresh.POST_WRITE_REFRESH_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 import static org.elasticsearch.ingest.IngestService.INGEST_ORIGIN;
@@ -38,6 +39,7 @@ import static org.elasticsearch.xpack.core.ClientHelper.INFERENCE_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.LOGSTASH_MANAGEMENT_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.MONITORING_ORIGIN;
+import static org.elasticsearch.xpack.core.ClientHelper.OTEL_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.PROFILING_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.ROLLUP_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.SEARCHABLE_SNAPSHOTS_ORIGIN;
@@ -134,6 +136,9 @@ public final class AuthorizationUtils {
             case DATA_STREAM_LIFECYCLE_ORIGIN:
                 securityContext.executeAsInternalUser(InternalUsers.DATA_STREAM_LIFECYCLE_USER, version, consumer);
                 break;
+            case LAZY_ROLLOVER_ORIGIN:
+                securityContext.executeAsInternalUser(InternalUsers.LAZY_ROLLOVER_USER, version, consumer);
+                break;
             case WATCHER_ORIGIN:
             case ML_ORIGIN:
             case MONITORING_ORIGIN:
@@ -147,6 +152,7 @@ public final class AuthorizationUtils {
             case INGEST_ORIGIN:
             case PROFILING_ORIGIN:
             case APM_ORIGIN:
+            case OTEL_ORIGIN:
             case STACK_ORIGIN:
             case SEARCHABLE_SNAPSHOTS_ORIGIN:
             case LOGSTASH_MANAGEMENT_ORIGIN:

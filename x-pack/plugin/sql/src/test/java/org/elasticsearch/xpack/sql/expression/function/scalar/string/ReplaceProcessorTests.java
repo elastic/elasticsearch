@@ -16,6 +16,8 @@ import org.elasticsearch.xpack.sql.expression.function.scalar.Processors;
 
 import static org.elasticsearch.xpack.ql.expression.function.scalar.FunctionTestUtils.l;
 import static org.elasticsearch.xpack.ql.tree.Source.EMPTY;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringFunctionProcessorTests.maxResultLengthTest;
+import static org.elasticsearch.xpack.sql.expression.function.scalar.string.StringProcessor.MAX_RESULT_LENGTH;
 
 public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<ReplaceFunctionProcessor> {
 
@@ -72,5 +74,16 @@ public class ReplaceProcessorTests extends AbstractWireSerializingTestCase<Repla
             () -> new Replace(EMPTY, l("foobarbar"), l("bar"), l(3)).makePipe().asProcessor().process(null)
         );
         assertEquals("A string/char is required; received [3]", siae.getMessage());
+
+        String str = "b" + "a".repeat((int) MAX_RESULT_LENGTH - 2) + "b";
+        assertEquals(
+            MAX_RESULT_LENGTH,
+            new Replace(EMPTY, l(str), l("b"), l("c")).makePipe().asProcessor().process(null).toString().length()
+        );
+
+        maxResultLengthTest(
+            MAX_RESULT_LENGTH + 2,
+            () -> new Replace(EMPTY, l(str), l("b"), l("cc")).makePipe().asProcessor().process(null)
+        );
     }
 }

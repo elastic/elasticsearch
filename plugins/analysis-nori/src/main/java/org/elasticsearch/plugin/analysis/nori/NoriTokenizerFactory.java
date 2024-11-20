@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.nori;
@@ -30,6 +31,7 @@ import static org.elasticsearch.index.IndexVersions.UPGRADE_LUCENE_9_9_1;
 public class NoriTokenizerFactory extends AbstractTokenizerFactory {
     private static final String USER_DICT_PATH_OPTION = "user_dictionary";
     private static final String USER_DICT_RULES_OPTION = "user_dictionary_rules";
+    private static final String LENIENT = "lenient";
 
     private final UserDictionary userDictionary;
     private final KoreanTokenizer.DecompoundMode decompoundMode;
@@ -53,7 +55,8 @@ public class NoriTokenizerFactory extends AbstractTokenizerFactory {
             settings,
             USER_DICT_PATH_OPTION,
             USER_DICT_RULES_OPTION,
-            true,
+            LENIENT,
+            false,  // typically don't want to remove comments as deduplication will provide better feedback
             isSupportDuplicateCheck(indexSettings)
         );
         if (ruleList == null || ruleList.isEmpty()) {

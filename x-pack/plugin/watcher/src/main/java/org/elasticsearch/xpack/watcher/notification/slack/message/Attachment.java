@@ -105,10 +105,10 @@ public class Attachment implements MessageElement {
             title,
             titleLink,
             text,
-            fields,
+            Arrays.hashCode(fields),
             imageUrl,
             thumbUrl,
-            markdownSupportedFields,
+            Arrays.hashCode(markdownSupportedFields),
             actions
         );
     }
@@ -311,10 +311,10 @@ public class Attachment implements MessageElement {
                 title,
                 titleLink,
                 text,
-                fields,
+                Arrays.hashCode(fields),
                 imageUrl,
                 thumbUrl,
-                markdownSupportedFields,
+                Arrays.hashCode(markdownSupportedFields),
                 actions
             );
         }

@@ -22,8 +22,8 @@ import org.elasticsearch.common.util.MockBigArrays;
 import org.elasticsearch.common.util.PageCacheRecycler;
 import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
-import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.BlockWritables;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
 import org.elasticsearch.compute.data.Page;
@@ -32,6 +32,7 @@ import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.DriverRunner;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
+import org.elasticsearch.core.ReleasableRef;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancellationService;
@@ -54,6 +55,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Set;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -89,50 +91,54 @@ public class ExchangeServiceTests extends ESTestCase {
         for (int i = 0; i < pages.length; i++) {
             pages[i] = new Page(blockFactory.newConstantIntBlockWith(i, 2));
         }
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink1 = sinkExchanger.createExchangeSink();
         ExchangeSink sink2 = sinkExchanger.createExchangeSink();
         ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(3, threadPool.executor(ESQL_TEST_EXECUTOR));
+        PlainActionFuture<Void> sourceCompletion = new PlainActionFuture<>();
+        sourceExchanger.addCompletionListener(sourceCompletion);
         ExchangeSource source = sourceExchanger.createExchangeSource();
         sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
-        SubscribableListener<Void> waitForReading = source.waitForReading();
+        SubscribableListener<Void> waitForReading = source.waitForReading().listener();
         assertFalse(waitForReading.isDone());
         assertNull(source.pollPage());
-        assertTrue(sink1.waitForWriting().isDone());
+        assertTrue(sink1.waitForWriting().listener().isDone());
         randomFrom(sink1, sink2).addPage(pages[0]);
         randomFrom(sink1, sink2).addPage(pages[1]);
         // source and sink buffers can store 5 pages
         for (Page p : List.of(pages[2], pages[3], pages[4])) {
             ExchangeSink sink = randomFrom(sink1, sink2);
-            assertBusy(() -> assertTrue(sink.waitForWriting().isDone()));
+            assertBusy(() -> assertTrue(sink.waitForWriting().listener().isDone()));
             sink.addPage(p);
         }
         // sink buffer is full
-        assertFalse(randomFrom(sink1, sink2).waitForWriting().isDone());
-        assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+        assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
+        assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[0], source.pollPage());
-        assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+        assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
         assertEquals(pages[1], source.pollPage());
         // sink can write again
-        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[5]);
-        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().isDone()));
+        assertBusy(() -> assertTrue(randomFrom(sink1, sink2).waitForWriting().listener().isDone()));
         randomFrom(sink1, sink2).addPage(pages[6]);
         // sink buffer is full
-        assertFalse(randomFrom(sink1, sink2).waitForWriting().isDone());
+        assertFalse(randomFrom(sink1, sink2).waitForWriting().listener().isDone());
         sink1.finish();
         assertTrue(sink1.isFinished());
         for (int i = 0; i < 5; i++) {
-            assertBusy(() -> assertTrue(source.waitForReading().isDone()));
+            assertBusy(() -> assertTrue(source.waitForReading().listener().isDone()));
             assertEquals(pages[2 + i], source.pollPage());
         }
         // source buffer is empty
-        assertFalse(source.waitForReading().isDone());
-        assertBusy(() -> assertTrue(sink2.waitForWriting().isDone()));
+        assertFalse(source.waitForReading().listener().isDone());
+        assertBusy(() -> assertTrue(sink2.waitForWriting().listener().isDone()));
         sink2.finish();
         assertTrue(sink2.isFinished());
         assertTrue(source.isFinished());
+        assertFalse(sourceCompletion.isDone());
         source.finish();
+        sourceCompletion.actionGet(10, TimeUnit.SECONDS);
         ESTestCase.terminate(threadPool);
         for (Page page : pages) {
             page.releaseBlocks();
@@ -274,6 +280,8 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:1",
+                0,
+                0,
                 dc,
                 () -> description,
                 seqNoGenerator.get(dc),
@@ -290,6 +298,8 @@ public class ExchangeServiceTests extends ESTestCase {
             DriverContext dc = driverContext();
             Driver d = new Driver(
                 "test-session:2",
+                0,
+                0,
                 dc,
                 () -> description,
                 sourceOperator,
@@ -314,14 +324,17 @@ public class ExchangeServiceTests extends ESTestCase {
     }
 
     public void testConcurrentWithHandlers() {
+        BlockFactory blockFactory = blockFactory();
+        PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
         var sourceExchanger = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+        sourceExchanger.addCompletionListener(sourceCompletionFuture);
         List<ExchangeSinkHandler> sinkHandlers = new ArrayList<>();
         Supplier<ExchangeSink> exchangeSink = () -> {
             final ExchangeSinkHandler sinkHandler;
             if (sinkHandlers.isEmpty() == false && randomBoolean()) {
                 sinkHandler = randomFrom(sinkHandlers);
             } else {
-                sinkHandler = new ExchangeSinkHandler(randomExchangeBuffer(), threadPool::relativeTimeInMillis);
+                sinkHandler = new ExchangeSinkHandler(blockFactory, randomExchangeBuffer(), threadPool.relativeTimeInMillisSupplier());
                 sourceExchanger.addRemoteSink(sinkHandler::fetchPageAsync, randomIntBetween(1, 3));
                 sinkHandlers.add(sinkHandler);
             }
@@ -330,6 +343,7 @@ public class ExchangeServiceTests extends ESTestCase {
         final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
         final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
         runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceExchanger::createExchangeSource, exchangeSink);
+        sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
     }
 
     public void testEarlyTerminate() {
@@ -338,21 +352,21 @@ public class ExchangeServiceTests extends ESTestCase {
         IntBlock block2 = blockFactory.newConstantIntBlockWith(1, 2);
         Page p1 = new Page(block1);
         Page p2 = new Page(block2);
-        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(2, threadPool::relativeTimeInMillis);
+        ExchangeSinkHandler sinkExchanger = new ExchangeSinkHandler(blockFactory, 2, threadPool.relativeTimeInMillisSupplier());
         ExchangeSink sink = sinkExchanger.createExchangeSink();
         sink.addPage(p1);
         sink.addPage(p2);
-        assertFalse(sink.waitForWriting().isDone());
+        assertFalse(sink.waitForWriting().listener().isDone());
         PlainActionFuture<ExchangeResponse> future = new PlainActionFuture<>();
         sinkExchanger.fetchPageAsync(true, future);
         ExchangeResponse resp = future.actionGet();
         assertTrue(resp.finished());
         assertNull(resp.takePage());
-        assertTrue(sink.waitForWriting().isDone());
+        assertTrue(sink.waitForWriting().listener().isDone());
         assertTrue(sink.isFinished());
     }
 
-    public void testConcurrentWithTransportActions() throws Exception {
+    public void testConcurrentWithTransportActions() {
         MockTransportService node0 = newTransportService();
         ExchangeService exchange0 = new ExchangeService(Settings.EMPTY, threadPool, ESQL_TEST_EXECUTOR, blockFactory());
         exchange0.registerTransportHandler(node0);
@@ -365,12 +379,15 @@ public class ExchangeServiceTests extends ESTestCase {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             var sourceHandler = new ExchangeSourceHandler(randomExchangeBuffer(), threadPool.executor(ESQL_TEST_EXECUTOR));
+            PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
+            sourceHandler.addCompletionListener(sourceCompletionFuture);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomExchangeBuffer());
             Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             final int maxInputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             final int maxOutputSeqNo = rarely() ? -1 : randomIntBetween(0, 50_000);
             runConcurrentTest(maxInputSeqNo, maxOutputSeqNo, sourceHandler::createExchangeSource, sinkHandler::createExchangeSink);
+            sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
         }
     }
 
@@ -385,6 +402,7 @@ public class ExchangeServiceTests extends ESTestCase {
         AbstractSimpleTransportTestCase.connectToNode(node0, node1.getLocalNode());
         final int maxSeqNo = randomIntBetween(1000, 5000);
         final int disconnectOnSeqNo = randomIntBetween(100, 500);
+        BlockFactory blockFactory = blockFactory();
         node1.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, new StubbableTransport.RequestHandlingBehavior<>() {
             @Override
             public void messageReceived(
@@ -395,7 +413,7 @@ public class ExchangeServiceTests extends ESTestCase {
             ) throws Exception {
                 FilterTransportChannel filterChannel = new FilterTransportChannel(channel) {
                     @Override
-                    public void sendResponse(TransportResponse transportResponse) throws IOException {
+                    public void sendResponse(TransportResponse transportResponse) {
                         ExchangeResponse origResp = (ExchangeResponse) transportResponse;
                         Page page = origResp.takePage();
                         if (page != null) {
@@ -403,13 +421,14 @@ public class ExchangeServiceTests extends ESTestCase {
                             for (int i = 0; i < block.getPositionCount(); i++) {
                                 if (block.getInt(i) == disconnectOnSeqNo) {
                                     page.releaseBlocks();
-                                    throw new IOException("page is too large");
+                                    sendResponse(new IOException("page is too large"));
+                                    return;
                                 }
                             }
                         }
-                        origResp.decRef();
-                        ExchangeResponse newResp = new ExchangeResponse(page, origResp.finished());
-                        super.sendResponse(newResp);
+                        try (var newRespRef = ReleasableRef.of(new ExchangeResponse(blockFactory, page, origResp.finished()))) {
+                            super.sendResponse(newRespRef.get());
+                        }
                     }
                 };
                 handler.messageReceived(request, filterChannel, task);
@@ -419,8 +438,10 @@ public class ExchangeServiceTests extends ESTestCase {
             String exchangeId = "exchange";
             Task task = new Task(1, "", "", "", null, Collections.emptyMap());
             var sourceHandler = new ExchangeSourceHandler(randomIntBetween(1, 128), threadPool.executor(ESQL_TEST_EXECUTOR));
+            PlainActionFuture<Void> sourceCompletionFuture = new PlainActionFuture<>();
+            sourceHandler.addCompletionListener(sourceCompletionFuture);
             ExchangeSinkHandler sinkHandler = exchange1.createSinkHandler(exchangeId, randomIntBetween(1, 128));
-            Transport.Connection connection = node0.getConnection(node1.getLocalDiscoNode());
+            Transport.Connection connection = node0.getConnection(node1.getLocalNode());
             sourceHandler.addRemoteSink(exchange0.newRemoteSink(task, exchangeId, node0, connection), randomIntBetween(1, 5));
             Exception err = expectThrows(
                 Exception.class,
@@ -430,12 +451,13 @@ public class ExchangeServiceTests extends ESTestCase {
             assertNotNull(cause);
             assertThat(cause.getMessage(), equalTo("page is too large"));
             sinkHandler.onFailure(new RuntimeException(cause));
+            sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS);
         }
     }
 
     private MockTransportService newTransportService() {
         List<NamedWriteableRegistry.Entry> namedWriteables = new ArrayList<>(ClusterModule.getNamedWriteables());
-        namedWriteables.addAll(Block.getNamedWriteables());
+        namedWriteables.addAll(BlockWritables.getNamedWriteables());
         NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(namedWriteables);
         MockTransportService service = MockTransportService.createNewService(
             Settings.EMPTY,
@@ -468,12 +490,12 @@ public class ExchangeServiceTests extends ESTestCase {
         }
 
         @Override
-        public void sendResponse(TransportResponse response) throws IOException {
+        public void sendResponse(TransportResponse response) {
             in.sendResponse(response);
         }
 
         @Override
-        public void sendResponse(Exception exception) throws IOException {
+        public void sendResponse(Exception exception) {
             in.sendResponse(exception);
         }
     }

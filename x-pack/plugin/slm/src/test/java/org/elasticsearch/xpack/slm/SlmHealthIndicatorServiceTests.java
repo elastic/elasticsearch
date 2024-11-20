@@ -17,6 +17,7 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.health.Diagnosis;
 import org.elasticsearch.health.Diagnosis.Resource.Type;
+import org.elasticsearch.health.HealthIndicatorDetails;
 import org.elasticsearch.health.HealthIndicatorImpact;
 import org.elasticsearch.health.HealthIndicatorResult;
 import org.elasticsearch.health.ImpactArea;
@@ -353,6 +354,34 @@ public class SlmHealthIndicatorServiceTests extends ESTestCase {
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(15L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(5L, slmPolicyMetadata), is(false));
         assertThat(SlmHealthIndicatorService.snapshotFailuresExceedWarningCount(1L, slmPolicyMetadata), is(false));
+    }
+
+    public void testSkippingFieldsWhenVerboseIsFalse() {
+        var status = randomFrom(STOPPED, STOPPING);
+        var clusterState = createClusterStateWith(new SnapshotLifecycleMetadata(createSlmPolicy(), status, null));
+        var service = createSlmHealthIndicatorService(clusterState);
+
+        assertThat(
+            service.calculate(false, HealthInfo.EMPTY_HEALTH_INFO),
+            equalTo(
+                new HealthIndicatorResult(
+                    NAME,
+                    YELLOW,
+                    "Snapshot Lifecycle Management is not running",
+                    HealthIndicatorDetails.EMPTY,
+                    Collections.singletonList(
+                        new HealthIndicatorImpact(
+                            NAME,
+                            SlmHealthIndicatorService.AUTOMATION_DISABLED_IMPACT_ID,
+                            3,
+                            "Scheduled snapshots are not running. New backup snapshots will not be created automatically.",
+                            List.of(ImpactArea.BACKUP)
+                        )
+                    ),
+                    List.of()
+                )
+            )
+        );
     }
 
     // We expose the indicator name and the diagnoses in the x-pack usage API. In order to index them properly in a telemetry index

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugin.analysis.icu;
@@ -58,7 +59,7 @@ public class IcuTokenizerFactory extends AbstractTokenizerFactory {
             List<String> ruleFiles = settings.getAsList(RULE_FILES);
 
             for (String scriptAndResourcePath : ruleFiles) {
-                int colonPos = scriptAndResourcePath.indexOf(":");
+                int colonPos = scriptAndResourcePath.indexOf(':');
                 if (colonPos == -1 || colonPos == scriptAndResourcePath.length() - 1) {
                     throw new IllegalArgumentException(RULE_FILES + " should contain comma-separated \"code:rulefile\" pairs");
                 }

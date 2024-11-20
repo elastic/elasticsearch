@@ -53,6 +53,9 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
             .field("dims", 1)
             .field("index", true)
             .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "hnsw")
+            .endObject()
             .endObject()
             .startObject("text")
             .field("type", "text")
@@ -80,12 +83,18 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
             .field("dims", 1)
             .field("index", true)
             .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "hnsw")
+            .endObject()
             .endObject()
             .startObject("vector_desc")
             .field("type", "dense_vector")
             .field("dims", 1)
             .field("index", true)
             .field("similarity", "l2_norm")
+            .startObject("index_options")
+            .field("type", "hnsw")
+            .endObject()
             .endObject()
             .startObject("int")
             .field("type", "integer")
@@ -208,7 +217,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .addFetchField("text0")
                 .setSize(19),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -347,7 +356,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .setSize(11)
                 .addAggregation(AggregationBuilders.terms("sums").field("int")),
             response -> {
-                assertEquals(101, response.getHits().getTotalHits().value);
+                assertEquals(101, response.getHits().getTotalHits().value());
                 assertEquals(11, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);
@@ -477,7 +486,7 @@ public class RRFRankSingleShardIT extends ESSingleNodeTestCase {
                 .addAggregation(AggregationBuilders.terms("sums").field("int"))
                 .setStats("search"),
             response -> {
-                assertEquals(51, response.getHits().getTotalHits().value);
+                assertEquals(51, response.getHits().getTotalHits().value());
                 assertEquals(19, response.getHits().getHits().length);
 
                 SearchHit hit = response.getHits().getAt(0);

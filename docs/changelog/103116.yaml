@@ -1,6 +1,0 @@
-pr: 103116
-summary: Fix `frequent_item_sets` aggregation on empty index
-area: Machine Learning
-type: bug
-issues:
- - 103067

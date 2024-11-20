@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.errorquery;
@@ -53,7 +54,7 @@ public class IndexError implements Writeable, ToXContentFragment {
         this.shardIds = in.readBoolean() ? in.readIntArray() : null;
         this.errorType = in.readEnum(ERROR_TYPE.class);
         this.message = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             this.stallTimeSeconds = in.readVInt();
         } else {
             this.stallTimeSeconds = 0;
@@ -69,7 +70,7 @@ public class IndexError implements Writeable, ToXContentFragment {
         }
         out.writeEnum(errorType);
         out.writeString(message);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_061)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_10_X)) {
             out.writeVInt(stallTimeSeconds);
         }
     }

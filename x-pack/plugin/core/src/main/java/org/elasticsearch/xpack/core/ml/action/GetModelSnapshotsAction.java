@@ -39,7 +39,7 @@ public class GetModelSnapshotsAction extends ActionType<GetModelSnapshotsAction.
     public static final String NAME = "cluster:monitor/xpack/ml/job/model_snapshots/get";
 
     private GetModelSnapshotsAction() {
-        super(NAME, Response::new);
+        super(NAME);
     }
 
     public static class Request extends ActionRequest implements ToXContentObject {

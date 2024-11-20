@@ -97,6 +97,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         assertThat(total.storage(), equalTo(ByteSizeValue.ZERO));
 
         final MountSearchableSnapshotRequest req = new MountSearchableSnapshotRequest(
+            TEST_REQUEST_TIMEOUT,
             restoredIndexName,
             fsRepoName,
             snapshotInfo.snapshotId().getName(),
@@ -111,7 +112,7 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
     }
 
     protected GetAutoscalingCapacityAction.Response capacity() {
-        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request();
+        GetAutoscalingCapacityAction.Request request = new GetAutoscalingCapacityAction.Request(TEST_REQUEST_TIMEOUT);
         return client().execute(GetAutoscalingCapacityAction.INSTANCE, request).actionGet();
     }
 
@@ -119,6 +120,8 @@ public abstract class AbstractFrozenAutoscalingIntegTestCase extends AbstractSna
         // randomly set the setting to verify it can be set.
         final Settings settings = randomBoolean() ? Settings.EMPTY : addDeciderSettings(Settings.builder()).build();
         final PutAutoscalingPolicyAction.Request request = new PutAutoscalingPolicyAction.Request(
+            TEST_REQUEST_TIMEOUT,
+            TEST_REQUEST_TIMEOUT,
             policyName,
             new TreeSet<>(Set.of(DataTier.DATA_FROZEN)),
             new TreeMap<>(Map.of(deciderName(), settings))

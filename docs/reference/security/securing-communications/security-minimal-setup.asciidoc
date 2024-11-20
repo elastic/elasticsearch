@@ -78,7 +78,7 @@ This command resets the password to an auto-generated value.
 ./bin/elasticsearch-reset-password -u elastic
 ----
 +
-If you want to set the password to a specific value, run the command with the 
+If you want to set the password to a specific value, run the command with the
 interactive (`-i`) parameter.
 +
 [source,shell]
@@ -93,7 +93,7 @@ interactive (`-i`) parameter.
 ./bin/elasticsearch-reset-password -u kibana_system
 ----
 
-. Save the new passwords. In the next step, you'll add the the password for the
+. Save the new passwords. In the next step, you'll add the password for the
 `kibana_system` user to {kib}.
 
 *Next*: <<add-built-in-users,Configure {kib} to connect to {es} with a password>>
@@ -111,7 +111,7 @@ you created earlier. {kib} performs some background tasks that require use of th
 This account is not meant for individual users and does not have permission to log in
 to {kib} from a browser. Instead, you'll log in to {kib} as the `elastic` superuser.
 
-. Add the `elasticsearch.username` setting to the `KIB_PATH_CONF/kibana.yml`
+. Add the `elasticsearch.username` setting to the `KBN_PATH_CONF/kibana.yml`
 file and set the value to the `kibana_system` user:
 +
 [source,yaml]
@@ -119,7 +119,7 @@ file and set the value to the `kibana_system` user:
 elasticsearch.username: "kibana_system"
 ----
 +
-NOTE: The `KIB_PATH_CONF` variable is the path for the {kib}
+NOTE: The `KBN_PATH_CONF` variable is the path for the {kib}
 configuration files. If you installed {kib} using archive distributions
 (`zip` or `tar.gz`), the variable defaults to `KIB_HOME/config`. If you used
 package distributions (Debian or RPM), the variable defaults to `/etc/kibana`.

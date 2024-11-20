@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.coordination;
 
@@ -29,7 +30,6 @@ import org.elasticsearch.test.EqualsHashCodeTestUtils;
 import org.elasticsearch.test.EqualsHashCodeTestUtils.CopyFunction;
 import org.elasticsearch.test.transport.CapturingTransport;
 import org.elasticsearch.test.transport.MockTransport;
-import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.AbstractSimpleTransportTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
 import org.elasticsearch.transport.TransportException;
@@ -547,7 +547,7 @@ public class FollowersCheckerTests extends ESTestCase {
             new FollowerCheckRequest(leaderTerm, leader),
             new TransportResponseHandler.Empty() {
                 @Override
-                public Executor executor(ThreadPool threadPool) {
+                public Executor executor() {
                     return TransportResponseHandler.TRANSPORT_WORKER;
                 }
 
@@ -636,7 +636,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(leaderTerm, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -703,7 +703,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -739,7 +739,7 @@ public class FollowersCheckerTests extends ESTestCase {
                 new FollowerCheckRequest(term, leader),
                 new TransportResponseHandler.Empty() {
                     @Override
-                    public Executor executor(ThreadPool threadPool) {
+                    public Executor executor() {
                         return TransportResponseHandler.TRANSPORT_WORKER;
                     }
 
@@ -828,7 +828,7 @@ public class FollowersCheckerTests extends ESTestCase {
         private final AtomicBoolean responseReceived = new AtomicBoolean();
 
         @Override
-        public Executor executor(ThreadPool threadPool) {
+        public Executor executor() {
             return TransportResponseHandler.TRANSPORT_WORKER;
         }
 

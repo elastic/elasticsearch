@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -19,7 +20,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 
-import static org.elasticsearch.TransportVersions.ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS;
+import static org.elasticsearch.TransportVersions.V_8_12_0;
 
 public record DesiredBalanceStats(
     long lastConvergedIndex,
@@ -56,9 +57,9 @@ public record DesiredBalanceStats(
             in.getTransportVersion().onOrAfter(COMPUTED_SHARD_MOVEMENTS_VERSION) ? in.readVLong() : -1,
             in.readVLong(),
             in.readVLong(),
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1,
-            in.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS) ? in.readVLong() : -1
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1,
+            in.getTransportVersion().onOrAfter(V_8_12_0) ? in.readVLong() : -1
         );
     }
 
@@ -75,7 +76,7 @@ public record DesiredBalanceStats(
         }
         out.writeVLong(cumulativeComputationTime);
         out.writeVLong(cumulativeReconciliationTime);
-        if (out.getTransportVersion().onOrAfter(ADDITIONAL_DESIRED_BALANCE_RECONCILIATION_STATS)) {
+        if (out.getTransportVersion().onOrAfter(V_8_12_0)) {
             out.writeVLong(unassignedShards);
             out.writeVLong(totalAllocations);
             out.writeVLong(undesiredAllocations);

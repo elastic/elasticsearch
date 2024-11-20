@@ -9,10 +9,10 @@ package org.elasticsearch.xpack.ml.datafeed;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
-import org.elasticsearch.action.bulk.BulkAction;
 import org.elasticsearch.action.bulk.BulkItemResponse;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkResponse;
+import org.elasticsearch.action.bulk.TransportBulkAction;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.index.IndexResponse;
 import org.elasticsearch.client.internal.Client;
@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.core.ml.action.PostDataAction;
 import org.elasticsearch.xpack.core.ml.annotations.Annotation;
 import org.elasticsearch.xpack.core.ml.annotations.AnnotationIndex;
 import org.elasticsearch.xpack.core.ml.datafeed.SearchInterval;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.core.ml.job.config.DataDescription;
 import org.elasticsearch.xpack.core.ml.job.messages.Messages;
 import org.elasticsearch.xpack.core.ml.job.process.autodetect.state.DataCounts;
@@ -46,6 +45,7 @@ import org.elasticsearch.xpack.core.security.user.InternalUsers;
 import org.elasticsearch.xpack.ml.annotations.AnnotationPersister;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetector;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractor;
 import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorFactory;
 import org.elasticsearch.xpack.ml.notifications.AnomalyDetectionAuditor;
 import org.elasticsearch.xpack.ml.utils.persistence.ResultsPersisterService;
@@ -166,7 +166,7 @@ public class DatafeedJobTests extends ESTestCase {
         when(client.execute(same(FlushJobAction.INSTANCE), flushJobRequests.capture())).thenReturn(flushJobFuture);
 
         doAnswer(withResponse(new BulkResponse(new BulkItemResponse[] { bulkItemSuccess(annotationDocId) }, 0L))).when(client)
-            .execute(eq(BulkAction.INSTANCE), any(), any());
+            .execute(eq(TransportBulkAction.TYPE), any(), any());
     }
 
     public void testLookBackRunWithEndTime() throws Exception {
@@ -334,7 +334,7 @@ public class DatafeedJobTests extends ESTestCase {
             );
 
             ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-            verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
+            verify(client, atMost(2)).execute(eq(TransportBulkAction.TYPE), bulkRequestArgumentCaptor.capture(), any());
             BulkRequest bulkRequest = bulkRequestArgumentCaptor.getValue();
             assertThat(bulkRequest.requests(), hasSize(1));
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);
@@ -383,7 +383,7 @@ public class DatafeedJobTests extends ESTestCase {
             );
 
             ArgumentCaptor<BulkRequest> bulkRequestArgumentCaptor = ArgumentCaptor.forClass(BulkRequest.class);
-            verify(client, atMost(2)).execute(eq(BulkAction.INSTANCE), bulkRequestArgumentCaptor.capture(), any());
+            verify(client, atMost(2)).execute(eq(TransportBulkAction.TYPE), bulkRequestArgumentCaptor.capture(), any());
             BulkRequest bulkRequest = bulkRequestArgumentCaptor.getValue();
             assertThat(bulkRequest.requests(), hasSize(1));
             IndexRequest indexRequest = (IndexRequest) bulkRequest.requests().get(0);

@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
 
 import org.apache.http.client.methods.HttpGet;
-import org.elasticsearch.action.admin.cluster.stats.ClusterStatsAction;
+import org.elasticsearch.action.admin.cluster.stats.TransportClusterStatsAction;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -104,7 +105,7 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
             logger.info("--> sending cluster state request");
             final Cancellable cancellable = getRestClient().performRequestAsync(clusterStatsRequest, wrapAsRestResponseListener(future));
 
-            awaitTaskWithPrefix(ClusterStatsAction.NAME);
+            awaitTaskWithPrefix(TransportClusterStatsAction.TYPE.name());
 
             logger.info("--> waiting for at least one task to hit a block");
             assertBusy(() -> assertTrue(statsBlocks.stream().anyMatch(Semaphore::hasQueuedThreads)));
@@ -113,12 +114,12 @@ public class ClusterStatsRestCancellationIT extends HttpSmokeTestCase {
             cancellable.cancel();
             expectThrows(CancellationException.class, future::actionGet);
 
-            assertAllCancellableTasksAreCancelled(ClusterStatsAction.NAME);
+            assertAllCancellableTasksAreCancelled(TransportClusterStatsAction.TYPE.name());
         } finally {
             Releasables.close(releasables);
         }
 
-        assertAllTasksHaveFinished(ClusterStatsAction.NAME);
+        assertAllTasksHaveFinished(TransportClusterStatsAction.TYPE.name());
     }
 
     public static class StatsBlockingPlugin extends Plugin implements EnginePlugin {

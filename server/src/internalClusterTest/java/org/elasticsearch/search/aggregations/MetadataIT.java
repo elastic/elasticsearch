@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations;
@@ -43,7 +44,7 @@ public class MetadataIT extends ESIntegTestCase {
                 terms("the_terms").setMetadata(metadata).field("name").subAggregation(sum("the_sum").setMetadata(metadata).field("value"))
             ).addAggregation(maxBucket("the_max_bucket", "the_terms>the_sum").setMetadata(metadata)),
             response -> {
-                Aggregations aggs = response.getAggregations();
+                InternalAggregations aggs = response.getAggregations();
                 assertNotNull(aggs);
 
                 Terms terms = aggs.get("the_terms");
@@ -52,7 +53,7 @@ public class MetadataIT extends ESIntegTestCase {
 
                 List<? extends Terms.Bucket> buckets = terms.getBuckets();
                 for (Terms.Bucket bucket : buckets) {
-                    Aggregations subAggs = bucket.getAggregations();
+                    InternalAggregations subAggs = bucket.getAggregations();
                     assertNotNull(subAggs);
 
                     Sum sum = subAggs.get("the_sum");

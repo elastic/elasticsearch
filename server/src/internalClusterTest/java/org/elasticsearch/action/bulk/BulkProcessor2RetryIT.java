@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.action.bulk;
 
@@ -12,12 +13,12 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.refresh.RefreshRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESIntegTestCase;
 
-import java.util.Collections;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
@@ -67,8 +68,8 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
     private void executeBulkRejectionLoad(int maxRetries, boolean rejectedExecutionExpected) throws Throwable {
         int numberOfAsyncOps = randomIntBetween(600, 700);
         final CountDownLatch latch = new CountDownLatch(numberOfAsyncOps);
-        final Set<BulkResponse> successfulResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
-        final Set<Tuple<BulkRequest, Throwable>> failedResponses = Collections.newSetFromMap(new ConcurrentHashMap<>());
+        final Set<BulkResponse> successfulResponses = ConcurrentCollections.newConcurrentSet();
+        final Set<Tuple<BulkRequest, Throwable>> failedResponses = ConcurrentCollections.newConcurrentSet();
 
         assertAcked(prepareCreate(INDEX_NAME));
         ensureGreen();
@@ -140,11 +141,11 @@ public class BulkProcessor2RetryIT extends ESIntegTestCase {
         assertResponse(prepareSearch(INDEX_NAME).setQuery(QueryBuilders.matchAllQuery()).setSize(0), results -> {
             assertThat(bulkProcessor.getTotalBytesInFlight(), equalTo(0L));
             if (rejectedExecutionExpected) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThanOrEqualTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThanOrEqualTo(numberOfAsyncOps));
             } else if (finalRejectedAfterAllRetries) {
-                assertThat((int) results.getHits().getTotalHits().value, lessThan(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), lessThan(numberOfAsyncOps));
             } else {
-                assertThat((int) results.getHits().getTotalHits().value, equalTo(numberOfAsyncOps));
+                assertThat((int) results.getHits().getTotalHits().value(), equalTo(numberOfAsyncOps));
             }
         });
     }

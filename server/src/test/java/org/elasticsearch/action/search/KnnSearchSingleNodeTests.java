@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -106,11 +107,11 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         indicesAdmin().prepareRefresh("index").get();
 
         float[] queryVector = randomVector();
-        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f);
+        KnnSearchBuilder knnSearch = new KnnSearchBuilder("vector", queryVector, 5, 50, null).boost(5.0f).queryName("knn");
         assertResponse(
             client().prepareSearch("index")
                 .setKnnSearch(List.of(knnSearch))
-                .setQuery(QueryBuilders.matchQuery("text", "goodnight"))
+                .setQuery(QueryBuilders.matchQuery("text", "goodnight").queryName("query"))
                 .addFetchField("*")
                 .setSize(10),
             response -> {
@@ -121,6 +122,8 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
 
                 // Because of the boost, vector results should appear first
                 assertNotNull(response.getHits().getAt(0).field("vector"));
+                assertEquals(response.getHits().getAt(0).getMatchedQueries()[0], "knn");
+                assertEquals(response.getHits().getAt(9).getMatchedQueries()[0], "query");
             }
         );
     }
@@ -414,7 +417,7 @@ public class KnnSearchSingleNodeTests extends ESSingleNodeTestCase {
         // how the action works (it builds a kNN query under the hood)
         float[] queryVector = randomVector();
         assertResponse(
-            client().prepareSearch("index1", "index2").setQuery(new KnnVectorQueryBuilder("vector", queryVector, 5, null)).setSize(2),
+            client().prepareSearch("index1", "index2").setQuery(new KnnVectorQueryBuilder("vector", queryVector, null, 5, null)).setSize(2),
             response -> {
                 // The total hits is num_cands * num_shards, since the query gathers num_cands hits from each shard
                 assertHitCount(response, 5 * 2);

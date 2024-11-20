@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.composite;
@@ -15,7 +16,7 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
+import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.test.InternalMultiBucketAggregationTestCase;
 import org.junit.After;
 
@@ -103,19 +104,6 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         reverseMuls = null;
         missingOrders = null;
         types = null;
-    }
-
-    @Override
-    protected Class<ParsedComposite> implementationClass() {
-        return ParsedComposite.class;
-    }
-
-    protected <P extends ParsedAggregation> P parseAndAssert(
-        final InternalAggregation aggregation,
-        final boolean shuffled,
-        final boolean addRandomFields
-    ) throws IOException {
-        return super.parseAndAssert(aggregation, false, false);
     }
 
     private CompositeKey createCompositeKey() {
@@ -262,7 +250,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         for (int i = 0; i < numSame; i++) {
             toReduce.add(result);
         }
-        InternalComposite finalReduce = (InternalComposite) result.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
+        InternalComposite finalReduce = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forFinalReduction()
+        );
         assertThat(finalReduce.getBuckets().size(), equalTo(result.getBuckets().size()));
         Iterator<InternalComposite.InternalBucket> expectedIt = result.getBuckets().iterator();
         for (InternalComposite.InternalBucket bucket : finalReduce.getBuckets()) {
@@ -292,7 +283,10 @@ public class InternalCompositeTests extends InternalMultiBucketAggregationTestCa
         );
         List<InternalAggregation> toReduce = Arrays.asList(unmapped, mapped);
         Collections.shuffle(toReduce, random());
-        InternalComposite finalReduce = (InternalComposite) unmapped.reduce(toReduce, emptyReduceContextBuilder().forFinalReduction());
+        InternalComposite finalReduce = (InternalComposite) InternalAggregationTestCase.reduce(
+            toReduce,
+            emptyReduceContextBuilder().forFinalReduction()
+        );
         assertThat(finalReduce.getBuckets().size(), equalTo(mapped.getBuckets().size()));
         if (false == mapped.getBuckets().isEmpty()) {
             assertThat(finalReduce.getFormats(), equalTo(mapped.getFormats()));

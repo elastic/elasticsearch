@@ -1,5 +1,0 @@
-pr: 101147
-summary: Persist data counts on job close before results index refresh
-area: Machine Learning
-type: bug
-issues: []

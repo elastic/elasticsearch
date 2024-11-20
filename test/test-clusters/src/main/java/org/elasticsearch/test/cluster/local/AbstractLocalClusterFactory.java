@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -50,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -57,6 +59,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
@@ -64,7 +67,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
     implements
         LocalClusterFactory<S, H> {
     private static final Logger LOGGER = LogManager.getLogger(AbstractLocalClusterFactory.class);
-    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(2);
+    private static final Duration NODE_UP_TIMEOUT = Duration.ofMinutes(3);
     private static final Map<Pair<Version, DistributionType>, DistributionDescriptor> TEST_DISTRIBUTIONS = new ConcurrentHashMap<>();
     private static final String TESTS_CLUSTER_MODULES_PATH_SYSPROP = "tests.cluster.modules.path";
     private static final String TESTS_CLUSTER_PLUGINS_PATH_SYSPROP = "tests.cluster.plugins.path";
@@ -129,7 +132,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.distributionResolver = distributionResolver;
             this.spec = spec;
             this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
-            this.workingDir = baseWorkingDir.resolve(name);
+            this.workingDir = baseWorkingDir.resolve(name != null ? name : UUID.randomUUID().toString());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -152,10 +155,10 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 createConfigDirectory();
                 copyExtraConfigFiles(); // extra config files might be needed for running cli tools like plugin install
                 copyExtraJarFiles();
-                installPlugins();
                 if (distributionDescriptor.getType() == DistributionType.INTEG_TEST) {
                     installModules();
                 }
+                installPlugins();
                 currentVersion = spec.getVersion();
             } else {
                 createConfigDirectory();
@@ -385,7 +388,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
                 finalSettings.put("cluster.name", spec.getCluster().getName());
-                finalSettings.put("node.name", name);
+                if (name != null) {
+                    finalSettings.put("node.name", name);
+                }
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
@@ -591,7 +596,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
 
         private void installPlugins() {
             if (spec.getPlugins().isEmpty() == false) {
-                Pattern pattern = Pattern.compile("(.+)(?:-\\d\\.\\d\\.\\d-SNAPSHOT\\.zip)?");
+                Pattern pattern = Pattern.compile("(.+)(?:-\\d+\\.\\d+\\.\\d+(-SNAPSHOT)?\\.zip)");
 
                 LOGGER.info("Installing plugins {} into node '{}", spec.getPlugins(), name);
                 List<Path> pluginPaths = Arrays.stream(System.getProperty(TESTS_CLUSTER_PLUGINS_PATH_SYSPROP).split(File.pathSeparator))
@@ -603,8 +608,8 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                     .map(
                         pluginName -> pluginPaths.stream()
                             .map(path -> Pair.of(pattern.matcher(path.getFileName().toString()), path))
-                            .filter(pair -> pair.left.matches())
-                            .map(p -> p.right.getParent().resolve(p.left.group(1)))
+                            .filter(pair -> pair.left.matches() && pair.left.group(1).equals(pluginName))
+                            .map(p -> p.right.getParent().resolve(p.left.group(0)))
                             .findFirst()
                             .orElseThrow(() -> {
                                 String taskPath = System.getProperty("tests.task");
@@ -720,6 +725,11 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             // Windows requires this as it defaults to `c:\windows` despite ES_TMPDIR
             environment.put("TMP", workingDir.resolve("tmp").toString());
 
+            environment = environment.entrySet()
+                .stream()
+                .map(p -> Map.entry(p.getKey(), p.getValue().replace("${ES_PATH_CONF}", configDir.toString())))
+                .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
             String featureFlagProperties = "";
             if (spec.getFeatures().isEmpty() == false && distributionDescriptor.isSnapshot() == false) {
                 featureFlagProperties = spec.getFeatures()
@@ -746,18 +756,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            final String esJavaOpts = Stream.of(
-                "-Xms" + heapSize,
-                "-Xmx" + heapSize,
-                "-ea",
-                "-esa",
-                System.getProperty("tests.jvm.argline", ""),
-                featureFlagProperties,
-                systemProperties,
-                jvmArgs,
-                debugArgs
-            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
+
+            String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
+                .filter(not(String::isEmpty))
+                .collect(Collectors.joining(" "));
+            String cliJavaOpts = commonOpts.stream().filter(not(String::isEmpty)).collect(Collectors.joining(" "));
+
             environment.put("ES_JAVA_OPTS", esJavaOpts);
+            environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
         }

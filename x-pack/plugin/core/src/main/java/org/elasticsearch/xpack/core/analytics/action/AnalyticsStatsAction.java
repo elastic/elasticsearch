@@ -33,7 +33,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
     public static final String NAME = "cluster:monitor/xpack/analytics/stats";
 
     private AnalyticsStatsAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
     /**
@@ -51,7 +51,7 @@ public class AnalyticsStatsAction extends ActionType<AnalyticsStatsAction.Respon
         MULTI_TERMS;
     }
 
-    public static class Request extends BaseNodesRequest<Request> implements ToXContentObject {
+    public static class Request extends BaseNodesRequest implements ToXContentObject {
 
         public Request() {
             super((String[]) null);

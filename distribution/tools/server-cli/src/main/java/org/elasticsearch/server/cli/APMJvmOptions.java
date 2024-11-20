@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.server.cli;
@@ -182,14 +183,24 @@ class APMJvmOptions {
         return "-javaagent:" + agentJar + "=c=" + tmpPropertiesFile;
     }
 
-    private static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
+    // package private for testing
+    static void extractSecureSettings(SecureSettings secrets, Map<String, String> propertiesMap) {
         final Set<String> settingNames = secrets.getSettingNames();
         for (String key : List.of("api_key", "secret_token")) {
-            if (settingNames.contains("tracing.apm." + key)) {
-                try (SecureString token = secrets.getString("tracing.apm." + key)) {
-                    propertiesMap.put(key, token.toString());
+            for (String prefix : List.of("telemetry.", "tracing.apm.")) {
+                if (settingNames.contains(prefix + key)) {
+                    if (propertiesMap.containsKey(key)) {
+                        throw new IllegalStateException(
+                            Strings.format("Duplicate telemetry setting: [telemetry.%s] and [tracing.apm.%s]", key, key)
+                        );
+                    }
+
+                    try (SecureString token = secrets.getString(prefix + key)) {
+                        propertiesMap.put(key, token.toString());
+                    }
                 }
             }
+
         }
     }
 
@@ -216,26 +227,44 @@ class APMJvmOptions {
     static Map<String, String> extractApmSettings(Settings settings) throws UserException {
         final Map<String, String> propertiesMap = new HashMap<>();
 
-        final Settings agentSettings = settings.getByPrefix("tracing.apm.agent.");
-        agentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(agentSettings.get(key))));
+        // tracing.apm.agent. is deprecated by telemetry.agent.
+        final String telemetryAgentPrefix = "telemetry.agent.";
+        final String deprecatedTelemetryAgentPrefix = "tracing.apm.agent.";
 
-        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
-        final Settings globalLabelsSettings = settings.getByPrefix("tracing.apm.agent.global_labels.");
-        final StringJoiner globalLabels = new StringJoiner(",");
+        final Settings telemetryAgentSettings = settings.getByPrefix(telemetryAgentPrefix);
+        telemetryAgentSettings.keySet().forEach(key -> propertiesMap.put(key, String.valueOf(telemetryAgentSettings.get(key))));
 
-        for (var globalLabel : globalLabelsSettings.keySet()) {
-            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
-            // something to the agent it doesn't understand.
-            propertiesMap.remove("global_labels." + globalLabel);
-            var globalLabelValue = globalLabelsSettings.get(globalLabel);
-            if (Strings.isNullOrBlank(globalLabelValue) == false) {
-                // sanitize for the agent labels separators in case the global labels passed in have , or =
-                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
-                // append to the global labels string
-                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+        final Settings apmAgentSettings = settings.getByPrefix(deprecatedTelemetryAgentPrefix);
+        for (String key : apmAgentSettings.keySet()) {
+            if (propertiesMap.containsKey(key)) {
+                throw new IllegalStateException(
+                    Strings.format(
+                        "Duplicate telemetry setting: [%s%s] and [%s%s]",
+                        telemetryAgentPrefix,
+                        key,
+                        deprecatedTelemetryAgentPrefix,
+                        key
+                    )
+                );
             }
+            propertiesMap.put(key, String.valueOf(apmAgentSettings.get(key)));
         }
 
+        StringJoiner globalLabels = extractGlobalLabels(telemetryAgentPrefix, propertiesMap, settings);
+        if (globalLabels.length() == 0) {
+            globalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
+        } else {
+            StringJoiner tracingGlobalLabels = extractGlobalLabels(deprecatedTelemetryAgentPrefix, propertiesMap, settings);
+            if (tracingGlobalLabels.length() != 0) {
+                throw new IllegalArgumentException(
+                    "Cannot have global labels with tracing.agent prefix ["
+                        + globalLabels
+                        + "] and telemetry.apm.agent prefix ["
+                        + tracingGlobalLabels
+                        + "]"
+                );
+            }
+        }
         if (globalLabels.length() > 0) {
             propertiesMap.put("global_labels", globalLabels.toString());
         }
@@ -254,6 +283,26 @@ class APMJvmOptions {
 
         propertiesMap.putAll(STATIC_CONFIG);
         return propertiesMap;
+    }
+
+    private static StringJoiner extractGlobalLabels(String prefix, Map<String, String> propertiesMap, Settings settings) {
+        // special handling of global labels, the agent expects them in format: key1=value1,key2=value2
+        final Settings globalLabelsSettings = settings.getByPrefix(prefix + "global_labels.");
+        final StringJoiner globalLabels = new StringJoiner(",");
+
+        for (var globalLabel : globalLabelsSettings.keySet()) {
+            // remove the individual label from the properties map, they are harmless, but we shouldn't be passing
+            // something to the agent it doesn't understand.
+            propertiesMap.remove("global_labels." + globalLabel);
+            var globalLabelValue = globalLabelsSettings.get(globalLabel);
+            if (Strings.isNullOrBlank(globalLabelValue) == false) {
+                // sanitize for the agent labels separators in case the global labels passed in have , or =
+                globalLabelValue = globalLabelValue.replaceAll("[,=]", "_");
+                // append to the global labels string
+                globalLabels.add(String.join("=", globalLabel, globalLabelValue));
+            }
+        }
+        return globalLabels;
     }
 
     // package private for testing

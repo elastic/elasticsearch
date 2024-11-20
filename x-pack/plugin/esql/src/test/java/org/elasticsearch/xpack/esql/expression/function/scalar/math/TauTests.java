@@ -10,14 +10,11 @@ package org.elasticsearch.xpack.esql.expression.function.scalar.math;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
-import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.elasticsearch.xpack.esql.expression.function.scalar.AbstractScalarFunctionTestCase;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
-import org.elasticsearch.xpack.ql.type.DataTypes;
 import org.hamcrest.Matcher;
 
 import java.util.List;
@@ -32,11 +29,11 @@ public class TauTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", () -> {
+        return parameterSuppliersFromTypedData(List.of(new TestCaseSupplier("Tau Test", List.of(DataType.INTEGER), () -> {
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(1, DataTypes.INTEGER, "foo")),
+                List.of(new TestCaseSupplier.TypedData(1, DataType.INTEGER, "foo")),
                 "LiteralsEvaluator[lit=6.283185307179586]",
-                DataTypes.DOUBLE,
+                DataType.DOUBLE,
                 equalTo(Tau.TAU)
             );
         })));
@@ -45,21 +42,6 @@ public class TauTests extends AbstractScalarFunctionTestCase {
     @Override
     protected Expression build(Source source, List<Expression> args) {
         return new Tau(Source.EMPTY);
-    }
-
-    @Override
-    protected List<ArgumentSpec> argSpec() {
-        return List.of();
-    }
-
-    @Override
-    protected DataType expectedType(List<DataType> argTypes) {
-        return DataTypes.DOUBLE;
-    }
-
-    @Override
-    protected void assertSimpleWithNulls(List<Object> data, Block value, int nullBlock) {
-        assertThat(((DoubleBlock) value).asVector().getDouble(0), equalTo(Tau.TAU));
     }
 
     @Override

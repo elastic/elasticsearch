@@ -10,10 +10,11 @@ package org.elasticsearch.xpack.ccr.action.repositories;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
+import org.elasticsearch.action.RemoteClusterActionType;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportActionProxy;
@@ -27,12 +28,17 @@ public class ClearCcrRestoreSessionAction extends ActionType<ActionResponse.Empt
     public static final String NAME = "indices:internal/admin/ccr/restore/session/clear";
     public static final ClearCcrRestoreSessionAction INSTANCE = new ClearCcrRestoreSessionAction(NAME);
 
+    public static final RemoteClusterActionType<ActionResponse.Empty> REMOTE_TYPE = RemoteClusterActionType.emptyResponse(NAME);
+    public static final RemoteClusterActionType<ActionResponse.Empty> REMOTE_INTERNAL_TYPE = RemoteClusterActionType.emptyResponse(
+        INTERNAL_NAME
+    );
+
     private ClearCcrRestoreSessionAction() {
         this(INTERNAL_NAME);
     }
 
     private ClearCcrRestoreSessionAction(String name) {
-        super(name, in -> ActionResponse.Empty.INSTANCE);
+        super(name);
     }
 
     abstract static class TransportDeleteCcrRestoreSessionAction extends HandledTransportAction<

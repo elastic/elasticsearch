@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.internal;
@@ -284,8 +285,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         numberOfShards = in.readVInt();
         scroll = in.readOptionalWriteable(Scroll::new);
         source = in.readOptionalWriteable(SearchSourceBuilder::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)
-            && in.getTransportVersion().before(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to deserialize between the 8.8 and 8.500.020 version we need to translate
             // the rank queries into sub searches if we are ranking; if there are no rank queries
             // we deserialize the empty list and do nothing
@@ -360,8 +360,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
         }
         out.writeOptionalWriteable(scroll);
         out.writeOptionalWriteable(source);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)
-            && out.getTransportVersion().before(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && out.getTransportVersion().before(TransportVersions.V_8_9_X)) {
             // to serialize between the 8.8 and 8.500.020 version we need to translate
             // the sub searches into rank queries if we are ranking, otherwise, we
             // ignore this because linear combination will have multiple sub searches in
@@ -442,7 +441,7 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             // of shard-level search requests. However, we need to assign as a dummy PIT instead of null as we verify PIT for
             // slice requests on data nodes.
             source = source.shallowCopy();
-            source.pointInTimeBuilder(new PointInTimeBuilder(""));
+            source.pointInTimeBuilder(new PointInTimeBuilder(BytesArray.EMPTY));
         }
         this.source = source;
     }
@@ -589,22 +588,23 @@ public class ShardSearchRequest extends TransportRequest implements IndicesReque
             SearchSourceBuilder newSource = request.source() == null ? null : Rewriteable.rewrite(request.source(), ctx);
             AliasFilter newAliasFilter = Rewriteable.rewrite(request.getAliasFilter(), ctx);
             SearchExecutionContext searchExecutionContext = ctx.convertToSearchExecutionContext();
-            FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
-            if (searchExecutionContext != null
-                && primarySort != null
-                && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
-                assert newSource != null : "source should contain a primary sort field";
-                newSource = newSource.shallowCopy();
-                int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
-                if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED && newSource.suggest() == null && newSource.aggregations() == null) {
-                    newSource.query(new MatchNoneQueryBuilder());
-                } else {
-                    newSource.size(0);
+            if (searchExecutionContext != null) {
+                final FieldSortBuilder primarySort = FieldSortBuilder.getPrimaryFieldSortOrNull(newSource);
+                if (primarySort != null && primarySort.isBottomSortShardDisjoint(searchExecutionContext, request.getBottomSortValues())) {
+                    assert newSource != null : "source should contain a primary sort field";
+                    newSource = newSource.shallowCopy();
+                    int trackTotalHitsUpTo = SearchRequest.resolveTrackTotalHitsUpTo(request.scroll, request.source);
+                    if (trackTotalHitsUpTo == TRACK_TOTAL_HITS_DISABLED
+                        && newSource.suggest() == null
+                        && newSource.aggregations() == null) {
+                        newSource.query(new MatchNoneQueryBuilder());
+                    } else {
+                        newSource.size(0);
+                    }
+                    request.source(newSource);
+                    request.setBottomSortValues(null);
                 }
-                request.source(newSource);
-                request.setBottomSortValues(null);
             }
-
             if (newSource == request.source() && newAliasFilter == request.getAliasFilter()) {
                 return this;
             } else {

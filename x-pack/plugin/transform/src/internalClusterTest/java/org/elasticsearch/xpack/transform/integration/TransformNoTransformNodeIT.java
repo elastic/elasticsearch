@@ -41,7 +41,11 @@ public class TransformNoTransformNodeIT extends TransformSingleNodeTestCase {
     }
 
     public void testGetTransformStats() {
-        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request("_all", AcknowledgedRequest.DEFAULT_ACK_TIMEOUT);
+        GetTransformStatsAction.Request request = new GetTransformStatsAction.Request(
+            "_all",
+            AcknowledgedRequest.DEFAULT_ACK_TIMEOUT,
+            true
+        );
         GetTransformStatsAction.Response response = client().execute(GetTransformStatsAction.INSTANCE, request).actionGet();
         assertThat(response.getTransformsStats(), is(empty()));
 

@@ -1,18 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
@@ -21,7 +19,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.MockLogAppender;
+import org.elasticsearch.test.MockLog;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -46,9 +44,9 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH
 import static org.elasticsearch.indices.recovery.RecoverySettings.NODE_BANDWIDTH_RECOVERY_SETTINGS;
 import static org.elasticsearch.indices.recovery.RecoverySettings.TOTAL_PHYSICAL_MEMORY_OVERRIDING_TEST_SETTING;
 import static org.elasticsearch.node.NodeRoleSettings.NODE_ROLES_SETTING;
-import static org.elasticsearch.test.MockLogAppender.LoggingExpectation;
-import static org.elasticsearch.test.MockLogAppender.SeenEventExpectation;
-import static org.elasticsearch.test.MockLogAppender.assertThatLogger;
+import static org.elasticsearch.test.MockLog.LoggingExpectation;
+import static org.elasticsearch.test.MockLog.SeenEventExpectation;
+import static org.elasticsearch.test.MockLog.assertThatLogger;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -492,15 +490,12 @@ public class RecoverySettingsTests extends ESTestCase {
 
         final ClusterSettings clusterSettings = new ClusterSettings(settings, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS);
         final RecoverySettings recoverySettings = new RecoverySettings(settings, clusterSettings);
-        final MockLogAppender mockAppender = new MockLogAppender();
-        mockAppender.addExpectation(
-            new MockLogAppender.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
-        );
-        mockAppender.start();
-        final Logger logger = LogManager.getLogger(RecoverySettings.class);
-        Loggers.addAppender(logger, mockAppender);
 
-        try {
+        try (var mockLog = MockLog.capture(RecoverySettings.class)) {
+            mockLog.addExpectation(
+                new MockLog.UnseenEventExpectation("no warnings", RecoverySettings.class.getCanonicalName(), Level.WARN, "*")
+            );
+
             assertThat(recoverySettings.getUseSnapshotsDuringRecovery(), is(false));
 
             for (int i = 0; i < 4; i++) {
@@ -513,10 +508,7 @@ public class RecoverySettingsTests extends ESTestCase {
             assertThat(releasable, is(notNullValue()));
             releasable.close();
 
-            mockAppender.assertAllExpectationsMatched();
-        } finally {
-            Loggers.removeAppender(logger, mockAppender);
-            mockAppender.stop();
+            mockLog.assertAllExpectationsMatched();
         }
     }
 

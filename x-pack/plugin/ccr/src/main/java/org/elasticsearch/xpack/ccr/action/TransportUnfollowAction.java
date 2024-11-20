@@ -20,6 +20,7 @@ import org.elasticsearch.action.support.GroupedActionListener;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.action.support.master.AcknowledgedTransportMasterNodeAction;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.RemoteClusterClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
@@ -27,7 +28,6 @@ import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
@@ -36,9 +36,11 @@ import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.seqno.RetentionLeaseNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.RemoteClusterService;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xpack.ccr.Ccr;
 import org.elasticsearch.xpack.ccr.CcrRetentionLeases;
@@ -90,7 +92,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
         final ClusterState state,
         final ActionListener<AcknowledgedResponse> listener
     ) {
-        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask() {
+        submitUnbatchedTask("unfollow_action", new ClusterStateUpdateTask(request.masterNodeTimeout()) {
 
             @Override
             public ClusterState execute(final ClusterState current) {
@@ -120,9 +122,13 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 );
                 final int numberOfShards = IndexMetadata.INDEX_NUMBER_OF_SHARDS_SETTING.get(indexMetadata.getSettings());
 
-                final Client remoteClient;
+                final RemoteClusterClient remoteClient;
                 try {
-                    remoteClient = client.getRemoteClusterClient(remoteClusterName, remoteClientResponseExecutor);
+                    remoteClient = client.getRemoteClusterClient(
+                        remoteClusterName,
+                        remoteClientResponseExecutor,
+                        RemoteClusterService.DisconnectedStrategy.RECONNECT_IF_DISCONNECTED
+                    );
                 } catch (Exception e) {
                     onLeaseRemovalFailure(indexMetadata.getIndex(), retentionLeaseId, e);
                     return;
@@ -178,7 +184,7 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                 final ShardId followerShardId,
                 final ShardId leaderShardId,
                 final String retentionLeaseId,
-                final Client remoteClient,
+                final RemoteClusterClient remoteClient,
                 final ActionListener<ActionResponse.Empty> listener
             ) {
                 logger.trace("{} removing retention lease [{}] while unfollowing leader index", followerShardId, retentionLeaseId);
@@ -189,9 +195,8 @@ public class TransportUnfollowAction extends AcknowledgedTransportMasterNodeActi
                     threadContext.newRestorableContext(true),
                     listener
                 );
-                try (ThreadContext.StoredContext ignore = threadPool.getThreadContext().stashContext()) {
+                try (var ignore = threadPool.getThreadContext().newEmptySystemContext()) {
                     // we have to execute under the system context so that if security is enabled the removal is authorized
-                    threadContext.markAsSystemContext();
                     CcrRetentionLeases.asyncRemoveRetentionLease(leaderShardId, retentionLeaseId, remoteClient, preservedListener);
                 }
             }

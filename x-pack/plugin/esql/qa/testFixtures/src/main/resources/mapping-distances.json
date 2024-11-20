@@ -1,0 +1,10 @@
+{
+  "properties": {
+    "distance": {
+      "type": "double"
+    },
+    "location": {
+      "type": "geo_point"
+    }
+  }
+}

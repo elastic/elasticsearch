@@ -1,6 +1,0 @@
-pr: 104051
-summary: Fix NPE that is thrown by `_update` API
-area: Transform
-type: bug
-issues:
- - 104048

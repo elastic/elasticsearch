@@ -18,12 +18,12 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.inject.Inject;
 import org.elasticsearch.index.query.QueryBuilders;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
-import org.elasticsearch.search.aggregations.Aggregations;
+import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.aggregations.bucket.filter.FiltersAggregator;
 import org.elasticsearch.tasks.Task;
@@ -123,7 +123,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
                     Arrays.toString(transformCountSuccess.getShardFailures())
                 );
             }
-            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value;
+            long totalTransforms = transformCountSuccess.getHits().getTotalHits().value();
             if (totalTransforms == 0) {
                 var usage = new TransformFeatureSetUsage(transformsCountByState, Collections.emptyMap(), new TransformIndexerStats());
                 listener.onResponse(new XPackUsageFeatureResponse(usage));
@@ -180,7 +180,7 @@ public class TransformUsageTransportAction extends XPackUsageFeatureTransportAct
      * @param aggs aggs returned by the search
      * @return feature usage map
      */
-    private static Map<String, Long> getFeatureCounts(Aggregations aggs) {
+    private static Map<String, Long> getFeatureCounts(InternalAggregations aggs) {
         Filters filters = aggs.get(FEATURE_COUNTS);
         return filters.getBuckets().stream().collect(toMap(Filters.Bucket::getKeyAsString, Filters.Bucket::getDocCount));
     }

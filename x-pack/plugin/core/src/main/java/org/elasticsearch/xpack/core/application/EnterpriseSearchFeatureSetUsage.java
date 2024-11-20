@@ -12,7 +12,7 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.XPackField;
 
 import java.io.IOException;
@@ -20,10 +20,10 @@ import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
-public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
+public class EnterpriseSearchFeatureSetUsage extends XPackFeatureUsage {
 
     static final TransportVersion BEHAVIORAL_ANALYTICS_TRANSPORT_VERSION = TransportVersions.V_8_8_1;
-    static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersions.V_8_500_061;
+    static final TransportVersion QUERY_RULES_TRANSPORT_VERSION = TransportVersions.V_8_10_X;
 
     public static final String SEARCH_APPLICATIONS = "search_applications";
     public static final String ANALYTICS_COLLECTIONS = "analytics_collections";
@@ -34,6 +34,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String MIN_RULE_COUNT = "min_rule_count";
     public static final String MAX_RULE_COUNT = "max_rule_count";
     public static final String RULE_CRITERIA_TOTAL_COUNTS = "rule_criteria_total_counts";
+    public static final String RULE_TYPE_TOTAL_COUNTS = "rule_type_total_counts";
 
     private final Map<String, Object> searchApplicationsUsage;
     private final Map<String, Object> analyticsCollectionsUsage;

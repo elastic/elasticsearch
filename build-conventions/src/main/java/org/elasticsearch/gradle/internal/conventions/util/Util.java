@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal.conventions.util;
@@ -119,29 +120,29 @@ public class Util {
         return project.getExtensions().getByType(JavaPluginExtension.class).getSourceSets();
     }
 
-        public static File locateElasticsearchWorkspace(Gradle gradle) {
-            if(gradle.getRootProject().getName().startsWith("build-tools")) {
-                File buildToolsParent = gradle.getRootProject().getRootDir().getParentFile();
-                if(versionFileExists(buildToolsParent)) {
-                    return buildToolsParent;
-                }
+    public static File locateElasticsearchWorkspace(Gradle gradle) {
+        if (gradle.getRootProject().getName().startsWith("build-tools")) {
+            File buildToolsParent = gradle.getRootProject().getRootDir().getParentFile();
+            if (versionFileExists(buildToolsParent)) {
                 return buildToolsParent;
             }
-            if (gradle.getParent() == null) {
-                // See if any of these included builds is the Elasticsearch gradle
-                for (IncludedBuild includedBuild : gradle.getIncludedBuilds()) {
-                    if (versionFileExists(includedBuild.getProjectDir())) {
-                        return includedBuild.getProjectDir();
-                    }
-                }
-
-                // Otherwise assume this gradle is the root elasticsearch workspace
-                return gradle.getRootProject().getRootDir();
-            } else {
-                // We're an included build, so keep looking
-                return locateElasticsearchWorkspace(gradle.getParent());
-            }
+            return buildToolsParent;
         }
+        if (gradle.getParent() == null) {
+            // See if any of these included builds is the Elasticsearch gradle
+            for (IncludedBuild includedBuild : gradle.getIncludedBuilds()) {
+                if (versionFileExists(includedBuild.getProjectDir())) {
+                    return includedBuild.getProjectDir();
+                }
+            }
+
+            // Otherwise assume this gradle is the root elasticsearch workspace
+            return gradle.getRootProject().getRootDir();
+        } else {
+            // We're an included build, so keep looking
+            return locateElasticsearchWorkspace(gradle.getParent());
+        }
+    }
 
     private static boolean versionFileExists(File rootDir) {
         return new File(rootDir, "build-tools-internal/version.properties").exists();

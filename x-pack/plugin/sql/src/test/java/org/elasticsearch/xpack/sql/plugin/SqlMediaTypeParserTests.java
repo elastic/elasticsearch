@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.sql.plugin;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.rest.FakeRestRequest;
@@ -20,6 +19,8 @@ import org.elasticsearch.xpack.sql.proto.RequestInfo;
 import java.util.Collections;
 import java.util.Map;
 
+import static java.lang.Integer.MAX_VALUE;
+import static java.util.Collections.emptyList;
 import static org.elasticsearch.xpack.sql.plugin.SqlMediaTypeParser.getResponseMediaType;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.CSV;
 import static org.elasticsearch.xpack.sql.plugin.TextFormat.PLAIN_TEXT;
@@ -114,22 +115,22 @@ public class SqlMediaTypeParserTests extends ESTestCase {
     protected SqlQueryRequest createTestInstance(boolean binaryCommunication, Mode mode, boolean columnar) {
         return new SqlQueryRequest(
             randomAlphaOfLength(10),
-            Collections.emptyList(),
+            emptyList(),
             null,
             null,
             randomZone(),
             randomAlphaOfLength(9),
-            between(1, Integer.MAX_VALUE),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            between(1, MAX_VALUE),
+            randomTimeValue(),
+            randomTimeValue(),
             columnar,
             randomAlphaOfLength(10),
             new RequestInfo(mode, randomFrom(randomFrom(CLIENT_IDS), randomAlphaOfLengthBetween(10, 20))),
             randomBoolean(),
             randomBoolean(),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            randomTimeValue(),
             randomBoolean(),
-            TimeValue.parseTimeValue(randomTimeValue(), null, "test"),
+            randomTimeValue(),
             randomBoolean()
         ).binaryCommunication(binaryCommunication);
     }

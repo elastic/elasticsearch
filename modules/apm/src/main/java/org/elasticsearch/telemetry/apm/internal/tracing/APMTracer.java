@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.telemetry.apm.internal.tracing;
@@ -33,6 +34,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.telemetry.apm.internal.APMAgentSettings;
 import org.elasticsearch.telemetry.tracing.TraceContext;
 import org.elasticsearch.telemetry.tracing.Traceable;
 
@@ -42,11 +44,6 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
-
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_ENABLED_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_EXCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_NAMES_INCLUDE_SETTING;
-import static org.elasticsearch.telemetry.apm.internal.APMAgentSettings.APM_TRACING_SANITIZE_FIELD_NAMES;
 
 /**
  * This is an implementation of the {@link org.elasticsearch.telemetry.tracing.Tracer} interface, which uses
@@ -89,13 +86,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
     record APMServices(Tracer tracer, OpenTelemetry openTelemetry) {}
 
     public APMTracer(Settings settings) {
-        this.includeNames = APM_TRACING_NAMES_INCLUDE_SETTING.get(settings);
-        this.excludeNames = APM_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
-        this.labelFilters = APM_TRACING_SANITIZE_FIELD_NAMES.get(settings);
+        this.includeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_INCLUDE_SETTING.get(settings);
+        this.excludeNames = APMAgentSettings.TELEMETRY_TRACING_NAMES_EXCLUDE_SETTING.get(settings);
+        this.labelFilters = APMAgentSettings.TELEMETRY_TRACING_SANITIZE_FIELD_NAMES.get(settings);
 
         this.filterAutomaton = buildAutomaton(includeNames, excludeNames);
         this.labelFilterAutomaton = buildAutomaton(labelFilters, List.of());
-        this.enabled = APM_ENABLED_SETTING.get(settings);
+        this.enabled = APMAgentSettings.TELEMETRY_TRACING_ENABLED_SETTING.get(settings);
     }
 
     public void setEnabled(boolean enabled) {
@@ -442,13 +439,13 @@ public class APMTracer extends AbstractLifecycleComponent implements org.elastic
             ? includeAutomaton
             : Operations.minus(includeAutomaton, excludeAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
 
-        return new CharacterRunAutomaton(finalAutomaton);
+        return new CharacterRunAutomaton(Operations.determinize(finalAutomaton, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT));
     }
 
     private static Automaton patternsToAutomaton(List<String> patterns) {
         final List<Automaton> automata = patterns.stream().map(s -> {
-            final String regex = s.replaceAll("\\.", "\\\\.").replaceAll("\\*", ".*");
-            return new RegExp(regex).toAutomaton();
+            final String regex = s.replace(".", "\\.").replace("*", ".*");
+            return new RegExp(regex, RegExp.ALL | RegExp.DEPRECATED_COMPLEMENT).toAutomaton();
         }).toList();
         if (automata.isEmpty()) {
             return null;

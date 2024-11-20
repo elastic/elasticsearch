@@ -206,7 +206,7 @@ public final class YearTimes implements Times {
 
     public static class Builder {
 
-        private final Set<Month> months = new HashSet<>();
+        private final Set<Month> months = EnumSet.noneOf(Month.class);
         private final Set<Integer> days = new HashSet<>();
         private final Set<DayTimes> times = new HashSet<>();
 

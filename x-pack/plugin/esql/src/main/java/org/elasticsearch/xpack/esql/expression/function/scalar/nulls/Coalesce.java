@@ -7,6 +7,9 @@
 
 package org.elasticsearch.xpack.esql.expression.function.scalar.nulls;
 
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -15,52 +18,114 @@ import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
+import org.elasticsearch.xpack.esql.core.expression.Expression;
+import org.elasticsearch.xpack.esql.core.expression.Expressions;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
+import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
+import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
+import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
+import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
 import org.elasticsearch.xpack.esql.expression.function.Param;
+import org.elasticsearch.xpack.esql.expression.function.scalar.EsqlScalarFunction;
+import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
-import org.elasticsearch.xpack.ql.expression.Expression;
-import org.elasticsearch.xpack.ql.expression.Expressions;
-import org.elasticsearch.xpack.ql.expression.Nullability;
-import org.elasticsearch.xpack.ql.expression.TypeResolutions;
-import org.elasticsearch.xpack.ql.expression.function.OptionalArgument;
-import org.elasticsearch.xpack.ql.expression.function.scalar.ScalarFunction;
-import org.elasticsearch.xpack.ql.expression.gen.script.ScriptTemplate;
-import org.elasticsearch.xpack.ql.tree.NodeInfo;
-import org.elasticsearch.xpack.ql.tree.Source;
-import org.elasticsearch.xpack.ql.type.DataType;
 
+import java.io.IOException;
 import java.util.List;
-import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
-import static org.elasticsearch.xpack.ql.type.DataTypes.NULL;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * Function returning the first non-null value.
  */
-public class Coalesce extends ScalarFunction implements EvaluatorMapper, OptionalArgument {
+public class Coalesce extends EsqlScalarFunction implements OptionalArgument {
+    public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "Coalesce", Coalesce::new);
+
     private DataType dataType;
 
     @FunctionInfo(
-        returnType = { "boolean", "text", "integer", "keyword", "long" },
-        description = "Returns the first of its arguments that is not null."
+        returnType = {
+            "boolean",
+            "cartesian_point",
+            "cartesian_shape",
+            "date_nanos",
+            "date",
+            "geo_point",
+            "geo_shape",
+            "integer",
+            "ip",
+            "keyword",
+            "long",
+            "version" },
+        description = "Returns the first of its arguments that is not null. If all arguments are null, it returns `null`.",
+        examples = { @Example(file = "null", tag = "coalesce") }
     )
     public Coalesce(
         Source source,
         @Param(
-            name = "expression",
-            type = { "boolean", "text", "integer", "keyword", "long" },
-            description = "Expression to evaluate"
+            name = "first",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date_nanos",
+                "date",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "Expression to evaluate."
         ) Expression first,
         @Param(
-            name = "expressionX",
-            type = { "boolean", "text", "integer", "keyword", "long" },
-            description = "Other expression to evaluate"
+            name = "rest",
+            type = {
+                "boolean",
+                "cartesian_point",
+                "cartesian_shape",
+                "date_nanos",
+                "date",
+                "geo_point",
+                "geo_shape",
+                "integer",
+                "ip",
+                "keyword",
+                "long",
+                "text",
+                "version" },
+            description = "Other expression to evaluate.",
+            optional = true
         ) List<Expression> rest
     ) {
         super(source, Stream.concat(Stream.of(first), rest.stream()).toList());
+    }
+
+    private Coalesce(StreamInput in) throws IOException {
+        this(
+            Source.readFrom((PlanStreamInput) in),
+            in.readNamedWriteable(Expression.class),
+            in.readNamedWriteableCollectionAsList(Expression.class)
+        );
+    }
+
+    @Override
+    public void writeTo(StreamOutput out) throws IOException {
+        source().writeTo(out);
+        out.writeNamedWriteable(children().get(0));
+        out.writeNamedWriteableCollection(children().subList(1, children().size()));
+    }
+
+    @Override
+    public String getWriteableName() {
+        return ENTRY.name;
     }
 
     @Override
@@ -79,12 +144,12 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
 
         for (int position = 0; position < children().size(); position++) {
             if (dataType == null || dataType == NULL) {
-                dataType = children().get(position).dataType();
+                dataType = children().get(position).dataType().noText();
                 continue;
             }
             TypeResolution resolution = TypeResolutions.isType(
                 children().get(position),
-                t -> t == dataType,
+                t -> t.noText() == dataType,
                 sourceText(),
                 TypeResolutions.ParamOrdinal.fromIndex(position),
                 dataType.typeName()
@@ -113,11 +178,6 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
     }
 
     @Override
-    public ScriptTemplate asScript() {
-        throw new UnsupportedOperationException("functions do not support scripting");
-    }
-
-    @Override
     public Expression replaceChildren(List<Expression> newChildren) {
         return new Coalesce(source(), newChildren.get(0), newChildren.subList(1, newChildren.size()));
     }
@@ -133,13 +193,8 @@ public class Coalesce extends ScalarFunction implements EvaluatorMapper, Optiona
     }
 
     @Override
-    public Object fold() {
-        return EvaluatorMapper.super.fold();
-    }
-
-    @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
-        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator).toList();
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        List<ExpressionEvaluator.Factory> childEvaluators = children().stream().map(toEvaluator::apply).toList();
         return new ExpressionEvaluator.Factory() {
             @Override
             public ExpressionEvaluator get(DriverContext context) {

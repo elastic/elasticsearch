@@ -20,10 +20,10 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.xpack.core.action.util.PageParams;
 import org.elasticsearch.xpack.core.ml.action.GetBucketsAction;
-import org.elasticsearch.xpack.core.ml.datafeed.extractor.ExtractorUtils;
 import org.elasticsearch.xpack.core.ml.job.results.Bucket;
 import org.elasticsearch.xpack.core.ml.utils.Intervals;
 import org.elasticsearch.xpack.ml.datafeed.delayeddatacheck.DelayedDataDetectorFactory.BucketWithMissingData;
+import org.elasticsearch.xpack.ml.datafeed.extractor.DataExtractorUtils;
 
 import java.time.ZonedDateTime;
 import java.util.Collections;
@@ -129,7 +129,7 @@ public class DatafeedDelayedDataDetector implements DelayedDataDetector {
                 new DateHistogramAggregationBuilder(DATE_BUCKETS).fixedInterval(new DateHistogramInterval(bucketSpan + "ms"))
                     .field(timeField)
             )
-            .query(ExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
+            .query(DataExtractorUtils.wrapInTimeRangeQuery(datafeedQuery, timeField, start, end))
             .runtimeMappings(runtimeMappings);
 
         SearchRequest searchRequest = new SearchRequest(datafeedIndices).source(searchSourceBuilder).indicesOptions(indicesOptions);

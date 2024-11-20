@@ -178,12 +178,12 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         this.modelType = in.readOptionalString();
         this.tags = in.readOptionalCollectionAsList(StreamInput::readString);
         this.vocabularyFile = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             this.platformArchitecture = in.readOptionalString();
         } else {
             platformArchitecture = null;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             prefixStrings = in.readOptionalWriteable(TrainedModelPrefixStrings::new);
         } else {
             prefixStrings = null;
@@ -260,7 +260,11 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
             builder.field(MINIMUM_VERSION.getPreferredName(), minimumVersion);
         }
         if (createTime != null) {
-            builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.toEpochMilli());
+            builder.timestampFieldsFromUnixEpochMillis(
+                CREATE_TIME.getPreferredName(),
+                CREATE_TIME.getPreferredName() + "_string",
+                createTime.toEpochMilli()
+            );
         }
         if (size > 0) {
             builder.field(SIZE.getPreferredName(), size);
@@ -308,10 +312,10 @@ public class ModelPackageConfig implements ToXContentObject, Writeable {
         out.writeOptionalString(modelType);
         out.writeOptionalStringCollection(tags);
         out.writeOptionalString(vocabularyFile);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_PACKAGE_LOADER_PLATFORM_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_11_X)) {
             out.writeOptionalString(platformArchitecture);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ML_TRAINED_MODEL_PREFIX_STRINGS_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(prefixStrings);
         }
     }

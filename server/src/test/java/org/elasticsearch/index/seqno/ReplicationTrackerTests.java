@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.seqno;
@@ -14,7 +15,6 @@ import org.elasticsearch.cluster.routing.AllocationId;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.ShardRoutingState;
-import org.elasticsearch.cluster.routing.TestShardRouting;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -48,6 +48,7 @@ import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static java.util.Collections.emptySet;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.seqno.SequenceNumbers.NO_OPS_PERFORMED;
 import static org.elasticsearch.index.seqno.SequenceNumbers.UNASSIGNED_SEQ_NO;
 import static org.hamcrest.Matchers.equalTo;
@@ -931,14 +932,14 @@ public class ReplicationTrackerTests extends ReplicationTrackerTestCase {
         activeAllocationIds.remove(primaryId);
         activeAllocationIds.add(relocatingId);
         final ShardId shardId = new ShardId("test", "_na_", 0);
-        final ShardRouting primaryShard = TestShardRouting.newShardRouting(
+        final ShardRouting primaryShard = shardRoutingBuilder(
             shardId,
             nodeIdFromAllocationId(relocatingId),
-            nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())),
             true,
-            ShardRoutingState.RELOCATING,
-            relocatingId
-        );
+            ShardRoutingState.RELOCATING
+        ).withRelocatingNodeId(nodeIdFromAllocationId(AllocationId.newInitializing(relocatingId.getRelocationId())))
+            .withAllocationId(relocatingId)
+            .build();
 
         return new FakeClusterState(initialClusterStateVersion, activeAllocationIds, routingTable(initializingAllocationIds, primaryShard));
     }

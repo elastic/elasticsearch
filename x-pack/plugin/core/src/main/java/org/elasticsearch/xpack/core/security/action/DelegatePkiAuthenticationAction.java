@@ -18,6 +18,6 @@ public class DelegatePkiAuthenticationAction extends ActionType<DelegatePkiAuthe
     public static final DelegatePkiAuthenticationAction INSTANCE = new DelegatePkiAuthenticationAction();
 
     private DelegatePkiAuthenticationAction() {
-        super(NAME, DelegatePkiAuthenticationResponse::new);
+        super(NAME);
     }
 }

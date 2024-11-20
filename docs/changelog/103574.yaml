@@ -1,5 +1,0 @@
-pr: 103574
-summary: Samples should check if the aggregations result is empty or null
-area: EQL
-type: bug
-issues: []

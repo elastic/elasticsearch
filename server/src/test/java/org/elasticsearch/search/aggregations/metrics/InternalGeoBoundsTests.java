@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.metrics;
 
 import org.elasticsearch.common.util.Maps;
-import org.elasticsearch.search.aggregations.ParsedAggregation;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.test.InternalAggregationTestCase;
 
@@ -97,15 +97,6 @@ public class InternalGeoBoundsTests extends InternalAggregationTestCase<Internal
         assertValueClose(sampled.posRight, reduced.posRight);
         assertValueClose(sampled.negLeft, reduced.negLeft);
         assertValueClose(sampled.negRight, reduced.negRight);
-    }
-
-    @Override
-    protected void assertFromXContent(InternalGeoBounds aggregation, ParsedAggregation parsedAggregation) {
-        assertTrue(parsedAggregation instanceof ParsedGeoBounds);
-        ParsedGeoBounds parsed = (ParsedGeoBounds) parsedAggregation;
-
-        assertEquals(aggregation.topLeft(), parsed.topLeft());
-        assertEquals(aggregation.bottomRight(), parsed.bottomRight());
     }
 
     @Override

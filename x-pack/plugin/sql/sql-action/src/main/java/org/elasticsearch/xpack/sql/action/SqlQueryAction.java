@@ -14,6 +14,6 @@ public class SqlQueryAction extends ActionType<SqlQueryResponse> {
     public static final String NAME = "indices:data/read/sql";
 
     private SqlQueryAction() {
-        super(NAME, SqlQueryResponse::new);
+        super(NAME);
     }
 }

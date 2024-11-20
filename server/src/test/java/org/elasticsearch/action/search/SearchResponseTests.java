@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -26,21 +27,16 @@ import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchHitsTests;
 import org.elasticsearch.search.SearchModule;
 import org.elasticsearch.search.SearchResponseUtils;
-import org.elasticsearch.search.aggregations.AggregationsTests;
-import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.profile.SearchProfileResults;
 import org.elasticsearch.search.profile.SearchProfileResultsTests;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.SuggestTests;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.test.InternalAggregationTestCase;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
-import org.junit.After;
-import org.junit.Before;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -59,25 +55,13 @@ public class SearchResponseTests extends ESTestCase {
 
     private static final NamedXContentRegistry xContentRegistry;
     static {
-        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(InternalAggregationTestCase.getDefaultNamedXContents());
-        namedXContents.addAll(SuggestTests.getDefaultNamedXContents());
+        List<NamedXContentRegistry.Entry> namedXContents = new ArrayList<>(SuggestTests.getDefaultNamedXContents());
         xContentRegistry = new NamedXContentRegistry(namedXContents);
     }
 
     private final NamedWriteableRegistry namedWriteableRegistry = new NamedWriteableRegistry(
         new SearchModule(Settings.EMPTY, emptyList()).getNamedWriteables()
     );
-    private AggregationsTests aggregationsTests = new AggregationsTests();
-
-    @Before
-    public void init() throws Exception {
-        aggregationsTests.init();
-    }
-
-    @After
-    public void cleanUp() throws Exception {
-        aggregationsTests.cleanUp();
-    }
 
     @Override
     protected NamedXContentRegistry xContentRegistry() {
@@ -115,25 +99,28 @@ public class SearchResponseTests extends ESTestCase {
         }
         if (minimal == false) {
             SearchHits hits = SearchHitsTests.createTestItem(true, true);
-            InternalAggregations aggregations = aggregationsTests.createTestInstance();
-            Suggest suggest = SuggestTests.createTestItem();
-            SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
-            return new SearchResponse(
-                hits,
-                aggregations,
-                suggest,
-                timedOut,
-                terminatedEarly,
-                profileResults,
-                numReducePhases,
-                null,
-                totalShards,
-                successfulShards,
-                skippedShards,
-                tookInMillis,
-                shardSearchFailures,
-                clusters
-            );
+            try {
+                Suggest suggest = SuggestTests.createTestItem();
+                SearchProfileResults profileResults = SearchProfileResultsTests.createTestItem();
+                return new SearchResponse(
+                    hits,
+                    null,
+                    suggest,
+                    timedOut,
+                    terminatedEarly,
+                    profileResults,
+                    numReducePhases,
+                    null,
+                    totalShards,
+                    successfulShards,
+                    skippedShards,
+                    tookInMillis,
+                    shardSearchFailures,
+                    clusters
+                );
+            } finally {
+                hits.decRef();
+            }
         } else {
             return SearchResponseUtils.emptyWithTotalHits(
                 null,
@@ -313,7 +300,7 @@ public class SearchResponseTests extends ESTestCase {
             mutated = originalBytes;
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), mutated)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 assertToXContentEquivalent(
                     originalBytes,
@@ -350,7 +337,7 @@ public class SearchResponseTests extends ESTestCase {
             response.decRef();
         }
         try (XContentParser parser = createParser(xcontentType.xContent(), originalBytes)) {
-            SearchResponse parsed = SearchResponse.fromXContent(parser);
+            SearchResponse parsed = SearchResponseUtils.parseSearchResponse(parser);
             try {
                 for (int i = 0; i < parsed.getShardFailures().length; i++) {
                     ShardSearchFailure parsedFailure = parsed.getShardFailures()[i];
@@ -381,9 +368,10 @@ public class SearchResponseTests extends ESTestCase {
         SearchHit hit = new SearchHit(1, "id1");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
+        var sHits = new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f);
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -425,7 +413,7 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -475,7 +463,7 @@ public class SearchResponseTests extends ESTestCase {
         }
         {
             SearchResponse response = new SearchResponse(
-                new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+                sHits,
                 null,
                 null,
                 false,
@@ -617,6 +605,7 @@ public class SearchResponseTests extends ESTestCase {
                 response.decRef();
             }
         }
+        sHits.decRef();
     }
 
     public void testSerialization() throws IOException {
@@ -632,8 +621,8 @@ public class SearchResponseTests extends ESTestCase {
                 if (searchResponse.getHits().getTotalHits() == null) {
                     assertNull(deserialized.getHits().getTotalHits());
                 } else {
-                    assertEquals(searchResponse.getHits().getTotalHits().value, deserialized.getHits().getTotalHits().value);
-                    assertEquals(searchResponse.getHits().getTotalHits().relation, deserialized.getHits().getTotalHits().relation);
+                    assertEquals(searchResponse.getHits().getTotalHits().value(), deserialized.getHits().getTotalHits().value());
+                    assertEquals(searchResponse.getHits().getTotalHits().relation(), deserialized.getHits().getTotalHits().relation());
                 }
                 assertEquals(searchResponse.getHits().getHits().length, deserialized.getHits().getHits().length);
                 assertEquals(searchResponse.getNumReducePhases(), deserialized.getNumReducePhases());

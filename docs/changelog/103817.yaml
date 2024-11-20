@@ -1,6 +1,0 @@
-pr: 103817
-summary: Fix deleting index during snapshot finalization
-area: Snapshot/Restore
-type: bug
-issues:
- - 101029

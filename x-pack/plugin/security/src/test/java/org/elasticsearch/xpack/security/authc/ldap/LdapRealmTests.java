@@ -259,7 +259,7 @@ public class LdapRealmTests extends LdapTestCase {
         // verify one and only one session -> caching is working
         verify(ldapFactory, times(1)).session(anyString(), any(SecureString.class), anyActionListener());
 
-        roleMapper.notifyRefresh();
+        roleMapper.clearRealmCachesOnLocalNode();
 
         future = new PlainActionFuture<>();
         ldap.authenticate(new UsernamePasswordToken(VALID_USERNAME, new SecureString(PASSWORD)), future);
@@ -533,7 +533,7 @@ public class LdapRealmTests extends LdapTestCase {
 
         final ScriptService scriptService = new ScriptService(
             defaultGlobalSettings,
-            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine()),
+            Collections.singletonMap(MustacheScriptEngine.NAME, new MustacheScriptEngine(Settings.EMPTY)),
             ScriptModule.CORE_CONTEXTS,
             () -> 1L
         );

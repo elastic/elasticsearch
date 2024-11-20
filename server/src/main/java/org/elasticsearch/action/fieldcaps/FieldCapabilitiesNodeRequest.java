@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -39,6 +40,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     private final QueryBuilder indexFilter;
     private final long nowInMillis;
     private final Map<String, Object> runtimeFields;
+    private final boolean includeEmptyFields;
 
     FieldCapabilitiesNodeRequest(StreamInput in) throws IOException {
         super(in);
@@ -55,6 +57,11 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
         nowInMillis = in.readLong();
         runtimeFields = in.readGenericMap();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            includeEmptyFields = in.readBoolean();
+        } else {
+            includeEmptyFields = true;
+        }
     }
 
     FieldCapabilitiesNodeRequest(
@@ -65,7 +72,8 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         OriginalIndices originalIndices,
         QueryBuilder indexFilter,
         long nowInMillis,
-        Map<String, Object> runtimeFields
+        Map<String, Object> runtimeFields,
+        boolean includeEmptyFields
     ) {
         this.shardIds = Objects.requireNonNull(shardIds);
         this.fields = fields;
@@ -75,6 +83,7 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         this.indexFilter = indexFilter;
         this.nowInMillis = nowInMillis;
         this.runtimeFields = runtimeFields;
+        this.includeEmptyFields = includeEmptyFields;
     }
 
     public String[] fields() {
@@ -119,6 +128,10 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         return nowInMillis;
     }
 
+    public boolean includeEmptyFields() {
+        return includeEmptyFields;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
@@ -132,6 +145,9 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
         out.writeOptionalNamedWriteable(indexFilter);
         out.writeLong(nowInMillis);
         out.writeGenericMap(runtimeFields);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {
+            out.writeBoolean(includeEmptyFields);
+        }
     }
 
     @Override
@@ -143,16 +159,24 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
     public String getDescription() {
         final StringBuilder stringBuilder = new StringBuilder("shards[");
         Strings.collectionToDelimitedStringWithLimit(shardIds, ",", "", "", 1024, stringBuilder);
-        return completeDescription(stringBuilder, fields, filters, allowedTypes);
+        return completeDescription(stringBuilder, fields, filters, allowedTypes, includeEmptyFields);
     }
 
-    static String completeDescription(StringBuilder stringBuilder, String[] fields, String[] filters, String[] allowedTypes) {
+    static String completeDescription(
+        StringBuilder stringBuilder,
+        String[] fields,
+        String[] filters,
+        String[] allowedTypes,
+        boolean includeEmptyFields
+    ) {
         stringBuilder.append("], fields[");
         Strings.collectionToDelimitedStringWithLimit(Arrays.asList(fields), ",", "", "", 1024, stringBuilder);
         stringBuilder.append("], filters[");
         Strings.collectionToDelimitedString(Arrays.asList(filters), ",", "", "", stringBuilder);
         stringBuilder.append("], types[");
         Strings.collectionToDelimitedString(Arrays.asList(allowedTypes), ",", "", "", stringBuilder);
+        stringBuilder.append("], includeEmptyFields[");
+        stringBuilder.append(includeEmptyFields);
         stringBuilder.append("]");
         return stringBuilder.toString();
     }
@@ -179,12 +203,13 @@ class FieldCapabilitiesNodeRequest extends ActionRequest implements IndicesReque
             && Arrays.equals(allowedTypes, that.allowedTypes)
             && Objects.equals(originalIndices, that.originalIndices)
             && Objects.equals(indexFilter, that.indexFilter)
-            && Objects.equals(runtimeFields, that.runtimeFields);
+            && Objects.equals(runtimeFields, that.runtimeFields)
+            && includeEmptyFields == that.includeEmptyFields;
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields);
+        int result = Objects.hash(originalIndices, indexFilter, nowInMillis, runtimeFields, includeEmptyFields);
         result = 31 * result + shardIds.hashCode();
         result = 31 * result + Arrays.hashCode(fields);
         result = 31 * result + Arrays.hashCode(filters);

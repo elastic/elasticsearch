@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.cluster.action;
 
-import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -54,6 +53,7 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
     }
 
     public MigrateToDataTiersRequest(@Nullable String legacyTemplateToDelete, @Nullable String nodeAttributeName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT, DEFAULT_ACK_TIMEOUT);
         this.legacyTemplateToDelete = legacyTemplateToDelete;
         this.nodeAttributeName = nodeAttributeName;
     }
@@ -67,11 +67,6 @@ public class MigrateToDataTiersRequest extends AcknowledgedRequest<MigrateToData
         dryRun = in.readBoolean();
         legacyTemplateToDelete = in.readOptionalString();
         nodeAttributeName = in.readOptionalString();
-    }
-
-    @Override
-    public ActionRequestValidationException validate() {
-        return null;
     }
 
     @Override

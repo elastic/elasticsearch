@@ -12,7 +12,7 @@ import org.elasticsearch.action.support.nodes.BaseNodeResponse;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.xpack.core.deprecation.DeprecationIssue;
 
@@ -29,27 +29,21 @@ public class NodesDeprecationCheckAction extends ActionType<NodesDeprecationChec
     public static final String NAME = "cluster:admin/xpack/deprecation/nodes/info";
 
     private NodesDeprecationCheckAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // this can be replaced with TransportRequest.Empty in v9
     public static class NodeRequest extends TransportRequest {
 
-        // TODO don't wrap the whole top-level request, it contains heavy and irrelevant DiscoveryNode things; see #100878
-        NodesDeprecationCheckRequest request;
+        public NodeRequest() {}
 
         public NodeRequest(StreamInput in) throws IOException {
             super(in);
-            request = new NodesDeprecationCheckRequest(in);
-        }
-
-        public NodeRequest(NodesDeprecationCheckRequest request) {
-            this.request = request;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            request.writeTo(out);
         }
     }
 

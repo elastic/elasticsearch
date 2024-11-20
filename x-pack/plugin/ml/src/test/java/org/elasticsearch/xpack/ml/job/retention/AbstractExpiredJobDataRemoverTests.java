@@ -97,7 +97,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
             1.0f
         );
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(searchHits);
+        when(searchResponse.getHits()).thenReturn(searchHits.asUnpooled());
+        searchHits.decRef();
         return searchResponse;
     }
 
@@ -111,7 +112,8 @@ public class AbstractExpiredJobDataRemoverTests extends ESTestCase {
         }
         SearchHits hits = new SearchHits(hitsArray, new TotalHits(totalHits, TotalHits.Relation.EQUAL_TO), 1.0f);
         SearchResponse searchResponse = mock(SearchResponse.class);
-        when(searchResponse.getHits()).thenReturn(hits);
+        when(searchResponse.getHits()).thenReturn(hits.asUnpooled());
+        hits.decRef();
         return searchResponse;
     }
 

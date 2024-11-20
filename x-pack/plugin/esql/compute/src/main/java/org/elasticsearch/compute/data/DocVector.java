@@ -9,6 +9,8 @@ package org.elasticsearch.compute.data;
 
 import org.apache.lucene.util.IntroSorter;
 import org.apache.lucene.util.RamUsageEstimator;
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 import java.util.Objects;
@@ -18,7 +20,7 @@ import java.util.Objects;
  */
 public final class DocVector extends AbstractVector implements Vector {
 
-    private static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
+    static final long BASE_RAM_BYTES_USED = RamUsageEstimator.shallowSizeOfInstance(DocVector.class);
 
     /**
      * Per position memory cost to build the shard segment doc map required
@@ -84,6 +86,10 @@ public final class DocVector extends AbstractVector implements Vector {
         return singleSegmentNonDecreasing;
     }
 
+    public boolean singleSegment() {
+        return shards.isConstant() && segments.isConstant();
+    }
+
     private boolean checkIfSingleSegmentNonDecreasing() {
         if (getPositionCount() < 2) {
             return true;
@@ -138,35 +144,57 @@ public final class DocVector extends AbstractVector implements Vector {
             for (int p = 0; p < forwards.length; p++) {
                 forwards[p] = p;
             }
-            new IntroSorter() {
-                int pivot;
+            if (singleSegment()) {
+                new IntroSorter() {
+                    int pivot;
 
-                @Override
-                protected void setPivot(int i) {
-                    pivot = finalForwards[i];
-                }
-
-                @Override
-                protected int comparePivot(int j) {
-                    int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(finalForwards[j]));
-                    if (cmp != 0) {
-                        return cmp;
+                    @Override
+                    protected void setPivot(int i) {
+                        pivot = finalForwards[i];
                     }
-                    cmp = Integer.compare(segments.getInt(pivot), segments.getInt(finalForwards[j]));
-                    if (cmp != 0) {
-                        return cmp;
+
+                    @Override
+                    protected int comparePivot(int j) {
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
                     }
-                    return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
-                }
 
-                @Override
-                protected void swap(int i, int j) {
-                    int tmp = finalForwards[i];
-                    finalForwards[i] = finalForwards[j];
-                    finalForwards[j] = tmp;
-                }
-            }.sort(0, forwards.length);
+                    @Override
+                    protected void swap(int i, int j) {
+                        int tmp = finalForwards[i];
+                        finalForwards[i] = finalForwards[j];
+                        finalForwards[j] = tmp;
+                    }
+                }.sort(0, forwards.length);
+            } else {
+                new IntroSorter() {
+                    int pivot;
 
+                    @Override
+                    protected void setPivot(int i) {
+                        pivot = finalForwards[i];
+                    }
+
+                    @Override
+                    protected int comparePivot(int j) {
+                        int cmp = Integer.compare(shards.getInt(pivot), shards.getInt(finalForwards[j]));
+                        if (cmp != 0) {
+                            return cmp;
+                        }
+                        cmp = Integer.compare(segments.getInt(pivot), segments.getInt(finalForwards[j]));
+                        if (cmp != 0) {
+                            return cmp;
+                        }
+                        return Integer.compare(docs.getInt(pivot), docs.getInt(finalForwards[j]));
+                    }
+
+                    @Override
+                    protected void swap(int i, int j) {
+                        int tmp = finalForwards[i];
+                        finalForwards[i] = finalForwards[j];
+                        finalForwards[j] = tmp;
+                    }
+                }.sort(0, forwards.length);
+            }
             backwards = new int[forwards.length];
             for (int p = 0; p < forwards.length; p++) {
                 backwards[forwards[p]] = p;
@@ -207,6 +235,16 @@ public final class DocVector extends AbstractVector implements Vector {
                 Releasables.closeExpectNoException(filteredShards, filteredSegments, filteredDocs);
             }
         }
+    }
+
+    @Override
+    public DocBlock keepMask(BooleanVector mask) {
+        throw new UnsupportedOperationException("can't mask DocVector because it can't contain nulls");
+    }
+
+    @Override
+    public ReleasableIterator<? extends Block> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        throw new UnsupportedOperationException("can't lookup values from DocVector");
     }
 
     @Override

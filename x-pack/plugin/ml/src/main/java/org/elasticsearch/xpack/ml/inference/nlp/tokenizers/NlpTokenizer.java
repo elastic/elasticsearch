@@ -11,6 +11,7 @@ import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertJapaneseTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.BertTokenization;
+import org.elasticsearch.xpack.core.ml.inference.trainedmodel.DebertaV2Tokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.MPNetTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.RobertaTokenization;
 import org.elasticsearch.xpack.core.ml.inference.trainedmodel.Tokenization;
@@ -26,6 +27,7 @@ import java.util.Objects;
 import java.util.OptionalInt;
 import java.util.stream.Collectors;
 
+import static java.lang.Math.min;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.TOKENIZATION;
 import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.VOCABULARY;
 
@@ -33,6 +35,9 @@ import static org.elasticsearch.xpack.core.ml.inference.trainedmodel.NlpConfig.V
  * Base tokenization class for NLP models
  */
 public abstract class NlpTokenizer implements Releasable {
+
+    public static final int CALC_DEFAULT_SPAN_VALUE = -2;
+
     abstract int clsTokenId();
 
     abstract int sepTokenId();
@@ -41,7 +46,13 @@ public abstract class NlpTokenizer implements Releasable {
 
     abstract boolean isWithSpecialTokens();
 
+    abstract int numExtraTokensForSingleSequence();
+
     abstract int getNumExtraTokensForSeqPair();
+
+    int defaultSpanForChunking(int maxWindowSize) {
+        return (maxWindowSize - numExtraTokensForSingleSequence()) / 2;
+    }
 
     public abstract TokenizationResult buildTokenizationResult(List<TokenizationResult.Tokens> tokenizations);
 
@@ -54,35 +65,51 @@ public abstract class NlpTokenizer implements Releasable {
      * each input string grouped into a {@link Tokenization}.
      *
      * @param seq Text to tokenize
+     * @param truncate
+     * @param span
+     * @param sequenceId
+     * @param windowSize
      * @return A list of {@link Tokenization}
      */
-    public List<TokenizationResult.Tokens> tokenize(String seq, Tokenization.Truncate truncate, int span, int sequenceId) {
+    public final List<TokenizationResult.Tokens> tokenize(
+        String seq,
+        Tokenization.Truncate truncate,
+        int span,
+        int sequenceId,
+        Integer windowSize
+    ) {
+        if (windowSize == null) {
+            windowSize = maxSequenceLength();
+        }
         var innerResult = innerTokenize(seq);
         List<? extends DelimitedToken.Encoded> tokenIds = innerResult.tokens();
         List<Integer> tokenPositionMap = innerResult.tokenPositionMap();
-        int numTokens = isWithSpecialTokens() ? tokenIds.size() + 2 : tokenIds.size();
+        int numTokens = isWithSpecialTokens() ? tokenIds.size() + numExtraTokensForSingleSequence() : tokenIds.size();
         boolean isTruncated = false;
 
-        if (numTokens > maxSequenceLength()) {
+        if (numTokens > windowSize) {
             switch (truncate) {
-                case FIRST, SECOND -> {
+                case FIRST, SECOND, BALANCED -> { // only one sequence exists in this case
                     isTruncated = true;
-                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
-                    tokenPositionMap = tokenPositionMap.subList(0, isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength());
+                    tokenIds = tokenIds.subList(0, isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize);
+                    tokenPositionMap = tokenPositionMap.subList(
+                        0,
+                        isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize
+                    );
                 }
                 case NONE -> {
                     if (span == -1) {
                         throw ExceptionsHelper.badRequestException(
                             "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
                             numTokens,
-                            maxSequenceLength()
+                            windowSize
                         );
                     }
                 }
             }
         }
 
-        if (numTokens <= maxSequenceLength() || span == -1) {
+        if (numTokens <= windowSize || span == -1) {
             return List.of(
                 createTokensBuilder(clsTokenId(), sepTokenId(), isWithSpecialTokens()).addSequence(
                     tokenIds.stream().map(DelimitedToken.Encoded::getEncoding).collect(Collectors.toList()),
@@ -91,13 +118,17 @@ public abstract class NlpTokenizer implements Releasable {
             );
         }
 
+        if (span == CALC_DEFAULT_SPAN_VALUE) {
+            span = defaultSpanForChunking(windowSize);
+        }
+
         List<TokenizationResult.Tokens> toReturn = new ArrayList<>();
         int splitEndPos = 0;
         int splitStartPos = 0;
         int spanPrev = -1;
         while (splitEndPos < tokenIds.size()) {
-            splitEndPos = Math.min(
-                splitStartPos + (isWithSpecialTokens() ? maxSequenceLength() - 2 : maxSequenceLength()),
+            splitEndPos = min(
+                splitStartPos + (isWithSpecialTokens() ? windowSize - numExtraTokensForSingleSequence() : windowSize),
                 tokenIds.size()
             );
             // Make sure we do not end on a word
@@ -204,6 +235,29 @@ public abstract class NlpTokenizer implements Releasable {
                     }
                     tokenIdsSeq2 = tokenIdsSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
                     tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(0, maxSequenceLength() - extraTokens - tokenIdsSeq1.size());
+                }
+                case BALANCED -> {
+                    isTruncated = true;
+                    int firstSequenceLength = 0;
+
+                    if (tokenIdsSeq2.size() > (maxSequenceLength() - getNumExtraTokensForSeqPair()) / 2) {
+                        firstSequenceLength = min(tokenIdsSeq1.size(), (maxSequenceLength() - getNumExtraTokensForSeqPair()) / 2);
+                    } else {
+                        firstSequenceLength = min(
+                            tokenIdsSeq1.size(),
+                            maxSequenceLength() - tokenIdsSeq2.size() - getNumExtraTokensForSeqPair()
+                        );
+                    }
+                    int secondSequenceLength = min(
+                        tokenIdsSeq2.size(),
+                        maxSequenceLength() - firstSequenceLength - getNumExtraTokensForSeqPair()
+                    );
+
+                    tokenIdsSeq1 = tokenIdsSeq1.subList(0, firstSequenceLength);
+                    tokenPositionMapSeq1 = tokenPositionMapSeq1.subList(0, firstSequenceLength);
+
+                    tokenIdsSeq2 = tokenIdsSeq2.subList(0, secondSequenceLength);
+                    tokenPositionMapSeq2 = tokenPositionMapSeq2.subList(0, secondSequenceLength);
                 }
                 case NONE -> throw ExceptionsHelper.badRequestException(
                     "Input too large. The tokenized input length [{}] exceeds the maximum sequence length [{}]",
@@ -328,7 +382,7 @@ public abstract class NlpTokenizer implements Releasable {
         }
 
         while (splitEndPos < tokenIdsSeq2.size()) {
-            splitEndPos = Math.min(splitStartPos + trueMaxSeqLength, tokenIdsSeq2.size());
+            splitEndPos = min(splitStartPos + trueMaxSeqLength, tokenIdsSeq2.size());
             // Make sure we do not end on a word
             if (splitEndPos != tokenIdsSeq2.size()) {
                 while (splitEndPos > splitStartPos + 1
@@ -419,6 +473,9 @@ public abstract class NlpTokenizer implements Releasable {
         }
         if (params instanceof XLMRobertaTokenization xlmRobertaTokenization) {
             return XLMRobertaTokenizer.builder(vocabulary.get(), vocabulary.scores(), xlmRobertaTokenization).build();
+        }
+        if (params instanceof DebertaV2Tokenization debertaV2Tokenization) {
+            return DebertaV2Tokenizer.builder(vocabulary.get(), vocabulary.scores(), debertaV2Tokenization).build();
         }
         throw new IllegalArgumentException("unknown tokenization type [" + params.getName() + "]");
     }

@@ -57,14 +57,14 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
     private static final String TIMING_STATS = "timing_stats";
 
     private GetJobsStatsAction() {
-        super(NAME, GetJobsStatsAction.Response::new);
+        super(NAME);
     }
 
     public static class Request extends BaseTasksRequest<Request> {
 
         public static final String ALLOW_NO_MATCH = "allow_no_match";
 
-        private String jobId;
+        private final String jobId;
         private boolean allowNoMatch = true;
 
         // used internally to expand _all jobid to encapsulate all jobs in cluster:
@@ -334,7 +334,7 @@ public class GetJobsStatsAction extends ActionType<GetJobsStatsAction.Response> 
             }
         }
 
-        private QueryPage<JobStats> jobsStats;
+        private final QueryPage<JobStats> jobsStats;
 
         public Response(QueryPage<JobStats> jobsStats) {
             super(Collections.emptyList(), Collections.emptyList());

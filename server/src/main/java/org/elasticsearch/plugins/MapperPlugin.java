@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -15,7 +16,6 @@ import org.elasticsearch.index.mapper.RuntimeField;
 import java.util.Collections;
 import java.util.Map;
 import java.util.function.Function;
-import java.util.function.Predicate;
 
 /**
  * An extension point for {@link Plugin} implementations to add custom mappers
@@ -61,19 +61,23 @@ public interface MapperPlugin {
      * get index, get field mappings and field capabilities API. Useful to filter the fields that such API return. The predicate receives
      * the field name as input argument and should return true to show the field and false to hide it.
      */
-    default Function<String, Predicate<String>> getFieldFilter() {
+    default Function<String, FieldPredicate> getFieldFilter() {
         return NOOP_FIELD_FILTER;
     }
-
-    /**
-     * The default field predicate applied, which doesn't filter anything. That means that by default get mappings, get index
-     * get field mappings and field capabilities API will return every field that's present in the mappings.
-     */
-    Predicate<String> NOOP_FIELD_PREDICATE = field -> true;
 
     /**
      * The default field filter applied, which doesn't filter anything. That means that by default get mappings, get index
      * get field mappings and field capabilities API will return every field that's present in the mappings.
      */
-    Function<String, Predicate<String>> NOOP_FIELD_FILTER = index -> NOOP_FIELD_PREDICATE;
+    Function<String, FieldPredicate> NOOP_FIELD_FILTER = new Function<>() {
+        @Override
+        public FieldPredicate apply(String index) {
+            return FieldPredicate.ACCEPT_ALL;
+        }
+
+        @Override
+        public String toString() {
+            return "accept all";
+        }
+    };
 }

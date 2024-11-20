@@ -1,5 +1,0 @@
-pr: 103530
-summary: Exclude quantiles when fetching model snapshots where possible
-area: Machine Learning
-type: bug
-issues: []

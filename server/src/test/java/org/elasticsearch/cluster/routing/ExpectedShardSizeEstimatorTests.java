@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -32,6 +33,7 @@ import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_RESIZE_SOUR
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.getExpectedShardSize;
 import static org.elasticsearch.cluster.routing.ExpectedShardSizeEstimator.shouldReserveSpaceForInitializingShard;
 import static org.elasticsearch.cluster.routing.TestShardRouting.newShardRouting;
+import static org.elasticsearch.cluster.routing.TestShardRouting.shardRoutingBuilder;
 import static org.elasticsearch.index.IndexModule.INDEX_STORE_TYPE_SETTING;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SEARCHABLE_SNAPSHOT_STORE_TYPE;
 import static org.elasticsearch.snapshots.SearchableSnapshotsSettings.SNAPSHOT_PARTIAL_SETTING;
@@ -44,13 +46,10 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
     public void testShouldFallbackToDefaultExpectedShardSize() {
 
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(
+                randomFrom(RecoverySource.EmptyStoreRecoverySource.INSTANCE, RecoverySource.ExistingStoreRecoverySource.INSTANCE)
+            ).build();
 
         var allocation = createRoutingAllocation(state, ClusterInfo.EMPTY, SnapshotShardSizeInfo.EMPTY);
 
@@ -65,13 +64,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var shardSize = randomLongBetween(100, 1000);
         var state = ClusterState.builder(ClusterName.DEFAULT).metadata(metadata(index("my-index"))).build();
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.PeerRecoverySource.INSTANCE
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.PeerRecoverySource.INSTANCE)
+            .build();
 
         var clusterInfo = createClusterInfo(shard, shardSize);
         var allocation = createRoutingAllocation(state, clusterInfo, SnapshotShardSizeInfo.EMPTY);
@@ -119,13 +114,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
         var snapshot = new Snapshot("repository", new SnapshotId("snapshot-1", "na"));
         var indexId = new IndexId("my-index", "_na_");
 
-        var shard = newShardRouting(
-            new ShardId("my-index", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId)
-        );
+        var shard = shardRoutingBuilder(new ShardId("my-index", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(new RecoverySource.SnapshotRecoverySource(randomUUID(), snapshot, IndexVersion.current(), indexId))
+            .build();
 
         var snapshotShardSizeInfo = new SnapshotShardSizeInfo(
             Map.of(new InternalSnapshotsInfoService.SnapshotShard(snapshot, indexId, shard.shardId()), snapshotShardSize)
@@ -147,13 +138,9 @@ public class ExpectedShardSizeEstimatorTests extends ESAllocationTestCase {
 
         var sourceShardSize = randomLongBetween(100, 1000);
         var source = newShardRouting(new ShardId("source", "_na_", 0), randomIdentifier(), true, ShardRoutingState.STARTED);
-        var target = newShardRouting(
-            new ShardId("target", "_na_", 0),
-            randomIdentifier(),
-            true,
-            ShardRoutingState.INITIALIZING,
-            RecoverySource.LocalShardsRecoverySource.INSTANCE
-        );
+        var target = shardRoutingBuilder(new ShardId("target", "_na_", 0), randomIdentifier(), true, ShardRoutingState.INITIALIZING)
+            .withRecoverySource(RecoverySource.LocalShardsRecoverySource.INSTANCE)
+            .build();
 
         var state = ClusterState.builder(ClusterName.DEFAULT)
             .metadata(

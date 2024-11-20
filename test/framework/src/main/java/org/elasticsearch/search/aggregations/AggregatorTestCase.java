@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations;
 
@@ -26,11 +27,13 @@ import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.LogDocMergePolicy;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.OrdinalMap;
+import org.apache.lucene.index.PointValues;
 import org.apache.lucene.index.SortedDocValues;
 import org.apache.lucene.index.SortedSetDocValues;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.sandbox.document.HalfFloatPoint;
 import org.apache.lucene.search.Collector;
+import org.apache.lucene.search.CollectorManager;
 import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.Query;
@@ -45,12 +48,13 @@ import org.apache.lucene.tests.analysis.MockAnalyzer;
 import org.apache.lucene.tests.index.AssertingDirectoryReader;
 import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.util.LuceneTestCase;
-import org.apache.lucene.util.Accountable;
 import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.NumericUtils;
 import org.apache.lucene.util.packed.PackedInts;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.CheckedBiConsumer;
 import org.elasticsearch.common.TriConsumer;
@@ -78,6 +82,7 @@ import org.elasticsearch.index.analysis.IndexAnalyzers;
 import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.cache.query.DisabledQueryCache;
 import org.elasticsearch.index.cache.query.TrivialQueryCachingPolicy;
+import org.elasticsearch.index.engine.Engine;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
@@ -88,12 +93,12 @@ import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.FieldAliasMapper;
 import org.elasticsearch.index.mapper.FieldMapper;
 import org.elasticsearch.index.mapper.GeoPointFieldMapper;
-import org.elasticsearch.index.mapper.GeoShapeFieldMapper;
 import org.elasticsearch.index.mapper.IdLoader;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
+import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.Mapping;
 import org.elasticsearch.index.mapper.MappingLookup;
 import org.elasticsearch.index.mapper.MappingParserContext;
@@ -101,11 +106,13 @@ import org.elasticsearch.index.mapper.MockFieldMapper;
 import org.elasticsearch.index.mapper.NestedObjectMapper;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
 import org.elasticsearch.index.mapper.ObjectMapper;
+import org.elasticsearch.index.mapper.PassThroughObjectMapper;
 import org.elasticsearch.index.mapper.RangeFieldMapper;
 import org.elasticsearch.index.mapper.RangeType;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.MultiDenseVectorFieldMapper;
 import org.elasticsearch.index.mapper.vectors.SparseVectorFieldMapper;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
@@ -138,8 +145,10 @@ import org.elasticsearch.search.aggregations.support.ValuesSourceType;
 import org.elasticsearch.search.fetch.FetchPhase;
 import org.elasticsearch.search.fetch.subphase.FetchDocValuesPhase;
 import org.elasticsearch.search.fetch.subphase.FetchSourcePhase;
+import org.elasticsearch.search.internal.AliasFilter;
 import org.elasticsearch.search.internal.ContextIndexSearcher;
 import org.elasticsearch.search.internal.SearchContext;
+import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.internal.SubSearchContext;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.InternalAggregationTestCase;
@@ -155,6 +164,7 @@ import java.io.UncheckedIOException;
 import java.net.InetAddress;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -195,11 +205,12 @@ public abstract class AggregatorTestCase extends ESTestCase {
     // A list of field types that should not be tested, or are not currently supported
     private static final List<String> TYPE_TEST_BLACKLIST = List.of(
         ObjectMapper.CONTENT_TYPE, // Cannot aggregate objects
-        GeoShapeFieldMapper.CONTENT_TYPE, // Cannot aggregate geoshapes (yet)
         DenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
+        MultiDenseVectorFieldMapper.CONTENT_TYPE, // Cannot aggregate dense vectors
         SparseVectorFieldMapper.CONTENT_TYPE, // Sparse vectors are no longer supported
 
         NestedObjectMapper.CONTENT_TYPE, // TODO support for nested
+        PassThroughObjectMapper.CONTENT_TYPE, // TODO support for passthrough
         CompletionFieldMapper.CONTENT_TYPE, // TODO support completion
         FieldAliasMapper.CONTENT_TYPE // TODO support alias
     );
@@ -209,7 +220,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
     @Before
     public final void initPlugins() {
         threadPool = new TestThreadPool(AggregatorTestCase.class.getName());
-        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH_WORKER);
+        threadPoolExecutor = (ThreadPoolExecutor) threadPool.executor(ThreadPool.Names.SEARCH);
         List<SearchPlugin> plugins = new ArrayList<>(getSearchPlugins());
         plugins.add(new AggCardinalityUpperBoundPlugin());
         SearchModule searchModule = new SearchModule(Settings.EMPTY, plugins);
@@ -345,24 +356,20 @@ public abstract class AggregatorTestCase extends ESTestCase {
             // Alias all fields to <name>-alias to test aliases
             Arrays.stream(fieldTypes)
                 .map(ft -> new FieldAliasMapper(ft.name() + "-alias", ft.name() + "-alias", ft.name()))
-                .collect(toList())
+                .collect(toList()),
+            List.of()
         );
         BiFunction<MappedFieldType, FieldDataContext, IndexFieldData<?>> fieldDataBuilder = (fieldType, context) -> fieldType
             .fielddataBuilder(
                 new FieldDataContext(
                     indexSettings.getIndex().getName(),
+                    indexSettings,
                     context.lookupSupplier(),
                     context.sourcePathsLookup(),
                     context.fielddataOperation()
                 )
             ).build(new IndexFieldDataCache.None(), breakerService);
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
-        });
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(indexSettings, BitsetFilterCache.Listener.NOOP);
         SearchExecutionContext searchExecutionContext = new SearchExecutionContext(
             0,
             -1,
@@ -382,8 +389,14 @@ public abstract class AggregatorTestCase extends ESTestCase {
             null,
             () -> true,
             valuesSourceRegistry,
-            emptyMap()
-        );
+            emptyMap(),
+            MapperMetrics.NOOP
+        ) {
+            @Override
+            public Iterable<MappedFieldType> dimensionFields() {
+                return Arrays.stream(fieldTypes).filter(MappedFieldType::isDimension).toList();
+            }
+        };
 
         AggregationContext context = new ProductionAggregationContext(
             Optional.ofNullable(analysisModule).map(AnalysisModule::getAnalysisRegistry).orElse(null),
@@ -452,12 +465,23 @@ public abstract class AggregatorTestCase extends ESTestCase {
          * of stuff.
          */
         SearchExecutionContext subContext = spy(searchExecutionContext);
-        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of(), Set.of());
+        MappingLookup disableNestedLookup = MappingLookup.fromMappers(Mapping.EMPTY, Set.of(), Set.of());
         doReturn(new NestedDocuments(disableNestedLookup, bitsetFilterCache::getBitSetProducer, indexSettings.getIndexVersionCreated()))
             .when(subContext)
             .getNestedDocuments();
         when(ctx.getSearchExecutionContext()).thenReturn(subContext);
-
+        ShardSearchRequest request = new ShardSearchRequest(
+            OriginalIndices.NONE,
+            new SearchRequest().allowPartialSearchResults(randomBoolean()),
+            new ShardId("index", "indexUUID", 0),
+            0,
+            1,
+            AliasFilter.EMPTY,
+            1f,
+            0L,
+            null
+        );
+        when(ctx.request()).thenReturn(request);
         IndexShard indexShard = mock(IndexShard.class);
         when(indexShard.shardId()).thenReturn(new ShardId("test", "test", 0));
         when(indexShard.indexSettings()).thenReturn(indexSettings);
@@ -633,7 +657,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         bigArraysForReduction,
                         getMockScriptService(),
                         () -> false,
-                        builder
+                        builder,
+                        b -> {}
                     );
                     AggregatorCollectorManager aggregatorCollectorManager = new AggregatorCollectorManager(
                         aggregatorSupplier,
@@ -658,7 +683,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     bigArraysForReduction,
                     getMockScriptService(),
                     () -> false,
-                    builder
+                    builder,
+                    b -> {}
                 );
                 internalAggs = new ArrayList<>(internalAggs.subList(r, toReduceSize));
                 internalAggs.add(InternalAggregations.topLevelReduce(toReduce, reduceContext));
@@ -734,6 +760,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
                     new SortField(TimeSeriesIdFieldMapper.NAME, SortField.Type.STRING, false),
                     new SortedNumericSortField(DataStreamTimestampFieldMapper.DEFAULT_PATH, SortField.Type.LONG, true)
                 );
+                config.setParentField(Engine.ROOT_DOC_FIELD_NAME);
                 config.setIndexSort(sort);
             }
             RandomIndexWriter indexWriter = new RandomIndexWriter(random(), directory, config);
@@ -818,11 +845,8 @@ public abstract class AggregatorTestCase extends ESTestCase {
         QueryCachingPolicy queryCachingPolicy,
         MappedFieldType... fieldTypes
     ) throws IOException {
-        // Don't use searchAndReduce because we only want a single aggregator.
-        IndexSearcher searcher = newIndexSearcher(
-            reader,
-            aggregationBuilder.supportsParallelCollection(field -> getCardinality(reader, field))
-        );
+        // Don't use searchAndReduce because we only want a single aggregator, disable parallel collection too.
+        IndexSearcher searcher = newIndexSearcher(reader, false);
         if (queryCachingPolicy != null) {
             searcher.setQueryCachingPolicy(queryCachingPolicy);
         }
@@ -841,7 +865,21 @@ public abstract class AggregatorTestCase extends ESTestCase {
         try {
             Aggregator aggregator = createAggregator(builder, context);
             aggregator.preCollection();
-            searcher.search(context.query(), aggregator.asCollector());
+            searcher.search(context.query(), new CollectorManager<Collector, Void>() {
+                boolean called = false;
+
+                @Override
+                public Collector newCollector() {
+                    assert called == false : "newCollector called multiple times";
+                    called = true;
+                    return aggregator.asCollector();
+                }
+
+                @Override
+                public Void reduce(Collection<Collector> collectors) {
+                    return null;
+                }
+            });
             InternalAggregation r = aggregator.buildTopLevel();
             r = doReduce(
                 List.of(r),
@@ -946,11 +984,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
     }
 
     private static class ShardSearcher extends IndexSearcher {
-        private final List<LeafReaderContext> ctx;
+        private final LeafReaderContextPartition[] ctx;
 
         ShardSearcher(LeafReaderContext ctx, IndexReaderContext parent) {
             super(parent);
-            this.ctx = Collections.singletonList(ctx);
+            this.ctx = new LeafReaderContextPartition[] { IndexSearcher.LeafReaderContextPartition.createForEntireSegment(ctx) };
         }
 
         public void search(Weight weight, Collector collector) throws IOException {
@@ -959,7 +997,7 @@ public abstract class AggregatorTestCase extends ESTestCase {
 
         @Override
         public String toString() {
-            return "ShardSearcher(" + ctx.get(0) + ")";
+            return "ShardSearcher(" + ctx[0] + ")";
         }
     }
 
@@ -1107,7 +1145,11 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         // We should make sure if the builder says it supports sampling, that the internal aggregations returned override
                         // finalizeSampling
                         if (aggregationBuilder.supportsSampling()) {
-                            SamplingContext randomSamplingContext = new SamplingContext(randomDoubleBetween(1e-8, 0.1, false), randomInt());
+                            SamplingContext randomSamplingContext = new SamplingContext(
+                                randomDoubleBetween(1e-8, 0.1, false),
+                                randomInt(),
+                                randomBoolean() ? null : randomInt()
+                            );
                             InternalAggregation sampledResult = internalAggregation.finalizeSampling(randomSamplingContext);
                             assertThat(sampledResult.getClass(), equalTo(internalAggregation.getClass()));
                         }
@@ -1269,7 +1311,10 @@ public abstract class AggregatorTestCase extends ESTestCase {
                 ScriptCompiler.NONE,
                 null,
                 indexSettings,
-                null
+                null,
+                query -> {
+                    throw new UnsupportedOperationException();
+                }
             );
         }
 
@@ -1383,6 +1428,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
                         subs[i] = sortedDocValues.termsEnum();
                         weights[i] = sortedDocValues.getValueCount();
                     }
+                    case NUMERIC, SORTED_NUMERIC -> {
+                        final byte[] min = PointValues.getMinPackedValue(reader, field);
+                        final byte[] max = PointValues.getMaxPackedValue(reader, field);
+                        if (min != null && max != null) {
+                            if (min.length == 4) {
+                                return NumericUtils.sortableBytesToInt(max, 0) - NumericUtils.sortableBytesToInt(min, 0);
+                            } else if (min.length == 8) {
+                                return NumericUtils.sortableBytesToLong(max, 0) - NumericUtils.sortableBytesToLong(min, 0);
+                            }
+                        }
+                        return -1;
+                    }
                     default -> {
                         return -1;
                     }
@@ -1494,9 +1551,18 @@ public abstract class AggregatorTestCase extends ESTestCase {
         }
 
         @Override
-        public InternalAggregation reduce(List<InternalAggregation> aggregations, AggregationReduceContext reduceContext) {
-            aggregations.forEach(ia -> { assertThat(((InternalAggCardinalityUpperBound) ia).cardinality, equalTo(cardinality)); });
-            return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+        protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
+            return new AggregatorReducer() {
+                @Override
+                public void accept(InternalAggregation aggregation) {
+                    assertThat(((InternalAggCardinalityUpperBound) aggregation).cardinality, equalTo(cardinality));
+                }
+
+                @Override
+                public InternalAggregation get() {
+                    return new InternalAggCardinalityUpperBound(name, cardinality, metadata);
+                }
+            };
         }
 
         @Override

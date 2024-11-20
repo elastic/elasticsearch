@@ -1,14 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action;
 
 import org.elasticsearch.action.admin.cluster.node.info.TransportNodesInfoAction;
+import org.elasticsearch.action.bulk.IncrementalBulkService;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -21,7 +23,9 @@ import org.elasticsearch.common.settings.IndexScopedSettings;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
+import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.TestIndexNameExpressionResolver;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.ActionPlugin;
@@ -31,11 +35,12 @@ import org.elasticsearch.plugins.internal.RestExtension;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestController;
 import org.elasticsearch.rest.RestHandler;
+import org.elasticsearch.rest.RestInterceptor;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.action.admin.cluster.RestNodesInfoAction;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskManager;
-import org.elasticsearch.telemetry.tracing.Tracer;
+import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -45,8 +50,8 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
+import java.util.function.Predicate;
 import java.util.function.Supplier;
-import java.util.function.UnaryOperator;
 
 import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
@@ -86,13 +91,13 @@ public class ActionModuleTests extends ESTestCase {
         }
         class FakeTransportAction extends TransportAction<FakeRequest, ActionResponse> {
             protected FakeTransportAction(String actionName, ActionFilters actionFilters, TaskManager taskManager) {
-                super(actionName, actionFilters, taskManager);
+                super(actionName, actionFilters, taskManager, EsExecutors.DIRECT_EXECUTOR_SERVICE);
             }
 
             @Override
             protected void doExecute(Task task, FakeRequest request, ActionListener<ActionResponse> listener) {}
         }
-        final var action = new ActionType<>("fake", null);
+        final var action = new ActionType<>("fake");
         ActionPlugin registersFakeAction = new ActionPlugin() {
             @Override
             public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
@@ -121,11 +126,12 @@ public class ActionModuleTests extends ESTestCase {
             null,
             usageService,
             null,
-            null,
+            TelemetryProvider.NOOP,
             mock(ClusterService.class),
             null,
             List.of(),
-            RestExtension.allowAll()
+            RestExtension.allowAll(),
+            new IncrementalBulkService(null, null)
         );
         actionModule.initRestHandlers(null, null);
         // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -155,7 +161,8 @@ public class ActionModuleTests extends ESTestCase {
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new RestNodesInfoAction(new SettingsFilter(emptyList())) {
 
@@ -184,11 +191,12 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new IncrementalBulkService(null, null)
             );
             Exception e = expectThrows(IllegalArgumentException.class, () -> actionModule.initRestHandlers(null, null));
             assertThat(e.getMessage(), startsWith("Cannot replace existing handler for [/_nodes] for method: GET"));
@@ -217,7 +225,8 @@ public class ActionModuleTests extends ESTestCase {
                 IndexScopedSettings indexScopedSettings,
                 SettingsFilter settingsFilter,
                 IndexNameExpressionResolver indexNameExpressionResolver,
-                Supplier<DiscoveryNodes> nodesInCluster
+                Supplier<DiscoveryNodes> nodesInCluster,
+                Predicate<NodeFeature> clusterSupportsFeature
             ) {
                 return singletonList(new FakeHandler());
             }
@@ -240,11 +249,12 @@ public class ActionModuleTests extends ESTestCase {
                 null,
                 usageService,
                 null,
-                null,
+                TelemetryProvider.NOOP,
                 mock(ClusterService.class),
                 null,
                 List.of(),
-                RestExtension.allowAll()
+                RestExtension.allowAll(),
+                new IncrementalBulkService(null, null)
             );
             actionModule.initRestHandlers(null, null);
             // At this point the easiest way to confirm that a handler is loaded is to try to register another one on top of it and to fail
@@ -294,7 +304,8 @@ public class ActionModuleTests extends ESTestCase {
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new IncrementalBulkService(null, null)
                 )
             );
             assertThat(
@@ -331,11 +342,12 @@ public class ActionModuleTests extends ESTestCase {
                     null,
                     usageService,
                     null,
-                    null,
+                    TelemetryProvider.NOOP,
                     mock(ClusterService.class),
                     null,
                     List.of(),
-                    RestExtension.allowAll()
+                    RestExtension.allowAll(),
+                    new IncrementalBulkService(null, null)
                 )
             );
             assertThat(
@@ -370,9 +382,9 @@ public class ActionModuleTests extends ESTestCase {
         }
 
         @Override
-        public UnaryOperator<RestHandler> getRestHandlerInterceptor(ThreadContext threadContext) {
+        public RestInterceptor getRestHandlerInterceptor(ThreadContext threadContext) {
             if (installInterceptor) {
-                return UnaryOperator.identity();
+                return (request, channel, targetHandler, listener) -> listener.onResponse(true);
             } else {
                 return null;
             }
@@ -380,14 +392,14 @@ public class ActionModuleTests extends ESTestCase {
 
         @Override
         public RestController getRestController(
-            UnaryOperator<RestHandler> handlerWrapper,
+            RestInterceptor interceptor,
             NodeClient client,
             CircuitBreakerService circuitBreakerService,
             UsageService usageService,
-            Tracer tracer
+            TelemetryProvider telemetryProvider
         ) {
             if (installController) {
-                return new RestController(handlerWrapper, client, circuitBreakerService, usageService, tracer);
+                return new RestController(interceptor, client, circuitBreakerService, usageService, telemetryProvider);
             } else {
                 return null;
             }

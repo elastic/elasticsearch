@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.transport;
@@ -39,7 +40,7 @@ import static org.elasticsearch.transport.TransportSettings.TCP_SEND_BUFFER_SIZE
  */
 public class RemoteClusterPortSettings {
 
-    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersions.V_8_500_061;
+    public static final TransportVersion TRANSPORT_VERSION_ADVANCED_REMOTE_CLUSTER_SECURITY = TransportVersions.V_8_10_X;
 
     public static final String REMOTE_CLUSTER_PROFILE = "_remote_cluster";
     public static final String REMOTE_CLUSTER_PREFIX = "remote_cluster.";

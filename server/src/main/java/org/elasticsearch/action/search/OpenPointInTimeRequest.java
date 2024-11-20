@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -41,6 +42,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
 
     private QueryBuilder indexFilter;
 
+    private boolean allowPartialSearchResults = false;
+
     public static final IndicesOptions DEFAULT_INDICES_OPTIONS = SearchRequest.DEFAULT_INDICES_OPTIONS;
 
     public OpenPointInTimeRequest(String... indices) {
@@ -54,11 +57,14 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         this.keepAlive = in.readTimeValue();
         this.routing = in.readOptionalString();
         this.preference = in.readOptionalString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             this.maxConcurrentShardRequests = in.readVInt();
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             this.indexFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
+        }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+            this.allowPartialSearchResults = in.readBoolean();
         }
     }
 
@@ -70,11 +76,16 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         out.writeTimeValue(keepAlive);
         out.writeOptionalString(routing);
         out.writeOptionalString(preference);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeVInt(maxConcurrentShardRequests);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.PIT_WITH_INDEX_FILTER)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
             out.writeOptionalWriteable(indexFilter);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ALLOW_PARTIAL_SEARCH_RESULTS_IN_PIT)) {
+            out.writeBoolean(allowPartialSearchResults);
+        } else if (allowPartialSearchResults) {
+            throw new IOException("[allow_partial_search_results] is not supported on nodes with version " + out.getTransportVersion());
         }
     }
 
@@ -180,6 +191,15 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
         return true;
     }
 
+    public boolean allowPartialSearchResults() {
+        return allowPartialSearchResults;
+    }
+
+    public OpenPointInTimeRequest allowPartialSearchResults(boolean allowPartialSearchResults) {
+        this.allowPartialSearchResults = allowPartialSearchResults;
+        return this;
+    }
+
     @Override
     public String getDescription() {
         return "open search context: indices [" + String.join(",", indices) + "] keep_alive [" + keepAlive + "]";
@@ -200,6 +220,8 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             + ", preference='"
             + preference
             + '\''
+            + ", allowPartialSearchResults="
+            + allowPartialSearchResults
             + '}';
     }
 
@@ -218,12 +240,13 @@ public final class OpenPointInTimeRequest extends ActionRequest implements Indic
             && indicesOptions.equals(that.indicesOptions)
             && keepAlive.equals(that.keepAlive)
             && Objects.equals(routing, that.routing)
-            && Objects.equals(preference, that.preference);
+            && Objects.equals(preference, that.preference)
+            && Objects.equals(allowPartialSearchResults, that.allowPartialSearchResults);
     }
 
     @Override
     public int hashCode() {
-        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference);
+        int result = Objects.hash(indicesOptions, keepAlive, maxConcurrentShardRequests, routing, preference, allowPartialSearchResults);
         result = 31 * result + Arrays.hashCode(indices);
         return result;
     }

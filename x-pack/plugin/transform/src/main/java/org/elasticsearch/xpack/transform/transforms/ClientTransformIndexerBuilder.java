@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.transform.transforms;
 
 import org.elasticsearch.client.internal.ParentTaskAssigningClient;
+import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.indexing.IndexerState;
 import org.elasticsearch.xpack.core.transform.transforms.TransformCheckpoint;
@@ -15,6 +17,7 @@ import org.elasticsearch.xpack.core.transform.transforms.TransformConfig;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerPosition;
 import org.elasticsearch.xpack.core.transform.transforms.TransformIndexerStats;
 import org.elasticsearch.xpack.core.transform.transforms.TransformProgress;
+import org.elasticsearch.xpack.transform.TransformExtension;
 import org.elasticsearch.xpack.transform.TransformServices;
 import org.elasticsearch.xpack.transform.checkpoint.CheckpointProvider;
 import org.elasticsearch.xpack.transform.persistence.SeqNoPrimaryTermAndIndex;
@@ -23,6 +26,9 @@ import java.util.concurrent.atomic.AtomicReference;
 
 class ClientTransformIndexerBuilder {
     private ParentTaskAssigningClient parentTaskClient;
+    private ClusterService clusterService;
+    private IndexNameExpressionResolver indexNameExpressionResolver;
+    private TransformExtension transformExtension;
     private TransformServices transformServices;
     private TransformConfig transformConfig;
     private TransformIndexerStats initialStats;
@@ -39,11 +45,14 @@ class ClientTransformIndexerBuilder {
     }
 
     ClientTransformIndexer build(ThreadPool threadPool, TransformContext context) {
-        CheckpointProvider checkpointProvider = transformServices.getCheckpointService()
+        CheckpointProvider checkpointProvider = transformServices.checkpointService()
             .getCheckpointProvider(parentTaskClient, transformConfig);
 
         return new ClientTransformIndexer(
             threadPool,
+            clusterService,
+            indexNameExpressionResolver,
+            transformExtension,
             transformServices,
             checkpointProvider,
             new AtomicReference<>(this.indexerState),
@@ -70,6 +79,21 @@ class ClientTransformIndexerBuilder {
 
     ClientTransformIndexerBuilder setClient(ParentTaskAssigningClient parentTaskClient) {
         this.parentTaskClient = parentTaskClient;
+        return this;
+    }
+
+    ClientTransformIndexerBuilder setIndexNameExpressionResolver(IndexNameExpressionResolver indexNameExpressionResolver) {
+        this.indexNameExpressionResolver = indexNameExpressionResolver;
+        return this;
+    }
+
+    ClientTransformIndexerBuilder setClusterService(ClusterService clusterService) {
+        this.clusterService = clusterService;
+        return this;
+    }
+
+    ClientTransformIndexerBuilder setTransformExtension(TransformExtension transformExtension) {
+        this.transformExtension = transformExtension;
         return this;
     }
 

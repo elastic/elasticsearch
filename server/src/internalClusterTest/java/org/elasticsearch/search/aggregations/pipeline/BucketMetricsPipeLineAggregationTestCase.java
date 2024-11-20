@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.pipeline;
@@ -19,7 +20,7 @@ import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
 import org.elasticsearch.search.aggregations.bucket.terms.IncludeExclude;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.aggregations.bucket.terms.TermsAggregationBuilder;
-import org.elasticsearch.search.aggregations.metrics.NumericMetricsAggregation;
+import org.elasticsearch.search.aggregations.metrics.InternalNumericMetricsAggregation;
 import org.elasticsearch.search.aggregations.metrics.Sum;
 import org.elasticsearch.search.aggregations.metrics.SumAggregationBuilder;
 import org.elasticsearch.test.ESIntegTestCase;
@@ -44,7 +45,7 @@ import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.core.IsNull.notNullValue;
 
 @ESIntegTestCase.SuiteScopeTestCase
-abstract class BucketMetricsPipeLineAggregationTestCase<T extends NumericMetricsAggregation> extends ESIntegTestCase {
+abstract class BucketMetricsPipeLineAggregationTestCase<T extends InternalNumericMetricsAggregation> extends ESIntegTestCase {
 
     static final String SINGLE_VALUED_FIELD_NAME = "l_value";
 

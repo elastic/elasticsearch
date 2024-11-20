@@ -270,24 +270,24 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalHistogram>) histo -> {
             assertThat(histo.getBuckets().size(), equalTo(3));
 
-            assertNotNull(histo.getBuckets().get(0).getAggregations().asMap().get("boxplot"));
-            InternalBoxplot boxplot = (InternalBoxplot) histo.getBuckets().get(0).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(0).getAggregations().get("boxplot"));
+            InternalBoxplot boxplot = histo.getBuckets().get(0).getAggregations().get("boxplot");
             assertEquals(1, boxplot.getMin(), 0);
             assertEquals(3, boxplot.getMax(), 0);
             assertEquals(1.5, boxplot.getQ1(), 0);
             assertEquals(2, boxplot.getQ2(), 0);
             assertEquals(2.5, boxplot.getQ3(), 0);
 
-            assertNotNull(histo.getBuckets().get(1).getAggregations().asMap().get("boxplot"));
-            boxplot = (InternalBoxplot) histo.getBuckets().get(1).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(1).getAggregations().get("boxplot"));
+            boxplot = histo.getBuckets().get(1).getAggregations().get("boxplot");
             assertEquals(Double.POSITIVE_INFINITY, boxplot.getMin(), 0);
             assertEquals(Double.NEGATIVE_INFINITY, boxplot.getMax(), 0);
             assertEquals(Double.NaN, boxplot.getQ1(), 0);
             assertEquals(Double.NaN, boxplot.getQ2(), 0);
             assertEquals(Double.NaN, boxplot.getQ3(), 0);
 
-            assertNotNull(histo.getBuckets().get(2).getAggregations().asMap().get("boxplot"));
-            boxplot = (InternalBoxplot) histo.getBuckets().get(2).getAggregations().asMap().get("boxplot");
+            assertNotNull(histo.getBuckets().get(2).getAggregations().get("boxplot"));
+            boxplot = histo.getBuckets().get(2).getAggregations().get("boxplot");
             assertEquals(21, boxplot.getMin(), 0);
             assertEquals(23, boxplot.getMax(), 0);
             assertEquals(21.5, boxplot.getQ1(), 0);
@@ -337,8 +337,8 @@ public class BoxplotAggregatorTests extends AggregatorTestCase {
         }, (Consumer<InternalGlobal>) global -> {
             assertEquals(5, global.getDocCount());
             assertTrue(AggregationInspectionHelper.hasValue(global));
-            assertNotNull(global.getAggregations().asMap().get("boxplot"));
-            InternalBoxplot boxplot = (InternalBoxplot) global.getAggregations().asMap().get("boxplot");
+            assertNotNull(global.getAggregations().get("boxplot"));
+            InternalBoxplot boxplot = global.getAggregations().get("boxplot");
             assertThat(global.getProperty("boxplot"), equalTo(boxplot));
             assertThat(global.getProperty("boxplot.min"), equalTo(1.0));
             assertThat(global.getProperty("boxplot.max"), equalTo(5.0));

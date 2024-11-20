@@ -1,5 +1,0 @@
-pr: 103873
-summary: Catch exceptions during `pytorch_inference` startup
-area: Machine Learning
-type: bug
-issues: []

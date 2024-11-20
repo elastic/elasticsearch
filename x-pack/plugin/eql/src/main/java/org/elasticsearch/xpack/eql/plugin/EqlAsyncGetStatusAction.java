@@ -14,6 +14,6 @@ public class EqlAsyncGetStatusAction extends ActionType<QlStatusResponse> {
     public static final String NAME = "cluster:monitor/eql/async/status";
 
     private EqlAsyncGetStatusAction() {
-        super(NAME, QlStatusResponse::new);
+        super(NAME);
     }
 }

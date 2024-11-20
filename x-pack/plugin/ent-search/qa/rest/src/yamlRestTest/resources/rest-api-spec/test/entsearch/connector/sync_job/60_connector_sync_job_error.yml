@@ -1,0 +1,40 @@
+setup:
+  - requires:
+      cluster_features: ["gte_v8.12.0"]
+      reason: Introduced in 8.12.0
+  - do:
+      connector.put:
+        connector_id: test-connector
+        body:
+          index_name: search-test
+          name: my-connector
+          language: de
+          is_native: false
+          service_type: super-connector
+
+---
+"Set an error for a pending connector sync job - invalid state transition from pending to error":
+  - do:
+      connector.sync_job_post:
+        body:
+          id: test-connector
+          job_type: full
+          trigger_method: on_demand
+
+  - set: { id: id }
+
+  - do:
+      catch: bad_request
+      connector.sync_job_error:
+        connector_sync_job_id: $id
+        body:
+          error: error
+
+---
+"Set an error for a Connector Sync Job - Connector Sync Job does not exist":
+  - do:
+      connector.sync_job_error:
+        connector_sync_job_id: test-nonexistent-connector-sync-job-id
+        body:
+          error: error
+      catch: missing

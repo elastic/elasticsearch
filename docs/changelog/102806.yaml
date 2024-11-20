@@ -1,5 +1,0 @@
-pr: 102806
-summary: Support for GET all models and by task type in the `_inference` API
-area: Machine Learning
-type: enhancement
-issues: []

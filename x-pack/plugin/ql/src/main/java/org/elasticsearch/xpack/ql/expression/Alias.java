@@ -106,4 +106,11 @@ public class Alias extends NamedExpression {
     public String nodeString() {
         return child.nodeString() + " AS " + name();
     }
+
+    /**
+     * If the given expression is an alias, return its child - otherwise return as is.
+     */
+    public static Expression unwrap(Expression e) {
+        return e instanceof Alias as ? as.child() : e;
+    }
 }

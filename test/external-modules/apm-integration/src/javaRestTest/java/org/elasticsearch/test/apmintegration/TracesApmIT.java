@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.apmintegration;
@@ -51,9 +52,9 @@ public class TracesApmIT extends ESRestTestCase {
         .module("test-apm-integration")
         .module("apm")
         .setting("telemetry.metrics.enabled", "false")
-        .setting("tracing.apm.enabled", "true")
-        .setting("tracing.apm.agent.metrics_interval", "1s")
-        .setting("tracing.apm.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
+        .setting("telemetry.tracing.enabled", "true")
+        .setting("telemetry.agent.metrics_interval", "1s")
+        .setting("telemetry.agent.server_url", "http://127.0.0.1:" + mockApmServer.getPort())
         .build();
 
     @Override

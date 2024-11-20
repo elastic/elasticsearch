@@ -1,8 +1,8 @@
 setup:
-  - skip:
-      version: " - 8.10.99"
+  - requires:
+      cluster_features: ["gte_v8.11.0"]
       reason: "ESQL is available in 8.11+"
-      features: allowed_warnings_regex
+      test_runner_features: allowed_warnings_regex
 
 ---
 disjoint_mappings:
@@ -311,7 +311,6 @@ same_name_different_type:
               message:
                 type: long
 
-
   - do:
       bulk:
         index: test1
@@ -338,7 +337,7 @@ same_name_different_type:
         - "No limit defined, adding default limit of \\[.*\\]"
       esql.query:
         body:
-          query: 'from test1,test2  '
+          query: 'from test1,test2'
   - match: { columns.0.name: message }
   - match: { columns.0.type: unsupported }
   - length: { values: 4 }

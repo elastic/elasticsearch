@@ -225,7 +225,7 @@ public class AutodetectMemoryLimitIT extends MlNativeAutodetectIntegTestCase {
         // Assert we haven't violated the limit too much
         GetJobsStatsAction.Response.JobStats jobStats = getJobStats(job.getId()).get(0);
         ModelSizeStats modelSizeStats = jobStats.getModelSizeStats();
-        assertThat(modelSizeStats.getModelBytes(), lessThan(120000000L));
+        assertThat(modelSizeStats.getModelBytes(), lessThan(120500000L));
         assertThat(modelSizeStats.getModelBytes(), greaterThan(90000000L));
         assertThat(modelSizeStats.getMemoryStatus(), equalTo(ModelSizeStats.MemoryStatus.HARD_LIMIT));
     }

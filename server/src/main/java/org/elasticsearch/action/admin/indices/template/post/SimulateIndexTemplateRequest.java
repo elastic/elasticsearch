@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.template.post;
@@ -30,6 +31,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
     private boolean includeDefaults = false;
 
     public SimulateIndexTemplateRequest(String indexName) {
+        super(TRAPPY_IMPLICIT_DEFAULT_MASTER_NODE_TIMEOUT);
         if (Strings.isNullOrEmpty(indexName)) {
             throw new IllegalArgumentException("index name cannot be null or empty");
         }
@@ -40,7 +42,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super(in);
         indexName = in.readString();
         indexTemplateRequest = in.readOptionalWriteable(TransportPutComposableIndexTemplateAction.Request::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             includeDefaults = in.readBoolean();
         }
     }
@@ -50,7 +52,7 @@ public class SimulateIndexTemplateRequest extends MasterNodeReadRequest<Simulate
         super.writeTo(out);
         out.writeString(indexName);
         out.writeOptionalWriteable(indexTemplateRequest);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_500_020)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_9_X)) {
             out.writeBoolean(includeDefaults);
         }
     }

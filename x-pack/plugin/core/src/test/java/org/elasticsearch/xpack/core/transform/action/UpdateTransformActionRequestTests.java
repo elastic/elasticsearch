@@ -26,12 +26,7 @@ public class UpdateTransformActionRequestTests extends AbstractWireSerializingTr
 
     @Override
     protected Request createTestInstance() {
-        Request request = new Request(
-            randomTransformConfigUpdate(),
-            randomAlphaOfLength(10),
-            randomBoolean(),
-            TimeValue.parseTimeValue(randomTimeValue(), "timeout")
-        );
+        Request request = new Request(randomTransformConfigUpdate(), randomAlphaOfLength(10), randomBoolean(), randomTimeValue());
         if (randomBoolean()) {
             request.setConfig(TransformConfigTests.randomTransformConfig());
         }

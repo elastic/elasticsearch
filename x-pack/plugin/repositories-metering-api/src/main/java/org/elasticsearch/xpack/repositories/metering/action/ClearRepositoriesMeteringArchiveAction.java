@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.ActionType;
-import org.elasticsearch.common.io.stream.Writeable;
 
 public final class ClearRepositoriesMeteringArchiveAction extends ActionType<RepositoriesMeteringResponse> {
     public static final ClearRepositoriesMeteringArchiveAction INSTANCE = new ClearRepositoriesMeteringArchiveAction();
@@ -16,6 +15,6 @@ public final class ClearRepositoriesMeteringArchiveAction extends ActionType<Rep
     static final String NAME = "cluster:monitor/xpack/repositories_metering/clear_metering_archive";
 
     ClearRepositoriesMeteringArchiveAction() {
-        super(NAME, Writeable.Reader.localOnly());
+        super(NAME);
     }
 }

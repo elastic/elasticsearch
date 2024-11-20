@@ -36,7 +36,7 @@ import java.util.Objects;
 public final class EnrichPolicy implements Writeable, ToXContentFragment {
 
     private static final String ELASTICEARCH_VERSION_DEPRECATION_MESSAGE =
-        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in Elasticsearch 9.0";
+        "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in a future version of Elasticsearch";
 
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(EnrichPolicy.class);
 
@@ -117,7 +117,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         this.indices = in.readStringCollectionAsList();
         this.matchField = in.readString();
         this.enrichFields = in.readStringCollectionAsList();
-        if (in.getTransportVersion().before(TransportVersions.ENRICH_ELASTICSEARCH_VERSION_REMOVED)) {
+        if (in.getTransportVersion().before(TransportVersions.V_8_12_0)) {
             // consume the passed-in meaningless version that old elasticsearch clusters will send
             Version.readVersion(in);
         }
@@ -208,7 +208,7 @@ public final class EnrichPolicy implements Writeable, ToXContentFragment {
         out.writeStringCollection(indices);
         out.writeString(matchField);
         out.writeStringCollection(enrichFields);
-        if (out.getTransportVersion().before(TransportVersions.ENRICH_ELASTICSEARCH_VERSION_REMOVED)) {
+        if (out.getTransportVersion().before(TransportVersions.V_8_12_0)) {
             // emit the current version of elasticsearch for bwc serialization reasons
             Version.writeVersion(Version.CURRENT, out);
         }

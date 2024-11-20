@@ -7,6 +7,8 @@
 
 package org.elasticsearch.compute.data;
 
+import org.elasticsearch.common.unit.ByteSizeValue;
+import org.elasticsearch.core.ReleasableIterator;
 import org.elasticsearch.core.Releasables;
 
 /**
@@ -21,7 +23,6 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
      * @param vector considered owned by the current block; must not be used in any other {@code Block}
      */
     IntVectorBlock(IntVector vector) {
-        super(vector.getPositionCount(), vector.blockFactory());
         this.vector = vector;
     }
 
@@ -36,7 +37,7 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     }
 
     @Override
-    public int getTotalValueCount() {
+    public int getPositionCount() {
         return vector.getPositionCount();
     }
 
@@ -48,6 +49,22 @@ public final class IntVectorBlock extends AbstractVectorBlock implements IntBloc
     @Override
     public IntBlock filter(int... positions) {
         return vector.filter(positions).asBlock();
+    }
+
+    @Override
+    public IntBlock keepMask(BooleanVector mask) {
+        return vector.keepMask(mask);
+    }
+
+    @Override
+    public ReleasableIterator<? extends IntBlock> lookup(IntBlock positions, ByteSizeValue targetBlockSize) {
+        return vector.lookup(positions, targetBlockSize);
+    }
+
+    @Override
+    public IntBlock expand() {
+        incRef();
+        return this;
     }
 
     @Override

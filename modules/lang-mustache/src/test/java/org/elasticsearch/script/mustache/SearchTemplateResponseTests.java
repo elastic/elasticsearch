@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script.mustache;
@@ -63,7 +64,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
                     contentType
                 )
             ) {
-                searchTemplateResponse.setResponse(SearchResponse.fromXContent(searchResponseParser));
+                searchTemplateResponse.setResponse(SearchResponseUtils.parseSearchResponse(searchResponseParser));
             }
         }
         return searchTemplateResponse;
@@ -137,7 +138,7 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
             SearchResponse expectedResponse = expectedInstance.getResponse();
             SearchResponse newResponse = newInstance.getResponse();
 
-            assertEquals(expectedResponse.getHits().getTotalHits().value, newResponse.getHits().getTotalHits().value);
+            assertEquals(expectedResponse.getHits().getTotalHits().value(), newResponse.getHits().getTotalHits().value());
             assertEquals(expectedResponse.getHits().getMaxScore(), newResponse.getHits().getMaxScore(), 0.0001);
         }
     }
@@ -182,12 +183,12 @@ public class SearchTemplateResponseTests extends AbstractXContentTestCase<Search
     }
 
     public void testSearchResponseToXContent() throws IOException {
-        SearchHit hit = new SearchHit(1, "id");
+        SearchHit hit = SearchHit.unpooled(1, "id");
         hit.score(2.0f);
         SearchHit[] hits = new SearchHit[] { hit };
 
         SearchResponse searchResponse = new SearchResponse(
-            new SearchHits(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
+            SearchHits.unpooled(hits, new TotalHits(100, TotalHits.Relation.EQUAL_TO), 1.5f),
             null,
             null,
             false,

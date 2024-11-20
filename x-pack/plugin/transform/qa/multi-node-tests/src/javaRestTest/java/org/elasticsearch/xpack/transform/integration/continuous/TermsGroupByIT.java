@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.transform.integration.continuous;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
@@ -26,7 +25,6 @@ import java.util.Set;
 
 import static org.hamcrest.Matchers.equalTo;
 
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/97263")
 public class TermsGroupByIT extends ContinuousTestCase {
 
     private static final String NAME = "continuous-terms-pivot-test";

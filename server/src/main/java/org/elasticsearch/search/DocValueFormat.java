@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search;
@@ -11,7 +12,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.common.bytes.BytesArray;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -19,10 +20,11 @@ import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.time.DateMathParser;
+import org.elasticsearch.common.util.LocaleUtils;
 import org.elasticsearch.geometry.utils.Geohash;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.RoutingPathFields;
 import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper;
-import org.elasticsearch.index.mapper.TimeSeriesIdFieldMapper.TimeSeriesIdBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 
 import java.io.IOException;
@@ -167,6 +169,31 @@ public interface DocValueFormat extends NamedWriteable {
         }
     };
 
+    DocValueFormat DENSE_VECTOR = DenseVectorDocValueFormat.INSTANCE;
+
+    /**
+     * Singleton, stateless formatter, for dense vector values, no need to actually format anything
+     */
+    class DenseVectorDocValueFormat implements DocValueFormat {
+
+        public static final DocValueFormat INSTANCE = new DenseVectorDocValueFormat();
+
+        private DenseVectorDocValueFormat() {}
+
+        @Override
+        public String getWriteableName() {
+            return "dense_vector";
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) {}
+
+        @Override
+        public String toString() {
+            return "dense_vector";
+        }
+    };
+
     DocValueFormat BINARY = BinaryDocValueFormat.INSTANCE;
 
     /**
@@ -234,11 +261,14 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatSortValues = formatSortValues;
         }
 
-        public DateTime(StreamInput in) throws IOException {
+        private DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
+            Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
+                ? LocaleUtils.parse(in.readString())
+                : DateFieldMapper.DEFAULT_LOCALE;
             String zoneId = in.readString();
             this.timeZone = ZoneId.of(zoneId);
-            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone);
+            this.formatter = DateFormatter.forPattern(formatterPattern).withZone(this.timeZone).withLocale(locale);
             this.parser = formatter.toDateMathParser();
             this.resolution = DateFieldMapper.Resolution.ofOrdinal(in.readVInt());
             if (in.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
@@ -256,9 +286,20 @@ public interface DocValueFormat extends NamedWriteable {
             return NAME;
         }
 
+        public static DateTime readFrom(StreamInput in) throws IOException {
+            final DateTime dateTime = new DateTime(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(dateTime);
+            }
+            return dateTime;
+        }
+
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             out.writeString(formatter.pattern());
+            if (out.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)) {
+                out.writeString(formatter.locale().toString());
+            }
             out.writeString(timeZone.getId());
             out.writeVInt(resolution.ordinal());
             if (out.getTransportVersion().between(TransportVersions.V_7_7_0, TransportVersions.V_8_0_0)) {
@@ -496,13 +537,21 @@ public interface DocValueFormat extends NamedWriteable {
             this.format = new DecimalFormat(pattern, SYMBOLS);
         }
 
-        public Decimal(StreamInput in) throws IOException {
+        private Decimal(StreamInput in) throws IOException {
             this(in.readString());
         }
 
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public static Decimal readFrom(StreamInput in) throws IOException {
+            final Decimal decimal = new Decimal(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(decimal);
+            }
+            return decimal;
         }
 
         @Override
@@ -671,6 +720,8 @@ public interface DocValueFormat extends NamedWriteable {
      * DocValues format for time series id.
      */
     class TimeSeriesIdDocValueFormat implements DocValueFormat {
+        private static final Base64.Decoder BASE64_DECODER = Base64.getUrlDecoder();
+
         private TimeSeriesIdDocValueFormat() {}
 
         @Override
@@ -686,39 +737,68 @@ public interface DocValueFormat extends NamedWriteable {
             return "tsid";
         }
 
+        /**
+         * @param value The TSID as a {@link BytesRef}
+         * @return the Base 64 encoded TSID
+         */
         @Override
         public Object format(BytesRef value) {
-            return TimeSeriesIdFieldMapper.decodeTsid(new BytesArray(value).streamInput());
+            try {
+                // NOTE: if the tsid is a map of dimension key/value pairs (as it was before introducing
+                // tsid hashing) we just decode the map and return it.
+                return RoutingPathFields.decodeAsMap(value);
+            } catch (Exception e) {
+                // NOTE: otherwise the _tsid field is just a hash and we can't decode it
+                return TimeSeriesIdFieldMapper.encodeTsid(value);
+            }
         }
 
         @Override
         public BytesRef parseBytesRef(Object value) {
+            if (value instanceof BytesRef valueAsBytesRef) {
+                return valueAsBytesRef;
+            }
+            if (value instanceof String valueAsString) {
+                return new BytesRef(BASE64_DECODER.decode(valueAsString));
+            }
+            return parseBytesRefMap(value);
+        }
+
+        /**
+         * After introducing tsid hashing this tsid parsing logic is deprecated.
+         * Tsid hashing does not allow us to parse the tsid extracting dimension fields key/values pairs.
+         * @param value The Map encoding tsid dimension fields key/value pairs.
+         *
+         * @return a {@link BytesRef} representing a map of key/value pairs
+         */
+        private BytesRef parseBytesRefMap(Object value) {
             if (value instanceof Map<?, ?> == false) {
                 throw new IllegalArgumentException("Cannot parse tsid object [" + value + "]");
             }
 
             Map<?, ?> m = (Map<?, ?>) value;
-            TimeSeriesIdBuilder builder = new TimeSeriesIdBuilder(null);
+            RoutingPathFields routingPathFields = new RoutingPathFields(null);
             for (Map.Entry<?, ?> entry : m.entrySet()) {
                 String f = entry.getKey().toString();
                 Object v = entry.getValue();
 
                 if (v instanceof String s) {
-                    builder.addString(f, s);
+                    routingPathFields.addString(f, s);
                 } else if (v instanceof Long l) {
-                    builder.addLong(f, l);
+                    routingPathFields.addLong(f, l);
                 } else if (v instanceof Integer i) {
-                    builder.addLong(f, i.longValue());
+                    routingPathFields.addLong(f, i.longValue());
                 } else if (v instanceof BigInteger ul) {
                     long ll = UNSIGNED_LONG_SHIFTED.parseLong(ul.toString(), false, () -> 0L);
-                    builder.addUnsignedLong(f, ll);
+                    routingPathFields.addUnsignedLong(f, ll);
                 } else {
                     throw new IllegalArgumentException("Unexpected value in tsid object [" + v + "]");
                 }
             }
 
             try {
-                return builder.build().toBytesRef();
+                // NOTE: we can decode the tsid only if it is not hashed (represented as a map)
+                return TimeSeriesIdFieldMapper.buildLegacyTsid(routingPathFields).toBytesRef();
             } catch (IOException e) {
                 throw new IllegalArgumentException(e);
             }

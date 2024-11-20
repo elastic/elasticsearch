@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.aggregations.bucket.histogram;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.aggregations.bucket.AggregationMultiBucketAggregationTestCase;
 import org.elasticsearch.aggregations.bucket.histogram.AutoDateHistogramAggregationBuilder.RoundingInfo;
@@ -21,14 +21,12 @@ import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.search.DocValueFormat;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.AggregationBuilder;
 import org.elasticsearch.search.aggregations.InternalAggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.histogram.DateHistogramInterval;
 import org.elasticsearch.search.aggregations.bucket.histogram.Histogram;
-import org.elasticsearch.test.TransportVersionUtils;
-import org.elasticsearch.xcontent.ContextParser;
+import org.elasticsearch.test.InternalAggregationTestCase;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -54,11 +52,6 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.mockito.Mockito.mock;
 
 public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggregationTestCase<InternalAutoDateHistogram> {
-
-    @Override
-    protected Map.Entry<String, ContextParser<Object, Aggregation>> getParser() {
-        return Map.entry(AutoDateHistogramAggregationBuilder.NAME, (p, c) -> ParsedAutoDateHistogram.fromXContent(p, (String) c));
-    }
 
     protected InternalAutoDateHistogram createTestInstance(
         String name,
@@ -275,11 +268,6 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
     }
 
     @Override
-    protected Class<ParsedAutoDateHistogram> implementationClass() {
-        return ParsedAutoDateHistogram.class;
-    }
-
-    @Override
     protected InternalAutoDateHistogram mutateInstance(InternalAutoDateHistogram instance) {
         String name = instance.getName();
         List<InternalAutoDateHistogram.Bucket> buckets = instance.getBuckets();
@@ -433,7 +421,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
 
         InternalAutoDateHistogram reduce() {
             assertThat("finishShardResult must be called before reduce", buckets, empty());
-            return (InternalAutoDateHistogram) results.get(0).reduce(results, emptyReduceContextBuilder().forFinalReduction());
+            return (InternalAutoDateHistogram) InternalAggregationTestCase.reduce(results, emptyReduceContextBuilder().forFinalReduction());
         }
     }
 
@@ -469,33 +457,6 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
         assertThat(copy.getInterval(), equalTo(orig.getInterval()));
     }
 
-    public void testSerializationPre830() throws IOException {
-        // we need to test without sub-aggregations, otherwise we need to also update the interval within the inner aggs
-        InternalAutoDateHistogram instance = createTestInstance(
-            randomAlphaOfLengthBetween(3, 7),
-            createTestMetadata(),
-            InternalAggregations.EMPTY
-        );
-        TransportVersion version = TransportVersionUtils.randomVersionBetween(
-            random(),
-            TransportVersions.MINIMUM_COMPATIBLE,
-            TransportVersionUtils.getPreviousVersion(TransportVersions.V_8_3_0)
-        );
-        InternalAutoDateHistogram deserialized = copyInstance(instance, version);
-        assertEquals(1, deserialized.getBucketInnerInterval());
-
-        InternalAutoDateHistogram modified = new InternalAutoDateHistogram(
-            deserialized.getName(),
-            deserialized.getBuckets(),
-            deserialized.getTargetBuckets(),
-            deserialized.getBucketInfo(),
-            deserialized.getFormatter(),
-            deserialized.getMetadata(),
-            instance.getBucketInnerInterval()
-        );
-        assertEqualInstances(instance, modified);
-    }
-
     public void testReadFromPre830() throws IOException {
         byte[] bytes = Base64.getDecoder()
             .decode(
@@ -512,7 +473,7 @@ public class InternalAutoDateHistogramTests extends AggregationMultiBucketAggreg
             assertEquals(1, deserialized.getBuckets().size());
             InternalAutoDateHistogram.Bucket bucket = deserialized.getBuckets().iterator().next();
             assertEquals(10, bucket.key);
-            assertEquals(100, bucket.docCount);
+            assertEquals(100, bucket.getDocCount());
         }
     }
 }

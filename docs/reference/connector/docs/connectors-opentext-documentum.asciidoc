@@ -1,0 +1,162 @@
+[#es-connectors-opentext]
+=== Elastic OpenText Documentum connector reference
+++++
+<titleabbrev>OpenText Documentum</titleabbrev>
+++++
+
+// Attributes used in this file
+:service-name: OpenText Documentum
+:service-name-stub: opentext_documentum
+
+[WARNING]
+====
+This connector is an *example connector* that serves as a building block for customizations and is subject to change.
+Its source code currently lives on a https://github.com/elastic/connectors/blob/opentext-connector-backup/connectors/sources/opentext_documentum.py[feature branch] and is yet not part of the main Elastic Connectors codebase.
+The design and code is less mature than supported features and is being provided as-is with no warranties. 
+This connector is not subject to the support SLA of supported features.
+====
+
+The Elastic OpenText Documentum connector is written in Python using the https://github.com/elastic/connectors/tree/main?tab=readme-ov-file#connector-framework[Elastic connector framework]. View the https://github.com/elastic/connectors/blob/opentext-connector-backup/connectors/sources/opentext_documentum.py[source code] for this example connector.
+
+[discrete#es-connectors-opentext-documentum-connector-availability-and-prerequisites]
+==== Availability and prerequisites
+
+This *example connector* was introduced in Elastic *8.14.0*, available as a *self-managed* self-managed connector on a feature branch, for testing and development purposes only.
+
+To use this connector, satisfy all <<es-build-connector, self-managed connector prerequisites>>.
+Importantly, you must deploy the connectors service on your own infrastructure.
+You have two deployment options:
+
+* <<es-connectors-run-from-source, Run connectors service from source>>. Use this option if you're comfortable working with Python and want to iterate quickly locally.
+* <<es-connectors-run-from-docker, Run connectors service in Docker>>. Use this option if you want to deploy the connectors to a server, or use a container orchestration platform.
+
+[discrete#es-connectors-opentext-documentum-connector-usage]
+==== Usage
+
+To set up this connector in the UI, select the *OpenText Documentum* tile when creating a new connector under *Search -> Connectors*.
+
+If you're already familiar with how connectors work, you can also use the {ref}/connector-apis.html[Connector APIs].
+
+For additional operations, see <<es-connectors-usage>>.
+
+[discrete#es-connectors-opentext-documentum-connector-connecting-to-opentext-documentum]
+==== Connecting to OpenText Documentum
+
+Basic authentication is used to connect with OpenText Documentum.
+
+[discrete#es-connectors-opentext-documentum-connector-configuration]
+==== Configuration
+
+[discrete#es-connectors-opentext-documentum-connector-configure-opentext-documentum-connector]
+===== Configure OpenText Documentum connector
+
+Note the following configuration fields:
+
+`OpenText Documentum host url` (required)::
+The domain where OpenText Documentum is hosted.
+Example: `https://192.158.1.38:2099/`
+
+`Username` (required)::
+The username of the account to connect to OpenText Documentum.
+
+`Password` (required)::
+The password of the account to connect to OpenText Documentum.
+
+`Repositories` (optional)::
+Comma-separated list of repositories to fetch data from OpenText Documentum. If the value is `*` the connector will fetch data from all repositories present in the configured user’s account.
++
+Default value is `*`.
++
+Examples:
++
+* `elastic`, `kibana`
+* `*`
+
+`Enable SSL` (optional)::
+Enable SSL for the OpenText Documentum instance.
+
+`SSL Certificate` (Required if SSL is enabled)::
+SSL certificate for the OpenText Documentum instance.
+Example:
++
+```
+-----BEGIN CERTIFICATE-----
+MIID+jCCAuKgAwIBAgIGAJJMzlxLMA0GCSqGSIb3DQEBCwUAMHoxCzAJBgNVBAYT
+...
+7RhLQyWn2u00L7/9Omw=
+-----END CERTIFICATE-----
+```
+
+[discrete#es-connectors-opentext-documentum-connector-content-extraction]
+===== Content Extraction
+
+Refer to <<es-connectors-content-extraction,content extraction>>.
+
+[discrete#es-connectors-opentext-documentum-connector-documents-and-syncs]
+==== Documents and syncs
+
+The connector syncs the following objects and entities:
+
+* *Repositories*
+* *Cabinets*
+* *Files & Folders*
+
+[NOTE]
+====
+* Files bigger than 10 MB won't be extracted.
+* Permissions are not synced. *All documents* indexed to an Elastic deployment will be visible to *all users with access* to the destination Elasticsearch index.
+====
+
+[discrete#es-connectors-opentext-documentum-connector-sync-types]
+===== Sync types
+<<es-connectors-sync-types-full,Full syncs>> are supported by default for all connectors.
+
+<<es-connectors-sync-types-incremental,Incremental syncs>> are not available for this connector in the present version.
+
+[discrete#es-connectors-opentext-documentum-connector-sync-rules]
+==== Sync rules
+
+<<es-sync-rules-basic,Basic sync rules>> are identical for all connectors and are available by default.
+
+Advanced sync rules are not available for this connector in the present version.
+
+[discrete#es-connectors-opentext-documentum-connector-connector-client-operations]
+==== Connector Client operations
+
+[discrete#es-connectors-opentext-documentum-connector-end-to-end-testing]
+===== End-to-end Testing
+
+The connector framework enables operators to run functional tests against a real data source, using Docker Compose.
+You don't need a running Elasticsearch instance or OpenText Documentum source to run this test.
+
+Refer to <<es-build-connector-testing>> for more details.
+
+To perform E2E testing for the OpenText Documentum connector, run the following command:
+
+```shell
+$ make ftest NAME=opentext_documentum
+```
+For faster tests, add the `DATA_SIZE=small` flag:
+
+[source,shell]
+----
+make ftest NAME=opentext_documentum DATA_SIZE=small
+----
+
+By default, `DATA_SIZE=MEDIUM`.
+
+
+[discrete#es-connectors-opentext-documentum-connector-known-issues]
+==== Known issues
+
+* There are no known issues for this connector. Refer to <<es-connectors-known-issues>> for a list of known issues for all connectors.
+
+[discrete#es-connectors-opentext-documentum-connector-troubleshooting]
+==== Troubleshooting
+
+See <<es-connectors-troubleshooting>>.
+
+[discrete#es-connectors-opentext-documentum-connector-security]
+==== Security
+
+See <<es-connectors-security>>.

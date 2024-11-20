@@ -244,7 +244,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
         Function<List<B>, InternalAggregation> resultBuilder
     ) throws IOException {
         try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(owningBucketOrds.size() * bucketsPerOwningBucketOrd)) {
-            int[] bucketOrdIdx = new int[] { 0 };
+            final int[] bucketOrdIdx = new int[] { 0 };
             for (long i = 0; i < owningBucketOrds.size(); i++) {
                 long ord = owningBucketOrds.get(i) * bucketsPerOwningBucketOrd;
                 for (int offsetInOwningOrd = 0; offsetInOwningOrd < bucketsPerOwningBucketOrd; offsetInOwningOrd++) {
@@ -330,7 +330,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
                 );
             }
             try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(totalOrdsToCollect)) {
-                int[] b = new int[] { 0 };
+                final int[] b = new int[] { 0 };
                 for (long i = 0; i < owningBucketOrds.size(); i++) {
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(i));
                     while (ordsEnum.next()) {
@@ -421,7 +421,7 @@ public abstract class BucketsAggregator extends AggregatorBase {
 
     /** This method should be call whenever a new bucket object is created. It will che k the real memory
      * circuit breaker in a sampling fashion. See {@link #checkRealMemoryCB(String)} */
-    protected void checkRealMemoryCBForInternalBucket() {
+    protected final void checkRealMemoryCBForInternalBucket() {
         checkRealMemoryCB("internal_bucket");
     }
 }

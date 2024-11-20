@@ -144,8 +144,12 @@ setup:
 ---
 "Test random_sampler aggregation with scored subagg":
   - requires:
-      cluster_features: ["gte_v8.2.0"]
-      reason: added in 8.2.0
+      capabilities:
+        - method: POST
+          path: /_search
+          capabilities: [ random_sampler_with_scored_subaggs ]
+      test_runner_features: capabilities
+      reason: "Support for random sampler with scored subaggs capability required"
   - do:
       search:
         index: data

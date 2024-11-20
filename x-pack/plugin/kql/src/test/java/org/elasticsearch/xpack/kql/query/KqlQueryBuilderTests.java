@@ -22,7 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.hamcrest.Matchers;
-import org.junit.Before;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -36,8 +36,8 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder> {
-    @Before
-    protected void ensureSnapshotBuild() {
+    @BeforeClass
+    protected static void ensureSnapshotBuild() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
     }
 

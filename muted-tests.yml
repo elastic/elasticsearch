@@ -365,6 +365,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.analysis.VerifierTests
   method: testCategorizeNestedGrouping
   issue: https://github.com/elastic/elasticsearch/issues/116858
+- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
+  method: testCategorizeSingleGrouping
+  issue: https://github.com/elastic/elasticsearch/issues/116857
 
 # Examples:
 #

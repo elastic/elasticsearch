@@ -27,6 +27,7 @@ import java.util.List;
 import java.util.Map;
 
 public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExecutor<ReindexDataStreamTaskParams> {
+    private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
@@ -76,20 +77,45 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                     .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
                     .toList();
                 reindexDataStreamTask.setPendingIndices(indicesToBeReindexed.stream().map(Index::getName).toList());
-                PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
-                    .getMetadata()
-                    .custom(PersistentTasksCustomMetadata.TYPE);
-                PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
-                    reindexDataStreamTask.getPersistentTaskId()
-                );
-                reindexDataStreamTask.updatePersistentTaskState(new ReindexDataStreamPersistentTaskState(), ActionListener.noop());
                 for (Index index : indicesToBeReindexed) {
                     // TODO This is just a placeholder. This is where the real data stream reindex logic will go
                 }
-                reindexDataStreamTask.markAsCompleted();
+
+                completeSuccessfulPersistentTask(reindexDataStreamTask);
             } else {
-                reindexDataStreamTask.markAsFailed(new ElasticsearchException("data stream does not exist"));
+                completeFailedPersistentTask(reindexDataStreamTask, new ElasticsearchException("data stream does not exist"));
             }
         }, reindexDataStreamTask::markAsFailed));
+    }
+
+    private void completeSuccessfulPersistentTask(ReindexDataStreamTask persistentTask) {
+        persistentTask.reindexSucceeded();
+        threadPool.schedule(persistentTask::markAsCompleted, getTimeToLive(persistentTask), threadPool.generic());
+    }
+
+    private void completeFailedPersistentTask(ReindexDataStreamTask persistentTask, Exception e) {
+        persistentTask.reindexFailed(e);
+        threadPool.schedule(() -> persistentTask.markAsFailed(e), getTimeToLive(persistentTask), threadPool.generic());
+    }
+
+    private TimeValue getTimeToLive(ReindexDataStreamTask reindexDataStreamTask) {
+        PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
+            .getMetadata()
+            .custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
+            reindexDataStreamTask.getPersistentTaskId()
+        );
+        PersistentTaskState state = persistentTask.getState();
+        final long completionTime;
+        if (state == null) {
+            completionTime = threadPool.absoluteTimeInMillis();
+            reindexDataStreamTask.updatePersistentTaskState(
+                new ReindexDataStreamPersistentTaskState(completionTime),
+                ActionListener.noop()
+            );
+        } else {
+            completionTime = ((ReindexDataStreamPersistentTaskState) state).completionTime();
+        }
+        return TimeValue.timeValueMillis(TASK_KEEP_ALIVE_TIME.millis() - (threadPool.absoluteTimeInMillis() - completionTime));
     }
 }

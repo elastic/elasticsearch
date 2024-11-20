@@ -9,7 +9,6 @@
 
 package org.elasticsearch.datastreams.task;
 
-import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.tasks.TaskId;
@@ -21,7 +20,6 @@ import java.util.Map;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
-    private static final TimeValue TASK_KEEP_ALIVE_TIME = TimeValue.timeValueDays(1);
     private final long persistentTaskStartTime;
     private final int totalIndices;
     private final int totalIndicesToBeUpgraded;
@@ -65,17 +63,13 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
         );
     }
 
-    @Override
-    public void markAsCompleted() {
+    public void reindexSucceeded() {
         this.complete = true;
-        threadPool.schedule(super::markAsCompleted, TASK_KEEP_ALIVE_TIME, threadPool.generic());
     }
 
-    @Override
-    public void markAsFailed(Exception e) {
+    public void reindexFailed(Exception e) {
         this.complete = true;
         this.exception = e;
-        threadPool.schedule(() -> super.markAsFailed(e), TASK_KEEP_ALIVE_TIME, threadPool.generic());
     }
 
     public void setInProgressIndices(List<String> inProgressIndices) {

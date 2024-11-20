@@ -293,6 +293,9 @@ tests:
 - class: org.elasticsearch.upgrades.DownsampleIT
   method: testRollupIndex {upgradedNodes=2}
   issue: https://github.com/elastic/elasticsearch/issues/117124
+- class: org.elasticsearch.upgrades.IndexingIT
+  method: testAutoIdWithOpTypeCreate {upgradedNodes=1}
+  issue: https://github.com/elastic/elasticsearch/issues/117125
 
 # Examples:
 #

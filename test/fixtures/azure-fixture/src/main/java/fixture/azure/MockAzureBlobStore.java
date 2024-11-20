@@ -135,7 +135,10 @@ public class MockAzureBlobStore {
                 return true;
             }
             return false;
-        }).peek(e -> e.getValue().assertCanRead(leaseId)).collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+        })
+            .filter(e -> e.getValue().isCommitted())
+            .peek(e -> e.getValue().assertCanRead(leaseId))
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
     public String acquireLease(String path, int leaseTimeSeconds, @Nullable String proposedLeaseId) {
@@ -181,6 +184,8 @@ public class MockAzureBlobStore {
         void assertCanRead(@Nullable String leaseId);
 
         void assertCanWrite(@Nullable String leaseId);
+
+        boolean isCommitted();
     }
 
     private abstract static class AbstractAzureBlob implements AzureBlob {
@@ -292,6 +297,11 @@ public class MockAzureBlobStore {
         @Override
         public BytesReference slice(int from, int length) {
             return contents.slice(from, length);
+        }
+
+        @Override
+        public boolean isCommitted() {
+            return contents != EMPTY;
         }
 
         @Override

@@ -138,12 +138,7 @@ public class InstrumenterImpl implements Instrumenter {
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
-                var key = new MethodKey(
-                    className,
-                    name,
-                    Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList(),
-                    isStatic
-                );
+                var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = instrumentationMethods.get(key);
                 if (instrumentationMethod != null) {
                     // LOGGER.debug("Will instrument method {}", key);

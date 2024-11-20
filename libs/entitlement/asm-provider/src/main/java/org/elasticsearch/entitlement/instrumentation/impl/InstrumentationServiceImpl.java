@@ -21,13 +21,11 @@ import org.objectweb.asm.Type;
 
 import java.io.IOException;
 import java.lang.reflect.Method;
-import java.lang.reflect.Modifier;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 public class InstrumentationServiceImpl implements InstrumentationService {
@@ -45,8 +43,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
         return new MethodKey(
             Type.getInternalName(targetMethod.getDeclaringClass()),
             targetMethod.getName(),
-            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList(),
-            Modifier.isStatic(targetMethod.getModifiers())
+            Stream.of(actualType.getArgumentTypes()).map(Type::getInternalName).toList()
         );
     }
 
@@ -86,9 +83,10 @@ public class InstrumentationServiceImpl implements InstrumentationService {
     private static final Type CLASS_TYPE = Type.getType(Class.class);
 
     static MethodKey parseCheckerMethodSignature(String checkerMethodName, Type[] checkerMethodArgumentTypes) {
+        var classNameStartIndex = checkerMethodName.indexOf('$');
+        var classNameEndIndex = checkerMethodName.lastIndexOf('$');
 
-        var methodNameTokens = checkerMethodName.split("\\$");
-        if (methodNameTokens.length < 3 || "check".equals(methodNameTokens[0]) == false) {
+        if (classNameStartIndex == -1 || classNameStartIndex >= classNameEndIndex) {
             throw new IllegalArgumentException(
                 String.format(
                     Locale.ROOT,
@@ -99,8 +97,9 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             );
         }
 
-        final boolean targetMethodIsStatic = (methodNameTokens.length == 3 && methodNameTokens[1].isEmpty()) == false;
-        final String targetMethodName = methodNameTokens[methodNameTokens.length - 1];
+        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
+        final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
+        final String targetMethodName = checkerMethodName.substring(classNameEndIndex + 1);
 
         final String targetClassName;
         final List<String> targetParameterTypes;
@@ -115,13 +114,8 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 );
             }
 
-            targetClassName = Arrays.stream(methodNameTokens)
-                .skip(1)
-                .limit(methodNameTokens.length - 2)
-                .map(s -> s.replace('_', '/'))
-                .collect(Collectors.joining("$"));
+            targetClassName = checkerMethodName.substring(classNameStartIndex + 1, classNameEndIndex).replace('_', '/');
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(1).map(Type::getInternalName).toList();
-
         } else {
             if (checkerMethodArgumentTypes.length < 2
                 || CLASS_TYPE.equals(checkerMethodArgumentTypes[0]) == false
@@ -140,6 +134,6 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             targetClassName = targetClassType.getInternalName();
             targetParameterTypes = Arrays.stream(checkerMethodArgumentTypes).skip(2).map(Type::getInternalName).toList();
         }
-        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes, targetMethodIsStatic);
+        return new MethodKey(targetClassName, targetMethodName, targetParameterTypes);
     }
 }

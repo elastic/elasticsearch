@@ -20,9 +20,7 @@ import java.util.List;
 import java.util.Map;
 
 import static org.hamcrest.Matchers.aMapWithSize;
-import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasEntry;
 
@@ -54,9 +52,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(
-                    new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"), true)
-                ),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethod", List.of("I", "java/lang/String", "java/lang/Object"))),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestChecker",
@@ -73,8 +69,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new MethodKey(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                         "instanceMethodNoArgs",
-                        List.of(),
-                        false
+                        List.of()
                     )
                 ),
                 equalTo(
@@ -96,8 +91,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
                     new MethodKey(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
                         "instanceMethodWithArgs",
-                        List.of("I", "I"),
-                        false
+                        List.of("I", "I")
                     )
                 ),
                 equalTo(
@@ -123,7 +117,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"), true)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "java/lang/String"))),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
@@ -136,7 +130,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         assertThat(
             methodsMap,
             hasEntry(
-                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"), true)),
+                equalTo(new MethodKey("org/example/TestTargetClass", "staticMethodWithOverload", List.of("I", "I"))),
                 equalTo(
                     new CheckerMethod(
                         "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerOverloads",
@@ -154,10 +148,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class) }
         );
 
-        assertTrue(methodKey.isStatic());
-        assertThat(methodKey.methodName(), equalTo("staticMethod"));
-        assertThat(methodKey.className(), equalTo("org/example/TestClass"));
-        assertThat(methodKey.parameterTypes(), empty());
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of())));
     }
 
     public void testParseCheckerMethodSignatureStaticMethodWithArgs() {
@@ -166,10 +157,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class), Type.getType("I"), Type.getType(String.class) }
         );
 
-        assertTrue(methodKey.isStatic());
-        assertThat(methodKey.methodName(), equalTo("staticMethod"));
-        assertThat(methodKey.className(), equalTo("org/example/TestClass"));
-        assertThat(methodKey.parameterTypes(), contains("I", "java/lang/String"));
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "staticMethod", List.of("I", "java/lang/String"))));
     }
 
     public void testParseCheckerMethodSignatureStaticMethodInnerClass() {
@@ -178,10 +166,7 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class) }
         );
 
-        assertTrue(methodKey.isStatic());
-        assertThat(methodKey.methodName(), equalTo("staticMethod"));
-        assertThat(methodKey.className(), equalTo("org/example/TestClass$InnerClass"));
-        assertThat(methodKey.parameterTypes(), empty());
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass$InnerClass", "staticMethod", List.of())));
     }
 
     public void testParseCheckerMethodSignatureIncorrectName() {
@@ -218,28 +203,34 @@ public class InstrumentationServiceImplTests extends ESTestCase {
             new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class) }
         );
 
-        assertFalse(methodKey.isStatic());
-        assertThat(methodKey.methodName(), equalTo("instanceMethod"));
         assertThat(
-            methodKey.className(),
-            equalTo("org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass")
+            methodKey,
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                    "instanceMethod",
+                    List.of()
+                )
+            )
         );
-        assertThat(methodKey.parameterTypes(), empty());
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodWithArgs() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
-            "check$$staticMethod",
+            "check$$instanceMethod",
             new Type[] { Type.getType(Class.class), Type.getType(TestTargetClass.class), Type.getType("I"), Type.getType(String.class) }
         );
 
-        assertFalse(methodKey.isStatic());
-        assertThat(methodKey.methodName(), equalTo("staticMethod"));
         assertThat(
-            methodKey.className(),
-            equalTo("org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass")
+            methodKey,
+            equalTo(
+                new MethodKey(
+                    "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestTargetClass",
+                    "instanceMethod",
+                    List.of("I", "java/lang/String")
+                )
+            )
         );
-        assertThat(methodKey.parameterTypes(), contains("I", "java/lang/String"));
     }
 
     public void testParseCheckerMethodSignatureInstanceMethodIncorrectArgumentTypes() {

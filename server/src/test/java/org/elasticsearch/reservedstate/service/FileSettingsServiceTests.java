@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.NodeConnectionsService;
+import org.elasticsearch.cluster.coordination.FailedToCommitClusterStateException;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -216,7 +217,7 @@ public class FileSettingsServiceTests extends ESTestCase {
         assertFalse(settingsChanged.get());
 
         verify(healthIndicatorService, times(1)).changeOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalStateException.class.getName())));
         verifyNoMoreInteractions(healthIndicatorService);
     }
 
@@ -342,7 +343,7 @@ public class FileSettingsServiceTests extends ESTestCase {
 
         verify(healthIndicatorService, times(2)).changeOccurred();
         verify(healthIndicatorService, times(1)).successOccurred();
-        verify(healthIndicatorService, times(1)).failureOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred(argThat(s -> s.startsWith(IllegalArgumentException.class.getName())));
         verifyNoMoreInteractions(healthIndicatorService);
     }
 
@@ -398,6 +399,9 @@ public class FileSettingsServiceTests extends ESTestCase {
         deadThreadLatch.countDown();
 
         verify(healthIndicatorService, times(1)).changeOccurred();
+        verify(healthIndicatorService, times(1)).failureOccurred(
+            argThat(s -> s.startsWith(FailedToCommitClusterStateException.class.getName()))
+        );
         verifyNoMoreInteractions(healthIndicatorService);
     }
 

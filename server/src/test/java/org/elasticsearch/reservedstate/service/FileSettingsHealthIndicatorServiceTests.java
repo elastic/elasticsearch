@@ -55,26 +55,26 @@ public class FileSettingsHealthIndicatorServiceTests extends ESTestCase {
             healthIndicatorService.calculate(false, null)
         );
 
-        healthIndicatorService.failureOccurred();
+        healthIndicatorService.failureOccurred("whoopsie 1");
         assertEquals(
             new HealthIndicatorResult(
                 "file_settings",
                 YELLOW,
                 FAILURE_SYMPTOM,
-                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L)),
+                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 1L, "most_recent_failure", "whoopsie 1")),
                 STALE_SETTINGS_IMPACT,
                 List.of()
             ),
             healthIndicatorService.calculate(false, null)
         );
 
-        healthIndicatorService.failureOccurred();
+        healthIndicatorService.failureOccurred("whoopsie #2");
         assertEquals(
             new HealthIndicatorResult(
                 "file_settings",
                 YELLOW,
                 FAILURE_SYMPTOM,
-                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 2L)),
+                new SimpleHealthIndicatorDetails(Map.of("failure_streak", 2L, "most_recent_failure", "whoopsie #2")),
                 STALE_SETTINGS_IMPACT,
                 List.of()
             ),

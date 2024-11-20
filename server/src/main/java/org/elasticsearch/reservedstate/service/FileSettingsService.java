@@ -38,6 +38,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.atomic.AtomicLong;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.health.HealthStatus.GREEN;
 import static org.elasticsearch.health.HealthStatus.YELLOW;
@@ -174,6 +175,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
     private void completeProcessing(Exception e, PlainActionFuture<Void> completion) {
         if (e != null) {
+            healthIndicatorService.failureOccurred(e.toString());
             completion.onFailure(e);
         } else {
             completion.onResponse(null);
@@ -184,11 +186,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
     @Override
     protected void onProcessFileChangesException(Exception e) {
         if (e instanceof ExecutionException) {
-            // Regarding failureStreak, we have three options:
-            // - If we consider the processing successful, reset failureStreak to zero
-            // - If we consider it a failure, increment failureStreak
-            // - If we want to ignore a certain type of exception, leave failureStreak as is
-            // Most commonly, exceptions we recognize and handle here are cases we want to ignore.
             var cause = e.getCause();
             if (cause instanceof FailedToCommitClusterStateException) {
                 logger.error("Unable to commit cluster state", e);
@@ -201,7 +198,6 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                 return;
             }
         }
-        healthIndicatorService.failureOccurred();
         super.onProcessFileChangesException(e);
     }
 
@@ -231,6 +227,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
 
         private final AtomicLong changeCount = new AtomicLong(0);
         private final AtomicLong failureStreak = new AtomicLong(0);
+        private final AtomicReference<String> mostRecentFailure = new AtomicReference<>();
 
         public void changeOccurred() {
             changeCount.incrementAndGet();
@@ -240,8 +237,9 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
             failureStreak.set(0);
         }
 
-        public void failureOccurred() {
+        public void failureOccurred(String description) {
             failureStreak.incrementAndGet();
+            mostRecentFailure.set(description);
         }
 
         @Override
@@ -261,7 +259,7 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
                 return createIndicator(
                     YELLOW,
                     FAILURE_SYMPTOM,
-                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", numFailures)),
+                    new SimpleHealthIndicatorDetails(Map.of("failure_streak", numFailures, "most_recent_failure", mostRecentFailure.get())),
                     STALE_SETTINGS_IMPACT,
                     List.of()
                 );

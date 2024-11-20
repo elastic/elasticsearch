@@ -95,13 +95,13 @@ public class MockAzureBlobStore {
 
     public AzureBlob getBlob(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
-        azureBlob.assertCanRead(leaseId);
+        azureBlob.checkLeaseForRead(leaseId);
         return azureBlob;
     }
 
     public void deleteBlob(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
-        azureBlob.assertCanWrite(leaseId);
+        azureBlob.checkLeaseForWrite(leaseId);
         blobs.remove(path);
     }
 
@@ -113,7 +113,7 @@ public class MockAzureBlobStore {
             return false;
         })
             .filter(e -> e.getValue().isCommitted())
-            .peek(e -> e.getValue().assertCanRead(leaseId))
+            .peek(e -> e.getValue().checkLeaseForRead(leaseId))
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
     }
 
@@ -153,9 +153,9 @@ public class MockAzureBlobStore {
 
         void releaseLease(String leaseId);
 
-        void assertCanRead(@Nullable String leaseId);
+        void checkLeaseForRead(@Nullable String leaseId);
 
-        void assertCanWrite(@Nullable String leaseId);
+        void checkLeaseForWrite(@Nullable String leaseId);
 
         boolean isCommitted();
     }
@@ -180,12 +180,12 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public void assertCanRead(@Nullable String leaseId) {
+        public void checkLeaseForRead(@Nullable String leaseId) {
             lease.assertCanRead(leaseId);
         }
 
         @Override
-        public void assertCanWrite(@Nullable String leaseId) {
+        public void checkLeaseForWrite(@Nullable String leaseId) {
             lease.assertCanWrite(leaseId);
         }
     }

@@ -1443,8 +1443,9 @@ public class ProjectMetadata implements Iterable<IndexMetadata>, Diffable<Projec
             return true;
         }
 
-        public Metadata.ProjectCustom getCustom(String type) {
-            return customs.get(type);
+        @SuppressWarnings("unchecked")
+        public <T extends Metadata.ProjectCustom> T getCustom(String type) {
+            return (T) customs.get(type);
         }
 
         public Builder putCustom(String type, Metadata.ProjectCustom custom) {

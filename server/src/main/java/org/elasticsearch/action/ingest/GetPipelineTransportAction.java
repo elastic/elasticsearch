@@ -11,11 +11,13 @@ package org.elasticsearch.action.ingest;
 
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
-import org.elasticsearch.action.support.master.TransportMasterNodeReadAction;
+import org.elasticsearch.action.support.master.TransportMasterNodeReadProjectAction;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
@@ -24,7 +26,7 @@ import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.TransportService;
 
-public class GetPipelineTransportAction extends TransportMasterNodeReadAction<GetPipelineRequest, GetPipelineResponse> {
+public class GetPipelineTransportAction extends TransportMasterNodeReadProjectAction<GetPipelineRequest, GetPipelineResponse> {
 
     @Inject
     public GetPipelineTransportAction(
@@ -32,6 +34,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
         ClusterService clusterService,
         TransportService transportService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
@@ -41,6 +44,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
             threadPool,
             actionFilters,
             GetPipelineRequest::new,
+            projectResolver,
             indexNameExpressionResolver,
             GetPipelineResponse::new,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
@@ -48,7 +52,7 @@ public class GetPipelineTransportAction extends TransportMasterNodeReadAction<Ge
     }
 
     @Override
-    protected void masterOperation(Task task, GetPipelineRequest request, ClusterState state, ActionListener<GetPipelineResponse> listener)
+    protected void masterOperation(Task task, GetPipelineRequest request, ProjectState state, ActionListener<GetPipelineResponse> listener)
         throws Exception {
         listener.onResponse(new GetPipelineResponse(IngestService.getPipelines(state, request.getIds()), request.isSummary()));
     }

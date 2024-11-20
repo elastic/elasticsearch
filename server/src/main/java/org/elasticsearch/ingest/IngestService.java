@@ -33,13 +33,16 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,11 +50,13 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.FixForMultiProject;
@@ -125,7 +130,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
     // processor factories rely on other node services. Custom metadata is statically registered when classes
     // are loaded, so in the cluster state we just save the pipeline config and here we keep the actual pipelines around.
-    private volatile Map<String, PipelineHolder> pipelines = Map.of();
+    private volatile ImmutableOpenMap<ProjectId, ImmutableOpenMap<String, PipelineHolder>> pipelines = ImmutableOpenMap.of();
     private final ThreadPool threadPool;
     private final IngestMetric totalMetrics = new IngestMetric();
     private final FailureStoreMetrics failureStoreMetrics;
@@ -153,27 +158,36 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Cluster state task executor for ingest pipeline operations
      */
     static final ClusterStateTaskExecutor<PipelineClusterStateUpdateTask> PIPELINE_TASK_EXECUTOR = batchExecutionContext -> {
-        final var allIndexMetadata = batchExecutionContext.initialState().metadata().getProject().indices().values();
-        final IngestMetadata initialIngestMetadata = batchExecutionContext.initialState()
-            .metadata()
-            .getProject()
-            .custom(IngestMetadata.TYPE);
-        var currentIngestMetadata = initialIngestMetadata;
+        var state = batchExecutionContext.initialState();
+        Map<ProjectId, ProjectMetadata.Builder> builders = Maps.newHashMapWithExpectedSize(state.metadata().projects().size());
+        var changed = false;
         for (final var taskContext : batchExecutionContext.taskContexts()) {
             try {
                 final var task = taskContext.getTask();
+                final ProjectMetadata.Builder projectBuilder = builders.computeIfAbsent(
+                    task.projectId,
+                    k -> ProjectMetadata.builder(state.metadata().getProject(k))
+                );
+                final IngestMetadata currentIngestMetadata = projectBuilder.getCustom(IngestMetadata.TYPE);
+                final var allIndexMetadata = state.metadata().getProject(task.projectId).indices().values();
                 try (var ignored = taskContext.captureResponseHeaders()) {
-                    currentIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                    final var newIngestMetadata = task.execute(currentIngestMetadata, allIndexMetadata);
+                    if (newIngestMetadata != currentIngestMetadata) {
+                        projectBuilder.putCustom(IngestMetadata.TYPE, newIngestMetadata);
+                        changed = true;
+                    }
                 }
                 taskContext.success(() -> task.listener.onResponse(AcknowledgedResponse.TRUE));
             } catch (Exception e) {
                 taskContext.onFailure(e);
             }
         }
-        final var finalIngestMetadata = currentIngestMetadata;
-        return finalIngestMetadata == initialIngestMetadata
-            ? batchExecutionContext.initialState()
-            : batchExecutionContext.initialState().copyAndUpdateMetadata(b -> b.putCustom(IngestMetadata.TYPE, finalIngestMetadata));
+        if (changed == false) {
+            return state;
+        }
+        var stateBuilder = ClusterState.builder(state);
+        builders.values().forEach(stateBuilder::putProjectMetadata);
+        return stateBuilder.build();
     };
 
     /**
@@ -181,9 +195,11 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * These operations all receive an AcknowledgedResponse.
      */
     public abstract static class PipelineClusterStateUpdateTask implements ClusterStateTaskListener {
+        final ProjectId projectId;
         final ActionListener<AcknowledgedResponse> listener;
 
-        PipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener) {
+        PipelineClusterStateUpdateTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener) {
+            this.projectId = projectId;
             this.listener = listener;
         }
 
@@ -354,10 +370,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Deletes the pipeline specified by id in the request.
      */
-    public void delete(DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
+    public void delete(ProjectId projectId, DeletePipelineRequest request, ActionListener<AcknowledgedResponse> listener) {
         taskQueue.submitTask(
             "delete-pipeline-" + request.getId(),
-            new DeletePipelineClusterStateUpdateTask(listener, request),
+            new DeletePipelineClusterStateUpdateTask(projectId, listener, request),
             request.masterNodeTimeout()
         );
     }
@@ -368,8 +384,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static class DeletePipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final DeletePipelineRequest request;
 
-        public DeletePipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, DeletePipelineRequest request) {
-            super(listener);
+        public DeletePipelineClusterStateUpdateTask(
+            ProjectId projectId,
+            ActionListener<AcknowledgedResponse> listener,
+            DeletePipelineRequest request
+        ) {
+            super(projectId, listener);
             this.request = request;
         }
 
@@ -448,8 +468,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      */
     // Returning PipelineConfiguration instead of Pipeline, because Pipeline and Processor interface don't
     // know how to serialize themselves.
-    public static List<PipelineConfiguration> getPipelines(ClusterState clusterState, String... ids) {
-        IngestMetadata ingestMetadata = clusterState.getMetadata().getProject().custom(IngestMetadata.TYPE);
+    public static List<PipelineConfiguration> getPipelines(ProjectState state, String... ids) {
+        IngestMetadata ingestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         return innerGetPipelines(ingestMetadata, ids);
     }
 
@@ -485,11 +505,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
      * Stores the specified pipeline definition in the request.
      */
     public void putPipeline(
+        ProjectId projectId,
         PutPipelineRequest request,
         ActionListener<AcknowledgedResponse> listener,
         Consumer<ActionListener<NodesInfoResponse>> nodeInfoListener
     ) throws Exception {
-        if (isNoOpPipelineUpdate(state, request)) {
+        if (isNoOpPipelineUpdate(state.projectState(projectId), request)) {
             // existing pipeline matches request pipeline -- no need to update
             listener.onResponse(AcknowledgedResponse.TRUE);
             return;
@@ -500,7 +521,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
             taskQueue.submitTask(
                 "put-pipeline-" + request.getId(),
-                new PutPipelineClusterStateUpdateTask(l, request),
+                new PutPipelineClusterStateUpdateTask(projectId, l, request),
                 request.masterNodeTimeout()
             );
         }));
@@ -516,8 +537,8 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         validatePipeline(ingestInfos, request.getId(), config);
     }
 
-    public static boolean isNoOpPipelineUpdate(ClusterState state, PutPipelineRequest request) {
-        IngestMetadata currentIngestMetadata = state.metadata().getProject().custom(IngestMetadata.TYPE);
+    public static boolean isNoOpPipelineUpdate(ProjectState state, PutPipelineRequest request) {
+        IngestMetadata currentIngestMetadata = state.metadata().custom(IngestMetadata.TYPE);
         if (request.getVersion() == null
             && currentIngestMetadata != null
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
@@ -531,15 +552,21 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return false;
     }
 
+    @FixForMultiProject
+    @Deprecated
+    public Pipeline getPipeline(String id) {
+        return getPipeline(Metadata.DEFAULT_PROJECT_ID, id);
+    }
+
     /**
      * Returns the pipeline by the specified id
      */
-    public Pipeline getPipeline(String id) {
+    public Pipeline getPipeline(ProjectId projectId, String id) {
         if (id == null) {
             return null;
         }
 
-        PipelineHolder holder = pipelines.get(id);
+        PipelineHolder holder = pipelines.getOrDefault(projectId, ImmutableOpenMap.of()).get(id);
         if (holder != null) {
             return holder.pipeline;
         } else {
@@ -561,7 +588,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return new IngestInfo(processorInfoList);
     }
 
-    Map<String, PipelineHolder> pipelines() {
+    ImmutableOpenMap<ProjectId, ImmutableOpenMap<String, PipelineHolder>> pipelines() {
         return pipelines;
     }
 
@@ -615,16 +642,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public static class PutPipelineClusterStateUpdateTask extends PipelineClusterStateUpdateTask {
         private final PutPipelineRequest request;
 
-        PutPipelineClusterStateUpdateTask(ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
-            super(listener);
+        PutPipelineClusterStateUpdateTask(ProjectId projectId, ActionListener<AcknowledgedResponse> listener, PutPipelineRequest request) {
+            super(projectId, listener);
             this.request = request;
         }
 
         /**
          * Used by {@link org.elasticsearch.action.ingest.ReservedPipelineAction}
          */
-        public PutPipelineClusterStateUpdateTask(PutPipelineRequest request) {
-            this(null, request);
+        public PutPipelineClusterStateUpdateTask(ProjectId projectId, PutPipelineRequest request) {
+            this(projectId, null, request);
         }
 
         @Override
@@ -1133,10 +1160,12 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         });
     }
 
+    // Don't use default project id
+    @FixForMultiProject
     public IngestStats stats() {
         IngestStats.Builder statsBuilder = new IngestStats.Builder();
         statsBuilder.addTotalMetrics(totalMetrics);
-        pipelines.forEach((id, holder) -> {
+        pipelines.getOrDefault(Metadata.DEFAULT_PROJECT_ID, ImmutableOpenMap.of()).forEach((id, holder) -> {
             Pipeline pipeline = holder.pipeline;
             CompoundProcessor rootProcessor = pipeline.getCompoundProcessor();
             statsBuilder.addPipelineMetrics(id, pipeline.getMetrics());
@@ -1264,24 +1293,25 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // when only the part of the cluster state that a component is interested in, is updated.)
         ingestClusterStateListeners.forEach(consumer -> consumer.accept(state));
 
-        @FixForMultiProject
-        IngestMetadata newIngestMetadata = state.metadata().getSingleProjectCustom(IngestMetadata.TYPE);
-        if (newIngestMetadata == null) {
-            return;
-        }
+        for (ProjectMetadata project : state.getMetadata().projects().values()) {
+            IngestMetadata newIngestMetadata = project.custom(IngestMetadata.TYPE);
+            if (newIngestMetadata == null) {
+                continue;
+            }
 
-        try {
-            innerUpdatePipelines(newIngestMetadata);
-        } catch (ElasticsearchParseException e) {
-            logger.warn("failed to update ingest pipelines", e);
+            try {
+                innerUpdatePipelines(project.id(), newIngestMetadata);
+            } catch (ElasticsearchParseException e) {
+                logger.warn("failed to update ingest pipelines", e);
+            }
         }
     }
 
-    synchronized void innerUpdatePipelines(IngestMetadata newIngestMetadata) {
-        Map<String, PipelineHolder> existingPipelines = this.pipelines;
+    synchronized void innerUpdatePipelines(ProjectId projectId, IngestMetadata newIngestMetadata) {
+        Map<String, PipelineHolder> existingPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
 
         // Lazy initialize these variables in order to favour the most like scenario that there are no pipeline changes:
-        Map<String, PipelineHolder> newPipelines = null;
+        ImmutableOpenMap.Builder<String, PipelineHolder> newPipelines = null;
         List<ElasticsearchParseException> exceptions = null;
         // Iterate over pipeline configurations in ingest metadata and constructs a new pipeline if there is no pipeline
         // or the pipeline configuration has been modified
@@ -1292,7 +1322,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             }
 
             if (newPipelines == null) {
-                newPipelines = new HashMap<>(existingPipelines);
+                newPipelines = ImmutableOpenMap.builder(existingPipelines);
             }
             try {
                 Pipeline newPipeline = Pipeline.create(
@@ -1356,7 +1386,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         for (Map.Entry<String, PipelineHolder> entry : existingPipelines.entrySet()) {
             if (newIngestMetadata.getPipelines().get(entry.getKey()) == null) {
                 if (newPipelines == null) {
-                    newPipelines = new HashMap<>(existingPipelines);
+                    newPipelines = ImmutableOpenMap.builder(existingPipelines);
                 }
                 newPipelines.remove(entry.getKey());
             }
@@ -1364,7 +1394,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
         if (newPipelines != null) {
             // Update the pipelines:
-            this.pipelines = Map.copyOf(newPipelines);
+            this.pipelines = ImmutableOpenMap.builder(this.pipelines).fPut(projectId, newPipelines.build()).build();
 
             // Rethrow errors that may have occurred during creating new pipeline instances:
             if (exceptions != null) {
@@ -1375,14 +1405,16 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     /**
      * Gets all the Processors of the given type from within a Pipeline.
+     *
+     * @param projectId
      * @param pipelineId the pipeline to inspect
      * @param clazz the Processor class to look for
      * @return True if the pipeline contains an instance of the Processor class passed in
      */
-    public <P extends Processor> List<P> getProcessorsInPipeline(String pipelineId, Class<P> clazz) {
-        Pipeline pipeline = getPipeline(pipelineId);
+    public <P extends Processor> List<P> getProcessorsInPipeline(ProjectId projectId, String pipelineId, Class<P> clazz) {
+        Pipeline pipeline = getPipeline(projectId, pipelineId);
         if (pipeline == null) {
-            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist");
+            throw new IllegalArgumentException("pipeline with id [" + pipelineId + "] does not exist in project [" + projectId + "]");
         }
 
         List<P> processors = new ArrayList<>();
@@ -1407,11 +1439,15 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return processors;
     }
 
-    public <P extends Processor> Collection<String> getPipelineWithProcessorType(Class<P> clazz, Predicate<P> predicate) {
+    public <P extends Processor> Collection<String> getPipelineWithProcessorType(
+        ProjectId projectId,
+        Class<P> clazz,
+        Predicate<P> predicate
+    ) {
         List<String> matchedPipelines = new LinkedList<>();
-        for (PipelineHolder holder : pipelines.values()) {
+        for (PipelineHolder holder : pipelines.getOrDefault(projectId, ImmutableOpenMap.of()).values()) {
             String pipelineId = holder.pipeline.getId();
-            List<P> processors = getProcessorsInPipeline(pipelineId, clazz);
+            List<P> processors = getProcessorsInPipeline(projectId, pipelineId, clazz);
             if (processors.isEmpty() == false && processors.stream().anyMatch(predicate)) {
                 matchedPipelines.add(pipelineId);
             }
@@ -1419,12 +1455,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return matchedPipelines;
     }
 
-    public synchronized void reloadPipeline(String id) throws Exception {
-        PipelineHolder holder = pipelines.get(id);
+    public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
+        var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
+        PipelineHolder holder = originalPipelines.get(id);
         Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
-        Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
-        updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
-        this.pipelines = Map.copyOf(updatedPipelines);
+        ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
+            .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
+            .build();
+        this.pipelines = ImmutableOpenMap.builder(this.pipelines).fPut(projectId, updatedPipelines).build();
     }
 
     private static Pipeline substitutePipeline(String id, ElasticsearchParseException e) {

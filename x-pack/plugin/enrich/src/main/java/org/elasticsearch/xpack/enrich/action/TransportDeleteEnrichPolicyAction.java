@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
@@ -93,11 +94,12 @@ public class TransportDeleteEnrichPolicyAction extends AcknowledgedTransportMast
 
         EnrichPolicyLock policyLock = enrichPolicyLocks.lockPolicy(policyName);
         try {
-            final List<PipelineConfiguration> pipelines = IngestService.getPipelines(state);
+            final List<PipelineConfiguration> pipelines = IngestService.getPipelines(state.projectState());
             final List<String> pipelinesWithProcessors = new ArrayList<>();
 
             for (PipelineConfiguration pipelineConfiguration : pipelines) {
                 List<AbstractEnrichProcessor> enrichProcessors = ingestService.getProcessorsInPipeline(
+                    Metadata.DEFAULT_PROJECT_ID,
                     pipelineConfiguration.getId(),
                     AbstractEnrichProcessor.class
                 );

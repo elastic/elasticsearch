@@ -85,13 +85,13 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            var nopUpdate = IngestService.isNoOpPipelineUpdate(state, request);
+            var nopUpdate = IngestService.isNoOpPipelineUpdate(state.projectState(), request);
 
             if (nopUpdate) {
                 continue;
             }
 
-            var task = new IngestService.PutPipelineClusterStateUpdateTask(request);
+            var task = new IngestService.PutPipelineClusterStateUpdateTask(state.metadata().getProject().id(), request);
             state = wrapIngestTaskExecute(task, state);
         }
 
@@ -102,6 +102,7 @@ public class ReservedPipelineAction implements ReservedClusterStateHandler<List<
 
         for (var pipelineToDelete : toDelete) {
             var task = new IngestService.DeletePipelineClusterStateUpdateTask(
+                state.metadata().getProject().id(),
                 null,
                 new DeletePipelineRequest(
                     RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,

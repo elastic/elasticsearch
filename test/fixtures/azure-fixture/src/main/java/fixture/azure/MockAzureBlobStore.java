@@ -215,7 +215,7 @@ public class MockAzureBlobStore {
 
     private static class MockAzureBlockBlob extends AbstractAzureBlob implements AzureBlob {
         private final Map<String, BytesReference> blocks;
-        private BytesReference contents = EMPTY;
+        private volatile BytesReference contents = EMPTY;
 
         private MockAzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
@@ -281,7 +281,7 @@ public class MockAzureBlobStore {
 
         @Override
         public long length() {
-            return contents == null ? 0 : contents.length();
+            return contents.length();
         }
 
         @Override

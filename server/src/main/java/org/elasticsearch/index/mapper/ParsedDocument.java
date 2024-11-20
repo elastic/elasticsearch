@@ -65,7 +65,8 @@ public class ParsedDocument {
             new BytesArray("{}"),
             XContentType.JSON,
             null,
-            XContentMeteringParserDecorator.UNKNOWN_SIZE,List.of()
+            XContentMeteringParserDecorator.UNKNOWN_SIZE,
+            List.of()
         );
     }
 

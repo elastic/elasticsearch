@@ -348,7 +348,7 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
             .settings(dummySettings)
             .putMapping(new MappingMetadata(updatedMappings))
             .build();
-        var result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
+        Engine.Index result = indicesService.withTempIndexService(originalIndexMetadata, indexService -> {
             indexService.mapperService().merge(updatedIndexMetadata, MapperService.MergeReason.MAPPING_UPDATE);
             return IndexShard.prepareIndex(
                 indexService.mapperService(),

@@ -410,8 +410,8 @@ public class EsqlFunctionRegistry {
                 // This is an experimental function and can be removed without notice.
                 def(Delay.class, Delay::new, "delay"),
                 def(Categorize.class, Categorize::new, "categorize"),
-                def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),
-                def(Kql.class, Kql::new, "kql") } };
+                def(Kql.class, Kql::new, "kql"),
+                def(Rate.class, Rate::withUnresolvedTimestamp, "rate") } };
     }
 
     public EsqlFunctionRegistry snapshotRegistry() {

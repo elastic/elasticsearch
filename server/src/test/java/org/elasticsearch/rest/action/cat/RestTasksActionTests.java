@@ -34,7 +34,7 @@ public class RestTasksActionTests extends ESTestCase {
         FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(
             Map.of("parent_task_id", "the node:3", "nodes", "node1,node2", "actions", "*")
         ).build();
-        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, true, 1);
+        FakeRestChannel fakeRestChannel = new FakeRestChannel(fakeRestRequest, randomBoolean(), 1);
         try (var threadPool = createThreadPool()) {
             final var nodeClient = buildNodeClient(threadPool);
             action.handleRequest(fakeRestRequest, fakeRestChannel, nodeClient);

@@ -13,6 +13,8 @@ This information can be used to troubleshoot problems with your cluster. For exa
 You can generate diagnostic information using this tool before you contact https://support.elastic.co[Elastic Support] or 
 https://discuss.elastic.co[Elastic Discuss] to minimize turnaround time. 
 
+See this https://www.youtube.com/watch?v=Bb6SaqhqYHw[this video] for a walkthrough of capturing an {es} diagnostic.
+
 [discrete]
 [[diagnostic-tool-requirements]]
 === Requirements

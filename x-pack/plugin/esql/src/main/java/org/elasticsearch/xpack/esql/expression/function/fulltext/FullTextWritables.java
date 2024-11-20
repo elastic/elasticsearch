@@ -13,19 +13,20 @@ import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQuer
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
 public class FullTextWritables {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        List<NamedWriteableRegistry.Entry> entries = List.of(
-            MatchQueryPredicate.ENTRY,
-            MultiMatchQueryPredicate.ENTRY,
-            StringQueryPredicate.ENTRY,
-            QueryString.ENTRY,
-            Match.ENTRY
-        );
+        List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+
+        entries.add(MatchQueryPredicate.ENTRY);
+        entries.add(MultiMatchQueryPredicate.ENTRY);
+        entries.add(StringQueryPredicate.ENTRY);
+        entries.add(QueryString.ENTRY);
+        entries.add(Match.ENTRY);
 
         if (EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled()) {
             entries.add(Kql.ENTRY);

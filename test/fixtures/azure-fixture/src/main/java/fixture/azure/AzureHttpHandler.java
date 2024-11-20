@@ -391,20 +391,18 @@ public class AzureHttpHandler implements HttpHandler {
                             }
                             contentId = line.split("\\s")[1];
                         } else if (Regex.simpleMatch("DELETE /" + container + "/*", line)) {
-                            final String blobName = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
+                            final String path = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
                             if (toDelete != null) {
                                 throw new IllegalStateException("Got multiple deletes in a single request?");
                             }
-                            // strip off the "/{container}/" prefix
-                            toDelete = blobName.substring(container.length() + 2);
+                            toDelete = stripPrefix("/" + container + "/", path);
                         } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", line)) {
                             // possible alternative DELETE url, depending on which method is used in the batch client
                             String path = RestUtils.decodeComponent(line.split("(\\s|\\?)")[1]);
-                            String blobName = path.split(account)[1];
                             if (toDelete != null) {
                                 throw new IllegalStateException("Got multiple deletes in a single request?");
                             }
-                            toDelete = blobName;
+                            toDelete = stripPrefix("/" + account + "/" + container + "/", path);
                         }
                     }
                     response.append("--").append(responseBoundary).append("--\r\n0\r\n");
@@ -451,8 +449,7 @@ public class AzureHttpHandler implements HttpHandler {
     }
 
     private String blobPath(HttpExchange exchange) {
-        // Strip off "/{account}/{container}/" prefix
-        return exchange.getRequestURI().getPath().substring(account.length() + container.length() + 3);
+        return stripPrefix("/" + account + "/" + container + "/", exchange.getRequestURI().getPath());
     }
 
     public Map<String, BytesReference> blobs() {
@@ -509,5 +506,10 @@ public class AzureHttpHandler implements HttpHandler {
                 "Error code [" + status.getStatus() + "] is not mapped to an existing Azure code"
             );
         };
+    }
+
+    private String stripPrefix(String prefix, String toStrip) {
+        assert toStrip.startsWith(prefix);
+        return toStrip.substring(prefix.length());
     }
 }

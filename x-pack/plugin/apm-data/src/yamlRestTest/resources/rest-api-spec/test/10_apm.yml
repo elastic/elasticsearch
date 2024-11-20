@@ -56,8 +56,8 @@ setup:
 ---
 "Test template reinstallation":
   - skip:
-      reason: contains is a newly added assertion
-      features: contains
+      reason: contains and eventually are newly added assertions
+      features: [contains, eventually]
   - do:
       indices.delete_index_template:
         name: traces-apm@template

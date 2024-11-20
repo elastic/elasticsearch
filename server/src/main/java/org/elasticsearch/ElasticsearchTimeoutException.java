@@ -39,6 +39,6 @@ public class ElasticsearchTimeoutException extends ElasticsearchException {
     @Override
     public RestStatus status() {
         // closest thing to "your request took longer than you asked for"
-        return RestStatus.TOO_MANY_REQUESTS;
+        return RestStatus.BAD_REQUEST;
     }
 }

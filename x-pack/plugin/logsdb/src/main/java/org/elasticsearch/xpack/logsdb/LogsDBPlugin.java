@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexSettingProvider;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.plugins.ActionPlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.xpack.core.XPackPlugin;
@@ -63,16 +62,10 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
-            licenseService,
-            parameters.mapperServiceFactory(),
-            logsdbIndexModeSettingsProvider,
-            () -> IndexVersion.min(
-                IndexVersion.current(),
-                parameters.clusterService().state().nodes().getMaxDataNodeCompatibleIndexVersion()
-            )
+        return List.of(
+            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory(), logsdbIndexModeSettingsProvider),
+            logsdbIndexModeSettingsProvider
         );
-        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
     }
 
     @Override

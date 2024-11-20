@@ -402,10 +402,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 )
             );
             metrics.forEach(metric -> {
-                assertThat(
-                    metric.attributes(),
-                    allOf(hasEntry("repo_type", AzureRepository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
-                );
+                assertThat(metric.attributes(), allOf(hasEntry("repo_type", AzureRepository.TYPE), hasKey("operation"), hasKey("purpose")));
                 final AzureBlobStore.Operation operation = AzureBlobStore.Operation.fromKey((String) metric.attributes().get("operation"));
                 final AzureBlobStore.StatsKey statsKey = new AzureBlobStore.StatsKey(
                     operation,

@@ -22,6 +22,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
@@ -145,7 +146,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()))
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 

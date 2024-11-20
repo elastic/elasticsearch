@@ -191,6 +191,11 @@ import static org.elasticsearch.indices.recovery.RecoverySettings.INDICES_RECOVE
 public abstract class BlobStoreRepository extends AbstractLifecycleComponent implements Repository {
     private static final Logger logger = LogManager.getLogger(BlobStoreRepository.class);
 
+    private class ShutdownLogger {
+        // Creating a separate logger so that the log-level can be manipulated separately from the parent class.
+        private static final Logger shutdownLogger = LogManager.getLogger(ShutdownLogger.class);
+    }
+
     protected volatile RepositoryMetadata metadata;
 
     protected final ThreadPool threadPool;
@@ -200,6 +205,8 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     public static final String STATELESS_SHARD_WRITE_THREAD_NAME = "stateless_shard_write";
     public static final String STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME = "stateless_cluster_state";
     public static final String STATELESS_SHARD_PREWARMING_THREAD_NAME = "stateless_prewarm";
+    public static final String SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME = "searchable_snapshots_cache_fetch_async";
+    public static final String SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME = "searchable_snapshots_cache_prewarming";
 
     /**
      * Prefix for the name of the root {@link RepositoryData} blob.
@@ -2183,7 +2190,9 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
             STATELESS_TRANSLOG_THREAD_NAME,
             STATELESS_SHARD_WRITE_THREAD_NAME,
             STATELESS_CLUSTER_STATE_READ_WRITE_THREAD_NAME,
-            STATELESS_SHARD_PREWARMING_THREAD_NAME
+            STATELESS_SHARD_PREWARMING_THREAD_NAME,
+            SEARCHABLE_SNAPSHOTS_CACHE_FETCH_ASYNC_THREAD_NAME,
+            SEARCHABLE_SNAPSHOTS_CACHE_PREWARMING_THREAD_NAME
         );
     }
 
@@ -3467,10 +3476,37 @@ public abstract class BlobStoreRepository extends AbstractLifecycleComponent imp
     }
 
     private static void ensureNotAborted(ShardId shardId, SnapshotId snapshotId, IndexShardSnapshotStatus snapshotStatus, String fileName) {
+        var shardSnapshotStage = snapshotStatus.getStage();
         try {
-            snapshotStatus.ensureNotAborted();
+            IndexShardSnapshotStatus.ensureNotAborted(shardSnapshotStage);
+
+            if (shardSnapshotStage != IndexShardSnapshotStatus.Stage.INIT && shardSnapshotStage != IndexShardSnapshotStatus.Stage.STARTED) {
+                // A normally running shard snapshot should be in stage INIT or STARTED. And we know it's not in PAUSING or ABORTED because
+                // the ensureNotAborted() call above did not throw. The remaining options don't make sense, if they ever happen.
+                logger.error(
+                    () -> Strings.format(
+                        "Shard snapshot found an unexpected state. ShardId [{}], SnapshotID [{}], Stage [{}]",
+                        shardId,
+                        snapshotId,
+                        shardSnapshotStage
+                    )
+                );
+                assert false;
+            }
         } catch (Exception e) {
-            logger.debug("[{}] [{}] {} on the file [{}], exiting", shardId, snapshotId, e.getMessage(), fileName);
+            // We want to see when a shard snapshot operation checks for and finds an interrupt signal during shutdown. A
+            // PausedSnapshotException indicates we're in shutdown because that's the only case when shard snapshots are signaled to pause.
+            // An AbortedSnapshotException may also occur during shutdown if an uncommon error occurs.
+            ShutdownLogger.shutdownLogger.debug(
+                () -> Strings.format(
+                    "Shard snapshot operation is aborting. ShardId [%s], SnapshotID [%s], File [%s], Stage [%s]",
+                    shardId,
+                    snapshotId,
+                    fileName,
+                    shardSnapshotStage
+                ),
+                e
+            );
             assert e instanceof AbortedSnapshotException || e instanceof PausedSnapshotException : e;
             throw e;
         }

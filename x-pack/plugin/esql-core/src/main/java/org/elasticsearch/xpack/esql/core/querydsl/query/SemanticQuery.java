@@ -88,4 +88,16 @@ public class SemanticQuery extends Query {
             && Objects.equals(text, other.text)
             && Objects.equals(inferenceResults, other.inferenceResults);
     }
+
+    public String name() {
+        return name;
+    }
+
+    public String text() {
+        return text;
+    }
+
+    public InferenceResults inferenceResults() {
+        return inferenceResults;
+    }
 }

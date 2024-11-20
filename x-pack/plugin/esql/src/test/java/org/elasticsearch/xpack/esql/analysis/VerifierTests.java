@@ -41,6 +41,8 @@ import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.matchesRegex;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.when;
 
 //@TestLogging(value = "org.elasticsearch.xpack.esql:TRACE,org.elasticsearch.compute:TRACE", reason = "debug")
 public class VerifierTests extends ESTestCase {
@@ -1580,6 +1582,30 @@ public class VerifierTests extends ESTestCase {
         assertEquals(
             "1:23: third argument of [coalesce(null, network.bytes_in, 0.0)] must be [counter_long], found value [0.0] type [double]",
             error("FROM tests | eval x = coalesce(null, network.bytes_in, 0.0)", tsdb)
+        );
+    }
+
+    public void testMatchWithSemanticTextWithMultipleInferenceIds() {
+        InferenceContext inferenceContext = mock(InferenceContext.class);
+        when(inferenceContext.hasMultipleInferenceIds("semantic_text_field")).thenReturn(true);
+
+        Analyzer analyzer = AnalyzerTestUtils.analyzerWithSemanticTextMapping(inferenceContext, false);
+
+        assertEquals(
+            "1:19: Field [semantic_text_field] cannot be used with match because it is configured with multiple inference IDs.",
+            error("FROM test | WHERE match(semantic_text_field, \"bla\")", analyzer)
+        );
+    }
+
+    public void testMatchWithSemanticTextWithCCQ() {
+        InferenceContext inferenceContext = mock(InferenceContext.class);
+        when(inferenceContext.hasMultipleInferenceIds("semantic_text_field")).thenReturn(false);
+
+        Analyzer analyzer = AnalyzerTestUtils.analyzerWithSemanticTextMapping(inferenceContext, true);
+
+        assertEquals(
+            "1:19: Field [semantic_text_field] of type semantic_text cannot be used with match for cross cluster queries.",
+            error("FROM test | WHERE match(semantic_text_field, \"bla\")", analyzer)
         );
     }
 

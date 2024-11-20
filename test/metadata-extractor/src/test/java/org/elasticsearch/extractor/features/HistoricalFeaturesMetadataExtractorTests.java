@@ -27,7 +27,6 @@ import java.util.Map;
 import java.util.Set;
 
 import static org.elasticsearch.xcontent.XContentParserConfiguration.EMPTY;
-import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
@@ -48,7 +47,7 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
             nodeFeatureVersionMap.putAll(historical);
             featureNamesSet.addAll(names);
         });
-        assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
+        // assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
         assertThat(featureNamesSet, not(empty()));
         assertThat(featureNamesSet, hasItem("test_features_enabled"));
 

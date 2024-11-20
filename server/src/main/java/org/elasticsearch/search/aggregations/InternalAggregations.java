@@ -67,7 +67,7 @@ public final class InternalAggregations implements Iterable<InternalAggregation>
     @SuppressWarnings("unchecked")
     public <A extends InternalAggregation> A get(String name) {
         for (Aggregation aggregation : aggregations) {
-            if (aggregation.getName().equals(name)) {
+            if (name.equals(aggregation.getName())) {
                 return (A) aggregation;
             }
         }

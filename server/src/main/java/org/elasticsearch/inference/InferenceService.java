@@ -112,6 +112,22 @@ public interface InferenceService extends Closeable {
     );
 
     /**
+     * Perform completion inference on the model using the unified schema.
+     *
+     * @param model        The model
+     * @param parameters Parameters for the request
+     * @param timeout      The timeout for the request
+     * @param listener     Inference result listener
+     */
+    void completionInfer(
+        Model model,
+        // TODO create the class for this object
+        Object parameters,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    /**
      * Chunk long text according to {@code chunkingOptions} or the
      * model defaults if {@code chunkingOptions} contains unset
      * values.

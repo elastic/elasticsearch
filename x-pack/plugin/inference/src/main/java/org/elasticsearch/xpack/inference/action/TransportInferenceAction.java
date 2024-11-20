@@ -40,10 +40,10 @@ import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.modelAt
 import static org.elasticsearch.xpack.inference.telemetry.InferenceStats.responseAttributes;
 
 public class TransportInferenceAction extends HandledTransportAction<InferenceAction.Request, InferenceAction.Response> {
+
     private static final Logger log = LogManager.getLogger(TransportInferenceAction.class);
     private static final String STREAMING_INFERENCE_TASK_TYPE = "streaming_inference";
     private static final String STREAMING_TASK_ACTION = "xpack/inference/streaming_inference[n]";
-
     private final ModelRegistry modelRegistry;
     private final InferenceServiceRegistry serviceRegistry;
     private final InferenceStats inferenceStats;
@@ -86,6 +86,13 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 return;
             }
 
+            if (isInvalidTaskTypeForUnifiedCompletionMode(request, unparsedModel)) {
+                var e = incompatibleUnifiedModeTaskTypeException(request.getTaskType());
+                recordMetrics(unparsedModel, timer, e);
+                listener.onFailure(e);
+                return;
+            }
+
             var model = service.get()
                 .parsePersistedConfigWithSecrets(
                     unparsedModel.inferenceEntityId(),
@@ -104,6 +111,19 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         });
 
         modelRegistry.getModelWithSecrets(request.getInferenceEntityId(), getModelListener);
+    }
+
+    private static boolean isInvalidTaskTypeForUnifiedCompletionMode(InferenceAction.Request request, UnparsedModel unparsedModel) {
+        return request.isUnifiedCompletionMode() && request.getTaskType() != TaskType.COMPLETION;
+    }
+
+    private static ElasticsearchStatusException incompatibleUnifiedModeTaskTypeException(TaskType requested) {
+        return new ElasticsearchStatusException(
+            "Incompatible task_type for unified API, the requested type [{}] must be one of [{}]",
+            RestStatus.BAD_REQUEST,
+            requested,
+            TaskType.COMPLETION.toString()
+        );
     }
 
     private void recordMetrics(UnparsedModel model, InferenceTimer timer, @Nullable Throwable t) {
@@ -155,6 +175,16 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
+        Runnable a = () -> service.infer(
+            model,
+            request.getQuery(),
+            request.getInput(),
+            request.isStreaming(),
+            request.getTaskSettings(),
+            request.getInputType(),
+            request.getInferenceTimeout(),
+            listener
+        );
         if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
             service.infer(
                 model,
@@ -206,6 +236,7 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
     }
 
     private class PublisherWithMetrics extends DelegatingProcessor<ChunkedToXContent, ChunkedToXContent> {
+
         private final InferenceTimer timer;
         private final Model model;
 
@@ -237,5 +268,4 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
             super.onComplete();
         }
     }
-
 }

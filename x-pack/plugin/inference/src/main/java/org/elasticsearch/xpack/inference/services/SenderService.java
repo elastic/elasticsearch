@@ -23,6 +23,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedCompletionInputs;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -70,6 +71,12 @@ public abstract class SenderService implements InferenceService {
     }
 
     @Override
+    public void completionInfer(Model model, Object parameters, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+        init();
+        doUnifiedCompletionInfer(model, new UnifiedCompletionInputs(parameters), timeout, listener);
+    }
+
+    @Override
     public void chunkedInfer(
         Model model,
         @Nullable String query,
@@ -90,6 +97,13 @@ public abstract class SenderService implements InferenceService {
         InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    );
+
+    protected abstract void doUnifiedCompletionInfer(
+        Model model,
+        UnifiedCompletionInputs inputs,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

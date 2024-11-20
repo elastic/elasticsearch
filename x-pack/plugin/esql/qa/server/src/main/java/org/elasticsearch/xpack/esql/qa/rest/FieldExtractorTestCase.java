@@ -1107,6 +1107,441 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         );
     }
 
+    /**
+     * https://github.com/elastic/elasticsearch/issues/117054
+     * One index with (Responses.process is nested; process.parent.command_line is supported):
+     * <pre>
+     *         "Responses": {
+     *           "properties": {
+     *             "process": {
+     *               "type": "nested",
+     *               "properties": {
+     *                 "pid": {
+     *                   "type": "long"
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         },
+     *         "process": {
+     *           "properties": {
+     *             "parent": {
+     *               "properties": {
+     *                 "command_line": {
+     *                   "type": "wildcard",
+     *                   "fields": {
+     *                     "text": {
+     *                       "type": "text"
+     *                     }
+     *                   }
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         }
+     * </pre>.
+     */
+    public void testOneNestedSubField_AndSameNameSupportedField() throws IOException {
+        ESRestTestCase.createIndex("test", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        index("test", """
+            {"Responses.process.pid": 123,"process.parent.command_line":"run.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:18: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    /**
+     * One index with "Responses.process" as "nested", a second index with "process.parent.command_line" as supported data type.
+     * Here is about the name "process" which is common to the two fields' hierarchies.
+     *
+     * test1
+     * <pre>
+     *         "Responses": {
+     *           "properties": {
+     *             "process": {
+     *               "type": "nested",
+     *               "properties": {
+     *                 "pid": {
+     *                   "type": "long"
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         }
+     *</pre>
+     * test2
+     * <pre>
+     *         "process": {
+     *           "properties": {
+     *             "parent": {
+     *               "properties": {
+     *                 "command_line": {
+     *                   "type": "wildcard",
+     *                   "fields": {
+     *                     "text": {
+     *                       "type": "text"
+     *                     }
+     *                   }
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         }
+     * </pre>.
+     */
+    public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+                  "properties": {
+                    "Responses": {
+                      "properties": {
+                        "process": {
+                          "type": "nested",
+                          "properties": {
+                            "pid": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+                  "properties": {
+                    "process": {
+                      "properties": {
+                        "parent": {
+                          "properties": {
+                            "command_line": {
+                              "type": "wildcard",
+                              "fields": {
+                                "text": {
+                                  "type": "text"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 123}""");
+        index("test2", """
+            {"process.parent.command_line":"run.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test*");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item(null).item(null), matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test* | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:19: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test*
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    /**
+     * One index with "Responses.process" as "nested", a second index with "Responses.process" as "int". The rest of the mapping is the
+     * same.
+     *
+     * test1
+     * <pre>
+     *       "properties": {
+     *         "Responses": {
+     *           "properties": {
+     *             "process": {
+     *               "type": "nested",
+     *               "properties": {
+     *                 "pid": {
+     *                   "type": "long"
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         },
+     *         "process": {
+     *           "properties": {
+     *             "parent": {
+     *               "properties": {
+     *                 "command_line": {
+     *                   "type": "wildcard",
+     *                   "fields": {
+     *                     "text": {
+     *                       "type": "text"
+     *                     }
+     *                   }
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         }
+     *       }
+     *</pre>
+     * test2
+     * <pre>
+     *       "properties": {
+     *         "Responses": {
+     *           "properties": {
+     *             "process": {
+     *               "type": "integer",
+     *               "fields": {
+     *                 "pid": {
+     *                   "type": "long"
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         },
+     *         "process": {
+     *           "properties": {
+     *             "parent": {
+     *               "properties": {
+     *                 "command_line": {
+     *                   "type": "wildcard",
+     *                   "fields": {
+     *                     "text": {
+     *                       "type": "text"
+     *                     }
+     *                   }
+     *                 }
+     *               }
+     *             }
+     *           }
+     *         }
+     *       }
+     * </pre>.
+     */
+    public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "integer",
+                    "fields": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 111,"process.parent.command_line":"run1.bat"}""");
+        index("test2", """
+            {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test* | where Responses.process.pid == 111
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of())
+        );
+
+        result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test*
+            | SORT process.parent.command_line
+            | WHERE Responses.process IS NULL
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat")))
+        );
+    }
+
     private CheckedConsumer<XContentBuilder, IOException> empNoInObject(String empNoType) {
         return index -> {
             index.startObject("properties");

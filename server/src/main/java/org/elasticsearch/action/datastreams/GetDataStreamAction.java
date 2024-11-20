@@ -396,7 +396,7 @@ public class GetDataStreamAction extends ActionType<GetDataStreamAction.Response
                     builder.endArray();
                     builder.endObject();
                 }
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled) {
                     builder.startObject(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                     builder.field(FAILURE_STORE_ENABLED.getPreferredName(), dataStream.isFailureStoreEnabled());
                     builder.field(

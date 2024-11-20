@@ -218,7 +218,7 @@ final class BulkRequestModifier implements Iterator<DocWriteRequest<?>> {
      * @param e the failure encountered.
      */
     public void markItemForFailureStore(int slot, String targetIndexName, Exception e) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled == false) {
             // Assert false for development, but if we somehow find ourselves here, default to failure logic.
             assert false
                 : "Attempting to route a failed write request type to a failure store but the failure store is not enabled! "

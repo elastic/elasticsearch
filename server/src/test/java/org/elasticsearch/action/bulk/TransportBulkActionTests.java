@@ -389,7 +389,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromMetadata() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled, is(true));
 
         String dataStreamWithFailureStore = "test-data-stream-failure-enabled";
         String dataStreamWithoutFailureStore = "test-data-stream-failure-disabled";
@@ -451,7 +451,7 @@ public class TransportBulkActionTests extends ESTestCase {
     }
 
     public void testResolveFailureStoreFromTemplate() throws Exception {
-        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled(), is(true));
+        assumeThat(DataStream.isFailureStoreFeatureFlagEnabled, is(true));
 
         String dsTemplateWithFailureStore = "test-data-stream-failure-enabled";
         String dsTemplateWithoutFailureStore = "test-data-stream-failure-disabled";

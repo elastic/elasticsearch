@@ -165,17 +165,7 @@ public class IndexNameExpressionResolver {
     }
 
     public String[] concreteIndexNames(ClusterState state, IndicesOptions options, IndicesRequest request) {
-        Context context = new Context(
-            state,
-            options,
-            false,
-            false,
-            request.includeDataStreams(),
-            getSystemIndexAccessLevel(),
-            getSystemIndexAccessPredicate(),
-            getNetNewSystemIndexPredicate()
-        );
-        return concreteIndexNames(context, request.indices());
+        return concreteIndexNames(state, options, request.includeDataStreams(), request.indices());
     }
 
     public List<String> dataStreamNames(ClusterState state, IndicesOptions options, String... indexExpressions) {
@@ -250,10 +240,7 @@ public class IndexNameExpressionResolver {
             if (expressions == null || expressions.length == 0 || expressions.length == 1 && Metadata.ALL.equals(expressions[0])) {
                 return List.of();
             } else {
-                return ExplicitResourceNameFilter.filterUnavailable(
-                    context,
-                    DateMathExpressionResolver.resolve(context, Arrays.asList(expressions))
-                );
+                return ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, expressions));
             }
         } else {
             if (expressions == null
@@ -263,10 +250,7 @@ public class IndexNameExpressionResolver {
             } else {
                 return WildcardExpressionResolver.resolve(
                     context,
-                    ExplicitResourceNameFilter.filterUnavailable(
-                        context,
-                        DateMathExpressionResolver.resolve(context, Arrays.asList(expressions))
-                    )
+                    ExplicitResourceNameFilter.filterUnavailable(context, DateMathExpressionResolver.resolve(context, expressions))
                 );
             }
         }
@@ -391,7 +375,7 @@ public class IndexNameExpressionResolver {
                     resolveIndicesForDataStream(context, (DataStream) indexAbstraction, concreteIndicesResult);
                 } else if (indexAbstraction.getType() == Type.ALIAS
                     && indexAbstraction.isDataStreamRelated()
-                    && DataStream.isFailureStoreFeatureFlagEnabled()
+                    && DataStream.isFailureStoreFeatureFlagEnabled
                     && context.getOptions().includeFailureIndices()) {
                         // Collect the data streams involved
                         Set<DataStream> aliasDataStreams = new HashSet<>();
@@ -459,12 +443,12 @@ public class IndexNameExpressionResolver {
     }
 
     private static boolean shouldIncludeRegularIndices(IndicesOptions indicesOptions) {
-        return DataStream.isFailureStoreFeatureFlagEnabled() == false || indicesOptions.includeRegularIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled == false || indicesOptions.includeRegularIndices();
     }
 
     private static boolean shouldIncludeFailureIndices(IndicesOptions indicesOptions) {
         // We return failure indices regardless of whether the data stream actually has the `failureStoreEnabled` flag set to true.
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled && indicesOptions.includeFailureIndices();
     }
 
     private static boolean resolvesToMoreThanOneIndex(IndexAbstraction indexAbstraction, Context context) {
@@ -573,7 +557,7 @@ public class IndexNameExpressionResolver {
             // Exclude this one as it's a net-new system index, and we explicitly don't want those.
             return false;
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && context.options.allowFailureIndices() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled && context.options.allowFailureIndices() == false) {
             DataStream parentDataStream = context.getState().metadata().getIndicesLookup().get(index.getName()).getParentDataStream();
             if (parentDataStream != null && parentDataStream.isFailureStoreEnabled()) {
                 if (parentDataStream.isFailureStoreIndex(index.getName())) {
@@ -1533,12 +1517,12 @@ public class IndexNameExpressionResolver {
          * Resolves date math expressions. If this is a noop the given {@code expressions} list is returned without copying.
          * As a result callers of this method should not mutate the returned list. Mutating it may come with unexpected side effects.
          */
-        public static List<String> resolve(Context context, List<String> expressions) {
+        public static List<String> resolve(Context context, String... expressions) {
             boolean wildcardSeen = false;
             final boolean expandWildcards = context.getOptions().expandWildcardExpressions();
             String[] result = null;
-            for (int i = 0, n = expressions.size(); i < n; i++) {
-                String expression = expressions.get(i);
+            for (int i = 0, n = expressions.length; i < n; i++) {
+                String expression = expressions[i];
                 // accepts date-math exclusions that are of the form "-<...{}>",f i.e. the "-" is outside the "<>" date-math template
                 boolean isExclusion = wildcardSeen && expression.startsWith("-");
                 wildcardSeen = wildcardSeen || (expandWildcards && isWildcard(expression));
@@ -1546,12 +1530,12 @@ public class IndexNameExpressionResolver {
                 String resolved = resolveExpression(toResolve, context::getStartTime);
                 if (toResolve != resolved) {
                     if (result == null) {
-                        result = expressions.toArray(Strings.EMPTY_ARRAY);
+                        result = expressions.clone();
                     }
                     result[i] = isExclusion ? "-" + resolved : resolved;
                 }
             }
-            return result == null ? expressions : Arrays.asList(result);
+            return Arrays.asList(result == null ? expressions : result);
         }
 
         static String resolveExpression(String expression) {
@@ -1717,8 +1701,8 @@ public class IndexNameExpressionResolver {
          * Returns an expression list with "unavailable" (missing or not acceptable) resource names filtered out.
          * Only explicit resource names are considered for filtering. Wildcard and exclusion expressions are kept in.
          */
-        public static List<String> filterUnavailable(Context context, List<String> expressions) {
-            ensureRemoteIndicesRequireIgnoreUnavailable(context.getOptions(), expressions);
+        private static List<String> filterUnavailable(Context context, List<String> expressions) {
+            final boolean ignoreUnavailable = context.getOptions().ignoreUnavailable();
             final boolean expandWildcards = context.getOptions().expandWildcardExpressions();
             boolean wildcardSeen = false;
             List<String> result = null;
@@ -1733,6 +1717,9 @@ public class IndexNameExpressionResolver {
                 // if the expression can't be found.
                 if (expression.charAt(0) == '_') {
                     throw new InvalidIndexNameException(expression, "must not start with '_'.");
+                }
+                if (ignoreUnavailable == false && RemoteClusterAware.isRemoteIndexName(expression)) {
+                    failOnRemoteIndicesNotIgnoringUnavailable(expressions);
                 }
                 final boolean isWildcard = expandWildcards && isWildcard(expression);
                 if (isWildcard || (wildcardSeen && expression.charAt(0) == '-') || ensureAliasOrIndexExists(context, expression)) {
@@ -1785,17 +1772,6 @@ public class IndexNameExpressionResolver {
                 }
             }
             return true;
-        }
-
-        private static void ensureRemoteIndicesRequireIgnoreUnavailable(IndicesOptions options, List<String> indexExpressions) {
-            if (options.ignoreUnavailable()) {
-                return;
-            }
-            for (String index : indexExpressions) {
-                if (RemoteClusterAware.isRemoteIndexName(index)) {
-                    failOnRemoteIndicesNotIgnoringUnavailable(indexExpressions);
-                }
-            }
         }
 
         private static void failOnRemoteIndicesNotIgnoringUnavailable(List<String> indexExpressions) {

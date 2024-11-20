@@ -50,7 +50,7 @@ public class DataStreamFeatureSetUsage extends XPackFeatureUsage {
         super.innerXContent(builder, params);
         builder.field("data_streams", streamStats.totalDataStreamCount);
         builder.field("indices_count", streamStats.indicesBehindDataStream);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             builder.startObject("failure_store");
             builder.field("enabled_count", streamStats.failureStoreEnabledDataStreamCount);
             builder.field("failure_indices_count", streamStats.failureStoreIndicesCount);

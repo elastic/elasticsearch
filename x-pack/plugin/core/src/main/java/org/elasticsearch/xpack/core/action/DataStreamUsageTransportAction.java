@@ -55,7 +55,7 @@ public class DataStreamUsageTransportAction extends XPackUsageFeatureTransportAc
         long failureIndicesCounter = 0;
         for (DataStream ds : dataStreams.values()) {
             backingIndicesCounter += ds.getIndices().size();
-            if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled) {
                 if (ds.isFailureStoreEnabled()) {
                     failureStoreEnabledCounter++;
                 }

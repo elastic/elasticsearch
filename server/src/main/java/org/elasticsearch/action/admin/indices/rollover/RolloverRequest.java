@@ -166,7 +166,7 @@ public class RolloverRequest extends AcknowledgedRequest<RolloverRequest> implem
      * @return true of the rollover request targets the failure store, false otherwise.
      */
     public boolean targetsFailureStore() {
-        return DataStream.isFailureStoreFeatureFlagEnabled() && indicesOptions.includeFailureIndices();
+        return DataStream.isFailureStoreFeatureFlagEnabled && indicesOptions.includeFailureIndices();
     }
 
     public void setIndicesOptions(IndicesOptions indicesOptions) {

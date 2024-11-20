@@ -1202,13 +1202,13 @@ public record IndicesOptions(
             request.param(ConcreteTargetOptions.IGNORE_UNAVAILABLE),
             request.param(WildcardOptions.ALLOW_NO_INDICES),
             request.param(GatekeeperOptions.IGNORE_THROTTLED),
-            DataStream.isFailureStoreFeatureFlagEnabled() ? request.param(FAILURE_STORE_QUERY_PARAM) : INCLUDE_ONLY_REGULAR_INDICES,
+            DataStream.isFailureStoreFeatureFlagEnabled ? request.param(FAILURE_STORE_QUERY_PARAM) : INCLUDE_ONLY_REGULAR_INDICES,
             defaultSettings
         );
     }
 
     public static IndicesOptions fromMap(Map<String, Object> map, IndicesOptions defaultSettings) {
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             return fromParameters(
                 map.containsKey(WildcardOptions.EXPAND_WILDCARDS) ? map.get(WildcardOptions.EXPAND_WILDCARDS) : map.get("expandWildcards"),
                 map.containsKey(ConcreteTargetOptions.IGNORE_UNAVAILABLE)
@@ -1246,8 +1246,8 @@ public record IndicesOptions(
             || "ignoreThrottled".equals(name)
             || WildcardOptions.ALLOW_NO_INDICES.equals(name)
             || "allowNoIndices".equals(name)
-            || (DataStream.isFailureStoreFeatureFlagEnabled() && FAILURE_STORE_QUERY_PARAM.equals(name))
-            || (DataStream.isFailureStoreFeatureFlagEnabled() && "failureStore".equals(name));
+            || (DataStream.isFailureStoreFeatureFlagEnabled && FAILURE_STORE_QUERY_PARAM.equals(name))
+            || (DataStream.isFailureStoreFeatureFlagEnabled && "failureStore".equals(name));
     }
 
     public static IndicesOptions fromParameters(
@@ -1278,7 +1278,7 @@ public record IndicesOptions(
 
         WildcardOptions wildcards = WildcardOptions.parseParameters(wildcardsString, allowNoIndicesString, defaultSettings.wildcardOptions);
         GatekeeperOptions gatekeeperOptions = GatekeeperOptions.parseParameter(ignoreThrottled, defaultSettings.gatekeeperOptions);
-        SelectorOptions selectorOptions = DataStream.isFailureStoreFeatureFlagEnabled()
+        SelectorOptions selectorOptions = DataStream.isFailureStoreFeatureFlagEnabled
             ? parseFailureStoreParameters(failureStoreString, defaultSettings.selectorOptions)
             : SelectorOptions.DEFAULT;
 
@@ -1313,7 +1313,7 @@ public record IndicesOptions(
         concreteTargetOptions.toXContent(builder, params);
         wildcardOptions.toXContent(builder, params);
         gatekeeperOptions.toXContent(builder, params);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             String displayValue;
             if (SelectorOptions.ALL_APPLICABLE.equals(selectorOptions())) {
                 displayValue = INCLUDE_ALL;
@@ -1392,7 +1392,7 @@ public record IndicesOptions(
                     allowNoIndices = parser.booleanValue();
                 } else if (IGNORE_THROTTLED_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                     generalOptions.ignoreThrottled(parser.booleanValue());
-                } else if (DataStream.isFailureStoreFeatureFlagEnabled()
+                } else if (DataStream.isFailureStoreFeatureFlagEnabled
                     && FAILURE_STORE_FIELD.match(currentFieldName, parser.getDeprecationHandler())) {
                         selectorOptions = parseFailureStoreParameters(parser.text(), selectorOptions);
                     } else {
@@ -1565,7 +1565,7 @@ public record IndicesOptions(
             + ignoreAliases()
             + ", ignore_throttled="
             + ignoreThrottled()
-            + (DataStream.isFailureStoreFeatureFlagEnabled()
+            + (DataStream.isFailureStoreFeatureFlagEnabled
                 ? ", include_regular_indices="
                     + includeRegularIndices()
                     + ", include_failure_indices="

@@ -68,13 +68,10 @@ import static org.elasticsearch.index.IndexSettings.PREFER_ILM_SETTING;
 
 public final class DataStream implements SimpleDiffable<DataStream>, ToXContentObject, IndexAbstraction {
 
-    public static final FeatureFlag FAILURE_STORE_FEATURE_FLAG = new FeatureFlag("failure_store");
     public static final TransportVersion ADDED_FAILURE_STORE_TRANSPORT_VERSION = TransportVersions.V_8_12_0;
     public static final TransportVersion ADDED_AUTO_SHARDING_EVENT_VERSION = TransportVersions.V_8_14_0;
 
-    public static boolean isFailureStoreFeatureFlagEnabled() {
-        return FAILURE_STORE_FEATURE_FLAG.isEnabled();
-    }
+    public static final boolean isFailureStoreFeatureFlagEnabled = new FeatureFlag("failure_store").isEnabled();
 
     public static final String BACKING_INDEX_PREFIX = ".ds-";
     public static final String FAILURE_STORE_PREFIX = ".fs-";
@@ -900,7 +897,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
                 olderIndices.add(index);
             }
         }
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && failureIndices.getIndices().isEmpty() == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled && failureIndices.getIndices().isEmpty() == false) {
             for (Index index : failureIndices.getIndices()) {
                 if (isIndexOlderThan(
                     index,
@@ -1121,8 +1118,8 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
     private static final ConstructingObjectParser<DataStream, Void> PARSER = new ConstructingObjectParser<>("data_stream", args -> {
         // Fields behind a feature flag need to be parsed last otherwise the parser will fail when the feature flag is disabled.
         // Until the feature flag is removed we keep them separately to be mindful of this.
-        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled() && args[12] != null && (boolean) args[12];
-        DataStreamIndices failureIndices = DataStream.isFailureStoreFeatureFlagEnabled()
+        boolean failureStoreEnabled = DataStream.isFailureStoreFeatureFlagEnabled && args[12] != null && (boolean) args[12];
+        DataStreamIndices failureIndices = DataStream.isFailureStoreFeatureFlagEnabled
             ? new DataStreamIndices(
                 FAILURE_STORE_PREFIX,
                 args[13] != null ? (List<Index>) args[13] : List.of(),
@@ -1133,7 +1130,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         // We cannot distinguish if failure store was explicitly disabled or not. Given that failure store
         // is still behind a feature flag in previous version we use the default value instead of explicitly disabling it.
         DataStreamOptions dataStreamOptions = DataStreamOptions.EMPTY;
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             if (args[16] != null) {
                 dataStreamOptions = (DataStreamOptions) args[16];
             } else if (failureStoreEnabled) {
@@ -1188,7 +1185,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
             AUTO_SHARDING_FIELD
         );
         // The fields behind the feature flag should always be last.
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), FAILURE_STORE_FIELD);
             PARSER.declareObjectArray(
                 ConstructingObjectParser.optionalConstructorArg(),
@@ -1242,7 +1239,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
         builder.field(REPLICATED_FIELD.getPreferredName(), replicated);
         builder.field(SYSTEM_FIELD.getPreferredName(), system);
         builder.field(ALLOW_CUSTOM_ROUTING.getPreferredName(), allowCustomRouting);
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             if (failureIndices.indices.isEmpty() == false) {
                 builder.xContentList(FAILURE_INDICES_FIELD.getPreferredName(), failureIndices.indices);
             }

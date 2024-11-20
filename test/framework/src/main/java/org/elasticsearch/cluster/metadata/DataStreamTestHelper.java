@@ -467,7 +467,7 @@ public final class DataStreamTestHelper {
                     new ComposableIndexTemplate.DataStreamTemplate(
                         false,
                         false,
-                        DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures
+                        DataStream.isFailureStoreFeatureFlagEnabled && storeFailures
                     )
                 )
                 .build()
@@ -484,7 +484,7 @@ public final class DataStreamTestHelper {
             allIndices.addAll(backingIndices);
 
             List<IndexMetadata> failureStores = new ArrayList<>();
-            if (DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures) {
+            if (DataStream.isFailureStoreFeatureFlagEnabled && storeFailures) {
                 for (int failureStoreNumber = 1; failureStoreNumber <= dsTuple.v2(); failureStoreNumber++) {
                     failureStores.add(
                         createIndexMetadata(

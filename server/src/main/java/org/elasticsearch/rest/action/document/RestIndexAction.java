@@ -37,7 +37,7 @@ public class RestIndexAction extends BaseRestHandler {
     static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Specifying types in document "
         + "index requests is deprecated, use the typeless endpoints instead (/{index}/_doc/{id}, /{index}/_doc, "
         + "or /{index}/_create/{id}).";
-    private final Set<String> capabilities = DataStream.isFailureStoreFeatureFlagEnabled()
+    private final Set<String> capabilities = DataStream.isFailureStoreFeatureFlagEnabled
         ? Set.of(FAILURE_STORE_STATUS_CAPABILITY)
         : Set.of();
 

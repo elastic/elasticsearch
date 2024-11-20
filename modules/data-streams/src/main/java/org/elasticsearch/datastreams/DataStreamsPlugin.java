@@ -239,7 +239,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         actions.add(new ActionHandler<>(DeleteDataStreamLifecycleAction.INSTANCE, TransportDeleteDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(ExplainDataStreamLifecycleAction.INSTANCE, TransportExplainDataStreamLifecycleAction.class));
         actions.add(new ActionHandler<>(GetDataStreamLifecycleStatsAction.INSTANCE, TransportGetDataStreamLifecycleStatsAction.class));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             actions.add(new ActionHandler<>(GetDataStreamOptionsAction.INSTANCE, TransportGetDataStreamOptionsAction.class));
             actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
             actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
@@ -276,7 +276,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         handlers.add(new RestDeleteDataStreamLifecycleAction());
         handlers.add(new RestExplainDataStreamLifecycleAction());
         handlers.add(new RestDataStreamLifecycleStatsAction());
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             handlers.add(new RestGetDataStreamOptionsAction());
             handlers.add(new RestPutDataStreamOptionsAction());
             handlers.add(new RestDeleteDataStreamOptionsAction());

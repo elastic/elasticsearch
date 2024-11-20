@@ -102,7 +102,7 @@ public enum IndexDocFailureStoreStatus implements ToXContentFragment, Writeable 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         // We avoid adding the not_applicable status in the response to not increase the size of bulk responses.
-        if (DataStream.isFailureStoreFeatureFlagEnabled() && this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled && this.equals(NOT_APPLICABLE_OR_UNKNOWN) == false) {
             builder.field("failure_store", label);
         }
         return builder;

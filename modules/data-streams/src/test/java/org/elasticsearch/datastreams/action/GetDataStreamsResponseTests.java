@@ -162,7 +162,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.LIFECYCLE.displayValue)
                 );
 
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled) {
                     var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                     List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);
@@ -254,7 +254,7 @@ public class GetDataStreamsResponseTests extends AbstractWireSerializingTestCase
                     is(ManagedBy.UNMANAGED.displayValue)
                 );
 
-                if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+                if (DataStream.isFailureStoreFeatureFlagEnabled) {
                     var failureStore = (Map<String, Object>) dataStreamMap.get(DataStream.FAILURE_STORE_FIELD.getPreferredName());
                     List<Object> failureStoresRepresentation = (List<Object>) failureStore.get(DataStream.INDICES_FIELD.getPreferredName());
                     Map<String, Object> failureStoreRepresentation = (Map<String, Object>) failureStoresRepresentation.get(0);

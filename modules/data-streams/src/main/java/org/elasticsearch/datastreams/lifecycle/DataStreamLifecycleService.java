@@ -760,7 +760,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
             }
         }
         if (withFailureStore
-            && DataStream.isFailureStoreFeatureFlagEnabled()
+            && DataStream.isFailureStoreFeatureFlagEnabled
             && dataStream.getFailureIndices().getIndices().isEmpty() == false) {
             for (Index index : dataStream.getFailureIndices().getIndices()) {
                 if (dataStream.isIndexManagedByDataStreamLifecycle(index, indexMetadataSupplier)
@@ -806,7 +806,7 @@ public class DataStreamLifecycleService implements ClusterStateListener, Closeab
     private Set<Index> maybeExecuteRollover(ClusterState state, DataStream dataStream) {
         Set<Index> currentRunWriteIndices = new HashSet<>();
         currentRunWriteIndices.add(maybeExecuteRollover(state, dataStream, false));
-        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+        if (DataStream.isFailureStoreFeatureFlagEnabled) {
             Index failureStoreWriteIndex = maybeExecuteRollover(state, dataStream, true);
             if (failureStoreWriteIndex != null) {
                 currentRunWriteIndices.add(failureStoreWriteIndex);

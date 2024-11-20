@@ -67,7 +67,7 @@ public class RestBulkAction extends BaseRestHandler {
     public RestBulkAction(Settings settings, IncrementalBulkService bulkHandler) {
         this.allowExplicitIndex = MULTI_ALLOW_EXPLICIT_INDEX.get(settings);
         this.bulkHandler = bulkHandler;
-        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled() ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
+        this.capabilities = DataStream.isFailureStoreFeatureFlagEnabled ? Set.of(FAILURE_STORE_STATUS_CAPABILITY) : Set.of();
     }
 
     @Override

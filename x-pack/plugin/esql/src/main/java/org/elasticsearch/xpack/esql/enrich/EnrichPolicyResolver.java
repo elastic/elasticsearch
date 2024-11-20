@@ -96,7 +96,7 @@ public class EnrichPolicyResolver {
     /**
      * Resolves a set of enrich policies
      *
-     * @param targetClusters     the target clusters; key: cluster alias; value: skip_unavailable setting (null for local cluster)
+     * @param targetClusters     the target clusters; key: cluster alias; value: skip_unavailable setting
      * @param unresolvedPolicies the unresolved policies
      * @param listener           notified with the enrich resolution
      */
@@ -167,7 +167,7 @@ public class EnrichPolicyResolver {
     private Map<String, Boolean> calculateTargetClusters(Enrich.Mode mode, boolean includeLocal, Map<String, Boolean> remoteClusters) {
         return switch (mode) {
             case ANY -> copyAndAddLocalCluster(remoteClusters);
-            case COORDINATOR -> copyAndAddLocalCluster(Collections.emptyMap());
+            case COORDINATOR -> Map.of(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY, Boolean.FALSE);
             case REMOTE -> includeLocal ? copyAndAddLocalCluster(remoteClusters) : remoteClusters;
         };
     }

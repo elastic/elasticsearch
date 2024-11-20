@@ -206,8 +206,9 @@ public class AzureHttpHandler implements HttpHandler {
                 final MockAzureBlobStore.AzureBlob azureBlob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
 
                 final Headers responseHeaders = exchange.getResponseHeaders();
-                responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(azureBlob.length()));
-                responseHeaders.add("Content-Length", String.valueOf(azureBlob.length()));
+                final BytesReference blobContents = azureBlob.getContents();
+                responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
+                responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
                 responseHeaders.add(X_MS_BLOB_TYPE, azureBlob.type().getXMsBlobType());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
@@ -230,13 +231,17 @@ public class AzureHttpHandler implements HttpHandler {
                     final long start = Long.parseLong(matcher.group(1));
                     final long end = Long.parseLong(matcher.group(2));
 
-                    if (blob.length() <= start) {
+                    final BytesReference blobContents = blob.getContents();
+                    if (blobContents.length() <= start) {
                         exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                         exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                         return;
                     }
 
-                    responseContent = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
+                    responseContent = blobContents.slice(
+                        Math.toIntExact(start),
+                        Math.toIntExact(Math.min(end - start + 1, blobContents.length() - start))
+                    );
                 } else {
                     responseContent = blob.getContents();
                 }
@@ -287,7 +292,7 @@ public class AzureHttpHandler implements HttpHandler {
                              <Content-Length>%s</Content-Length>
                              <BlobType>BlockBlob</BlobType>
                            </Properties>
-                        </Blob>""", blobPath, blob.getValue().length()));
+                        </Blob>""", blobPath, blob.getValue().getContents().length()));
                 }
                 if (blobPrefixes.isEmpty() == false) {
                     blobPrefixes.forEach(p -> list.append("<BlobPrefix><Name>").append(p).append("</Name></BlobPrefix>"));

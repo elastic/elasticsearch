@@ -171,11 +171,7 @@ public class MockAzureBlobStore {
 
         BytesReference getContents();
 
-        long length();
-
         BlobType type();
-
-        BytesReference slice(int from, int length);
 
         String acquireLease(String proposedLeaseId, int leaseTimeSeconds);
 
@@ -285,18 +281,8 @@ public class MockAzureBlobStore {
         }
 
         @Override
-        public long length() {
-            return contents.length();
-        }
-
-        @Override
         public BlobType type() {
             return BlobType.BLOCK;
-        }
-
-        @Override
-        public BytesReference slice(int from, int length) {
-            return contents.slice(from, length);
         }
 
         @Override

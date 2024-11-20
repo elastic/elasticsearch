@@ -88,6 +88,7 @@ public class IndexResolver {
     public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
+            // TODO in follow-on PR, handle the case where remotes were specified with non-existent indices, according to skip_unavailable
             return IndexResolution.notFound(indexPattern);
         }
 
@@ -258,6 +259,7 @@ public class IndexResolver {
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
+        // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
         req.filters("-nested");
         req.setMergeResults(false);
         return req;

@@ -324,7 +324,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
 
     static final class ScoringPerShardCollector extends PerShardCollector {
         ScoringPerShardCollector(ShardContext shardContext, Sort sort, int limit) {
-            super(shardContext, new TopScoreDocCollectorManager(limit, null, 0, false).newCollector());
+            super(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
         }
     }
 }

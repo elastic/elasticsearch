@@ -247,7 +247,7 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
         if (scoreDoc instanceof FieldDoc fieldDoc) {
             if (Float.isNaN(fieldDoc.score)) {
                 if (sorts != null) {
-                    return (Float) fieldDoc.fields[sorts.size()];
+                    return (Float) fieldDoc.fields[sorts.size() + 1];
                 } else {
                     return (Float) fieldDoc.fields[0];
                 }

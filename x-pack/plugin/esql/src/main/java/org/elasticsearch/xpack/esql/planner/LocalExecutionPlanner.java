@@ -47,6 +47,7 @@ import org.elasticsearch.compute.operator.topn.TopNOperator;
 import org.elasticsearch.compute.operator.topn.TopNOperator.TopNOperatorFactory;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.tasks.CancellableTask;
@@ -63,6 +64,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupOperator;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexOperator;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
 import org.elasticsearch.xpack.esql.evaluator.command.GrokEvaluatorExtracter;
 import org.elasticsearch.xpack.esql.expression.Order;
@@ -81,6 +84,7 @@ import org.elasticsearch.xpack.esql.plan.physical.GrokExec;
 import org.elasticsearch.xpack.esql.plan.physical.HashJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
+import org.elasticsearch.xpack.esql.plan.physical.LookupJoinExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -125,6 +129,7 @@ public class LocalExecutionPlanner {
     private final ExchangeSourceHandler exchangeSourceHandler;
     private final ExchangeSinkHandler exchangeSinkHandler;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
     private final PhysicalOperationProviders physicalOperationProviders;
 
     public LocalExecutionPlanner(
@@ -138,6 +143,7 @@ public class LocalExecutionPlanner {
         ExchangeSourceHandler exchangeSourceHandler,
         ExchangeSinkHandler exchangeSinkHandler,
         EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
         PhysicalOperationProviders physicalOperationProviders
     ) {
         this.sessionId = sessionId;
@@ -149,6 +155,7 @@ public class LocalExecutionPlanner {
         this.exchangeSourceHandler = exchangeSourceHandler;
         this.exchangeSinkHandler = exchangeSinkHandler;
         this.enrichLookupService = enrichLookupService;
+        this.lookupFromIndexService = lookupFromIndexService;
         this.physicalOperationProviders = physicalOperationProviders;
         this.configuration = configuration;
     }
@@ -225,8 +232,10 @@ public class LocalExecutionPlanner {
         // lookups and joins
         else if (node instanceof EnrichExec enrich) {
             return planEnrich(enrich, context);
-        } else if (node instanceof HashJoinExec lookup) {
-            return planHashJoin(lookup, context);
+        } else if (node instanceof HashJoinExec join) {
+            return planHashJoin(join, context);
+        } else if (node instanceof LookupJoinExec join) {
+            return planLookupJoin(join, context);
         }
         // output
         else if (node instanceof OutputExec outputExec) {
@@ -489,7 +498,8 @@ public class LocalExecutionPlanner {
                 enrichIndex,
                 enrich.matchType(),
                 enrich.policyMatchField(),
-                enrich.enrichFields()
+                enrich.enrichFields(),
+                enrich.source()
             ),
             layout
         );
@@ -556,6 +566,55 @@ public class LocalExecutionPlanner {
         IntStream.range(0, positionsChannel).boxed().forEach(projection::add);
         IntStream.range(positionsChannel + 1, positionsChannel + 1 + join.addedFields().size()).boxed().forEach(projection::add);
         return source.with(new ProjectOperatorFactory(projection), layout);
+    }
+
+    private PhysicalOperation planLookupJoin(LookupJoinExec join, LocalExecutionPlannerContext context) {
+        PhysicalOperation source = plan(join.left(), context);
+        Layout.Builder layoutBuilder = source.layout.builder();
+        for (Attribute f : join.addedFields()) {
+            layoutBuilder.append(f);
+        }
+        Layout layout = layoutBuilder.build();
+
+        // TODO: this works when the join happens on the coordinator
+        /*
+         * But when it happens on the data node we get a
+         * \_FieldExtractExec[language_code{f}#15, language_name{f}#16]<[]>
+         *   \_EsQueryExec[languages_lookup], indexMode[lookup], query[][_doc{f}#18], limit[], sort[] estimatedRowSize[62]
+         * Which we'd prefer not to do - at least for now. We already know the fields we're loading
+         * and don't want any local planning.
+         */
+        EsQueryExec localSourceExec = (EsQueryExec) join.lookup();
+        if (localSourceExec.indexMode() != IndexMode.LOOKUP) {
+            throw new IllegalArgumentException("can't plan [" + join + "]");
+        }
+        List<Layout.ChannelAndType> matchFields = new ArrayList<>(join.matchFields().size());
+        for (Attribute m : join.matchFields()) {
+            Layout.ChannelAndType t = source.layout.get(m.id());
+            if (t == null) {
+                throw new IllegalArgumentException("can't plan [" + join + "][" + m + "]");
+            }
+            matchFields.add(t);
+        }
+        if (matchFields.size() != 1) {
+            throw new IllegalArgumentException("can't plan [" + join + "]");
+        }
+
+        return source.with(
+            new LookupFromIndexOperator.Factory(
+                sessionId,
+                parentTask,
+                context.queryPragmas().enrichMaxWorkers(),
+                matchFields.getFirst().channel(),
+                lookupFromIndexService,
+                matchFields.getFirst().type(),
+                localSourceExec.index().name(),
+                join.matchFields().getFirst().name(),
+                join.addedFields().stream().map(f -> (NamedExpression) f).toList(),
+                join.source()
+            ),
+            layout
+        );
     }
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {

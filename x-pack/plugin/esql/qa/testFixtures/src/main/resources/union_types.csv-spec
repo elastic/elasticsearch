@@ -734,6 +734,8 @@ count:long  |  @timestamp:date
 Multi Index millis to nanos stats
 required_capability: union_types
 required_capability: union_types_remove_fields
+required_capability: to_date_nanos
+required_capability: date_trunc_date_nanos
 
 FROM sample_data, sample_data_ts_nanos
 | EVAL @timestamp = DATE_TRUNC(1 hour, TO_DATE_NANOS(@timestamp))
@@ -1515,7 +1517,7 @@ FROM sample_data, sample_data_ts_long
            null | 172.21.0.5   |             1232382 | Disconnected    |  8268153
 ;
 
-multiIndexIndirectUseOfUnionTypesInLookup
+multiIndexIndirectUseOfUnionTypesInLookup-Ignore
 // TODO: `union_types` is required only because this makes the test skip in the csv tests; better solution:
 // make the csv tests work with multiple indices.
 required_capability: union_types
@@ -1524,7 +1526,7 @@ FROM sample_data, sample_data_ts_long
 | SORT client_ip ASC
 | LIMIT 1
 | EVAL int = (event_duration - 1232380)::integer
-| LOOKUP int_number_names ON int
+| LOOKUP_🐔 int_number_names ON int
 ;
 
 @timestamp:null | client_ip:ip | event_duration:long | message:keyword | int:integer | name:keyword

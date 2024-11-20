@@ -491,25 +491,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStringAsLookupIndexPattern() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP_🐔 \"foo\" ON j");
         assertStringAsLookupIndexPattern("test-*", """
-            ROW x = 1 | LOOKUP "test-*" ON j
+            ROW x = 1 | LOOKUP_🐔 "test-*" ON j
             """);
-        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP test-* ON j");
-        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP 123-test@foo_bar+baz1 ON j");
+        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP_🐔 test-* ON j");
+        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP_🐔 123-test@foo_bar+baz1 ON j");
         assertStringAsLookupIndexPattern("foo, test-*, abc, xyz", """
-            ROW x = 1 | LOOKUP     "foo, test-*, abc, xyz"  ON j
+            ROW x = 1 | LOOKUP_🐔     "foo, test-*, abc, xyz"  ON j
             """);
-        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP <logstash-{now/M{yyyy.MM}}> ON j");
+        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP_🐔 <logstash-{now/M{yyyy.MM}}> ON j");
         assertStringAsLookupIndexPattern(
             "<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
-            "ROW x = 1 | LOOKUP \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
+            "ROW x = 1 | LOOKUP_🐔 \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
         );
 
-        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
-        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
-        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
-        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\" ON j");
+        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP_🐔 `backtick` ON j");
+        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP_🐔 ``multiple`back``ticks``` ON j");
+        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP_🐔 .dot ON j");
         clusterAndIndexAsLookupIndexPattern("cluster:index");
         clusterAndIndexAsLookupIndexPattern("cluster:.index");
         clusterAndIndexAsLookupIndexPattern("cluster*:index*");
@@ -519,8 +519,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void clusterAndIndexAsLookupIndexPattern(String clusterAndIndex) {
-        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP " + clusterAndIndex + " ON j");
-        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP \"" + clusterAndIndex + "\"" + " ON j");
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP_🐔 " + clusterAndIndex + " ON j");
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP_🐔 \"" + clusterAndIndex + "\"" + " ON j");
     }
 
     public void testInvalidCharacterInIndexPattern() {
@@ -528,7 +528,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         commands.put("FROM {}", "line 1:7: ");
         if (Build.current().isSnapshot()) {
             commands.put("METRICS {}", "line 1:10: ");
-            commands.put("ROW x = 1 | LOOKUP {} ON j", "line 1:21: ");
+            commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:23: ");
         }
         String lineNumber;
         for (String command : commands.keySet()) {
@@ -568,7 +568,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // comma separated indices, with exclusions
         // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP")) {
+            if (command.contains("LOOKUP_🐔")) {
                 continue;
             }
 
@@ -582,7 +582,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         String dateMathError = "unit [D] not supported for date math [/D]";
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP")) {
+            if (command.contains("LOOKUP_🐔")) {
                 continue;
             }
             lineNumber = command.contains("FROM") ? "line 1:10: " : "line 1:13: ";
@@ -646,17 +646,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidQuotingAsLookupIndexPattern() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
 
-        expectError("ROW x = 1 | LOOKUP foo\" ON j", ": token recognition error at: '\" ON j'");
-        expectError("ROW x = 1 | LOOKUP foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 foo\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
 
-        expectError("ROW x = 1 | LOOKUP \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
-        expectError("ROW x = 1 | LOOKUP \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
 
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", "line 1:31: mismatched input '\"bar\"' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", ": mismatched input '\"bar\"' expecting 'on'");
     }
 
     public void testIdentifierAsFieldName() {
@@ -2050,7 +2050,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     private void assertStringAsLookupIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"));
             return;
         }
         var plan = statement(statement);
@@ -2115,10 +2115,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testLookup() {
-        String query = "ROW a = 1 | LOOKUP t ON j";
+        String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var plan = statement(query);

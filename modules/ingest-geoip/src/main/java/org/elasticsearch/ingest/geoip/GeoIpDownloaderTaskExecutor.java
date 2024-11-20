@@ -268,7 +268,7 @@ public final class GeoIpDownloaderTaskExecutor extends PersistentTasksExecutor<G
      */
     @SuppressWarnings("unchecked")
     private static Set<String> pipelinesWithGeoIpProcessor(ClusterState clusterState, boolean downloadDatabaseOnPipelineCreation) {
-        List<PipelineConfiguration> configurations = IngestService.getPipelines(clusterState);
+        List<PipelineConfiguration> configurations = IngestService.getPipelines(clusterState.projectState());
         Set<String> ids = new HashSet<>();
         // note: this loop is unrolled rather than streaming-style because it's hot enough to show up in a flamegraph
         for (PipelineConfiguration configuration : configurations) {

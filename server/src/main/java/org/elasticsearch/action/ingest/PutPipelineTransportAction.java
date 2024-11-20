@@ -22,6 +22,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.ingest.IngestService;
 import org.elasticsearch.injection.guice.Inject;
@@ -38,12 +39,14 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
     public static final ActionType<AcknowledgedResponse> TYPE = new ActionType<>("cluster:admin/ingest/pipeline/put");
     private final IngestService ingestService;
     private final OriginSettingClient client;
+    private final ProjectResolver projectResolver;
 
     @Inject
     public PutPipelineTransportAction(
         ThreadPool threadPool,
         TransportService transportService,
         ActionFilters actionFilters,
+        ProjectResolver projectResolver,
         IndexNameExpressionResolver indexNameExpressionResolver,
         IngestService ingestService,
         NodeClient client
@@ -62,12 +65,13 @@ public class PutPipelineTransportAction extends AcknowledgedTransportMasterNodeA
         // so uses an internal origin context rather than the user context
         this.client = new OriginSettingClient(client, INGEST_ORIGIN);
         this.ingestService = ingestService;
+        this.projectResolver = projectResolver;
     }
 
     @Override
     protected void masterOperation(Task task, PutPipelineRequest request, ClusterState state, ActionListener<AcknowledgedResponse> listener)
         throws Exception {
-        ingestService.putPipeline(request, listener, (nodeListener) -> {
+        ingestService.putPipeline(projectResolver.getProjectId(), request, listener, (nodeListener) -> {
             NodesInfoRequest nodesInfoRequest = new NodesInfoRequest();
             nodesInfoRequest.clear();
             nodesInfoRequest.addMetric(NodesInfoMetrics.Metric.INGEST.metricName());

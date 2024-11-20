@@ -96,6 +96,7 @@ import java.util.function.IntConsumer;
 import java.util.function.LongSupplier;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.cluster.metadata.Metadata.DEFAULT_PROJECT_ID;
 import static org.elasticsearch.cluster.service.ClusterStateTaskExecutorUtils.executeAndAssertSuccessful;
 import static org.elasticsearch.core.Tuple.tuple;
 import static org.elasticsearch.ingest.ConfigurationUtils.newConfigurationException;
@@ -228,6 +229,7 @@ public class IngestServiceTests extends ESTestCase {
 
     public void testUpdatePipelines() {
         IngestService ingestService = createWithProcessors();
+        var projectId = randomProjectId();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
@@ -237,12 +239,12 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", pipeline));
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.pipelines().size(), is(1));
+        assertThat(ingestService.pipelines().get(projectId).size(), is(1));
 
-        Pipeline p = ingestService.getPipeline("_id");
+        Pipeline p = ingestService.getPipeline(projectId, "_id");
         assertThat(p.getId(), equalTo("_id"));
         assertThat(p.getDescription(), nullValue());
         assertThat(p.getProcessors().size(), equalTo(1));
@@ -256,10 +258,11 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline1 = new PipelineConfiguration("_id1", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines().size(), is(1));
+        var projectId = randomProjectId();
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId).size(), is(1));
         {
-            Pipeline p1 = ingestService.getPipeline("_id1");
+            Pipeline p1 = ingestService.getPipeline(projectId, "_id1");
             assertThat(p1.getId(), equalTo("_id1"));
             assertThat(p1.getProcessors().size(), equalTo(0));
         }
@@ -267,13 +270,13 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline2 = new PipelineConfiguration("_id2", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines().size(), is(2));
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId).size(), is(2));
         {
-            Pipeline p1 = ingestService.getPipeline("_id1");
+            Pipeline p1 = ingestService.getPipeline(projectId, "_id1");
             assertThat(p1.getId(), equalTo("_id1"));
             assertThat(p1.getProcessors().size(), equalTo(0));
-            Pipeline p2 = ingestService.getPipeline("_id2");
+            Pipeline p2 = ingestService.getPipeline(projectId, "_id2");
             assertThat(p2.getId(), equalTo("_id2"));
             assertThat(p2.getProcessors().size(), equalTo(0));
         }
@@ -281,29 +284,29 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration pipeline3 = new PipelineConfiguration("_id3", new BytesArray("{\"processors\": []}"), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id2", pipeline2, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines().size(), is(3));
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId).size(), is(3));
         {
-            Pipeline p1 = ingestService.getPipeline("_id1");
+            Pipeline p1 = ingestService.getPipeline(projectId, "_id1");
             assertThat(p1.getId(), equalTo("_id1"));
             assertThat(p1.getProcessors().size(), equalTo(0));
-            Pipeline p2 = ingestService.getPipeline("_id2");
+            Pipeline p2 = ingestService.getPipeline(projectId, "_id2");
             assertThat(p2.getId(), equalTo("_id2"));
             assertThat(p2.getProcessors().size(), equalTo(0));
-            Pipeline p3 = ingestService.getPipeline("_id3");
+            Pipeline p3 = ingestService.getPipeline(projectId, "_id3");
             assertThat(p3.getId(), equalTo("_id3"));
             assertThat(p3.getProcessors().size(), equalTo(0));
         }
 
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines().size(), is(2));
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId).size(), is(2));
         {
-            Pipeline p1 = ingestService.getPipeline("_id1");
+            Pipeline p1 = ingestService.getPipeline(projectId, "_id1");
             assertThat(p1.getId(), equalTo("_id1"));
             assertThat(p1.getProcessors().size(), equalTo(0));
-            Pipeline p3 = ingestService.getPipeline("_id3");
+            Pipeline p3 = ingestService.getPipeline(projectId, "_id3");
             assertThat(p3.getId(), equalTo("_id3"));
             assertThat(p3.getProcessors().size(), equalTo(0));
         }
@@ -312,22 +315,22 @@ public class IngestServiceTests extends ESTestCase {
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         ingestMetadata = new IngestMetadata(Map.of("_id1", pipeline1, "_id3", pipeline3));
 
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines().size(), is(2));
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId).size(), is(2));
         {
-            Pipeline p1 = ingestService.getPipeline("_id1");
+            Pipeline p1 = ingestService.getPipeline(projectId, "_id1");
             assertThat(p1.getId(), equalTo("_id1"));
             assertThat(p1.getProcessors().size(), equalTo(0));
-            Pipeline p3 = ingestService.getPipeline("_id3");
+            Pipeline p3 = ingestService.getPipeline(projectId, "_id3");
             assertThat(p3.getId(), equalTo("_id3"));
             assertThat(p3.getProcessors().size(), equalTo(1));
             assertThat(p3.getProcessors().get(0).getType(), equalTo("set"));
         }
 
         // Perform an update with no changes:
-        Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines();
-        ingestService.innerUpdatePipelines(ingestMetadata);
-        assertThat(ingestService.pipelines(), sameInstance(pipelines));
+        Map<String, IngestService.PipelineHolder> pipelines = ingestService.pipelines().get(projectId);
+        ingestService.innerUpdatePipelines(projectId, ingestMetadata);
+        assertThat(ingestService.pipelines().get(projectId), sameInstance(pipelines));
     }
 
     public void testInnerUpdatePipelinesValidation() {
@@ -354,14 +357,15 @@ public class IngestServiceTests extends ESTestCase {
             PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
                 {"processors": [{"fail_validation" : {}}]}"""), XContentType.JSON);
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            var projectId = randomProjectId();
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
             clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
                 .build();
             ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-            Pipeline pipeline = ingestService.getPipeline("_id");
+            Pipeline pipeline = ingestService.getPipeline(projectId, "_id");
             assertThat(
                 pipeline.getDescription(),
                 equalTo("this is a place holder pipeline, because pipeline with id [_id] could not be loaded")
@@ -377,14 +381,15 @@ public class IngestServiceTests extends ESTestCase {
             PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
                 {"processors": [{"fail_extra_validation" : {}}]}"""), XContentType.JSON);
             IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+            var projectId = randomProjectId();
             ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
             ClusterState previousClusterState = clusterState;
             clusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+                .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
                 .build();
             ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-            Pipeline pipeline = ingestService.getPipeline("_id");
+            Pipeline pipeline = ingestService.getPipeline(projectId, "_id");
             assertThat(pipeline.getDescription(), nullValue());
             assertThat(pipeline.getProcessors().size(), equalTo(1));
             Processor processor = pipeline.getProcessors().get(0);
@@ -397,25 +402,27 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
+        var projectId = randomProjectId();
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("_id"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "_id"), notNullValue());
 
         // Delete pipeline:
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
         previousClusterState = clusterState;
-        clusterState = executeDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(projectId, deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("_id"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "_id"), nullValue());
 
         // Delete not existing pipeline:
         ClusterState finalClusterState = clusterState;
         assertThat(
-            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(deleteRequest, finalClusterState)).getMessage(),
+            expectThrows(ResourceNotFoundException.class, () -> executeFailingDelete(projectId, deleteRequest, finalClusterState))
+                .getMessage(),
             equalTo("pipeline [_id] is missing")
         );
     }
@@ -507,9 +514,12 @@ public class IngestServiceTests extends ESTestCase {
     public void testGetProcessorsInPipeline() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        Pipeline pipeline = ingestService.getPipeline(id);
+        var projectId = randomProjectId();
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
 
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", """
             {
@@ -530,28 +540,31 @@ public class IngestServiceTests extends ESTestCase {
               ]
             }""");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, notNullValue());
 
-        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
-        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(1));
-        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(1));
-        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(2));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, WrappingProcessorImpl.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, WrappingProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, FakeProcessor.class).size(), equalTo(2));
 
-        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(0));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, ConditionalProcessor.class).size(), equalTo(0));
 
         IllegalArgumentException e = expectThrows(
             IllegalArgumentException.class,
-            () -> ingestService.getProcessorsInPipeline("fakeID", Processor.class)
+            () -> ingestService.getProcessorsInPipeline(projectId, "fakeID", Processor.class)
         );
-        assertThat("pipeline with id [fakeID] does not exist", equalTo(e.getMessage()));
+        assertThat("pipeline with id [fakeID] does not exist in project [" + projectId + "]", equalTo(e.getMessage()));
     }
 
     public void testGetPipelineWithProcessorType() throws Exception {
         IngestService ingestService = createWithProcessors();
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        var projectId = randomProjectId();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
 
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", """
@@ -572,15 +585,21 @@ public class IngestServiceTests extends ESTestCase {
                 }
               ]
             }""");
-        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
         PutPipelineRequest putRequest2 = putJsonPipelineRequest("_id2", """
             {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag2"}}]}""");
-        clusterState = executePut(putRequest2, clusterState);
+        clusterState = executePut(projectId, putRequest2, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
-        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> true), containsInAnyOrder("_id1", "_id2"));
-        assertThat(ingestService.getPipelineWithProcessorType(FakeProcessor.class, processor -> false), emptyIterable());
-        assertThat(ingestService.getPipelineWithProcessorType(WrappingProcessorImpl.class, processor -> true), containsInAnyOrder("_id1"));
+        assertThat(
+            ingestService.getPipelineWithProcessorType(projectId, FakeProcessor.class, processor -> true),
+            containsInAnyOrder("_id1", "_id2")
+        );
+        assertThat(ingestService.getPipelineWithProcessorType(projectId, FakeProcessor.class, processor -> false), emptyIterable());
+        assertThat(
+            ingestService.getPipelineWithProcessorType(projectId, WrappingProcessorImpl.class, processor -> true),
+            containsInAnyOrder("_id1")
+        );
     }
 
     public void testReloadPipeline() throws Exception {
@@ -608,30 +627,33 @@ public class IngestServiceTests extends ESTestCase {
         });
 
         IngestService ingestService = createWithProcessors(processorFactories);
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        var projectId = randomProjectId();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build();
         ClusterState previousClusterState = clusterState;
 
         PutPipelineRequest putRequest1 = putJsonPipelineRequest("_id1", """
             {"processors": [{"set" : {"field": "_field", "value": "_value", "tag": "tag1"}}]}""");
-        clusterState = executePut(putRequest1, clusterState);
+        clusterState = executePut(projectId, putRequest1, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         {
             Exception[] exceptionHolder = new Exception[1];
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
+            ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> exceptionHolder[0] = e);
             assertThat(exceptionHolder[0], notNullValue());
             assertThat(exceptionHolder[0].getMessage(), containsString("reload me"));
             assertThat(ingestDocument.getSourceAndMetadata().get("_field"), nullValue());
         }
 
         externalProperty[0] = true;
-        ingestService.reloadPipeline("_id1");
+        ingestService.reloadPipeline(projectId, "_id1");
 
         {
             Exception[] holder = new Exception[1];
             IngestDocument ingestDocument = RandomDocumentPicks.randomIngestDocument(random(), new HashMap<>());
-            ingestService.getPipeline("_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
+            ingestService.getPipeline(projectId, "_id1").execute(ingestDocument, (ingestDocument1, e) -> holder[0] = e);
             assertThat(holder[0], nullValue());
             assertThat(ingestDocument.getSourceAndMetadata().get("_field"), equalTo("_value"));
         }
@@ -672,39 +694,45 @@ public class IngestServiceTests extends ESTestCase {
 
         IngestService ingestService = createWithProcessors(processors);
         String id = "_id";
-        Pipeline pipeline = ingestService.getPipeline(id);
+        var projectId = randomProjectId();
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
 
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, """
             {"processors": [{"complexSet" : {"field": "_field", "value": "_value"}}]}""");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, notNullValue());
 
-        assertThat(ingestService.getProcessorsInPipeline(id, Processor.class).size(), equalTo(3));
-        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessor.class).size(), equalTo(2));
-        assertThat(ingestService.getProcessorsInPipeline(id, FakeProcessor.class).size(), equalTo(1));
-        assertThat(ingestService.getProcessorsInPipeline(id, ConditionalProcessor.class).size(), equalTo(2));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, Processor.class).size(), equalTo(3));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, WrappingProcessor.class).size(), equalTo(2));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, FakeProcessor.class).size(), equalTo(1));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, ConditionalProcessor.class).size(), equalTo(2));
 
-        assertThat(ingestService.getProcessorsInPipeline(id, WrappingProcessorImpl.class).size(), equalTo(0));
+        assertThat(ingestService.getProcessorsInPipeline(projectId, id, WrappingProcessorImpl.class).size(), equalTo(0));
     }
 
     public void testCrud() throws Exception {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        Pipeline pipeline = ingestService.getPipeline(id);
+        var projectId = randomProjectId();
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
 
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, """
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}""");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), nullValue());
@@ -713,25 +741,28 @@ public class IngestServiceTests extends ESTestCase {
 
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, id);
         previousClusterState = clusterState;
-        clusterState = executeDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(projectId, deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
     }
 
     public void testPut() {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        Pipeline pipeline = ingestService.getPipeline(id);
+        var projectId = randomProjectId();
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
 
         // add a new pipeline:
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"processors\": []}");
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), nullValue());
@@ -741,9 +772,9 @@ public class IngestServiceTests extends ESTestCase {
         putRequest = putJsonPipelineRequest(id, """
             {"processors": [], "description": "_description"}""");
         previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, notNullValue());
         assertThat(pipeline.getId(), equalTo(id));
         assertThat(pipeline.getDescription(), equalTo("_description"));
@@ -753,12 +784,15 @@ public class IngestServiceTests extends ESTestCase {
     public void testPutWithErrorResponse() throws IllegalAccessException {
         IngestService ingestService = createWithProcessors();
         String id = "_id";
-        Pipeline pipeline = ingestService.getPipeline(id);
+        var projectId = randomProjectId();
+        Pipeline pipeline = ingestService.getPipeline(projectId, id);
         assertThat(pipeline, nullValue());
-        ClusterState previousClusterState = ClusterState.builder(new ClusterName("_name")).build();
+        ClusterState previousClusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
 
         PutPipelineRequest putRequest = putJsonPipelineRequest(id, "{\"description\": \"empty processors\"}");
-        ClusterState clusterState = executePut(putRequest, previousClusterState);
+        ClusterState clusterState = executePut(projectId, putRequest, previousClusterState);
         MockLog.assertThatLogger(
             () -> ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState)),
             IngestService.class,
@@ -769,7 +803,7 @@ public class IngestServiceTests extends ESTestCase {
                 "failed to update ingest pipelines"
             )
         );
-        pipeline = ingestService.getPipeline(id);
+        pipeline = ingestService.getPipeline(projectId, id);
         assertNotNull(pipeline);
         assertThat(pipeline.getId(), equalTo("_id"));
         assertThat(
@@ -792,22 +826,23 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
+        var projectId = randomProjectId();
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("p1"), notNullValue());
-        assertThat(ingestService.getPipeline("p2"), notNullValue());
-        assertThat(ingestService.getPipeline("q1"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "p1"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "p2"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "q1"), notNullValue());
 
         // Delete pipeline matching wildcard
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "p*");
         previousClusterState = clusterState;
-        clusterState = executeDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(projectId, deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("p1"), nullValue());
-        assertThat(ingestService.getPipeline("p2"), nullValue());
-        assertThat(ingestService.getPipeline("q1"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "p1"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "p2"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "q1"), notNullValue());
 
         // Exception if we used name which does not exist
         ClusterState finalClusterState = clusterState;
@@ -815,6 +850,7 @@ public class IngestServiceTests extends ESTestCase {
             expectThrows(
                 ResourceNotFoundException.class,
                 () -> executeFailingDelete(
+                    projectId,
                     new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "unknown"),
                     finalClusterState
                 )
@@ -825,14 +861,14 @@ public class IngestServiceTests extends ESTestCase {
         // match all wildcard works on last remaining pipeline
         DeletePipelineRequest matchAllDeleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "*");
         previousClusterState = clusterState;
-        clusterState = executeDelete(matchAllDeleteRequest, clusterState);
+        clusterState = executeDelete(projectId, matchAllDeleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("p1"), nullValue());
-        assertThat(ingestService.getPipeline("p2"), nullValue());
-        assertThat(ingestService.getPipeline("q1"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "p1"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "p2"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "q1"), nullValue());
 
         // match all wildcard does not throw exception if none match
-        executeDelete(matchAllDeleteRequest, clusterState);
+        executeDelete(projectId, matchAllDeleteRequest, clusterState);
     }
 
     public void testDeleteWithExistingUnmatchedPipelines() {
@@ -844,17 +880,22 @@ public class IngestServiceTests extends ESTestCase {
         IngestMetadata ingestMetadata = new IngestMetadata(pipelines);
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
+        var projectId = randomProjectId();
         clusterState = ClusterState.builder(clusterState)
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, ingestMetadata))
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("p1"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "p1"), notNullValue());
 
         ClusterState finalClusterState = clusterState;
         assertThat(
             expectThrows(
                 ResourceNotFoundException.class,
-                () -> executeFailingDelete(new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "z*"), finalClusterState)
+                () -> executeFailingDelete(
+                    projectId,
+                    new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "z*"),
+                    finalClusterState
+                )
             ).getMessage(),
             equalTo("pipeline [z*] is missing")
         );
@@ -865,7 +906,8 @@ public class IngestServiceTests extends ESTestCase {
         PipelineConfiguration config = new PipelineConfiguration("_id", new BytesArray("""
             {"processors": [{"set" : {"field": "_field", "value": "_value"}}]}"""), XContentType.JSON);
         IngestMetadata ingestMetadata = new IngestMetadata(Map.of("_id", config));
-        Metadata.Builder builder = Metadata.builder();
+        var projectId = randomProjectId();
+        ProjectMetadata.Builder builder = ProjectMetadata.builder(projectId);
         for (int i = 0; i < randomIntBetween(2, 10); i++) {
             builder.put(
                 IndexMetadata.builder("test" + i).settings(settings(IndexVersion.current())).numberOfShards(1).numberOfReplicas(1).build(),
@@ -873,13 +915,13 @@ public class IngestServiceTests extends ESTestCase {
             );
         }
         builder.putCustom(IngestMetadata.TYPE, ingestMetadata);
-        Metadata metadata = builder.build();
+        ProjectMetadata project = builder.build();
 
         ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build();
         ClusterState previousClusterState = clusterState;
-        clusterState = ClusterState.builder(clusterState).metadata(metadata).build();
+        clusterState = ClusterState.builder(clusterState).putProjectMetadata(project).build();
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("_id"), notNullValue());
+        assertThat(ingestService.getPipeline(projectId, "_id"), notNullValue());
 
         DeletePipelineRequest deleteRequest = new DeletePipelineRequest(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "_id");
 
@@ -891,11 +933,11 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build();
             ClusterState finalClusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .putProjectMetadata(ProjectMetadata.builder(project).put(indexMetadata, true).build())
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> executeFailingDelete(deleteRequest, finalClusterState)
+                () -> executeFailingDelete(projectId, deleteRequest, finalClusterState)
             );
             assertThat(e.getMessage(), containsString("default pipeline for 1 index(es) including [pipeline-index]"));
         }
@@ -908,20 +950,20 @@ public class IngestServiceTests extends ESTestCase {
                 .numberOfReplicas(1)
                 .build();
             ClusterState finalClusterState = ClusterState.builder(clusterState)
-                .metadata(Metadata.builder(metadata).put(indexMetadata, true))
+                .putProjectMetadata(ProjectMetadata.builder(project).put(indexMetadata, true).build())
                 .build();
             IllegalArgumentException e = expectThrows(
                 IllegalArgumentException.class,
-                () -> executeFailingDelete(deleteRequest, finalClusterState)
+                () -> executeFailingDelete(projectId, deleteRequest, finalClusterState)
             );
             assertThat(e.getMessage(), containsString("final pipeline for 1 index(es) including [pipeline-index]"));
         }
 
         // Delete pipeline:
         previousClusterState = clusterState;
-        clusterState = executeDelete(deleteRequest, clusterState);
+        clusterState = executeDelete(projectId, deleteRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-        assertThat(ingestService.getPipeline("_id"), nullValue());
+        assertThat(ingestService.getPipeline(projectId, "_id"), nullValue());
     }
 
     public void testGetPipelines() {
@@ -2213,9 +2255,12 @@ public class IngestServiceTests extends ESTestCase {
 
         // Create pipeline and apply the resulting cluster state, which should update the counter in the right order:
         PutPipelineRequest putRequest = putJsonPipelineRequest("_id", "{\"processors\": [{\"test\" : {}}]}");
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
+        var projectId = randomProjectId();
+        ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
+            .putProjectMetadata(ProjectMetadata.builder(projectId).build())
+            .build(); // Start empty
         ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
+        clusterState = executePut(projectId, putRequest, clusterState);
         ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
 
         // Sanity check that counter has been updated twice:
@@ -2728,7 +2773,7 @@ public class IngestServiceTests extends ESTestCase {
         };
 
         var request = putJsonPipelineRequest(pipelineId, pipelineString);
-        ingestService.putPipeline(request, listener, consumer);
+        ingestService.putPipeline(clusterState.metadata().getProject().id(), request, listener, consumer);
         latch.await();
 
         assertThat(consumer.getExecutionCount(), equalTo(0L));
@@ -2823,8 +2868,10 @@ public class IngestServiceTests extends ESTestCase {
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var projectId = randomProjectId();
+        var ingestMetadata = new IngestMetadata(Map.of(pipelineId, existingPipeline));
         var clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
 
         final int specifiedVersion = randomValueOtherThan(existingVersion, ESTestCase::randomInt);
@@ -2837,9 +2884,9 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON,
             existingVersion
         );
-        var updatedState = executePut(request, clusterState);
+        var updatedState = executePut(projectId, request, clusterState);
 
-        var updatedConfig = ((IngestMetadata) updatedState.metadata().getProject().custom(IngestMetadata.TYPE)).getPipelines()
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().getProject(projectId).custom(IngestMetadata.TYPE)).getPipelines()
             .get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(specifiedVersion));
@@ -2850,8 +2897,10 @@ public class IngestServiceTests extends ESTestCase {
         final Integer existingVersion = randomInt();
         var pipelineString = "{\"version\": " + existingVersion + ", \"processors\": []}";
         var existingPipeline = new PipelineConfiguration(pipelineId, new BytesArray(pipelineString), XContentType.JSON);
+        var projectId = randomProjectId();
+        var ingestMetadata = new IngestMetadata(Map.of(pipelineId, existingPipeline));
         var clusterState = ClusterState.builder(new ClusterName("test"))
-            .metadata(Metadata.builder().putCustom(IngestMetadata.TYPE, new IngestMetadata(Map.of(pipelineId, existingPipeline))).build())
+            .putProjectMetadata(ProjectMetadata.builder(projectId).putCustom(IngestMetadata.TYPE, ingestMetadata).build())
             .build();
 
         var updatedPipelineString = "{\"processors\": []}";
@@ -2863,9 +2912,9 @@ public class IngestServiceTests extends ESTestCase {
             XContentType.JSON,
             existingVersion
         );
-        var updatedState = executePut(request, clusterState);
+        var updatedState = executePut(projectId, request, clusterState);
 
-        var updatedConfig = ((IngestMetadata) updatedState.metadata().getProject().custom(IngestMetadata.TYPE)).getPipelines()
+        var updatedConfig = ((IngestMetadata) updatedState.metadata().getProject(projectId).custom(IngestMetadata.TYPE)).getPipelines()
             .get(pipelineId);
         assertThat(updatedConfig, notNullValue());
         assertThat(updatedConfig.getVersion(), equalTo(existingVersion + 1));
@@ -3089,35 +3138,52 @@ public class IngestServiceTests extends ESTestCase {
         return pipelineStats.stream().filter(p1 -> p1.pipelineId().equals(id)).findFirst().orElse(null);
     }
 
-    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(DeletePipelineRequest request) {
-        return List.of(new IngestService.DeletePipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(ProjectId projectId, DeletePipelineRequest request) {
+        return List.of(
+            new IngestService.DeletePipelineClusterStateUpdateTask(projectId, ActionTestUtils.assertNoFailureListener(t -> {}), request)
+        );
     }
 
-    private static ClusterState executeDelete(DeletePipelineRequest request, ClusterState clusterState) {
+    private static ClusterState executeDelete(ProjectId projectId, DeletePipelineRequest request, ClusterState clusterState) {
         try {
-            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(projectId, request));
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
 
-    private static void executeFailingDelete(DeletePipelineRequest request, ClusterState clusterState) throws Exception {
-        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+    private static void executeFailingDelete(ProjectId projectId, DeletePipelineRequest request, ClusterState clusterState)
+        throws Exception {
+        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            oneTask(projectId, request)
+        );
     }
 
-    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(PutPipelineRequest request) {
-        return List.of(new IngestService.PutPipelineClusterStateUpdateTask(ActionTestUtils.assertNoFailureListener(t -> {}), request));
+    private static List<IngestService.PipelineClusterStateUpdateTask> oneTask(ProjectId projectId, PutPipelineRequest request) {
+        return List.of(
+            new IngestService.PutPipelineClusterStateUpdateTask(projectId, ActionTestUtils.assertNoFailureListener(t -> {}), request)
+        );
     }
 
     private static ClusterState executePut(PutPipelineRequest request, ClusterState clusterState) {
+        return executePut(DEFAULT_PROJECT_ID, request, clusterState);
+    }
+
+    private static ClusterState executePut(ProjectId projectId, PutPipelineRequest request, ClusterState clusterState) {
         try {
-            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+            return executeAndAssertSuccessful(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(projectId, request));
         } catch (Exception e) {
             throw new AssertionError(e);
         }
     }
 
     private static void executeFailingPut(PutPipelineRequest request, ClusterState clusterState) throws Exception {
-        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(clusterState, IngestService.PIPELINE_TASK_EXECUTOR, oneTask(request));
+        ClusterStateTaskExecutorUtils.executeAndThrowFirstFailure(
+            clusterState,
+            IngestService.PIPELINE_TASK_EXECUTOR,
+            oneTask(DEFAULT_PROJECT_ID, request)
+        );
     }
 }

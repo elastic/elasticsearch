@@ -12,6 +12,7 @@ package org.elasticsearch.ingest;
 import org.elasticsearch.action.bulk.FailureStoreMetrics;
 import org.elasticsearch.action.bulk.SimulateBulkRequest;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -61,7 +62,7 @@ public class SimulateIngestServiceTests extends ESTestCase {
             }
         );
         IngestService ingestService = createWithProcessors(processors);
-        ingestService.innerUpdatePipelines(ingestMetadata);
+        ingestService.innerUpdatePipelines(Metadata.DEFAULT_PROJECT_ID, ingestMetadata);
         {
             // First we make sure that if there are no substitutions that we get our original pipeline back:
             SimulateBulkRequest simulateBulkRequest = new SimulateBulkRequest(Map.of(), Map.of(), Map.of(), Map.of());

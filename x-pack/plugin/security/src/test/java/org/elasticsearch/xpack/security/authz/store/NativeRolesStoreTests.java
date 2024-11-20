@@ -27,6 +27,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MappingMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.project.TestProjectResolvers;
 import org.elasticsearch.cluster.routing.IndexRoutingTable;
 import org.elasticsearch.cluster.routing.IndexShardRoutingTable;
 import org.elasticsearch.cluster.routing.RecoverySource;
@@ -144,7 +145,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final ClusterService clusterService = mockClusterServiceWithMinNodeVersion(TransportVersion.current());
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(settings);
         final FeatureService featureService = mock(FeatureService.class);
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Create the index
         securityIndex.clusterChanged(new ClusterChangedEvent("source", getClusterStateWithSecurityIndex(), getEmptyClusterState()));
@@ -401,7 +402,7 @@ public class NativeRolesStoreTests extends ESTestCase {
         final XPackLicenseState licenseState = mock(XPackLicenseState.class);
 
         final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
         final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
         // Init for validation
         new ReservedRolesStore(Set.of("superuser"));
@@ -508,7 +509,7 @@ public class NativeRolesStoreTests extends ESTestCase {
 
             final SecuritySystemIndices systemIndices = new SecuritySystemIndices(clusterService.getSettings());
             final FeatureService featureService = mock(FeatureService.class);
-            systemIndices.init(client, featureService, clusterService);
+            systemIndices.init(client, featureService, clusterService, TestProjectResolvers.singleProject(Metadata.DEFAULT_PROJECT_ID));
             final SecurityIndexManager securityIndex = systemIndices.getMainIndexManager();
 
             final NativeRolesStore rolesStore = new NativeRolesStore(

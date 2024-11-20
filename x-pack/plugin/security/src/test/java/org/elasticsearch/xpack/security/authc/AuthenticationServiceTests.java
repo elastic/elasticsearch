@@ -25,6 +25,7 @@ import org.elasticsearch.action.update.UpdateRequestBuilder;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -186,6 +187,7 @@ public class AuthenticationServiceTests extends ESTestCase {
     private ApiKeyService apiKeyService;
     private ServiceAccountService serviceAccountService;
     private SecurityIndexManager securityIndex;
+    private SecurityIndexManager.IndexState projectIndex;
     private Client client;
     private InetSocketAddress remoteAddress;
     private OperatorPrivileges.OperatorPrivilegesService operatorPrivilegesService;
@@ -308,16 +310,18 @@ public class AuthenticationServiceTests extends ESTestCase {
             return builder;
         }).when(client).prepareGet(nullable(String.class), nullable(String.class));
         securityIndex = mock(SecurityIndexManager.class);
+        projectIndex = mock(SecurityIndexManager.IndexState.class);
+        when(securityIndex.forCurrentProject()).thenReturn(projectIndex);
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
         doAnswer(invocationOnMock -> {
             Runnable runnable = (Runnable) invocationOnMock.getArguments()[1];
             runnable.run();
             return null;
-        }).when(securityIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).checkIndexVersionThenExecute(anyConsumer(), any(Runnable.class));
         final ClusterSettings clusterSettings = new ClusterSettings(
             settings,
             Sets.union(
@@ -615,27 +619,27 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertEquals(expectedInvalidation, service.getNumInvalidation());
 
         // existing to no longer present
-        SecurityIndexManager.State previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        SecurityIndexManager.State currentState = dummyState(null);
-        service.onSecurityIndexStateChange(previousState, currentState);
+        SecurityIndexManager.IndexState previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
+        SecurityIndexManager.IndexState currentState = dummyState(null);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // doesn't exist to exists
         previousState = dummyState(null);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // green or yellow to red
         previousState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
         currentState = dummyState(ClusterHealthStatus.RED);
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
 
         // red to non red
         previousState = dummyState(ClusterHealthStatus.RED);
         currentState = dummyState(randomFrom(ClusterHealthStatus.GREEN, ClusterHealthStatus.YELLOW));
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(++expectedInvalidation, service.getNumInvalidation());
 
         // green to yellow or yellow to green
@@ -643,7 +647,7 @@ public class AuthenticationServiceTests extends ESTestCase {
         currentState = dummyState(
             previousState.indexHealth == ClusterHealthStatus.GREEN ? ClusterHealthStatus.YELLOW : ClusterHealthStatus.GREEN
         );
-        service.onSecurityIndexStateChange(previousState, currentState);
+        service.onSecurityIndexStateChange(Metadata.DEFAULT_PROJECT_ID, previousState, currentState);
         assertEquals(expectedInvalidation, service.getNumInvalidation());
     }
 
@@ -1919,10 +1923,9 @@ public class AuthenticationServiceTests extends ESTestCase {
         String token = tokenFuture.get().getAccessToken();
         when(client.prepareMultiGet()).thenReturn(new MultiGetRequestBuilder(client));
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), false, null, client);
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             threadContext.putHeader("Authorization", "Bearer " + token);
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2025,10 +2028,9 @@ public class AuthenticationServiceTests extends ESTestCase {
     }
 
     public void testExpiredToken() throws Exception {
-        when(securityIndex.defensiveCopy()).thenReturn(securityIndex);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
-        when(securityIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
-        when(securityIndex.indexExists()).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.PRIMARY_SHARDS)).thenReturn(true);
+        when(projectIndex.isAvailable(SecurityIndexManager.Availability.SEARCH_SHARDS)).thenReturn(true);
+        when(projectIndex.indexExists()).thenReturn(true);
         User user = new User("_username", "r1");
         final Authentication expected = AuthenticationTestHelper.builder()
             .user(user)
@@ -2052,10 +2054,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         }
         String token = tokenFuture.get().getAccessToken();
         mockGetTokenFromAccessTokenBytes(tokenService, newTokenBytes.v1(), expected, Map.of(), true, null, client);
+
         doAnswer(invocationOnMock -> {
             ((Runnable) invocationOnMock.getArguments()[1]).run();
             return null;
-        }).when(securityIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
+        }).when(projectIndex).prepareIndexIfNeededThenExecute(anyConsumer(), any(Runnable.class));
 
         try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
             boolean requestIdAlreadyPresent = randomBoolean();
@@ -2513,23 +2516,11 @@ public class AuthenticationServiceTests extends ESTestCase {
         assertTrue(completed.compareAndSet(false, true));
     }
 
-    private SecurityIndexManager.State dummyState(ClusterHealthStatus indexStatus) {
-        return new SecurityIndexManager.State(
-            Instant.now(),
-            true,
-            true,
-            true,
-            true,
-            true,
-            null,
-            null,
-            null,
-            null,
-            concreteSecurityIndexName,
-            indexStatus,
-            IndexMetadata.State.OPEN,
-            "my_uuid",
-            Set.of()
+    private SecurityIndexManager.IndexState dummyState(ClusterHealthStatus indexStatus) {
+
+        return this.securityIndex.new IndexState(
+            Metadata.DEFAULT_PROJECT_ID, SecurityIndexManager.ProjectStatus.PROJECT_AVAILABLE, Instant.now(), true, true, true, true, true,
+            null, null, null, null, concreteSecurityIndexName, indexStatus, IndexMetadata.State.OPEN, "my_uuid", Set.of()
         );
     }
 

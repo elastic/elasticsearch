@@ -31,6 +31,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.project.ProjectResolver;
@@ -61,6 +62,7 @@ import org.elasticsearch.common.util.concurrent.ListenableFuture;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.common.util.concurrent.ThrottledTaskRunner;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -789,7 +791,7 @@ public class Security extends Plugin
         // See Plugin#additionalSettings()
         this.settings = environment.settings();
 
-        systemIndices.init(client, featureService, clusterService);
+        systemIndices.init(client, featureService, clusterService, projectResolver);
 
         this.securityMigrationExecutor.set(
             new SecurityMigrationExecutor(
@@ -802,10 +804,10 @@ public class Security extends Plugin
         );
         this.persistentTasksService.set(persistentTasksService);
 
-        systemIndices.getMainIndexManager().addStateListener((oldState, newState) -> {
+        systemIndices.getMainIndexManager().addStateListener((projectId, oldState, newState) -> {
             // Only consider applying migrations if it's the master node and the security index exists
             if (clusterService.state().nodes().isLocalNodeElectedMaster() && newState.indexExists()) {
-                applyPendingSecurityMigrations(newState);
+                applyPendingSecurityMigrations(projectId, newState);
             }
         });
 
@@ -1224,7 +1226,9 @@ public class Security extends Plugin
         return components;
     }
 
-    private void applyPendingSecurityMigrations(SecurityIndexManager.State newState) {
+    @FixForMultiProject
+    // TODO : The migration task needs to be project aware
+    private void applyPendingSecurityMigrations(ProjectId projectId, SecurityIndexManager.IndexState newState) {
         // If no migrations have been applied and the security index is on the latest version (new index), all migrations can be skipped
         if (newState.migrationsVersion == 0 && newState.createdOnLatestVersion) {
             submitPersistentMigrationTask(SecurityMigrations.MIGRATIONS_BY_VERSION.lastKey(), false);
@@ -1236,12 +1240,13 @@ public class Security extends Plugin
         );
 
         // Check if next migration that has not been applied is eligible to run on the current cluster
-        if (nextMigration == null || systemIndices.getMainIndexManager().isEligibleSecurityMigration(nextMigration.getValue()) == false) {
+        if (nextMigration == null
+            || systemIndices.getMainIndexManager().getProject(projectId).isEligibleSecurityMigration(nextMigration.getValue()) == false) {
             // Reset retry counter if all eligible migrations have been applied successfully
             nodeLocalMigrationRetryCount.set(0);
         } else if (nodeLocalMigrationRetryCount.get() > MAX_SECURITY_MIGRATION_RETRY_COUNT) {
             logger.warn("Security migration failed [" + nodeLocalMigrationRetryCount.get() + "] times, restart node to retry again.");
-        } else if (systemIndices.getMainIndexManager().isReadyForSecurityMigration(nextMigration.getValue())) {
+        } else if (systemIndices.getMainIndexManager().getProject(projectId).isReadyForSecurityMigration(nextMigration.getValue())) {
             submitPersistentMigrationTask(newState.migrationsVersion);
         }
     }

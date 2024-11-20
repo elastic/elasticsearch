@@ -6,6 +6,7 @@
  */
 package org.elasticsearch.xpack.security.authc;
 
+import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.PathUtils;
@@ -43,7 +44,6 @@ import org.hamcrest.Matchers;
 import java.nio.file.Path;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xpack.core.security.authc.RealmSettings.getFullSettingKey;
@@ -84,10 +84,10 @@ public class InternalRealmsTests extends ESTestCase {
         final Environment env = TestEnvironment.newEnvironment(settings);
         final ThreadContext threadContext = new ThreadContext(settings);
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex).addStateListener(isA(BiConsumer.class));
+        verify(securityIndex).addStateListener(isA(TriConsumer.class));
 
         factories.get(NativeRealmSettings.TYPE).create(new RealmConfig(realmId, settings, env, threadContext));
-        verify(securityIndex, times(2)).addStateListener(isA(BiConsumer.class));
+        verify(securityIndex, times(2)).addStateListener(isA(TriConsumer.class));
     }
 
     public void testRealmsRegisterForRefreshAtRoleMapper() throws Exception {

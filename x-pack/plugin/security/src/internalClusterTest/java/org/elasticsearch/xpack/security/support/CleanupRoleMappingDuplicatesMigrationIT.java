@@ -12,6 +12,7 @@ import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.integration.RoleMappingFileSettingsIT;
@@ -243,7 +244,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertMigrationLessThan(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
         ClusterService clusterService = internalCluster().getInstance(ClusterService.class);
         SecurityIndexManager.RoleMappingsCleanupMigrationStatus status = SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
-            clusterService.state(),
+            clusterService.state().projectState(Metadata.DEFAULT_PROJECT_ID),
             SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION - 1
         );
         assertThat(status, equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.NOT_READY));

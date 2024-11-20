@@ -21,6 +21,7 @@ import org.elasticsearch.persistent.PersistentTasksExecutor;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction;
 import org.elasticsearch.xpack.core.security.support.SecurityMigrationTaskParams;
+import org.elasticsearch.xpack.security.support.SecurityIndexManager.IndexState;
 
 import java.util.Arrays;
 import java.util.Map;
@@ -60,7 +61,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         if (params.isMigrationNeeded() == false) {
             updateMigrationVersion(
                 params.getMigrationVersion(),
-                securityIndexManager.getConcreteIndexName(),
+                securityIndexManager.forCurrentProject().getConcreteIndexName(),
                 listener.delegateFailureAndWrap((l, response) -> {
                     logger.info("Security migration not needed. Setting current version to: [" + params.getMigrationVersion() + "]");
                     l.onResponse(response);
@@ -89,7 +90,8 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
         Map.Entry<Integer, SecurityMigrations.SecurityMigration> migrationEntry = migrationByVersion.higherEntry(currentMigrationVersion);
 
         // Check if all nodes can support feature and that the cluster is on a compatible mapping version
-        if (migrationEntry != null && securityIndexManager.isReadyForSecurityMigration(migrationEntry.getValue())) {
+        final IndexState projectSecurityIndex = securityIndexManager.forCurrentProject();
+        if (migrationEntry != null && projectSecurityIndex.isReadyForSecurityMigration(migrationEntry.getValue())) {
             migrationEntry.getValue()
                 .migrate(
                     securityIndexManager,
@@ -97,7 +99,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
                     migrationsListener.delegateFailureIgnoreResponseAndWrap(
                         updateVersionListener -> updateMigrationVersion(
                             migrationEntry.getKey(),
-                            securityIndexManager.getConcreteIndexName(),
+                            projectSecurityIndex.getConcreteIndexName(),
                             new ThreadedActionListener<>(
                                 this.getExecutor(),
                                 updateVersionListener.delegateFailureIgnoreResponseAndWrap(refreshListener -> {
@@ -125,7 +127,7 @@ public class SecurityMigrationExecutor extends PersistentTasksExecutor<SecurityM
      * or unexpected behaviour by APIs relying on migrated docs.
      */
     private void refreshSecurityIndex(ActionListener<Void> listener) {
-        RefreshRequest refreshRequest = new RefreshRequest(securityIndexManager.getConcreteIndexName());
+        RefreshRequest refreshRequest = new RefreshRequest(securityIndexManager.forCurrentProject().getConcreteIndexName());
         executeAsyncWithOrigin(client, SECURITY_ORIGIN, RefreshAction.INSTANCE, refreshRequest, ActionListener.wrap(response -> {
             if (response.getFailedShards() != 0) {
                 // Log a warning but do not stop migration, since this is not a critical operation

@@ -27,6 +27,17 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+
+        /**
+         * Support for function {@code BIT_LENGTH}. Done in #115792
+         */
+        FN_BIT_LENGTH,
+
+        /**
+         * Support for function {@code BYTE_LENGTH}.
+         */
+        FN_BYTE_LENGTH,
+
         /**
          * Support for function {@code REVERSE}.
          */
@@ -268,6 +279,11 @@ public class EsqlCapabilities {
         RANGEQUERY_FOR_DATETIME,
 
         /**
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
+
+        /**
          * Fix for non-unique attribute names in ROW and logical plans.
          * https://github.com/elastic/elasticsearch/issues/110541
          */
@@ -289,9 +305,9 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
 
         /**
          * Removing support for the {@code META} keyword.
@@ -306,22 +322,32 @@ public class EsqlCapabilities {
         /**
          * Support for nanosecond dates as a data type
          */
-        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_TYPE(),
 
         /**
          * Support for to_date_nanos function
          */
-        TO_DATE_NANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        TO_DATE_NANOS(),
+
+        /**
+         * Support for date nanos type in binary comparisons
+         */
+        DATE_NANOS_BINARY_COMPARISON(),
 
         /**
          * Support Least and Greatest functions on Date Nanos type
          */
-        LEAST_GREATEST_FOR_DATENANOS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        LEAST_GREATEST_FOR_DATENANOS(),
+
+        /**
+         * Support for date_trunc function on date nanos type
+         */
+        DATE_TRUNC_DATE_NANOS(),
 
         /**
          * support aggregations on date nanos
          */
-        DATE_NANOS_AGGREGATIONS(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_AGGREGATIONS(),
 
         /**
          * Support for datetime in least and greatest functions
@@ -429,6 +455,12 @@ public class EsqlCapabilities {
         FIX_FILTER_PUSHDOWN_PAST_STATS,
 
         /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
+
+        /**
          * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
          */
         SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
@@ -448,12 +480,26 @@ public class EsqlCapabilities {
          */
         ADD_LIMIT_INSIDE_MV_EXPAND,
 
+        DELAY_DEBUG_FN(Build.current().isSnapshot()),
+
+        /** Capability for remote metadata test */
+        METADATA_FIELDS_REMOTE_TEST(false),
         /**
          * WIP on Join planning
          * - Introduce BinaryPlan and co
          * - Refactor INLINESTATS and LOOKUP as a JOIN block
          */
-        JOIN_PLANNING_V1(Build.current().isSnapshot());
+        JOIN_PLANNING_V1(Build.current().isSnapshot()),
+
+        /**
+         * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP(Build.current().isSnapshot());
 
         private final boolean enabled;
 

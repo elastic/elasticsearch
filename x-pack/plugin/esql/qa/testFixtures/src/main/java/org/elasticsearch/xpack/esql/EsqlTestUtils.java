@@ -29,6 +29,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.geo.ShapeTestUtils;
 import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.esql.action.EsqlQueryResponse;
@@ -89,6 +90,8 @@ import java.time.Duration;
 import java.time.Period;
 import java.util.ArrayList;
 import java.util.EnumSet;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -97,7 +100,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.TreeMap;
 import java.util.jar.JarInputStream;
-import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 
 import static java.util.Collections.emptyList;
@@ -118,8 +120,6 @@ import static org.elasticsearch.test.ESTestCase.randomLongBetween;
 import static org.elasticsearch.test.ESTestCase.randomMillisUpToYear9999;
 import static org.elasticsearch.test.ESTestCase.randomShort;
 import static org.elasticsearch.test.ESTestCase.randomZone;
-import static org.elasticsearch.test.ListMatcher.matchesList;
-import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
@@ -129,7 +129,6 @@ import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassificatio
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.PATTERN;
 import static org.elasticsearch.xpack.esql.parser.ParserUtils.ParamClassification.VALUE;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.junit.Assert.assertTrue;
 
 public final class EsqlTestUtils {
 
@@ -210,9 +209,30 @@ public final class EsqlTestUtils {
         return new EsRelation(EMPTY, new EsIndex(randomAlphaOfLength(8), emptyMap()), IndexMode.STANDARD, randomBoolean());
     }
 
-    public static class TestSearchStats extends SearchStats {
-        public TestSearchStats() {
-            super(emptyList());
+    /**
+     * This version of SearchStats always returns true for all fields for all boolean methods.
+     * For custom behaviour either use {@link TestConfigurableSearchStats} or override the specific methods.
+     */
+    public static class TestSearchStats implements SearchStats {
+
+        @Override
+        public boolean exists(String field) {
+            return true;
+        }
+
+        @Override
+        public boolean isIndexed(String field) {
+            return exists(field);
+        }
+
+        @Override
+        public boolean hasDocValues(String field) {
+            return exists(field);
+        }
+
+        @Override
+        public boolean hasExactSubfield(String field) {
+            return exists(field);
         }
 
         @Override
@@ -231,11 +251,6 @@ public final class EsqlTestUtils {
         }
 
         @Override
-        public boolean exists(String field) {
-            return true;
-        }
-
-        @Override
         public byte[] min(String field, DataType dataType) {
             return null;
         }
@@ -249,10 +264,76 @@ public final class EsqlTestUtils {
         public boolean isSingleValue(String field) {
             return false;
         }
+    }
+
+    /**
+     * This version of SearchStats can be preconfigured to return true/false for various combinations of the four field settings:
+     * <ol>
+     *     <li>exists</li>
+     *     <li>isIndexed</li>
+     *     <li>hasDocValues</li>
+     *     <li>hasExactSubfield</li>
+     * </ol>
+     * The default will return true for all fields. The include/exclude methods can be used to configure the settings for specific fields.
+     * If you call 'include' with no fields, it will switch to return false for all fields.
+     */
+    public static class TestConfigurableSearchStats extends TestSearchStats {
+        public enum Config {
+            EXISTS,
+            INDEXED,
+            DOC_VALUES,
+            EXACT_SUBFIELD
+        }
+
+        private final Map<Config, Set<String>> includes = new HashMap<>();
+        private final Map<Config, Set<String>> excludes = new HashMap<>();
+
+        public TestConfigurableSearchStats include(Config key, String... fields) {
+            // If this method is called with no fields, it is interpreted to mean include none, so we include a dummy field
+            for (String field : fields.length == 0 ? new String[] { "-" } : fields) {
+                includes.computeIfAbsent(key, k -> new HashSet<>()).add(field);
+                excludes.computeIfAbsent(key, k -> new HashSet<>()).remove(field);
+            }
+            return this;
+        }
+
+        public TestConfigurableSearchStats exclude(Config key, String... fields) {
+            for (String field : fields) {
+                includes.computeIfAbsent(key, k -> new HashSet<>()).remove(field);
+                excludes.computeIfAbsent(key, k -> new HashSet<>()).add(field);
+            }
+            return this;
+        }
+
+        private boolean isConfigationSet(Config config, String field) {
+            Set<String> in = includes.getOrDefault(config, Set.of());
+            Set<String> ex = excludes.getOrDefault(config, Set.of());
+            return (in.isEmpty() || in.contains(field)) && ex.contains(field) == false;
+        }
+
+        @Override
+        public boolean exists(String field) {
+            return isConfigationSet(Config.EXISTS, field);
+        }
 
         @Override
         public boolean isIndexed(String field) {
-            return exists(field);
+            return isConfigationSet(Config.INDEXED, field);
+        }
+
+        @Override
+        public boolean hasDocValues(String field) {
+            return isConfigationSet(Config.DOC_VALUES, field);
+        }
+
+        @Override
+        public boolean hasExactSubfield(String field) {
+            return isConfigationSet(Config.EXACT_SUBFIELD, field);
+        }
+
+        @Override
+        public String toString() {
+            return "TestConfigurableSearchStats{" + "includes=" + includes + ", excludes=" + excludes + '}';
         }
     }
 
@@ -262,7 +343,7 @@ public final class EsqlTestUtils {
 
     public static final Configuration TEST_CFG = configuration(new QueryPragmas(Settings.EMPTY));
 
-    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()));
+    public static final Verifier TEST_VERIFIER = new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L));
 
     private EsqlTestUtils() {}
 
@@ -356,6 +437,16 @@ public final class EsqlTestUtils {
         return valuesList;
     }
 
+    public static List<List<Object>> getValuesList(Iterable<Iterable<Object>> values) {
+        var valuesList = new ArrayList<List<Object>>();
+        values.iterator().forEachRemaining(row -> {
+            var rowValues = new ArrayList<>();
+            row.iterator().forEachRemaining(rowValues::add);
+            valuesList.add(rowValues);
+        });
+        return valuesList;
+    }
+
     public static List<String> withDefaultLimitWarning(List<String> warnings) {
         List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
         result.add("No limit defined, adding default limit of [1000]");
@@ -405,16 +496,6 @@ public final class EsqlTestUtils {
         all.add(enrich);
         all.addAll(after);
         return String.join(" | ", all);
-    }
-
-    public static void assertWarnings(List<String> warnings, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
-        if (allowedWarningsRegex.isEmpty()) {
-            assertMap(warnings.stream().sorted().toList(), matchesList(allowedWarnings.stream().sorted().toList()));
-        } else {
-            for (String warning : warnings) {
-                assertTrue("Unexpected warning: " + warning, allowedWarningsRegex.stream().anyMatch(x -> x.matcher(warning).matches()));
-            }
-        }
     }
 
     /**

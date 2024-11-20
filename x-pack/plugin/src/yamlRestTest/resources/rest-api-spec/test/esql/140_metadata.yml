@@ -185,7 +185,7 @@ setup:
   - do:
       esql.query:
         body:
-          query: 'FROM test metadata _source | SORT case ASC | KEEP case, _source | LIMIT 5'
+          query: 'FROM test METADATA _source | SORT case ASC | KEEP case, _source | LIMIT 5'
   - length: { columns: 2 }
   - length: { values: 3 }
   - match: {columns.0.name: "case"}

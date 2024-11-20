@@ -44,18 +44,18 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        int numModels = DefaultElserFeatureFlag.isEnabled() ? 11 : 9;
+        int numModels = 11;
         assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        int numSparseModels = DefaultElserFeatureFlag.isEnabled() ? 6 : 5;
+        int numSparseModels = 6;
         assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        int numDenseModels = DefaultElserFeatureFlag.isEnabled() ? 5 : 4;
+        int numDenseModels = 5;
         assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
@@ -436,7 +436,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()));
             assertThat(events.size(), equalTo(2));
             events.forEach(event -> {
                 switch (event.name()) {
@@ -461,7 +461,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomAlphaOfLength(10)).toList();
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomUUID()).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 

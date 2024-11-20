@@ -136,10 +136,8 @@ fetch _seq_no via fields:
         body:
           fields: [ _seq_no ]
 
-  # This should be `unauthorized` (401) or `forbidden` (403) or at least `bad request` (400)
-  # while instead it is mapped to an `internal_server_error (500)`
-  - match: { status: 500 }
-  - match: { error.root_cause.0.type: unsupported_operation_exception }
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
 
 ---
 fetch fields with none stored_fields:

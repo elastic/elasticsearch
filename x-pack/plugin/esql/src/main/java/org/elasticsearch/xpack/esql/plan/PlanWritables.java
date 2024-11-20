@@ -45,7 +45,6 @@ import org.elasticsearch.xpack.esql.plan.physical.LocalSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.SubqueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
@@ -106,7 +105,6 @@ public class PlanWritables {
             MvExpandExec.ENTRY,
             OrderExec.ENTRY,
             ProjectExec.ENTRY,
-            RowExec.ENTRY,
             ShowExec.ENTRY,
             SubqueryExec.ENTRY,
             TopNExec.ENTRY

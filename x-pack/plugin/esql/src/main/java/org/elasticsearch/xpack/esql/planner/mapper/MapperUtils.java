@@ -27,7 +27,6 @@ import org.elasticsearch.xpack.esql.plan.logical.LeafPlan;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
-import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -57,18 +56,6 @@ class MapperUtils {
     private MapperUtils() {}
 
     static PhysicalPlan mapLeaf(LeafPlan p) {
-        if (p instanceof Row row) {
-            // return new RowExec(row.source(), row.fields());
-            // convert row into local relation
-            List<Alias> fields = row.fields();
-            List<Object> values = new ArrayList<>(fields.size());
-            for (Alias field : fields) {
-                values.add(field.child().fold());
-            }
-            Block[] blocks = BlockUtils.fromListRow(PlannerUtils.NON_BREAKING_BLOCK_FACTORY, values);
-            p = new LocalRelation(row.source(), row.output(), LocalSupplier.of(blocks));
-        }
-
         if (p instanceof LocalRelation local) {
             return new LocalSourceExec(local.source(), local.output(), local.supplier());
         }

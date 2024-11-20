@@ -494,7 +494,12 @@ public class EsqlCapabilities {
         /**
          * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
          */
-        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT;
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP(Build.current().isSnapshot());
 
         private final boolean enabled;
 

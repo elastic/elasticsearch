@@ -135,8 +135,8 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
         // For example: indices.get_mapping/20_missing_type/Non-existent type returns 404
         // However, the folder can be arbitrarily nest so, a == a1/a2/a3, and the test name can include forward slashes, so c == c1/c2/c3
         // So we also need to support a1/a2/a3/b/c1/c2/c3
-
-        String[] testParts = fullTestName.split("/");
+        boolean limitTo3Separators = fullTestName.equals("logsdb/20_source_mapping/include/exclude is supported with stored _source");
+        String[] testParts = limitTo3Separators ? fullTestName.split("/", 3) : fullTestName.split("/");
         if (testParts.length < 3) {
             throw new IllegalArgumentException(
                 "To skip tests, all 3 parts [folder/file/test name] must be defined. found [" + fullTestName + "]"

@@ -181,18 +181,14 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             return true;
         }
 
-        if (dataStreamName != null && dataStreamName.startsWith("profiling-metrics")) {
-            return true;
-        } else if (dataStreamName != null && dataStreamName.startsWith("profiling-events")) {
-            return true;
-        } else if (indexName.startsWith(".profiling-sq-executables")) {
-            return true;
-        } else if (indexName.startsWith(".profiling-sq-leafframes")) {
-            return true;
-        } else if (indexName.startsWith(".profiling-stacktraces")) {
+        // To allow the following patterns: profiling-metrics and
+        if (dataStreamName != null && dataStreamName.startsWith("profiling-")) {
             return true;
         }
-
+        // To allow the following patterns: .profiling-sq-executables, .profiling-sq-leafframes and .profiling-stacktraces
+        if (indexName.startsWith(".profiling-")) {
+            return true;
+        }
         // To allow the following patterns: metrics-apm.transaction.*, metrics-apm.service_transaction.*, metrics-apm.service_summary.*,
         // metrics-apm.service_destination.*, "metrics-apm.internal-* and metrics-apm.app.*
         if (dataStreamName != null && dataStreamName.startsWith("metrics-apm.")) {

@@ -69,7 +69,7 @@ public class EqlPlugin extends Plugin implements ActionPlugin, CircuitBreakerPlu
 
     public static final Setting<Boolean> DEFAULT_ALLOW_PARTIAL_SEQUENCE_RESULTS = Setting.boolSetting(
         "xpack.eql.default_allow_partial_sequence_results",
-        true,
+        false,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
     );

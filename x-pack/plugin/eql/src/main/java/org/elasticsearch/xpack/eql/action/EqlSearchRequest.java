@@ -146,7 +146,7 @@ public class EqlSearchRequest extends ActionRequest implements IndicesRequest.Re
             allowPartialSequenceResults = in.readOptionalBoolean();
         } else {
             allowPartialSearchResults = false;
-            allowPartialSequenceResults = true;
+            allowPartialSequenceResults = false;
         }
     }
 

@@ -142,7 +142,7 @@ public class EqlSearchRequestTests extends AbstractBWCSerializationTestCase<EqlS
             version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSearchResults() : false
         );
         mutatedInstance.allowPartialSequenceResults(
-            version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSequenceResults() : true
+            version.onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS) ? instance.allowPartialSequenceResults() : false
         );
 
         return mutatedInstance;

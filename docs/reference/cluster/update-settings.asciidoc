@@ -59,8 +59,8 @@ An example of a transient update:
 ====
 We no longer recommend using transient cluster settings. Use persistent cluster
 settings instead. If a cluster becomes unstable, transient settings can clear
-unexpectedly, resulting in a potentially undesired cluster configuration. See
-the <<transient-settings-migration-guide>>.
+unexpectedly, resulting in a potentially undesired cluster configuration.
+// See the <<transient-settings-migration-guide>>.
 ====
 // end::transient-settings-warning[]
 

@@ -32,6 +32,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     private final SearchUsageStats searchUsageStats;
     private final RepositoryUsageStats repositoryUsageStats;
     private final CCSTelemetrySnapshot ccsMetrics;
+    private final CCSTelemetrySnapshot esqlMetrics;
 
     public ClusterStatsNodeResponse(StreamInput in) throws IOException {
         super(in);
@@ -54,6 +55,11 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } else {
             ccsMetrics = new CCSTelemetrySnapshot();
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_TELEMETRY_STATS)) {
+            esqlMetrics = new CCSTelemetrySnapshot(in);
+        } else {
+            esqlMetrics = new CCSTelemetrySnapshot();
+        }
     }
 
     public ClusterStatsNodeResponse(
@@ -64,7 +70,8 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         ShardStats[] shardsStats,
         SearchUsageStats searchUsageStats,
         RepositoryUsageStats repositoryUsageStats,
-        CCSTelemetrySnapshot ccsTelemetrySnapshot
+        CCSTelemetrySnapshot ccsTelemetrySnapshot,
+        CCSTelemetrySnapshot esqlTelemetrySnapshot
     ) {
         super(node);
         this.nodeInfo = nodeInfo;
@@ -74,6 +81,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         this.searchUsageStats = Objects.requireNonNull(searchUsageStats);
         this.repositoryUsageStats = Objects.requireNonNull(repositoryUsageStats);
         this.ccsMetrics = ccsTelemetrySnapshot;
+        this.esqlMetrics = esqlTelemetrySnapshot;
     }
 
     public NodeInfo nodeInfo() {
@@ -107,6 +115,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     public CCSTelemetrySnapshot getCcsMetrics() {
         return ccsMetrics;
     }
+    public CCSTelemetrySnapshot getEsqlMetrics() {
+        return esqlMetrics;
+    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -123,6 +134,9 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
         } // else just drop these stats, ok for bwc
         if (out.getTransportVersion().onOrAfter(TransportVersions.CCS_TELEMETRY_STATS)) {
             ccsMetrics.writeTo(out);
+        }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_TELEMETRY_STATS)) {
+            esqlMetrics.writeTo(out);
         }
     }
 

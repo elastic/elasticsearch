@@ -24,9 +24,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.recycler.Recycler;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.PageCacheRecycler;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.monitor.jvm.JvmInfo;
 
+import java.util.Arrays;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 public class NettyAllocator {
@@ -44,8 +46,9 @@ public class NettyAllocator {
     private static final String USE_NETTY_DEFAULT_CHUNK = "es.unsafe.use_netty_default_chunk_and_page_size";
 
     static {
+        ByteBufAllocator allocator;
         if (Booleans.parseBoolean(System.getProperty(USE_NETTY_DEFAULT), false)) {
-            ALLOCATOR = ByteBufAllocator.DEFAULT;
+            allocator = ByteBufAllocator.DEFAULT;
             SUGGESTED_MAX_ALLOCATION_SIZE = 1024 * 1024;
             DESCRIPTION = "[name=netty_default, suggested_max_allocation_size="
                 + ByteSizeValue.ofBytes(SUGGESTED_MAX_ALLOCATION_SIZE)
@@ -127,7 +130,12 @@ public class NettyAllocator {
                     + g1gcRegionSize
                     + "}]";
             }
-            ALLOCATOR = new NoDirectBuffers(delegate);
+            allocator = new NoDirectBuffers(delegate);
+        }
+        if (Assertions.ENABLED) {
+            ALLOCATOR = new TrashingByteBufAllocator(allocator);
+        } else {
+            ALLOCATOR = allocator;
         }
 
         RECYCLER = new Recycler<>() {
@@ -352,5 +360,106 @@ public class NettyAllocator {
         public ByteBufAllocator getDelegate() {
             return delegate;
         }
+    }
+
+    static class TrashingByteBuf extends WrappedByteBuf {
+
+        private boolean trashed = false;
+
+        protected TrashingByteBuf(ByteBuf buf) {
+            super(buf);
+        }
+
+        @Override
+        public boolean release() {
+            if (refCnt() == 1) {
+                // see [NOTE on racy trashContent() calls]
+                trashContent();
+            }
+            return super.release();
+        }
+
+        @Override
+        public boolean release(int decrement) {
+            if (refCnt() == decrement && refCnt() > 0) {
+                // see [NOTE on racy trashContent() calls]
+                trashContent();
+            }
+            return super.release(decrement);
+        }
+
+        // [NOTE on racy trashContent() calls]: We trash the buffer content _before_ reducing the ref
+        // count to zero, which looks racy because in principle a concurrent caller could come along
+        // and successfully retain() this buffer to keep it alive after it's been trashed. Such a
+        // caller would sometimes get an IllegalReferenceCountException ofc but that's something it
+        // could handle - see for instance org.elasticsearch.transport.netty4.Netty4Utils.ByteBufRefCounted.tryIncRef.
+        // Yet in practice this should never happen, we only ever retain() these buffers while we
+        // know them to be alive (i.e. via RefCounted#mustIncRef or its moral equivalents) so it'd
+        // be a bug for a caller to retain() a buffer whose ref count is heading to zero and whose
+        // contents we've already decided to trash.
+        private void trashContent() {
+            if (trashed == false) {
+                trashed = true;
+                TrashingByteBufAllocator.trashBuffer(buf);
+            }
+        }
+    }
+
+    static class TrashingCompositeByteBuf extends CompositeByteBuf {
+
+        TrashingCompositeByteBuf(ByteBufAllocator alloc, boolean direct, int maxNumComponents) {
+            super(alloc, direct, maxNumComponents);
+        }
+
+        @Override
+        protected void deallocate() {
+            TrashingByteBufAllocator.trashBuffer(this);
+            super.deallocate();
+        }
+    }
+
+    static class TrashingByteBufAllocator extends NoDirectBuffers {
+
+        static int DEFAULT_MAX_COMPONENTS = 16;
+
+        static void trashBuffer(ByteBuf buf) {
+            for (var nioBuf : buf.nioBuffers()) {
+                if (nioBuf.hasArray()) {
+                    var from = nioBuf.arrayOffset() + nioBuf.position();
+                    var to = from + nioBuf.remaining();
+                    Arrays.fill(nioBuf.array(), from, to, (byte) 0);
+                }
+            }
+        }
+
+        TrashingByteBufAllocator(ByteBufAllocator delegate) {
+            super(delegate);
+        }
+
+        @Override
+        public ByteBuf heapBuffer() {
+            return new TrashingByteBuf(super.heapBuffer());
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity) {
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity));
+        }
+
+        @Override
+        public ByteBuf heapBuffer(int initialCapacity, int maxCapacity) {
+            return new TrashingByteBuf(super.heapBuffer(initialCapacity, maxCapacity));
+        }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer() {
+            return new TrashingCompositeByteBuf(this, false, DEFAULT_MAX_COMPONENTS);
+        }
+
+        @Override
+        public CompositeByteBuf compositeHeapBuffer(int maxNumComponents) {
+            return new TrashingCompositeByteBuf(this, false, maxNumComponents);
+        }
+
     }
 }

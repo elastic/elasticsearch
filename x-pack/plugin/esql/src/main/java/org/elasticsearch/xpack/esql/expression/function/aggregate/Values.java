@@ -52,7 +52,7 @@ public class Values extends AggregateFunction implements ToAggregator {
     );
 
     @FunctionInfo(
-        returnType = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "version" },
+        returnType = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "version" },
         preview = true,
         description = "Returns all values in a group as a multivalued field. The order of the returned values isn't guaranteed. "
             + "If you need the values returned in order use <<esql-mv_sort>>.",
@@ -70,7 +70,10 @@ public class Values extends AggregateFunction implements ToAggregator {
     )
     public Values(
         Source source,
-        @Param(name = "field", type = { "boolean", "date", "double", "integer", "ip", "keyword", "long", "text", "version" }) Expression v
+        @Param(
+            name = "field",
+            type = { "boolean", "date", "date_nanos", "double", "integer", "ip", "keyword", "long", "text", "version" }
+        ) Expression v
     ) {
         this(source, v, Literal.TRUE);
     }

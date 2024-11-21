@@ -771,40 +771,40 @@ public class VerifierTests extends ESTestCase {
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
                 error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
                 error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }

@@ -221,7 +221,6 @@ required_capability: semantic_text_type
 from semantic_text
 | where match(semantic_text_field, "something") AND match(host, "host1")
 | keep semantic_text_field, host
-| sort semantic_text_field asc
 ;
 
 semantic_text_field:semantic_text | host:keyword

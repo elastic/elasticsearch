@@ -530,6 +530,8 @@ public final class EsqlExpressionTranslators {
     public static class MatchFunctionTranslator extends ExpressionTranslator<Match> {
         @Override
         protected Query asQuery(Match match, TranslatorHandler handler) {
+            // This is only temporary until the MatchQueryBuilder has support for semantic_text.
+            // At that point we can simply remove SemanticQuery and rely on MatchQuery.
             if (match.field().dataType() == DataType.SEMANTIC_TEXT) {
                 return new SemanticQuery(
                     match.source(),

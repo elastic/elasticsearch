@@ -244,6 +244,15 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsStoredSourceChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/117212
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/115163
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
 
 # Examples:
 #

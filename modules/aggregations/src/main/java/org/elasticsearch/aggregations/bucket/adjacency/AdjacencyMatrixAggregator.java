@@ -188,17 +188,16 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
             }
         }
         try (LongArray bucketOrdsToBuild = bigArrays().newLongArray(totalBucketsToBuild)) {
-            int builtBucketIndex = 0;
+            int[] builtBucketIndex = new int[] { 0 };
             for (int ord = 0; ord < maxOrd; ord++) {
                 if (bucketDocCount(ord) > 0) {
-                    bucketOrdsToBuild.set(builtBucketIndex++, ord);
+                    bucketOrdsToBuild.set(builtBucketIndex[0]++, ord);
                 }
             }
-            assert builtBucketIndex == totalBucketsToBuild;
-            builtBucketIndex = 0;
+            assert builtBucketIndex[0] == totalBucketsToBuild;
+            builtBucketIndex[0] = 0;
             var bucketSubAggs = buildSubAggsForBuckets(bucketOrdsToBuild);
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int owningBucketOrdIdx = 0; owningBucketOrdIdx < results.length; owningBucketOrdIdx++) {
+            InternalAggregation[] aggregations = buildAggregations(Math.toIntExact(owningBucketOrds.size()), owningBucketOrdIdx -> {
                 List<InternalAdjacencyMatrix.InternalBucket> buckets = new ArrayList<>(filters.length);
                 for (int i = 0; i < keys.length; i++) {
                     long bucketOrd = bucketOrd(owningBucketOrds.get(owningBucketOrdIdx), i);
@@ -207,10 +206,11 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                     // a date-histogram where we will look for transactions over time and can expect many
                     // empty buckets.
                     if (docCount > 0) {
+                        checkRealMemoryCBForInternalBucket();
                         InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                             keys[i],
                             docCount,
-                            bucketSubAggs.apply(builtBucketIndex++)
+                            bucketSubAggs.apply(builtBucketIndex[0]++)
                         );
                         buckets.add(bucket);
                     }
@@ -226,17 +226,17 @@ public class AdjacencyMatrixAggregator extends BucketsAggregator {
                             InternalAdjacencyMatrix.InternalBucket bucket = new InternalAdjacencyMatrix.InternalBucket(
                                 intersectKey,
                                 docCount,
-                                bucketSubAggs.apply(builtBucketIndex++)
+                                bucketSubAggs.apply(builtBucketIndex[0]++)
                             );
                             buckets.add(bucket);
                         }
                         pos++;
                     }
                 }
-                results[owningBucketOrdIdx] = new InternalAdjacencyMatrix(name, buckets, metadata());
-            }
-            assert builtBucketIndex == totalBucketsToBuild;
-            return results;
+                return new InternalAdjacencyMatrix(name, buckets, metadata());
+            });
+            assert builtBucketIndex[0] == totalBucketsToBuild;
+            return aggregations;
         }
     }
 

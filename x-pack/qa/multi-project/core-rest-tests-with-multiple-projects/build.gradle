@@ -61,8 +61,6 @@ tasks.named("yamlRestTest").configure {
     'indices.blocks/*/*',
     'indices.clear_cache/*/*',
     'indices.clone/*/*',
-    'indices.create/*/*',
-    'indices.create/*/*/*',
     'indices.delete/*/*',
     'indices.delete_alias/*/*',
     'indices.exists_alias/*/*',

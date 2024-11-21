@@ -110,14 +110,16 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
         }
     }
 
-    static class FloatVectorIterator implements Iterator<float[]> {
+    static class FloatVectorIterator implements VectorIterator<float[]> {
         private final float[] buffer;
         private final FloatBuffer vectorValues;
+        private final BytesRef vectorValueBytesRef;
         private final int size;
         private int idx = 0;
 
         FloatVectorIterator(BytesRef vectorValues, float[] buffer, int size) {
             assert vectorValues.length == (buffer.length * Float.BYTES * size);
+            this.vectorValueBytesRef = vectorValues;
             this.vectorValues = ByteBuffer.wrap(vectorValues.bytes, vectorValues.offset, vectorValues.length)
                 .order(ByteOrder.LITTLE_ENDIAN)
                 .asFloatBuffer();
@@ -138,6 +140,17 @@ public class FloatMultiDenseVectorDocValuesField extends MultiDenseVectorDocValu
             vectorValues.get(buffer);
             idx++;
             return buffer;
+        }
+
+        @Override
+        public Iterator<float[]> copy() {
+            return new FloatVectorIterator(vectorValueBytesRef, new float[buffer.length], size);
+        }
+
+        @Override
+        public void reset() {
+            idx = 0;
+            vectorValues.rewind();
         }
     }
 }

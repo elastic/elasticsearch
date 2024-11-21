@@ -140,6 +140,58 @@ fetch _seq_no via fields:
   - match: { error.root_cause.0.type: illegal_argument_exception }
 
 ---
+fetch _source via fields:
+
+  - do:
+      catch: "request"
+      search:
+        index: test
+        body:
+          fields: [ _source ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
+fetch _feature via fields:
+
+  - do:
+      catch: "request"
+      search:
+        index: test
+        body:
+          fields: [ _feature ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
+fetch _nested_path via fields:
+
+  - do:
+      catch: "request"
+      search:
+        index: test
+        body:
+          fields: [ _nested_path ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
+fetch _field_names via fields:
+
+  - do:
+      catch: "request"
+      search:
+        index: test
+        body:
+          fields: [ _field_names ]
+
+  - match: { status: 400 }
+  - match: { error.root_cause.0.type: illegal_argument_exception }
+
+---
 fetch fields with none stored_fields:
   - skip:
       awaits_fix: "https://github.com/elastic/elasticsearch/issues/107466"

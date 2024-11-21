@@ -264,6 +264,7 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
                             continue;
                         }
                         if (spare == null) {
+                            checkRealMemoryCBForInternalBucket();
                             spare = new InternalMultiTerms.Bucket(null, 0, null, showTermDocCountError, 0, formats, keyConverters);
                             spareKey = new BytesRef();
                         }
@@ -287,11 +288,10 @@ class MultiTermsAggregator extends DeferableBucketAggregator {
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                result[ordIdx] = buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
-            }
-            return result;
+            return buildAggregations(
+                Math.toIntExact(owningBucketOrds.size()),
+                ordIdx -> buildResult(otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
+            );
         }
     }
 

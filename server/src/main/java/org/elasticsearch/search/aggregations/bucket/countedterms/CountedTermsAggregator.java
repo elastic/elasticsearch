@@ -140,6 +140,7 @@ class CountedTermsAggregator extends TermsAggregator {
                         long docCount = bucketDocCount(ordsEnum.ord());
                         otherDocCounts.increment(ordIdx, docCount);
                         if (spare == null) {
+                            checkRealMemoryCBForInternalBucket();
                             spare = emptyBucketBuilder.get();
                         }
                         ordsEnum.readValue(spare.getTermBytes());
@@ -158,8 +159,8 @@ class CountedTermsAggregator extends TermsAggregator {
             }
 
             buildSubAggsForAllBuckets(topBucketsPerOrd, InternalTerms.Bucket::getBucketOrd, InternalTerms.Bucket::setAggregations);
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+
+            return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                 final BucketOrder reduceOrder;
                 if (isKeyOrder(order) == false) {
                     reduceOrder = InternalOrder.key(true);
@@ -167,7 +168,7 @@ class CountedTermsAggregator extends TermsAggregator {
                 } else {
                     reduceOrder = order;
                 }
-                result[ordIdx] = new StringTerms(
+                return new StringTerms(
                     name,
                     reduceOrder,
                     order,
@@ -181,8 +182,7 @@ class CountedTermsAggregator extends TermsAggregator {
                     Arrays.asList(topBucketsPerOrd.get(ordIdx)),
                     null
                 );
-            }
-            return result;
+            });
         }
     }
 

@@ -129,5 +129,4 @@ grant {
   permission java.nio.file.LinkPermission "symbolic";
   // needed for keystore tests
   permission java.lang.RuntimePermission "accessUserInformation";
-  permission org.elasticsearch.secure_sm.ThreadPermission, "modifyArbitraryThreadGroup";
 };

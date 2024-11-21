@@ -2300,7 +2300,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorConstantQueryString() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
@@ -2310,7 +2309,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMatchOperator() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
         expectError(
             "from test | WHERE field:CONCAT(\"hello\", \"world\")",

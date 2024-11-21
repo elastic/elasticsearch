@@ -21,8 +21,11 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
 
 public class IbmWatsonxResponseHandler extends BaseResponseHandler {
 
-    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction) {
+    private final boolean canHandleStreamingResponse;
+
+    public IbmWatsonxResponseHandler(String requestType, ResponseParser parseFunction, boolean canHandleStreamingResponse) {
         super(requestType, parseFunction, IbmWatsonxErrorResponseEntity::fromResponse);
+        this.canHandleStreamingResponse = canHandleStreamingResponse;
     }
 
     @Override
@@ -30,6 +33,10 @@ public class IbmWatsonxResponseHandler extends BaseResponseHandler {
         throws RetryException {
         checkForFailureStatusCode(request, result);
         checkForEmptyBody(throttlerManager, logger, request, result);
+    }
+
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponse;
     }
 
     /**

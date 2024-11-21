@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 
+import java.net.URI;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
@@ -103,6 +104,10 @@ public class IbmWatsonxRerankModel extends IbmWatsonxModel {
     @Override
     public ExecutableAction accept(IbmWatsonxActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
         return visitor.create(this, taskSettings);
+    }
+
+    public URI uri() {
+        return getServiceSettings().uri();
     }
 
     public static class Configuration {

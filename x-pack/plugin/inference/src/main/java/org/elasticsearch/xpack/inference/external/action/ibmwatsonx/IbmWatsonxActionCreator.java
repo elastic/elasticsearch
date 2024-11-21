@@ -25,7 +25,6 @@ import static org.elasticsearch.xpack.inference.external.action.ActionUtils.cons
  * Provides a way to construct an {@link ExecutableAction} using the visitor pattern based on the cohere model type.
  */
 public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
-    private static final String COMPLETION_ERROR_PREFIX = "Ibm Watsonx completion";
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -48,7 +47,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     @Override
     public ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = IbmWatsonxRerankModel.of(model, taskSettings);
-        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
+        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.truncator(), serviceComponents.threadPool());
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             overriddenModel.getServiceSettings().uri(),
             "Ibm Watsonx rerank"

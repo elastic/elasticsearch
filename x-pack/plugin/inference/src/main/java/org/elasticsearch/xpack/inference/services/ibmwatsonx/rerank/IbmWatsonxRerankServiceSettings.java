@@ -32,6 +32,7 @@ import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.ServiceFields.*;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.*;
+import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceFields.PROJECT_ID;
 import static org.elasticsearch.xpack.inference.services.ibmwatsonx.IbmWatsonxServiceSettings.DEFAULT_RATE_LIMIT_SETTINGS;
 
 public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject implements ServiceSettings, IbmWatsonxRateLimitServiceSettings {
@@ -51,6 +52,8 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
 
         URI uri = convertToUri(url, URL, ModelConfigurations.SERVICE_SETTINGS, validationException);
         String modelId = extractOptionalString(map, MODEL_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+        String projectId = extractRequiredString(map, PROJECT_ID, ModelConfigurations.SERVICE_SETTINGS, validationException);
+
         RateLimitSettings rateLimitSettings = RateLimitSettings.of(
             map,
             DEFAULT_RATE_LIMIT_SETTINGS,
@@ -63,23 +66,30 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
             throw validationException;
         }
 
-        return new IbmWatsonxRerankServiceSettings(uri, modelId, rateLimitSettings);
+        return new IbmWatsonxRerankServiceSettings(uri, modelId, projectId, rateLimitSettings);
     }
 
     private final URI uri;
 
     private final String modelId;
 
+    private final String projectId;
+
     private final RateLimitSettings rateLimitSettings;
 
-    public IbmWatsonxRerankServiceSettings(@Nullable URI uri, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
+    public Integer maxInputTokens() {
+        return 10;
+    }
+
+    public IbmWatsonxRerankServiceSettings(@Nullable URI uri, @Nullable String modelId, String projectId, @Nullable RateLimitSettings rateLimitSettings) {
         this.uri = uri;
+        this.projectId = projectId;
         this.modelId = modelId;
         this.rateLimitSettings = Objects.requireNonNullElse(rateLimitSettings, DEFAULT_RATE_LIMIT_SETTINGS);
     }
 
-    public IbmWatsonxRerankServiceSettings(@Nullable String url, @Nullable String modelId, @Nullable RateLimitSettings rateLimitSettings) {
-        this(createOptionalUri(url), modelId, rateLimitSettings);
+    public IbmWatsonxRerankServiceSettings(@Nullable String url, @Nullable String modelId, String projectId, @Nullable RateLimitSettings rateLimitSettings) {
+        this(createOptionalUri(url), modelId, projectId, rateLimitSettings);
     }
 
     public IbmWatsonxRerankServiceSettings(StreamInput in) throws IOException {
@@ -93,6 +103,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         }
 
         this.modelId = in.readOptionalString();
+        this.projectId = in.readOptionalString();
 
         if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.rateLimitSettings = new RateLimitSettings(in);
@@ -108,6 +119,10 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
     @Override
     public String modelId() {
         return modelId;
+    }
+
+    public String projectId() {
+        return projectId;
     }
 
     @Override
@@ -140,6 +155,9 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
             builder.field(MODEL_ID, modelId);
         }
 
+        builder.field(PROJECT_ID, projectId);
+
+
         rateLimitSettings.toXContent(builder, params);
 
         return builder;
@@ -164,6 +182,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         }
 
         out.writeOptionalString(modelId);
+        out.writeOptionalString(projectId);
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             rateLimitSettings.writeTo(out);
@@ -177,6 +196,7 @@ public class IbmWatsonxRerankServiceSettings extends FilteredXContentObject impl
         IbmWatsonxRerankServiceSettings that = (IbmWatsonxRerankServiceSettings) object;
         return Objects.equals(uri, that.uri)
             && Objects.equals(modelId, that.modelId)
+            && Objects.equals(projectId, that.projectId)
             && Objects.equals(rateLimitSettings, that.rateLimitSettings);
     }
 

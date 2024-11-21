@@ -1159,8 +1159,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFilter() throws Exception {
-        assumeTrue("Match operator is available just for snapshots", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         assertEquals(
             "1:19: first argument of [salary:\"100\"] must be [string], found value [salary] type [integer]",
             error("from test | where salary:\"100\"")
@@ -1190,7 +1188,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchFunctionAndOperatorHaveCorrectErrorMessages() throws Exception {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:24: [MATCH] function cannot be used after LIMIT",
             error("from test | limit 10 | where match(first_name, \"Anna\")")
@@ -1271,7 +1268,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatornOnlyAllowedInWhere() throws Exception {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         checkFullTextFunctionsOnlyAllowedInWhere(":", "first_name:\"Anna\"", "operator");
     }
 
@@ -1317,8 +1313,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatorWithDisjunctions() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         checkWithDisjunctions(":", "first_name : \"Anna\"", "operator");
     }
 
@@ -1374,7 +1368,6 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchOperatorWithNonBooleanFunctions() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         checkFullTextFunctionsWithNonBooleanFunctions(":", "first_name:\"Anna\"", "operator");
     }
 
@@ -1452,8 +1445,6 @@ public class VerifierTests extends ESTestCase {
             "1:68: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where match(first_name, \"Anna\")")
         );
-
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals(
             "1:62: Unknown column [first_name]",
             error("from test | stats max_salary = max(salary) by emp_no | where first_name : \"Anna\"")
@@ -1473,8 +1464,6 @@ public class VerifierTests extends ESTestCase {
 
     public void testMatchTargetsExistingField() throws Exception {
         assertEquals("1:39: Unknown column [first_name]", error("from test | keep emp_no | where match(first_name, \"Anna\")"));
-
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         assertEquals("1:33: Unknown column [first_name]", error("from test | keep emp_no | where first_name : \"Anna\""));
     }
 

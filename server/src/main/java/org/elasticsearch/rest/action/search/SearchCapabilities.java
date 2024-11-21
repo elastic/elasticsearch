@@ -40,6 +40,8 @@ public final class SearchCapabilities {
     private static final String NESTED_RETRIEVER_INNER_HITS_SUPPORT = "nested_retriever_inner_hits_support";
     /** Support multi-dense-vector script field access. */
     private static final String MULTI_DENSE_VECTOR_SCRIPT_ACCESS = "multi_dense_vector_script_access";
+    /** Initial support for multi-dense-vector maxSim functions access. */
+    private static final String MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM = "multi_dense_vector_script_max_sim";
 
     private static final String RANDOM_SAMPLER_WITH_SCORED_SUBAGGS = "random_sampler_with_scored_subaggs";
 
@@ -56,6 +58,7 @@ public final class SearchCapabilities {
         if (MultiDenseVectorFieldMapper.FEATURE_FLAG.isEnabled()) {
             capabilities.add(MULTI_DENSE_VECTOR_FIELD_MAPPER);
             capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_ACCESS);
+            capabilities.add(MULTI_DENSE_VECTOR_SCRIPT_MAX_SIM);
         }
         if (Build.current().isSnapshot()) {
             capabilities.add(KQL_QUERY_SUPPORTED);

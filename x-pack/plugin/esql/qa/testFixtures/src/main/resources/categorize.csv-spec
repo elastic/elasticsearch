@@ -237,9 +237,8 @@ ROW message = "connected to a"
   | SORT y
 ;
 
-COUNT():long | y:keyword
-           2 | .*?connected.+?to.*?
-           1 | .*?disconnected.*?
+COUNT():long | category:keyword         | y:keyword
+           1 | .*?connected.+?to.+?a.*? | .*?connected.+?to.+?a.*?
 ;
 
 from aliases
@@ -249,6 +248,40 @@ FROM sample_data
   | EVAL x = message
   | STATS COUNT() BY category=CATEGORIZE(x)
   | EVAL y = category
+  | SORT y
+;
+
+COUNT():long | category:keyword         | y:keyword
+           3 | .*?Connected.+?to.*?     | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*? | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?       | .*?Disconnected.*?
+;
+
+row aliases with keep
+required_capability: categorize
+
+ROW message = "connected to a"
+  | EVAL x = message
+  | KEEP x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | KEEP `COUNT()`, y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           1 | .*?connected.+?to.+?a.*?
+;
+
+from aliases
+required_capability: categorize
+
+FROM sample_data
+  | EVAL x = message
+  | KEEP x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | EVAL y = category
+  | KEEP `COUNT()`, y
   | SORT y
 ;
 

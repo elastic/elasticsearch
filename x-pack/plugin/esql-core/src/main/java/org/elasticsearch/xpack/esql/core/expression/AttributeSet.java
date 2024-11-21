@@ -111,6 +111,10 @@ public class AttributeSet implements Set<Attribute> {
         return delegate.keySet().toArray(a);
     }
 
+    /**
+     * @return {@code true} if the set did already contain the element.
+     *         This is the inverse of the standard, and should be changed in the future.
+     */
     @Override
     public boolean add(Attribute e) {
         return delegate.put(e, PRESENT) != null;

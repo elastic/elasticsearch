@@ -41,10 +41,6 @@ public abstract class NonCollectingAggregator extends AggregatorBase {
 
     @Override
     public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
-        InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-        for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-            results[ordIdx] = buildEmptyAggregation();
-        }
-        return results;
+        return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> buildEmptyAggregation());
     }
 }

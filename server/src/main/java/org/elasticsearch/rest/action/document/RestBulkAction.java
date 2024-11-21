@@ -120,7 +120,6 @@ public class RestBulkAction extends BaseRestHandler {
                     request.getRestApiVersion()
                 );
             } catch (Exception e) {
-                content.close();
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
             return channel -> {

@@ -132,7 +132,6 @@ public class SecureSMTests extends TestCase {
         assertTrue(interrupted1.get());
     }
 
-
     public void testParallelStreamThreadGroup() throws Exception {
         List<Integer> list = new ArrayList<>();
         for (int i = 0; i < 100; ++i) {

@@ -157,7 +157,7 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
             // Duplicated attributes are ignored.
             if (ne instanceof Attribute attribute) {
                 var newExpression = aliases.resolve(attribute, attribute);
-                if (newExpression instanceof Attribute newAttribute && seen.add(newAttribute)) {
+                if (newExpression instanceof Attribute newAttribute && seen.add(newAttribute) == false) {
                     // Already seen, skip
                     continue;
                 }

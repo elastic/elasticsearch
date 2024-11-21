@@ -1,5 +1,0 @@
-pr: 112024
-summary: (API) Cluster Health report `unassigned_primary_shards`
-area: Health
-type: enhancement
-issues: []

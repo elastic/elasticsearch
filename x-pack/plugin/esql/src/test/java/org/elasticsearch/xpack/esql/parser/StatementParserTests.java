@@ -491,25 +491,25 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testStringAsLookupIndexPattern() {
         assumeTrue("requires snapshot build", Build.current().isSnapshot());
-        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"foo\" ON j");
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP_🐔 \"foo\" ON j");
         assertStringAsLookupIndexPattern("test-*", """
-            ROW x = 1 | LOOKUP "test-*" ON j
+            ROW x = 1 | LOOKUP_🐔 "test-*" ON j
             """);
-        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP test-* ON j");
-        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP 123-test@foo_bar+baz1 ON j");
+        assertStringAsLookupIndexPattern("test-*", "ROW x = 1 | LOOKUP_🐔 test-* ON j");
+        assertStringAsLookupIndexPattern("123-test@foo_bar+baz1", "ROW x = 1 | LOOKUP_🐔 123-test@foo_bar+baz1 ON j");
         assertStringAsLookupIndexPattern("foo, test-*, abc, xyz", """
-            ROW x = 1 | LOOKUP     "foo, test-*, abc, xyz"  ON j
+            ROW x = 1 | LOOKUP_🐔     "foo, test-*, abc, xyz"  ON j
             """);
-        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP <logstash-{now/M{yyyy.MM}}> ON j");
+        assertStringAsLookupIndexPattern("<logstash-{now/M{yyyy.MM}}>", "ROW x = 1 | LOOKUP_🐔 <logstash-{now/M{yyyy.MM}}> ON j");
         assertStringAsLookupIndexPattern(
             "<logstash-{now/d{yyyy.MM.dd|+12:00}}>",
-            "ROW x = 1 | LOOKUP \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
+            "ROW x = 1 | LOOKUP_🐔 \"<logstash-{now/d{yyyy.MM.dd|+12:00}}>\" ON j"
         );
 
-        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP \"\"\"foo\"\"\" ON j");
-        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP `backtick` ON j");
-        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP ``multiple`back``ticks``` ON j");
-        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP .dot ON j");
+        assertStringAsLookupIndexPattern("foo", "ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\" ON j");
+        assertStringAsLookupIndexPattern("`backtick`", "ROW x = 1 | LOOKUP_🐔 `backtick` ON j");
+        assertStringAsLookupIndexPattern("``multiple`back``ticks```", "ROW x = 1 | LOOKUP_🐔 ``multiple`back``ticks``` ON j");
+        assertStringAsLookupIndexPattern(".dot", "ROW x = 1 | LOOKUP_🐔 .dot ON j");
         clusterAndIndexAsLookupIndexPattern("cluster:index");
         clusterAndIndexAsLookupIndexPattern("cluster:.index");
         clusterAndIndexAsLookupIndexPattern("cluster*:index*");
@@ -519,16 +519,16 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     private void clusterAndIndexAsLookupIndexPattern(String clusterAndIndex) {
-        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP " + clusterAndIndex + " ON j");
-        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP \"" + clusterAndIndex + "\"" + " ON j");
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP_🐔 " + clusterAndIndex + " ON j");
+        assertStringAsLookupIndexPattern(clusterAndIndex, "ROW x = 1 | LOOKUP_🐔 \"" + clusterAndIndex + "\"" + " ON j");
     }
 
     public void testInvalidCharacterInIndexPattern() {
         Map<String, String> commands = new HashMap<>();
-        commands.put("FROM {}", "line 1:7: ");
+        commands.put("FROM {}", "line 1:6: ");
         if (Build.current().isSnapshot()) {
-            commands.put("METRICS {}", "line 1:10: ");
-            commands.put("ROW x = 1 | LOOKUP {} ON j", "line 1:21: ");
+            commands.put("METRICS {}", "line 1:9: ");
+            commands.put("ROW x = 1 | LOOKUP_🐔 {} ON j", "line 1:22: ");
         }
         String lineNumber;
         for (String command : commands.keySet()) {
@@ -568,11 +568,11 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // comma separated indices, with exclusions
         // Invalid index names after removing exclusion fail, when there is no index name with wildcard before it
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP")) {
+            if (command.contains("LOOKUP_🐔")) {
                 continue;
             }
 
-            lineNumber = command.contains("FROM") ? "line 1:21: " : "line 1:24: ";
+            lineNumber = command.contains("FROM") ? "line 1:20: " : "line 1:23: ";
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, --indexpattern", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "indexpattern, \"--indexpattern\"", lineNumber, "-indexpattern");
             expectInvalidIndexNameErrorWithLineNumber(command, "\"indexpattern, --indexpattern\"", commands.get(command), "-indexpattern");
@@ -582,10 +582,10 @@ public class StatementParserTests extends AbstractStatementParserTests {
         // Invalid index names, except invalid DateMath, are ignored if there is an index name with wildcard before it
         String dateMathError = "unit [D] not supported for date math [/D]";
         for (String command : commands.keySet()) {
-            if (command.contains("LOOKUP")) {
+            if (command.contains("LOOKUP_🐔")) {
                 continue;
             }
-            lineNumber = command.contains("FROM") ? "line 1:10: " : "line 1:13: ";
+            lineNumber = command.contains("FROM") ? "line 1:9: " : "line 1:12: ";
             clustersAndIndices(command, "*", "-index#pattern");
             clustersAndIndices(command, "index*", "-index#pattern");
             clustersAndIndices(command, "*", "-<--logstash-{now/M{yyyy.MM}}>");
@@ -646,17 +646,17 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
     public void testInvalidQuotingAsLookupIndexPattern() {
         assumeTrue("requires snapshot builds", Build.current().isSnapshot());
-        expectError("ROW x = 1 | LOOKUP \"foo ON j", ": token recognition error at: '\"foo ON j'");
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo ON j", ": token recognition error at: '\"foo ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo ON j", ": token recognition error at: '\"foo ON j'");
 
-        expectError("ROW x = 1 | LOOKUP foo\" ON j", ": token recognition error at: '\" ON j'");
-        expectError("ROW x = 1 | LOOKUP foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 foo\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 foo\"\"\" ON j", ": token recognition error at: '\" ON j'");
 
-        expectError("ROW x = 1 | LOOKUP \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
-        expectError("ROW x = 1 | LOOKUP \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo\"bar\" ON j", ": token recognition error at: '\" ON j'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"foo\"\"bar\" ON j", ": extraneous input '\"bar\"' expecting 'on'");
 
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
-        expectError("ROW x = 1 | LOOKUP \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", "line 1:31: mismatched input '\"bar\"' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\"bar\"\"\" ON j", ": mismatched input 'bar' expecting 'on'");
+        expectError("ROW x = 1 | LOOKUP_🐔 \"\"\"foo\"\"\"\"\"\"bar\"\"\" ON j", ": mismatched input '\"bar\"' expecting 'on'");
     }
 
     public void testIdentifierAsFieldName() {
@@ -885,18 +885,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     public void testDeprecatedIsNullFunction() {
         expectError(
             "from test | eval x = is_null(f)",
-            "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
         expectError(
             "row x = is_null(f)",
-            "line 1:10: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+            "line 1:9: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
         );
 
         if (Build.current().isSnapshot()) {
             expectError(
                 "from test | eval x = ?fn1(f)",
                 List.of(paramAsIdentifier("fn1", "IS_NULL")),
-                "line 1:23: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
+                "line 1:22: is_null function is not supported anymore, please use 'is null'/'is not null' predicates instead"
             );
         }
     }
@@ -911,23 +911,23 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMetadataFieldMultipleDeclarations() {
-        expectError("from test metadata _index, _version, _index", "1:39: metadata field [_index] already declared [@1:20]");
+        expectError("from test metadata _index, _version, _index", "1:38: metadata field [_index] already declared [@1:20]");
     }
 
     public void testMetadataFieldUnsupportedPrimitiveType() {
-        expectError("from test metadata _tier", "line 1:21: unsupported metadata field [_tier]");
+        expectError("from test metadata _tier", "line 1:20: unsupported metadata field [_tier]");
     }
 
     public void testMetadataFieldUnsupportedCustomType() {
-        expectError("from test metadata _feature", "line 1:21: unsupported metadata field [_feature]");
+        expectError("from test metadata _feature", "line 1:20: unsupported metadata field [_feature]");
     }
 
     public void testMetadataFieldNotFoundNonExistent() {
-        expectError("from test metadata _doesnot_compute", "line 1:21: unsupported metadata field [_doesnot_compute]");
+        expectError("from test metadata _doesnot_compute", "line 1:20: unsupported metadata field [_doesnot_compute]");
     }
 
     public void testMetadataFieldNotFoundNormalField() {
-        expectError("from test metadata emp_no", "line 1:21: unsupported metadata field [emp_no]");
+        expectError("from test metadata emp_no", "line 1:20: unsupported metadata field [emp_no]");
     }
 
     public void testDissectPattern() {
@@ -985,13 +985,13 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "row a = \"foo bar\" | GROK a \"%{NUMBER:foo} %{WORD:foo}\"",
-            "line 1:22: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
+            "line 1:21: Invalid GROK pattern [%{NUMBER:foo} %{WORD:foo}]:"
                 + " the attribute [foo] is defined multiple times with different types"
         );
 
         expectError(
             "row a = \"foo\" | GROK a \"(?P<justification>.+)\"",
-            "line 1:18: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
+            "line 1:17: Invalid grok pattern [(?P<justification>.+)]: [undefined group option]"
         );
     }
 
@@ -1015,7 +1015,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
 
         expectError(
             "from a | where foo like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"",
-            "line 1:17: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+            "line 1:16: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
                 + "[Invalid sequence - escape character is not followed by special wildcard char]"
         );
     }
@@ -1076,7 +1076,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
         );
         expectError(
             "from a | enrich typo:countries on foo",
-            "line 1:18: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
+            "line 1:17: Unrecognized value [typo], ENRICH policy qualifier needs to be one of [_ANY, _COORDINATOR, _REMOTE]"
         );
     }
 
@@ -1261,8 +1261,8 @@ public class StatementParserTests extends AbstractStatementParserTests {
         expectError(
             "from test | where x < ?0 and y < ?2",
             List.of(paramAsConstant(null, 5)),
-            "line 1:24: No parameter is defined for position 0, did you mean position 1?; "
-                + "line 1:35: No parameter is defined for position 2, did you mean position 1?"
+            "line 1:23: No parameter is defined for position 0, did you mean position 1?; "
+                + "line 1:34: No parameter is defined for position 2, did you mean position 1?"
         );
 
         expectError(
@@ -2050,7 +2050,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     private void assertStringAsLookupIndexPattern(String string, String statement) {
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(statement));
-            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP is in preview and only available in SNAPSHOT build"));
+            assertThat(e.getMessage(), containsString("line 1:14: LOOKUP_🐔 is in preview and only available in SNAPSHOT build"));
             return;
         }
         var plan = statement(statement);
@@ -2107,18 +2107,18 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineConvertWithNonexistentType() {
-        expectError("ROW 1::doesnotexist", "line 1:9: Unknown data type named [doesnotexist]");
-        expectError("ROW \"1\"::doesnotexist", "line 1:11: Unknown data type named [doesnotexist]");
-        expectError("ROW false::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
-        expectError("ROW abs(1)::doesnotexist", "line 1:14: Unknown data type named [doesnotexist]");
-        expectError("ROW (1+2)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW 1::doesnotexist", "line 1:8: Unknown data type named [doesnotexist]");
+        expectError("ROW \"1\"::doesnotexist", "line 1:10: Unknown data type named [doesnotexist]");
+        expectError("ROW false::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
+        expectError("ROW abs(1)::doesnotexist", "line 1:13: Unknown data type named [doesnotexist]");
+        expectError("ROW (1+2)::doesnotexist", "line 1:12: Unknown data type named [doesnotexist]");
     }
 
     public void testLookup() {
-        String query = "ROW a = 1 | LOOKUP t ON j";
+        String query = "ROW a = 1 | LOOKUP_🐔 t ON j";
         if (Build.current().isSnapshot() == false) {
             var e = expectThrows(ParsingException.class, () -> statement(query));
-            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP' expecting {"));
+            assertThat(e.getMessage(), containsString("line 1:13: mismatched input 'LOOKUP_🐔' expecting {"));
             return;
         }
         var plan = statement(query);
@@ -2131,7 +2131,7 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInlineConvertUnsupportedType() {
-        expectError("ROW 3::BYTE", "line 1:6: Unsupported conversion to type [BYTE]");
+        expectError("ROW 3::BYTE", "line 1:5: Unsupported conversion to type [BYTE]");
     }
 
     public void testMetricsWithoutStats() {
@@ -2300,7 +2300,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testMatchOperatorConstantQueryString() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         var plan = statement("FROM test | WHERE field:\"value\"");
         var filter = as(plan, Filter.class);
         var match = (Match) filter.condition();
@@ -2310,7 +2309,6 @@ public class StatementParserTests extends AbstractStatementParserTests {
     }
 
     public void testInvalidMatchOperator() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
         expectError("from test | WHERE field:", "line 1:25: mismatched input '<EOF>' expecting {QUOTED_STRING, ");
         expectError(
             "from test | WHERE field:CONCAT(\"hello\", \"world\")",

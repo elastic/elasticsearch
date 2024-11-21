@@ -704,5 +704,3 @@ Instead they are only allowed as elements of specific retrievers:
 * <<search-after, `search_after`>>
 * <<request-body-search-terminate-after, `terminate_after`>>
 * <<search-sort-param, `sort`>>
-* <<rescore, `rescore`>>
-

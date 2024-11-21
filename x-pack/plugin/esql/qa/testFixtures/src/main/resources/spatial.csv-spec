@@ -3,7 +3,6 @@
 ###############################################
 
 convertFromStringQuantize
-required_capability: spatial_points
 
 row wkt = "POINT(42.97109629958868 14.7552534006536)"
 | eval pt = to_geopoint(wkt);
@@ -476,6 +475,42 @@ centroidFromAirportsAfterIntersectsCompoundPredicate
 required_capability: st_intersects
 
 FROM airports
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNoDocValues
+required_capability: st_intersects
+
+FROM airports_no_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexedNorDocValues
+required_capability: st_intersects
+
+FROM airports_not_indexed_nor_doc_values
+| WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
+| STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
+;
+
+centroid:geo_point                            | count:long
+POINT (42.97109629958868 14.7552534006536)    | 1
+;
+
+centroidFromAirportsAfterIntersectsCompoundPredicateNotIndexed
+required_capability: st_intersects
+
+FROM airports_not_indexed
 | WHERE scalerank == 9 AND ST_INTERSECTS(location, TO_GEOSHAPE("POLYGON((42 14, 43 14, 43 15, 42 15, 42 14))")) AND country == "Yemen"
 | STATS centroid=ST_CENTROID_AGG(location), count=COUNT()
 ;

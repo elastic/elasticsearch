@@ -178,7 +178,7 @@ tasks.named("thirdPartyAudit").configure {
   )
 
 
-  if(BuildParams.graalVmRuntime == false) {
+  if(buildParams.graalVmRuntime == false) {
     ignoreMissingClasses(
         'org.graalvm.nativeimage.hosted.Feature',
         'org.graalvm.nativeimage.hosted.Feature$BeforeAnalysisAccess',
@@ -240,7 +240,7 @@ def gcsThirdPartyTest = tasks.register("gcsThirdPartyUnitTest", Test) {
   systemProperty 'tests.security.manager', false
   systemProperty 'test.google.bucket', gcsBucket
   systemProperty 'test.google.fixture', Boolean.toString(useFixture)
-  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.google.base', gcsBasePath + "_third_party_tests_" + buildParams.testSeed
   if (useFixture == false) {
     nonInputProperties.systemProperty 'test.google.account', "${-> encodedCredentials.call()}"
   }

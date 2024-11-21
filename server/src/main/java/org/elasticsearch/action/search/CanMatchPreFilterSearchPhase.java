@@ -58,7 +58,7 @@ import static org.elasticsearch.core.Types.forciblyCast;
  * sort them according to the provided order. This can be useful for instance to ensure that shards that contain recent
  * data are executed first when sorting by descending timestamp.
  */
-final class CanMatchPreFilterSearchPhase extends SearchPhase {
+final class CanMatchPreFilterSearchPhase {
 
     private final Logger logger;
     private final SearchRequest request;
@@ -92,7 +92,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         CoordinatorRewriteContextProvider coordinatorRewriteContextProvider,
         ActionListener<GroupShardsIterator<SearchShardIterator>> listener
     ) {
-        super("can_match");
         this.logger = logger;
         this.searchTransportService = searchTransportService;
         this.nodeIdToConnection = nodeIdToConnection;
@@ -126,13 +125,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
 
     private static boolean assertSearchCoordinationThread() {
         return ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION);
-    }
-
-    @Override
-    public void run() {
-        assert assertSearchCoordinationThread();
-        checkNoMissingShards();
-        runCoordinatorRewritePhase();
     }
 
     // tries to pre-filter shards based on information that's available to the coordinator
@@ -175,7 +167,10 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         if (matchedShardLevelRequests.isEmpty()) {
             finishPhase();
         } else {
-            new Round(new GroupShardsIterator<>(matchedShardLevelRequests)).run();
+            GroupShardsIterator<SearchShardIterator> matchingShards = new GroupShardsIterator<>(matchedShardLevelRequests);
+            // verify missing shards only for the shards that we hit for the query
+            checkNoMissingShards(matchingShards);
+            new Round(matchingShards).run();
         }
     }
 
@@ -185,9 +180,9 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         results.consumeResult(result, () -> {});
     }
 
-    private void checkNoMissingShards() {
+    private void checkNoMissingShards(GroupShardsIterator<SearchShardIterator> shards) {
         assert assertSearchCoordinationThread();
-        doCheckNoMissingShards(getName(), request, shardsIts);
+        SearchPhase.doCheckNoMissingShards("can_match", request, shards, SearchPhase::makeMissingShardsError);
     }
 
     private Map<SendingTarget, List<SearchShardIterator>> groupByNode(GroupShardsIterator<SearchShardIterator> shards) {
@@ -316,7 +311,7 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         @Override
         public void onFailure(Exception e) {
             if (logger.isDebugEnabled()) {
-                logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
+                logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
             }
             onPhaseFailure("round", e);
         }
@@ -368,7 +363,6 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
         );
     }
 
-    @Override
     public void start() {
         if (getNumShards() == 0) {
             finishPhase();
@@ -379,20 +373,21 @@ final class CanMatchPreFilterSearchPhase extends SearchPhase {
             @Override
             public void onFailure(Exception e) {
                 if (logger.isDebugEnabled()) {
-                    logger.debug(() -> format("Failed to execute [%s] while running [%s] phase", request, getName()), e);
+                    logger.debug(() -> format("Failed to execute [%s] while running [can_match] phase", request), e);
                 }
                 onPhaseFailure("start", e);
             }
 
             @Override
             protected void doRun() {
-                CanMatchPreFilterSearchPhase.this.run();
+                assert assertSearchCoordinationThread();
+                runCoordinatorRewritePhase();
             }
         });
     }
 
     public void onPhaseFailure(String msg, Exception cause) {
-        listener.onFailure(new SearchPhaseExecutionException(getName(), msg, cause, ShardSearchFailure.EMPTY_ARRAY));
+        listener.onFailure(new SearchPhaseExecutionException("can_match", msg, cause, ShardSearchFailure.EMPTY_ARRAY));
     }
 
     public Transport.Connection getConnection(SendingTarget sendingTarget) {

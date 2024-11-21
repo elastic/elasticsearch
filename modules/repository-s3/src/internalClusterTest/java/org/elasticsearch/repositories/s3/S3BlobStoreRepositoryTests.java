@@ -188,7 +188,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/88841", value = "com.amazonaws.request:DEBUG")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
+        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
+    )
     public void testRequestStats() throws Exception {
         super.testRequestStats();
     }
@@ -234,7 +237,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
+        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
+    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -294,10 +300,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 )
             );
             metrics.forEach(metric -> {
-                assertThat(
-                    metric.attributes(),
-                    allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
-                );
+                assertThat(metric.attributes(), allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("operation"), hasKey("purpose")));
                 final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) metric.attributes().get("operation"));
                 final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
                     operation,

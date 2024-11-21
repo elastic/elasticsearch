@@ -29,6 +29,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
+import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
@@ -160,7 +161,7 @@ public final class PlanStreamInput extends NamedWriteableAwareStreamInput
 
     @Override
     public String sourceText() {
-        return configuration.query();
+        return configuration == null ? Source.EMPTY.text() : configuration.query();
     }
 
     static void throwOnNullOptionalRead(Class<?> type) throws IOException {

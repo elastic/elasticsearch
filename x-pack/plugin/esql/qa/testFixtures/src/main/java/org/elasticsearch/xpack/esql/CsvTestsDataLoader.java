@@ -64,6 +64,9 @@ public class CsvTestsDataLoader {
     private static final TestsDataset SAMPLE_DATA_TS_LONG = SAMPLE_DATA.withIndex("sample_data_ts_long")
         .withData("sample_data_ts_long.csv")
         .withTypeMapping(Map.of("@timestamp", "long"));
+    private static final TestsDataset SAMPLE_DATA_TS_NANOS = SAMPLE_DATA.withIndex("sample_data_ts_nanos")
+        .withData("sample_data_ts_nanos.csv")
+        .withTypeMapping(Map.of("@timestamp", "date_nanos"));
     private static final TestsDataset MISSING_IP_SAMPLE_DATA = new TestsDataset("missing_ip_sample_data");
     private static final TestsDataset CLIENT_IPS = new TestsDataset("clientips");
     private static final TestsDataset CLIENT_CIDR = new TestsDataset("client_cidr");
@@ -90,6 +93,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset BOOKS = new TestsDataset("books");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
+    private static final String LOOKUP_INDEX_SUFFIX = "_lookup";
+
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(HOSTS.indexName, HOSTS),
@@ -101,6 +106,7 @@ public class CsvTestsDataLoader {
         Map.entry(ALERTS.indexName, ALERTS),
         Map.entry(SAMPLE_DATA_STR.indexName, SAMPLE_DATA_STR),
         Map.entry(SAMPLE_DATA_TS_LONG.indexName, SAMPLE_DATA_TS_LONG),
+        Map.entry(SAMPLE_DATA_TS_NANOS.indexName, SAMPLE_DATA_TS_NANOS),
         Map.entry(MISSING_IP_SAMPLE_DATA.indexName, MISSING_IP_SAMPLE_DATA),
         Map.entry(CLIENT_IPS.indexName, CLIENT_IPS),
         Map.entry(CLIENT_CIDR.indexName, CLIENT_CIDR),
@@ -124,7 +130,9 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
+        // JOIN LOOKUP alias
+        Map.entry(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX, LANGUAGES.withIndex(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX))
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

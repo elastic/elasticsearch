@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.capabilities.UnresolvedException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
-import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
-import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttribute;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedAttributeTests;
 import org.elasticsearch.xpack.esql.core.expression.UnresolvedNamedExpression;
@@ -45,7 +43,9 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.string.Concat;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 import org.elasticsearch.xpack.esql.plan.logical.Grok;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
 import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.Stat;
 import org.elasticsearch.xpack.esql.plan.physical.EsStatsQueryExec.StatsType;
@@ -114,9 +114,13 @@ import static org.mockito.Mockito.mock;
  * </ul>
  */
 public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeSubclassTests {
+    private static final String ESQL_CORE_CLASS_PREFIX = "org.elasticsearch.xpack.esql.core";
+    private static final String ESQL_CORE_JAR_LOCATION_SUBSTRING = "x-pack-esql-core";
+    private static final String ESQL_CLASS_PREFIX = "org.elasticsearch.xpack.esql";
+
     private static final Predicate<String> CLASSNAME_FILTER = className -> {
-        boolean esqlCore = className.startsWith("org.elasticsearch.xpack.esql.core") != false;
-        boolean esqlProper = className.startsWith("org.elasticsearch.xpack.esql") != false;
+        boolean esqlCore = className.startsWith(ESQL_CORE_CLASS_PREFIX) != false;
+        boolean esqlProper = className.startsWith(ESQL_CLASS_PREFIX) != false;
         return (esqlCore || esqlProper);
     };
 
@@ -163,15 +167,6 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
          * in the parameters and not included.
          */
         expectedCount -= 1;
-
-        // special exceptions with private constructors
-        if (MetadataAttribute.class.equals(subclass) || ReferenceAttribute.class.equals(subclass)) {
-            expectedCount++;
-        }
-
-        if (FieldAttribute.class.equals(subclass)) {
-            expectedCount += 2;
-        }
 
         assertEquals(expectedCount, info(node).properties().size());
     }
@@ -443,8 +438,9 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         } else if (argClass == Integer.class) {
             return randomInt();
         } else if (argClass == JoinType.class) {
-            return JoinType.LEFT;
+            return JoinTypes.LEFT;
         }
+
         if (Expression.class == argClass) {
             /*
              * Rather than use any old subclass of expression lets
@@ -495,6 +491,15 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
         if (argClass == Configuration.class) {
             return randomConfiguration();
         }
+        if (argClass == JoinConfig.class) {
+            return new JoinConfig(
+                JoinTypes.LEFT,
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute()),
+                List.of(UnresolvedAttributeTests.randomUnresolvedAttribute())
+            );
+        }
+
         try {
             return mock(argClass);
         } catch (MockitoException e) {
@@ -736,7 +741,7 @@ public class EsqlNodeSubclassTests<T extends B, B extends Node<B>> extends NodeS
             // NIO FileSystem API is not used since it trips the SecurityManager
             // https://bugs.openjdk.java.net/browse/JDK-8160798
             // so iterate the jar "by hand"
-            if (path.endsWith(".jar") && path.contains("x-pack-ql")) {
+            if (path.endsWith(".jar") && path.contains(ESQL_CORE_JAR_LOCATION_SUBSTRING)) {
                 try (JarInputStream jar = jarStream(root)) {
                     JarEntry je = null;
                     while ((je = jar.getNextJarEntry()) != null) {

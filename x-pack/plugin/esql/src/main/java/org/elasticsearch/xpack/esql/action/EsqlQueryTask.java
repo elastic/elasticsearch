@@ -31,7 +31,7 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
         TimeValue keepAlive
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
-        this.executionInfo = null; // FIXME
+        this.executionInfo = null;
     }
 
     public void setExecutionInfo(EsqlExecutionInfo executionInfo) {

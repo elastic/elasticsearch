@@ -196,7 +196,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
                 }
                 b.field("is_running", isRunning);
             }
-            if (executionInfo != null && executionInfo.overallTook() != null) {
+            if (isRunning == false && executionInfo != null && executionInfo.overallTook() != null) {
                 b.field("took", executionInfo.overallTook().millis());
             }
             if (dropNullColumns) {

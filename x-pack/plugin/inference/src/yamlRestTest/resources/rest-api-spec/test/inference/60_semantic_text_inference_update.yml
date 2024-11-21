@@ -441,6 +441,69 @@ setup:
   - exists: _source.dense_field.inference.chunks.0.embeddings
 
 ---
+"Partial updates work when using the update API and the semantic text field is in an object field":
+  - requires:
+      cluster_features: semantic_text.partial_update_in_object_fix
+      reason: Partial update when semantic text field is in an object fixed in 8.15.5, 8.16.2, and 8.17.0
+
+  - do:
+      indices.create:
+        index: test-in-object-index
+        body:
+          mappings:
+            properties:
+              object.sparse_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              object.sparse_source_field:
+                type: text
+                copy_to: object.sparse_field
+              object.dense_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              object.dense_source_field:
+                type: text
+                copy_to: object.dense_field
+
+  - do:
+      index:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          object:
+            sparse_field: "sparse data 1"
+            sparse_source_field: "sparse data 2"
+            dense_field: "dense data 1"
+            dense_source_field: "dense data 2"
+
+#  - do:
+#      index:
+#        index: test-in-object-index
+#        id: doc_1
+#        body:
+#          object.sparse_field: "sparse data 1"
+#          object.sparse_source_field: "sparse data 2"
+#          object.dense_field: "dense data 1"
+#          object.dense_source_field: "dense data 2"
+
+# TODO: Enable case once we decide how to handle it
+#  - do:
+#      update:
+#        index: test-in-object-index
+#        id: doc_1
+#        body:
+#          doc: { "object.sparse_field": "sparse data 3", "object.dense_field": "dense data 3" }
+
+  - do:
+      update:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          doc: { "object.sparse_source_field": "sparse data 4", "object.dense_source_field": "dense data 4" }
+
+  # TODO: Complete test
+
+---
 "Updates with script are not allowed":
   - do:
       bulk:

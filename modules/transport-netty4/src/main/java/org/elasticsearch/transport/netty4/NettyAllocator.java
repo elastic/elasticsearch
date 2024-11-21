@@ -373,6 +373,7 @@ public class NettyAllocator {
         @Override
         public boolean release() {
             if (refCnt() == 1) {
+                // see [NOTE on racy trashContent() calls]
                 trashContent();
             }
             return super.release();
@@ -381,11 +382,21 @@ public class NettyAllocator {
         @Override
         public boolean release(int decrement) {
             if (refCnt() == decrement && refCnt() > 0) {
+                // see [NOTE on racy trashContent() calls]
                 trashContent();
             }
             return super.release(decrement);
         }
 
+        // [NOTE on racy trashContent() calls]: We trash the buffer content _before_ reducing the ref
+        // count to zero, which looks racy because in principle a concurrent caller could come along
+        // and successfully retain() this buffer to keep it alive after it's been trashed. Such a
+        // caller would sometimes get an IllegalReferenceCountException ofc but that's something it
+        // could handle - see for instance org.elasticsearch.transport.netty4.Netty4Utils.ByteBufRefCounted.tryIncRef.
+        // Yet in practice this should never happen, we only ever retain() these buffers while we
+        // know them to be alive (i.e. via RefCounted#mustIncRef or its moral equivalents) so it'd
+        // be a bug for a caller to retain() a buffer whose ref count is heading to zero and whose
+        // contents we've already decided to trash.
         private void trashContent() {
             if (trashed == false) {
                 trashed = true;

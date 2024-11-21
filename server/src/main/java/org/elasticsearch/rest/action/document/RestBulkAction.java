@@ -104,7 +104,7 @@ public class RestBulkAction extends BaseRestHandler {
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
             ReleasableBytesReference content = request.requiredReleasableContent();
-            content.mustIncRef();
+
             try {
                 bulkRequest.add(
                     content,
@@ -123,10 +123,13 @@ public class RestBulkAction extends BaseRestHandler {
                 content.close();
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-            return channel -> client.bulk(
-                bulkRequest,
-                ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content)
-            );
+            return channel -> {
+                content.mustIncRef();
+                client.bulk(
+                    bulkRequest,
+                    ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content)
+                );
+            };
         } else {
             String waitForActiveShards = request.param("wait_for_active_shards");
             TimeValue timeout = request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT);

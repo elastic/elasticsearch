@@ -33,7 +33,7 @@ public class ElasticInferenceServiceSparseEmbeddingsResponseEntity {
         "Failed to find required field [%s] in Elastic Inference Service embeddings response";
 
     /**
-     * Parses the EIS json response.
+     * Parses the Elastic Inference Service json response.
      *
      * For a request like:
      *

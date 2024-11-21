@@ -212,18 +212,18 @@ public class AzureHttpHandler implements HttpHandler {
 
             } else if (Regex.simpleMatch("HEAD /" + account + "/" + container + "/*", request)) {
                 // Get Blob Properties (see https://docs.microsoft.com/en-us/rest/api/storageservices/get-blob-properties)
-                final MockAzureBlobStore.AzureBlob azureBlob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
+                final MockAzureBlobStore.AzureBlockBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
 
                 final Headers responseHeaders = exchange.getResponseHeaders();
-                final BytesReference blobContents = azureBlob.getContents();
+                final BytesReference blobContents = blob.getContents();
                 responseHeaders.add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(blobContents.length()));
                 responseHeaders.add("Content-Length", String.valueOf(blobContents.length()));
-                responseHeaders.add(X_MS_BLOB_TYPE, azureBlob.type());
+                responseHeaders.add(X_MS_BLOB_TYPE, blob.type());
                 exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
 
             } else if (Regex.simpleMatch("GET /" + account + "/" + container + "/*", request)) {
                 // Get Blob (https://learn.microsoft.com/en-us/rest/api/storageservices/get-blob)
-                final MockAzureBlobStore.AzureBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
+                final MockAzureBlobStore.AzureBlockBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
 
                 final BytesReference responseContent;
                 final RestStatus successStatus;
@@ -286,8 +286,11 @@ public class AzureHttpHandler implements HttpHandler {
                     list.append("<Delimiter>").append(delimiter).append("</Delimiter>");
                 }
                 list.append("<Blobs>");
-                final Map<String, MockAzureBlobStore.AzureBlob> matchingBlobs = mockAzureBlobStore.listBlobs(prefix, leaseId(exchange));
-                for (Map.Entry<String, MockAzureBlobStore.AzureBlob> blob : matchingBlobs.entrySet()) {
+                final Map<String, MockAzureBlobStore.AzureBlockBlob> matchingBlobs = mockAzureBlobStore.listBlobs(
+                    prefix,
+                    leaseId(exchange)
+                );
+                for (Map.Entry<String, MockAzureBlobStore.AzureBlockBlob> blob : matchingBlobs.entrySet()) {
                     final String blobPath = blob.getKey();
                     if (delimiter != null) {
                         int fromIndex = (prefix != null ? prefix.length() : 0);

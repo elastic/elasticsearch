@@ -34,7 +34,7 @@ public class MockAzureBlobStore {
     private static final String APPEND_BLOB_TYPE = "AppendBlob";
 
     private final LeaseExpiryPredicate leaseExpiryPredicate;
-    private final Map<String, AzureBlob> blobs;
+    private final Map<String, AzureBlockBlob> blobs;
 
     /**
      * Provide the means of triggering lease expiration
@@ -49,27 +49,19 @@ public class MockAzureBlobStore {
     public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
         blobs.compute(path, (p, existing) -> {
             if (existing != null) {
-                if (existing instanceof MockAzureBlockBlob mabb) {
-                    mabb.putBlock(blockId, content, leaseId);
-                    return existing;
-                } else {
-                    throw new ConflictException("InvalidBlobType", "The blob type is invalid for this operation.");
-                }
+                existing.putBlock(blockId, content, leaseId);
+                return existing;
             } else {
-                final MockAzureBlockBlob mockAzureBlockBlob = new MockAzureBlockBlob();
-                mockAzureBlockBlob.putBlock(blockId, content, leaseId);
-                return mockAzureBlockBlob;
+                final AzureBlockBlob azureBlockBlob = new AzureBlockBlob();
+                azureBlockBlob.putBlock(blockId, content, leaseId);
+                return azureBlockBlob;
             }
         });
     }
 
     public void putBlockList(String path, List<String> blockIds, @Nullable String leaseId) {
-        final AzureBlob azureBlob = getExistingBlob(path);
-        if (azureBlob instanceof MockAzureBlockBlob mabb) {
-            mabb.putBlockList(blockIds, leaseId);
-        } else {
-            throw new ConflictException("InvalidBlobType", "The blob type is invalid for this operation.");
-        }
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.putBlockList(blockIds, leaseId);
     }
 
     public void putBlob(String path, BytesReference contents, String blobType, @Nullable String ifNoneMatch, @Nullable String leaseId) {
@@ -79,7 +71,7 @@ public class MockAzureBlobStore {
                 return existingValue;
             } else {
                 validateBlobType(blobType);
-                final AzureBlob newBlob = new MockAzureBlockBlob();
+                final AzureBlockBlob newBlob = new AzureBlockBlob();
                 newBlob.setContents(contents, leaseId);
                 return newBlob;
             }
@@ -101,23 +93,23 @@ public class MockAzureBlobStore {
         throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", errorMessage);
     }
 
-    public AzureBlob getBlob(String path, @Nullable String leaseId) {
-        final AzureBlob azureBlob = getExistingBlob(path);
+    public AzureBlockBlob getBlob(String path, @Nullable String leaseId) {
+        final AzureBlockBlob blob = getExistingBlob(path);
         // This is the public implementation of "get blob" which will 404 for uncommitted block blobs
-        if (azureBlob.isCommitted() == false) {
+        if (blob.isCommitted() == false) {
             throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
         }
-        azureBlob.checkLeaseForRead(leaseId);
-        return azureBlob;
+        blob.checkLeaseForRead(leaseId);
+        return blob;
     }
 
     public void deleteBlob(String path, @Nullable String leaseId) {
-        final AzureBlob azureBlob = getExistingBlob(path);
-        azureBlob.checkLeaseForWrite(leaseId);
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.checkLeaseForWrite(leaseId);
         blobs.remove(path);
     }
 
-    public Map<String, AzureBlob> listBlobs(String prefix, @Nullable String leaseId) {
+    public Map<String, AzureBlockBlob> listBlobs(String prefix, @Nullable String leaseId) {
         return blobs.entrySet().stream().filter(e -> {
             if (prefix == null || e.getKey().startsWith(prefix)) {
                 return true;
@@ -130,59 +122,38 @@ public class MockAzureBlobStore {
     }
 
     public String acquireLease(String path, int leaseTimeSeconds, @Nullable String proposedLeaseId) {
-        final AzureBlob azureBlob = getExistingBlob(path);
-        return azureBlob.acquireLease(proposedLeaseId, leaseTimeSeconds);
+        final AzureBlockBlob blob = getExistingBlob(path);
+        return blob.acquireLease(proposedLeaseId, leaseTimeSeconds);
     }
 
     public void releaseLease(String path, @Nullable String leaseId) {
-        final AzureBlob azureBlob = getExistingBlob(path);
-        azureBlob.releaseLease(leaseId);
+        final AzureBlockBlob blob = getExistingBlob(path);
+        blob.releaseLease(leaseId);
     }
 
     public Map<String, BytesReference> blobs() {
-        return Maps.transformValues(blobs, AzureBlob::getContents);
+        return Maps.transformValues(blobs, AzureBlockBlob::getContents);
     }
 
-    private AzureBlob getExistingBlob(String path) {
-        final AzureBlob azureBlob = blobs.get(path);
-        if (azureBlob == null) {
+    private AzureBlockBlob getExistingBlob(String path) {
+        final AzureBlockBlob blob = blobs.get(path);
+        if (blob == null) {
             throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
         }
-        return azureBlob;
+        return blob;
     }
 
     static void failTestWithAssertionError(String message) {
         ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
     }
 
-    public interface AzureBlob {
-
-        void setContents(BytesReference contents, @Nullable String leaseId);
-
-        void setContents(BytesReference contents, @Nullable String leaseId, @Nullable String ifNoneMatchHeaderValue);
-
-        BytesReference getContents();
-
-        String type();
-
-        String acquireLease(String proposedLeaseId, int leaseTimeSeconds);
-
-        void releaseLease(String leaseId);
-
-        void checkLeaseForRead(@Nullable String leaseId);
-
-        void checkLeaseForWrite(@Nullable String leaseId);
-
-        boolean isCommitted();
-    }
-
-    private class MockAzureBlockBlob implements AzureBlob {
+    public class AzureBlockBlob {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
         private final Map<String, BytesReference> blocks;
         private volatile BytesReference contents = UNCOMMITTED;
 
-        private MockAzureBlockBlob() {
+        private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
         }
 
@@ -223,7 +194,6 @@ public class MockAzureBlobStore {
             );
         }
 
-        @Override
         public synchronized void setContents(BytesReference contents, @Nullable String leaseId) {
             synchronized (writeLock) {
                 lease.checkLeaseForWrite(leaseId);
@@ -232,7 +202,6 @@ public class MockAzureBlobStore {
             }
         }
 
-        @Override
         public void setContents(BytesReference contents, @Nullable String leaseId, @Nullable String ifNoneMatchHeaderValue) {
             synchronized (writeLock) {
                 if (matches(ifNoneMatchHeaderValue)) {
@@ -245,17 +214,14 @@ public class MockAzureBlobStore {
             }
         }
 
-        @Override
         public BytesReference getContents() {
             return contents;
         }
 
-        @Override
         public String type() {
             return BLOCK_BLOB_TYPE;
         }
 
-        @Override
         public boolean isCommitted() {
             return contents != UNCOMMITTED;
         }
@@ -265,26 +231,22 @@ public class MockAzureBlobStore {
             return "MockAzureBlockBlob{" + "blocks=" + blocks + ", contents=" + contents + '}';
         }
 
-        @Override
         public String acquireLease(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
             synchronized (writeLock) {
                 return lease.acquire(proposedLeaseId, leaseTimeSeconds);
             }
         }
 
-        @Override
         public void releaseLease(String leaseId) {
             synchronized (writeLock) {
                 lease.release(leaseId);
             }
         }
 
-        @Override
         public void checkLeaseForRead(@Nullable String leaseId) {
             lease.checkLeaseForRead(leaseId);
         }
 
-        @Override
         public void checkLeaseForWrite(@Nullable String leaseId) {
             lease.checkLeaseForWrite(leaseId);
         }

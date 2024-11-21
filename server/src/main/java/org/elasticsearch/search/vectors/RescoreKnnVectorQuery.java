@@ -28,44 +28,44 @@ import java.util.Objects;
 /**
  * Wraps a kNN vector query to rescore the results using the non-quantized vectors
  */
-public class KnnRescoreVectorQuery extends Query implements ProfilingQuery {
+public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
     private final String fieldName;
     private final byte[] byteTarget;
     private final float[] floatTarget;
     private final VectorSimilarityFunction vectorSimilarityFunction;
     private final Integer k;
-    private final Query vectorQuery;
+    private final Query innerQuery;
 
     private long vectorOpsCount;
 
-    public KnnRescoreVectorQuery(
+    public RescoreKnnVectorQuery(
         String fieldName,
         byte[] byteTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
         Integer k,
-        Query vectorQuery
+        Query innerQuery
     ) {
         this.fieldName = fieldName;
         this.byteTarget = byteTarget;
         this.floatTarget = null;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
-        this.vectorQuery = vectorQuery;
+        this.innerQuery = innerQuery;
     }
 
-    public KnnRescoreVectorQuery(
+    public RescoreKnnVectorQuery(
         String fieldName,
         float[] floatTarget,
         VectorSimilarityFunction vectorSimilarityFunction,
         Integer k,
-        Query vectorQuery
+        Query innerQuery
     ) {
         this.fieldName = fieldName;
         this.byteTarget = null;
         this.floatTarget = floatTarget;
         this.vectorSimilarityFunction = vectorSimilarityFunction;
         this.k = k;
-        this.vectorQuery = vectorQuery;
+        this.innerQuery = innerQuery;
     }
 
     @Override
@@ -81,7 +81,7 @@ public class KnnRescoreVectorQuery extends Query implements ProfilingQuery {
         } else {
             valueSource = new VectorSimilarityFloatValueSource(fieldName, floatTarget, vectorSimilarityFunction);
         }
-        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(vectorQuery, valueSource);
+        FunctionScoreQuery functionScoreQuery = new FunctionScoreQuery(innerQuery, valueSource);
         Query query = searcher.rewrite(functionScoreQuery);
 
         if (k == null) {
@@ -103,6 +103,14 @@ public class KnnRescoreVectorQuery extends Query implements ProfilingQuery {
         return new KnnScoreDocQuery(docIds, scores, searcher.getIndexReader());
     }
 
+    public Query innerQuery() {
+        return innerQuery;
+    }
+
+    public Integer k() {
+        return k;
+    }
+
     @Override
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.setVectorOpsCount(vectorOpsCount);
@@ -119,18 +127,18 @@ public class KnnRescoreVectorQuery extends Query implements ProfilingQuery {
     public boolean equals(Object o) {
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
-        KnnRescoreVectorQuery that = (KnnRescoreVectorQuery) o;
+        RescoreKnnVectorQuery that = (RescoreKnnVectorQuery) o;
         return Objects.equals(fieldName, that.fieldName)
             && Objects.deepEquals(byteTarget, that.byteTarget)
             && Objects.deepEquals(floatTarget, that.floatTarget)
             && vectorSimilarityFunction == that.vectorSimilarityFunction
             && Objects.equals(k, that.k)
-            && Objects.equals(vectorQuery, that.vectorQuery);
+            && Objects.equals(innerQuery, that.innerQuery);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(fieldName, Arrays.hashCode(byteTarget), Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, vectorQuery);
+        return Objects.hash(fieldName, Arrays.hashCode(byteTarget), Arrays.hashCode(floatTarget), vectorSimilarityFunction, k, innerQuery);
     }
 
     @Override
@@ -144,7 +152,7 @@ public class KnnRescoreVectorQuery extends Query implements ProfilingQuery {
         }
         sb.append(", vectorSimilarityFunction=").append(vectorSimilarityFunction);
         sb.append(", k=").append(k);
-        sb.append(", vectorQuery=").append(vectorQuery);
+        sb.append(", vectorQuery=").append(innerQuery);
         sb.append('}');
         return sb.toString();
     }

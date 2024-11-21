@@ -35,4 +35,8 @@ public class ESKnnFloatVectorQuery extends KnnFloatVectorQuery implements Profil
     public void profile(QueryProfiler queryProfiler) {
         queryProfiler.setVectorOpsCount(vectorOpsCount);
     }
+
+    public Integer kParam() {
+        return kParam;
+    }
 }

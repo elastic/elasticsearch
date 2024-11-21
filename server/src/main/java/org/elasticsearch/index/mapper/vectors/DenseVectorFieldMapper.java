@@ -70,7 +70,7 @@ import org.elasticsearch.search.vectors.ESDiversifyingChildrenByteKnnVectorQuery
 import org.elasticsearch.search.vectors.ESDiversifyingChildrenFloatKnnVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnByteVectorQuery;
 import org.elasticsearch.search.vectors.ESKnnFloatVectorQuery;
-import org.elasticsearch.search.vectors.KnnRescoreVectorQuery;
+import org.elasticsearch.search.vectors.RescoreKnnVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 import org.elasticsearch.search.vectors.VectorSimilarityQuery;
 import org.elasticsearch.xcontent.ToXContent;
@@ -2096,10 +2096,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 float squaredMagnitude = VectorUtil.dotProduct(queryVector, queryVector);
                 elementType.checkVectorMagnitude(similarity, ElementType.errorByteElementsAppender(queryVector), squaredMagnitude);
             }
-            Integer adjustedK = k == null || needsRescore(rescoreOversample) == false
-                ? null
-                : Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
-            int adjustedNumCands = Math.max(adjustedK == null ? 0 : adjustedK, numCands);
+            Integer adjustedK = k;
+            int adjustedNumCands = numCands;
+            if (needsRescore(rescoreOversample) && adjustedK != null) {
+                adjustedK = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
+                adjustedNumCands = Math.max(adjustedK, numCands);
+            }
 
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenByteKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
@@ -2112,7 +2114,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (needsRescore(rescoreOversample)) {
-                knnQuery = new KnnRescoreVectorQuery(
+                knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.BYTE),
@@ -2148,10 +2150,12 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 }
             }
 
-            Integer adjustedK = k == null || needsRescore(rescoreOversample) == false
-                ? k
-                : Integer.valueOf(Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample)));
-            int adjustedNumCands = adjustedK == null ? numCands : Math.max(adjustedK, numCands);
+            Integer adjustedK = k;
+            int adjustedNumCands = numCands;
+            if (needsRescore(rescoreOversample) && adjustedK != null) {
+                adjustedK = Math.min(OVERSAMPLE_LIMIT, (int) Math.ceil(k * rescoreOversample));
+                adjustedNumCands = Math.max(adjustedK, numCands);
+            }
             Query knnQuery = parentFilter != null
                 ? new ESDiversifyingChildrenFloatKnnVectorQuery(name(), queryVector, filter, adjustedK, adjustedNumCands, parentFilter)
                 : new ESKnnFloatVectorQuery(name(), queryVector, adjustedK, adjustedNumCands, filter);
@@ -2163,7 +2167,7 @@ public class DenseVectorFieldMapper extends FieldMapper {
                 );
             }
             if (needsRescore(rescoreOversample)) {
-                knnQuery = new KnnRescoreVectorQuery(
+                knnQuery = new RescoreKnnVectorQuery(
                     name(),
                     queryVector,
                     similarity.vectorSimilarityFunction(indexVersionCreated, ElementType.FLOAT),

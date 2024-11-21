@@ -304,6 +304,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                                 continue;
                             }
                             if (spare == null) {
+                                checkRealMemoryCBForInternalBucket();
                                 spare = emptyBucketBuilder.get();
                             }
                             updateBucket(spare, ordsEnum, docCount);
@@ -320,11 +321,11 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                 }
 
                 buildSubAggs(topBucketsPerOrd);
-                InternalAggregation[] result = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
-                for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                    result[ordIdx] = buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx));
-                }
-                return result;
+
+                return MapStringTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCounts.get(ordIdx), topBucketsPerOrd.get(ordIdx))
+                );
             }
         }
 

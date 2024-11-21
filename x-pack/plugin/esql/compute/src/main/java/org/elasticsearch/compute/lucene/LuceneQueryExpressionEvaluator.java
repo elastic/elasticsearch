@@ -191,6 +191,7 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
     private class SegmentState {
         private final Weight weight;
         private final LeafReaderContext ctx;
+
         /**
          * Lazily initialed {@link Scorer} for this. {@code null} here means uninitialized
          * <strong>or</strong> that {@link #noMatch} is true.
@@ -198,10 +199,20 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
         private Scorer scorer;
 
         /**
+         * Thread that initialized the {@link #scorer}.
+         */
+        private Thread scorerThread;
+
+        /**
          * Lazily initialed {@link BulkScorer} for this. {@code null} here means uninitialized
          * <strong>or</strong> that {@link #noMatch} is true.
          */
         private BulkScorer bulkScorer;
+
+        /**
+         * Thread that initialized the {@link #bulkScorer}.
+         */
+        private Thread bulkScorerThread;
 
         /**
          * Set to {@code true} if, in the process of building a {@link Scorer} or {@link BulkScorer},
@@ -223,7 +234,10 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             if (noMatch) {
                 return blockFactory.newConstantBooleanVector(false, length);
             }
-            if (bulkScorer == null) {
+            if (bulkScorer == null ||  // The bulkScorer wasn't initialized
+                Thread.currentThread() != bulkScorerThread // The bulkScorer was initialized on a different thread
+            ) {
+                bulkScorerThread = Thread.currentThread();
                 bulkScorer = weight.bulkScorer(ctx);
                 if (bulkScorer == null) {
                     noMatch = true;
@@ -257,8 +271,11 @@ public class LuceneQueryExpressionEvaluator implements EvalOperator.ExpressionEv
             if (noMatch) {
                 return;
             }
-            if (scorer == null || scorer.iterator().docID() > minDocId) {
-                // The previous block might have been beyond this one, reset the scorer and try again.
+            if (scorer == null || // Scorer not initialized
+                scorerThread != Thread.currentThread() || // Scorer initialized on a different thread
+                scorer.iterator().docID() > minDocId // The previous block came "after" this one
+            ) {
+                scorerThread = Thread.currentThread();
                 scorer = weight.scorer(ctx);
                 if (scorer == null) {
                     noMatch = true;

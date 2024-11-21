@@ -136,7 +136,7 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         }
 
         @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public final void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -145,7 +145,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;

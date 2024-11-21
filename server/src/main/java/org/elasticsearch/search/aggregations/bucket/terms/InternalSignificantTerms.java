@@ -157,8 +157,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return Objects.hash(getClass(), aggregations, score, format);
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -166,7 +165,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             builder.field(BG_COUNT, supersetDf);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;

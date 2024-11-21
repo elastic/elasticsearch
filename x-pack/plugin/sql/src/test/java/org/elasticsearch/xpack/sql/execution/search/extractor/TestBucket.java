@@ -8,9 +8,7 @@ package org.elasticsearch.xpack.sql.execution.search.extractor;
 
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.bucket.composite.CompositeAggregation.Bucket;
-import org.elasticsearch.xcontent.XContentBuilder;
 
-import java.io.IOException;
 import java.util.Map;
 
 class TestBucket implements Bucket {
@@ -23,11 +21,6 @@ class TestBucket implements Bucket {
         this.key = key;
         this.count = count;
         this.aggs = aggs;
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        throw new UnsupportedOperationException();
     }
 
     @Override

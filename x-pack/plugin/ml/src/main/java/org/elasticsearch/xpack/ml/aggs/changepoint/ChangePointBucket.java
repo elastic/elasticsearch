@@ -9,10 +9,8 @@ package org.elasticsearch.xpack.ml.aggs.changepoint;
 
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
-import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -32,16 +30,6 @@ public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBu
         this.key = in.readGenericValue();
         this.docCount = in.readVLong();
         this.aggregations = InternalAggregations.readFrom(in);
-    }
-
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject();
-        builder.field(Aggregation.CommonFields.KEY.getPreferredName(), key);
-        builder.field(Aggregation.CommonFields.DOC_COUNT.getPreferredName(), docCount);
-        aggregations.toXContentInternal(builder, params);
-        builder.endObject();
-        return builder;
     }
 
     @Override

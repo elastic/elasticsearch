@@ -465,14 +465,6 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             return 0;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            /**
-             * See {@link CompositeAggregation#bucketToXContent}
-             */
-            throw new UnsupportedOperationException("not implemented");
-        }
-
         InternalBucket finalizeSampling(SamplingContext samplingContext) {
             return new InternalBucket(
                 sourceNames,

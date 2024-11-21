@@ -340,7 +340,7 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
     @Override
     public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
-            return new InternalDateHistogram.Bucket(bucketValue, docCount, keyed, formatter, subAggregationResults);
+            return new InternalDateHistogram.Bucket(bucketValue, docCount, formatter, subAggregationResults);
         }, (owningBucketOrd, buckets) -> {
             // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
@@ -466,7 +466,6 @@ class DateHistogramAggregator extends BucketsAggregator implements SizedBucketAg
                         new InternalDateHistogram.Bucket(
                             rangeBucket.getFrom().toInstant().toEpochMilli(),
                             rangeBucket.getDocCount(),
-                            keyed,
                             format,
                             rangeBucket.getAggregations()
                         )

@@ -81,14 +81,12 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
             return aggregations;
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;
@@ -160,7 +158,7 @@ public abstract class InternalRareTerms<A extends InternalRareTerms<A, B>, B ext
         throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket<?> bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

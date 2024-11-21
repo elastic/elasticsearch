@@ -82,11 +82,6 @@ public class BucketHelpersTests extends ESTestCase {
             }
 
             @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                return null;
-            }
-
-            @Override
             public Object getProperty(String containingAggName, List<String> path) {
                 return new Object[0];
             }
@@ -158,11 +153,6 @@ public class BucketHelpersTests extends ESTestCase {
 
             @Override
             public InternalAggregations getAggregations() {
-                return null;
-            }
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
                 return null;
             }
 

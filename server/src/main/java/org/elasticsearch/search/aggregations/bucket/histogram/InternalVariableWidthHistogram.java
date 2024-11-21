@@ -144,8 +144,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             return centroid;
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             String keyAsString = format.format((double) getKey()).toString();
             builder.startObject();
 
@@ -167,7 +166,6 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -555,7 +553,7 @@ public class InternalVariableWidthHistogram extends InternalMultiBucketAggregati
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

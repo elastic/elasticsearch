@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.search.aggregations.Aggregation;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
+import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
@@ -76,14 +77,12 @@ public abstract class InternalGeoGridBucket extends InternalMultiBucketAggregati
         return 0;
     }
 
-    @Override
-    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+    final void bucketToXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startObject();
         builder.field(Aggregation.CommonFields.KEY.getPreferredName(), getKeyAsString());
         builder.field(Aggregation.CommonFields.DOC_COUNT.getPreferredName(), docCount);
         aggregations.toXContentInternal(builder, params);
         builder.endObject();
-        return builder;
     }
 
     @Override

@@ -171,7 +171,6 @@ class DateRangeHistogramAggregator extends BucketsAggregator {
             (bucketValue, docCount, subAggregationResults) -> new InternalDateHistogram.Bucket(
                 bucketValue,
                 docCount,
-                keyed,
                 formatter,
                 subAggregationResults
             ),

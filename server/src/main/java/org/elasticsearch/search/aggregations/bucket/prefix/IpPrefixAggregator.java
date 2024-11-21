@@ -200,9 +200,7 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                         long docCount = bucketDocCount(ordinal);
                         buckets.add(
                             new InternalIpPrefix.Bucket(
-                                config.format(),
                                 BytesRef.deepCopyOf(ipAddress),
-                                keyed,
                                 ipPrefix.isIpv6,
                                 ipPrefix.prefixLength,
                                 ipPrefix.appendPrefixLength,

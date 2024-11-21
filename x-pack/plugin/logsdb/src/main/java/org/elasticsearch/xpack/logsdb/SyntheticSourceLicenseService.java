@@ -27,8 +27,8 @@ final class SyntheticSourceLicenseService {
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
     private static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date";
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
-    private static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
-    private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2027, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+    private static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2024, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+    private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2026, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**
      * A setting that determines whether source mode should always be stored source. Regardless of licence.
@@ -40,13 +40,13 @@ final class SyntheticSourceLicenseService {
         Setting.Property.Dynamic
     );
 
-    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE = LicensedFeature.momentary(
+    static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE = LicensedFeature.momentary(
         MAPPINGS_FEATURE_FAMILY,
         "synthetic-source",
         License.OperationMode.ENTERPRISE
     );
 
-    private static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_LEGACY = LicensedFeature.momentary(
+    static final LicensedFeature.Momentary SYNTHETIC_SOURCE_FEATURE_LEGACY = LicensedFeature.momentary(
         MAPPINGS_FEATURE_FAMILY,
         "synthetic-source-legacy",
         License.OperationMode.GOLD
@@ -58,8 +58,12 @@ final class SyntheticSourceLicenseService {
     private volatile boolean syntheticSourceFallback;
 
     SyntheticSourceLicenseService(Settings settings) {
+        this(settings, System.getProperty(CUTOFF_DATE_SYS_PROP_NAME));
+    }
+
+    SyntheticSourceLicenseService(Settings settings, String cutoffDate) {
         this.syntheticSourceFallback = FALLBACK_SETTING.get(settings);
-        this.cutoffDate = getCutoffDate();
+        this.cutoffDate = getCutoffDate(cutoffDate);
     }
 
     /**
@@ -73,8 +77,9 @@ final class SyntheticSourceLicenseService {
         var operationMode = licenseState.getOperationMode();
         LicensedFeature.Momentary licensedFeature;
         boolean beforeCutoffDate = licenseService.getLicense().startDate() <= cutoffDate;
-        if (legacyLicensedUsageOfSyntheticSourceAllowed && beforeCutoffDate && operationMode == License.OperationMode.GOLD
-            || operationMode == License.OperationMode.PLATINUM) {
+        if (legacyLicensedUsageOfSyntheticSourceAllowed
+            && beforeCutoffDate
+            && (operationMode == License.OperationMode.GOLD || operationMode == License.OperationMode.PLATINUM)) {
             // platinum license will allow synthetic source with gold legacy licensed feature too.
             licensedFeature = SYNTHETIC_SOURCE_FEATURE_LEGACY;
         } else {
@@ -99,10 +104,9 @@ final class SyntheticSourceLicenseService {
         this.licenseState = licenseState;
     }
 
-    private static long getCutoffDate() {
-        var value = System.getProperty(CUTOFF_DATE_SYS_PROP_NAME);
-        if (value != null) {
-            long cutoffDate = LocalDateTime.parse(value).toInstant(ZoneOffset.UTC).toEpochMilli();
+    private static long getCutoffDate(String cutoffDateAsString) {
+        if (cutoffDateAsString != null) {
+            long cutoffDate = LocalDateTime.parse(cutoffDateAsString).toInstant(ZoneOffset.UTC).toEpochMilli();
             if (cutoffDate > MAX_CUTOFF_DATE) {
                 throw new IllegalArgumentException("Provided cutoff date is beyond max cutoff date");
             }

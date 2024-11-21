@@ -16,10 +16,13 @@ import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 import org.mockito.Mockito;
 
+import java.time.LocalDateTime;
+import java.time.ZoneOffset;
 import java.util.UUID;
 
 import static org.elasticsearch.license.TestUtils.dateMath;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.same;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
@@ -31,65 +34,167 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         mockLicenseService = mock(LicenseService.class);
-        License license = createDummyLicense();
+        License license = createEnterpirseLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
         licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
     }
 
     public void testLicenseAllowsSyntheticSource() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(any())).thenReturn(true);
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(false, false));
+        assertFalse(
+            "synthetic source is allowed, so not fallback to stored source",
+            licenseService.fallbackToStoredSource(false, randomBoolean())
+        );
         Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
     }
 
     public void testLicenseAllowsSyntheticSourceTemplateValidation() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(any())).thenReturn(true);
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertFalse("synthetic source is allowed, so not fallback to stored source", licenseService.fallbackToStoredSource(true, false));
+        assertFalse(
+            "synthetic source is allowed, so not fallback to stored source",
+            licenseService.fallbackToStoredSource(true, randomBoolean())
+        );
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
     public void testDefaultDisallow() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(any())).thenReturn(false);
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
-        assertTrue("synthetic source is not allowed, so fallback to stored source", licenseService.fallbackToStoredSource(false, false));
+        assertTrue(
+            "synthetic source is not allowed, so fallback to stored source",
+            licenseService.fallbackToStoredSource(false, randomBoolean())
+        );
         Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
     }
 
     public void testFallback() {
         MockLicenseState licenseState = mock(MockLicenseState.class);
-        when(licenseState.isAllowed(any())).thenReturn(true);
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
         licenseService.setSyntheticSourceFallback(true);
         assertTrue(
             "synthetic source is allowed, but fallback has been enabled, so fallback to stored source",
-            licenseService.fallbackToStoredSource(false, false)
+            licenseService.fallbackToStoredSource(false, randomBoolean())
         );
         Mockito.verifyNoInteractions(licenseState);
     }
 
-    static License createDummyLicense() throws Exception {
-        long now = System.currentTimeMillis();
+    public void testGoldOrPlatinumLicense() throws Exception {
+        mockLicenseService = mock(LicenseService.class);
+        License license = createGoldOrPlatinumLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(license.operationMode());
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertFalse(
+            "legacy licensed usage is allowed, so not fallback to stored source",
+            licenseService.fallbackToStoredSource(false, true)
+        );
+        Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
+    }
+
+    public void testGoldOrPlatinumLicenseLegacyLicenseNotAllowed() throws Exception {
+        mockLicenseService = mock(LicenseService.class);
+        License license = createGoldOrPlatinumLicense();
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(license.operationMode());
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertTrue(
+            "legacy licensed usage is not allowed, so fallback to stored source",
+            licenseService.fallbackToStoredSource(false, false)
+        );
+        Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE));
+    }
+
+    public void testGoldOrPlatinumLicenseBeyondCutoffDate() throws Exception {
+        long start = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        License license = createGoldOrPlatinumLicense(start);
+        mockLicenseService = mock(LicenseService.class);
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(license.operationMode());
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertTrue("beyond cutoff date, so fallback to stored source", licenseService.fallbackToStoredSource(false, true));
+        Mockito.verify(licenseState, Mockito.never()).featureUsed(any());
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE));
+    }
+
+    public void testGoldOrPlatinumLicenseCustomCutoffDate() throws Exception {
+        licenseService = new SyntheticSourceLicenseService(Settings.EMPTY, "2025-01-02T00:00");
+
+        long start = LocalDateTime.of(2025, 1, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        License license = createGoldOrPlatinumLicense(start);
+        mockLicenseService = mock(LicenseService.class);
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        MockLicenseState licenseState = mock(MockLicenseState.class);
+        when(licenseState.getOperationMode()).thenReturn(license.operationMode());
+        when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
+        licenseService.setLicenseState(licenseState);
+        licenseService.setLicenseService(mockLicenseService);
+        assertFalse("custom cutoff date, so fallback to stored source", licenseService.fallbackToStoredSource(false, true));
+        Mockito.verify(licenseState, Mockito.times(1)).featureUsed(any());
+        Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY));
+    }
+
+    public void testGoldOrPlatinumLicenseIllegalCustomCutoffDate() throws Exception {
+        var e = expectThrows(IllegalArgumentException.class, () -> new SyntheticSourceLicenseService(Settings.EMPTY, "2026-12-13T00:00"));
+        assertEquals("Provided cutoff date is beyond max cutoff date", e.getMessage());
+    }
+
+    static License createEnterpirseLicense() throws Exception {
+        long start = LocalDateTime.of(2024, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         String uid = UUID.randomUUID().toString();
         final License.Builder builder = License.builder()
             .uid(uid)
             .version(License.VERSION_CURRENT)
-            .expiryDate(dateMath("now+2h", now))
-            .startDate(now)
-            .issueDate(now)
-            .type("basic")
+            .expiryDate(dateMath("now+2d", System.currentTimeMillis()))
+            .startDate(start)
+            .issueDate(start)
+            .type("enterprise")
+            .issuedTo("customer")
+            .issuer("elasticsearch")
+            .maxResourceUnits(10);
+        return TestUtils.generateSignedLicense(builder);
+    }
+
+    static License createGoldOrPlatinumLicense() throws Exception {
+        long start = LocalDateTime.of(2024, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        return createGoldOrPlatinumLicense(start);
+    }
+
+    static License createGoldOrPlatinumLicense(long start) throws Exception {
+        String uid = UUID.randomUUID().toString();
+        final License.Builder builder = License.builder()
+            .uid(uid)
+            .version(License.VERSION_CURRENT)
+            .expiryDate(dateMath("now+2d", System.currentTimeMillis()))
+            .startDate(start)
+            .issueDate(start)
+            .type(randomBoolean() ? "gold" : "platinum")
             .issuedTo("customer")
             .issuer("elasticsearch")
             .maxNodes(5);
-        License license = TestUtils.generateSignedLicense(builder);
-        return license;
+        return TestUtils.generateSignedLicense(builder);
     }
 }

@@ -108,7 +108,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
 
             var persistedClusterState = getPersistedStateForTerm(persistedState, term);
             assertThat(persistedClusterState.term(), is(equalTo(term)));
-            assertThat(persistedClusterState.metadata().getIndices().keySet().containsAll(indexNames), is(true));
+            assertThat(persistedClusterState.metadata().getProject().indices().keySet().containsAll(indexNames), is(true));
 
             assertThat(
                 ctx.statelessNode.objectStoreService.getClusterStateBlobContainerForTerm(1)
@@ -167,7 +167,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
 
             var persistedClusterStateBeforeTakeOver = getPersistedStateForTerm(persistedState, term);
             assertThat(persistedClusterStateBeforeTakeOver.term(), is(equalTo(term)));
-            assertThat(persistedClusterStateBeforeTakeOver.metadata().getIndices().keySet().containsAll(indexNames), is(true));
+            assertThat(persistedClusterStateBeforeTakeOver.metadata().getProject().indices().keySet().containsAll(indexNames), is(true));
 
             // remoteNode takes over
             term += 1;
@@ -193,7 +193,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
 
             var persistedClusterStateAfterTakeOver = getPersistedStateForTerm(persistedState, term);
             assertThat(persistedClusterStateAfterTakeOver.term(), is(equalTo(term)));
-            assertThat(persistedClusterStateAfterTakeOver.metadata().getIndices().keySet().containsAll(indexNames), is(true));
+            assertThat(persistedClusterStateAfterTakeOver.metadata().getProject().indices().keySet().containsAll(indexNames), is(true));
         }
     }
 
@@ -329,7 +329,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
             for (int i = 0; i < 2; i++) {
                 var persistedClusterState = getPersistedStateForTerm(persistedState, term);
                 assertThat(persistedClusterState.term(), is(equalTo(term)));
-                assertThat(persistedClusterState.metadata().getIndices().keySet().containsAll(indexNames), is(true));
+                assertThat(persistedClusterState.metadata().getProject().indices().keySet().containsAll(indexNames), is(true));
             }
 
             disruptDeletesFileSystemProvider.disableDeletionFailures();
@@ -437,7 +437,7 @@ public class StatelessPersistedStateTests extends ESTestCase {
     private String removeRandomIndex(CoordinationState.PersistedState persistedState) {
         var lastAcceptedState = persistedState.getLastAcceptedState();
 
-        var indexToDelete = randomFrom(lastAcceptedState.metadata().indices().keySet());
+        var indexToDelete = randomFrom(lastAcceptedState.metadata().getProject().indices().keySet());
 
         persistedState.setLastAcceptedState(
             ClusterState.builder(lastAcceptedState)

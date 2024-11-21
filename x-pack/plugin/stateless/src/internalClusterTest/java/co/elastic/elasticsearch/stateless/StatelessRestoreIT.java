@@ -286,6 +286,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         assertThat(indexMetadata.getSettings().get(IndexMetadata.SETTING_HISTORY_UUID), nullValue());
         final int numPrimaries = getNumShards(indexName).numPrimaries;
@@ -314,6 +315,7 @@ public class StatelessRestoreIT extends AbstractStatelessIntegTestCase {
             .get()
             .getState()
             .metadata()
+            .getProject()
             .index(indexName);
         for (int shardId = 0; shardId < numPrimaries; shardId++) {
             assertThat(restoredIndexMetadata.primaryTerm(shardId), greaterThan(primaryTerms.get(shardId)));

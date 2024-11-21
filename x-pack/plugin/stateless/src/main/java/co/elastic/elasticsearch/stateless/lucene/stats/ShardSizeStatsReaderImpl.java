@@ -105,7 +105,7 @@ public class ShardSizeStatsReaderImpl implements ShardSizeStatsReader {
                 var interactiveSize = 0L;
                 var nonInteractiveSize = 0L;
 
-                var indexMetadata = clusterService.state().metadata().index(indexShard.shardId().getIndex());
+                var indexMetadata = clusterService.state().metadata().getProject().index(indexShard.shardId().getIndex());
                 if (indexMetadata == null) {
                     return null;
                 }

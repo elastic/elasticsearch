@@ -83,7 +83,7 @@ public class StaleIndicesGCService {
         var clusterState = clusterService.state();
 
         var staleIndexUUIDs = new HashSet<>(indicesUUIDsInBlobStore);
-        for (IndexMetadata indexMetadata : clusterState.metadata()) {
+        for (IndexMetadata indexMetadata : clusterState.metadata().getProject()) {
             staleIndexUUIDs.remove(indexMetadata.getIndexUUID());
         }
 
@@ -104,7 +104,7 @@ public class StaleIndicesGCService {
             // This could happen if the node performing the cleanup is behind the latest cluster state
             // and a new index was created while the node was behind. If that's the case it means that
             // the index is not stale, and it must not be deleted.
-            state.metadata().stream().map(IndexMetadata::getIndexUUID).forEach(localStateStaleIndexUUIDs::remove);
+            state.metadata().getProject().stream().map(IndexMetadata::getIndexUUID).forEach(localStateStaleIndexUUIDs::remove);
 
             logger.debug("Delete stale indices [{}] from the object store", localStateStaleIndexUUIDs);
             for (String staleIndexUUID : staleIndexUUIDs) {

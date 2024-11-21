@@ -405,6 +405,11 @@ public class VerifierTests extends ESTestCase {
 
         // but fails if it's different
         assertEquals(
+            "1:32: can only use grouping function [bucket(a, 3)] part of the BY clause",
+            error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+        );
+
+        assertEquals(
             "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );
@@ -771,40 +776,40 @@ public class VerifierTests extends ESTestCase {
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
                 error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
                 error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }

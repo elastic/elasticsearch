@@ -1017,6 +1017,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             return this;
         }
 
+        public Builder putRoutingTable(ProjectId projectId, RoutingTable routingTable) {
+            return routingTable(GlobalRoutingTable.builder(this.routingTable).put(projectId, routingTable).build());
+        }
+
         public Builder metadata(Metadata.Builder metadataBuilder) {
             return metadata(metadataBuilder.build());
         }

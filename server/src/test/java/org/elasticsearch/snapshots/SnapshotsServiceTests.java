@@ -481,7 +481,10 @@ public class SnapshotsServiceTests extends ESTestCase {
         );
 
         assertThat(
-            SnapshotsService.snapshottingIndices(clusterState, singleton(clusterState.metadata().getProject().index(indexName).getIndex())),
+            SnapshotsService.snapshottingIndices(
+                clusterState.projectState(),
+                singleton(clusterState.metadata().getProject().index(indexName).getIndex())
+            ),
             empty()
         );
     }

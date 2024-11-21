@@ -34,6 +34,7 @@ import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.NotMasterException;
+import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.RepositoryCleanupInProgress;
 import org.elasticsearch.cluster.RestoreInProgress;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
@@ -73,6 +74,7 @@ import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ListenableFuture;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Predicates;
 import org.elasticsearch.core.SuppressForbidden;
@@ -3033,9 +3035,12 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
      * Returns the data streams that are currently being snapshotted (with partial == false) and that are contained in the
      * indices-to-check set.
      */
-    public static Set<String> snapshottingDataStreams(final ClusterState currentState, final Set<String> dataStreamsToCheck) {
-        Map<String, DataStream> dataStreams = currentState.metadata().getProject().dataStreams();
-        return SnapshotsInProgress.get(currentState)
+    @FixForMultiProject
+    public static Set<String> snapshottingDataStreams(final ProjectState projectState, final Set<String> dataStreamsToCheck) {
+        // TODO multi-project: this will behave incorrectly when there are data streams with equal names in different projects that are
+        // being snapshotted at the same time.
+        Map<String, DataStream> dataStreams = projectState.metadata().dataStreams();
+        return SnapshotsInProgress.get(projectState.cluster())
             .asStream()
             .filter(e -> e.partial() == false)
             .flatMap(e -> e.dataStreams().stream())
@@ -3046,13 +3051,13 @@ public final class SnapshotsService extends AbstractLifecycleComponent implement
     /**
      * Returns the indices that are currently being snapshotted (with partial == false) and that are contained in the indices-to-check set.
      */
-    public static Set<Index> snapshottingIndices(final ClusterState currentState, final Set<Index> indicesToCheck) {
+    public static Set<Index> snapshottingIndices(final ProjectState projectState, final Set<Index> indicesToCheck) {
         final Set<Index> indices = new HashSet<>();
-        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(currentState).entriesByRepo()) {
+        for (List<SnapshotsInProgress.Entry> snapshotsInRepo : SnapshotsInProgress.get(projectState.cluster()).entriesByRepo()) {
             for (final SnapshotsInProgress.Entry entry : snapshotsInRepo) {
                 if (entry.partial() == false && entry.isClone() == false) {
                     for (String indexName : entry.indices().keySet()) {
-                        IndexMetadata indexMetadata = currentState.metadata().getProject().index(indexName);
+                        IndexMetadata indexMetadata = projectState.metadata().index(indexName);
                         if (indexMetadata != null && indicesToCheck.contains(indexMetadata.getIndex())) {
                             indices.add(indexMetadata.getIndex());
                         }

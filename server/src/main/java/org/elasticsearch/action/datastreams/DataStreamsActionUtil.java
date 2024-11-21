@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.index.Index;
 
 import java.util.List;
@@ -21,6 +22,16 @@ import java.util.SortedMap;
 import java.util.stream.Stream;
 
 public class DataStreamsActionUtil {
+
+    @Deprecated
+    public static List<String> getDataStreamNames(
+        IndexNameExpressionResolver indexNameExpressionResolver,
+        ClusterState currentState,
+        String[] names,
+        IndicesOptions indicesOptions
+    ) {
+        return getDataStreamNames(indexNameExpressionResolver, currentState.metadata().getProject(), names, indicesOptions);
+    }
 
     /**
      * Gets data streams names, expanding wildcards using {@link IndicesOptions} provided.
@@ -30,12 +41,12 @@ public class DataStreamsActionUtil {
      */
     public static List<String> getDataStreamNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterState currentState,
+        ProjectMetadata project,
         String[] names,
         IndicesOptions indicesOptions
     ) {
         indicesOptions = updateIndicesOptions(indicesOptions);
-        return indexNameExpressionResolver.dataStreamNames(currentState, indicesOptions, names);
+        return indexNameExpressionResolver.dataStreamNames(project, indicesOptions, names);
     }
 
     public static IndicesOptions updateIndicesOptions(IndicesOptions indicesOptions) {
@@ -49,12 +60,12 @@ public class DataStreamsActionUtil {
 
     public static Stream<String> resolveConcreteIndexNames(
         IndexNameExpressionResolver indexNameExpressionResolver,
-        ClusterState clusterState,
+        ProjectMetadata project,
         String[] names,
         IndicesOptions indicesOptions
     ) {
-        List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, clusterState, names, indicesOptions);
-        SortedMap<String, IndexAbstraction> indicesLookup = clusterState.getMetadata().getProject().getIndicesLookup();
+        List<String> abstractionNames = getDataStreamNames(indexNameExpressionResolver, project, names, indicesOptions);
+        SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
 
         return abstractionNames.stream().flatMap(abstractionName -> {
             IndexAbstraction indexAbstraction = indicesLookup.get(abstractionName);

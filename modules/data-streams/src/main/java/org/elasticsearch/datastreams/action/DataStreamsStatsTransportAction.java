@@ -103,7 +103,7 @@ public class DataStreamsStatsTransportAction extends TransportBroadcastByNodeAct
     protected String[] resolveConcreteIndexNames(ClusterState clusterState, DataStreamsStatsAction.Request request) {
         return DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,
-            clusterState,
+            clusterState.getMetadata().getProject(),
             request.indices(),
             request.indicesOptions()
         ).toArray(String[]::new);

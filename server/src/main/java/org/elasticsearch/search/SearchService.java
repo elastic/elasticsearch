@@ -594,7 +594,13 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 @Override
                 public void onResponse(SearchPhaseResult searchPhaseResult) {
                     assert searchPhaseResult instanceof QuerySearchResult;
-                    resultConsumer.accept(parentNode, new ShardSearchResponseAsRequest((QuerySearchResult) searchPhaseResult));
+                    resultConsumer.accept(
+                        parentNode,
+                        new ShardSearchResponseAsRequest(
+                            (QuerySearchResult) searchPhaseResult,
+                            searchPhaseResult.getSearchShardTarget().getShardId()
+                        )
+                    );
                 }
 
                 @Override

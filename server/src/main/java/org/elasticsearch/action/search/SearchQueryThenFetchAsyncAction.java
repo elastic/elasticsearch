@@ -149,6 +149,7 @@ class SearchQueryThenFetchAsyncAction extends AbstractSearchAsyncAction<SearchPh
 
             @Override
             public void onFailure(Exception e) {
+                pendingExecutions.releaseAllPermits();
                 for (ShardRequest request : requests) {
                     onShardFailure(request.shardIndex(), request.shard(), request.shardIt(), e);
                 }

@@ -155,6 +155,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
         return true;
     }
 
+    public boolean shouldBatchRequestsPerDataNode() {
+        return searchType() == SearchType.QUERY_THEN_FETCH && source != null && source.aggregations() != null;
+    }
+
     /**
      * Creates a new sub-search request starting from the original search request that is provided.
      * For internal use only, allows to fork a search request into multiple search requests that will be executed independently.

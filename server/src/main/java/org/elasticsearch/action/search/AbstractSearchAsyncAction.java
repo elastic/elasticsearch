@@ -249,9 +249,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                     performPhaseOnShard(shardIndex, shardRoutings, routing, request);
                 }
             }
-            if (request.searchType() != SearchType.QUERY_THEN_FETCH || request.source().aggregations() == null) {
+            if (request.shouldBatchRequestsPerDataNode()) {
                 for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
                     List<ShardRequest> requests = new ArrayList<>();
+                    // TODO MP drain maxConcurrentRequestsPerNode?!
                     pendingExecutions.queue.drainTo(requests);
                     if (requests.size() > 1) {
                         Transport.Connection connection;
@@ -262,6 +263,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                             for (ShardRequest request : requests) {
                                 onShardFailure(request.shardIndex(), request.shard(), request.shardIt(), e);
                             }
+                            pendingExecutions.semaphore.release(maxConcurrentRequestsPerNode);
                             return;
                         }
                         executePhaseOnDataNode(requests, connection, pendingExecutions);
@@ -316,12 +318,12 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         if (throttleConcurrentRequests) {
             var pendingExecutions = pendingExecutionsPerNode.computeIfAbsent(shard.getNodeId(), n -> {
                 PendingExecutions p = new PendingExecutions();
-                if (request.searchType() != SearchType.QUERY_THEN_FETCH || request.source().aggregations() == null) {
+                if (request.shouldBatchRequestsPerDataNode() == false) {
                     p.semaphore.release(maxConcurrentRequestsPerNode);
                 }
                 return p;
             });
-            pendingExecutions.submit(new ShardRequest(shardIndex, shardIt, shard));
+            pendingExecutions.submit(new ShardRequest(shardIndex, shardIt, shard), request.shouldBatchRequestsPerDataNode());
         } else {
             doPerformPhaseOnShard(shardIndex, shardIt, shard, () -> {});
         }
@@ -847,32 +849,42 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         private final AtomicInteger queuedItems = new AtomicInteger();
         private final LinkedTransferQueue<ShardRequest> queue = new LinkedTransferQueue<>();
 
-        void submit(ShardRequest request) {
+        void submit(ShardRequest request, boolean shouldBatchRequestsPerDataNode) {
             if (semaphore.tryAcquire()) {
                 executeAndRelease(request);
             } else {
                 queue.add(request);
                 int queuedItemsCount = queuedItems.incrementAndGet();
-                if (queuedItemsCount == maxConcurrentRequestsPerNode) {
-                    // here
-                    List<ShardRequest> requests = new ArrayList<>(maxConcurrentRequestsPerNode);
-                    queue.drainTo(requests);
-                    // TODO mp check duplicate code
-                    Transport.Connection connection;
-                    PendingExecutions p;
-                    try {
-                        ShardRequest first = requests.getFirst();
-                        connection = getConnection(first.shard.getClusterAlias(), first.shard.getNodeId());
-                        p = pendingExecutionsPerNode.get(first.shard.getNodeId());
-                    } catch (Exception e) {
-                        for (ShardRequest shardRequest : requests) {
-                            onShardFailure(shardRequest.shardIndex(), shardRequest.shard(), shardRequest.shardIt(), e);
+                if (shouldBatchRequestsPerDataNode) {
+                    if (queuedItemsCount == maxConcurrentRequestsPerNode) {
+                        // here
+                        List<ShardRequest> requests = new ArrayList<>(maxConcurrentRequestsPerNode);
+                        queue.drainTo(requests);
+                        // TODO mp check duplicate code
+                        Transport.Connection connection;
+                        PendingExecutions p;
+                        try {
+                            ShardRequest first = requests.getFirst();
+                            connection = getConnection(first.shard.getClusterAlias(), first.shard.getNodeId());
+                            p = pendingExecutionsPerNode.get(first.shard.getNodeId());
+                        } catch (Exception e) {
+                            for (ShardRequest shardRequest : requests) {
+                                onShardFailure(shardRequest.shardIndex(), shardRequest.shard(), shardRequest.shardIt(), e);
+                            }
+                            releaseAllPermits();
+                            return;
                         }
-                        return;
+                        executePhaseOnDataNode(requests, connection, p);
+                    } else if (queuedItemsCount > maxConcurrentRequestsPerNode) {
+                        flushQueue();
                     }
-                    executePhaseOnDataNode(requests, connection, p);
-                } else if (queuedItemsCount > maxConcurrentRequestsPerNode) {
-                    flushQueue();
+                } else {
+                    if (semaphore.tryAcquire()) {
+                        request = pollNextTaskOrReleasePermit();
+                        if (request != null) {
+                            executeAndRelease(request);
+                        }
+                    }
                 }
             }
         }
@@ -888,7 +900,14 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             }
         }
 
+        void releaseAllPermits() {
+            queuedItems.set(maxConcurrentRequestsPerNode + 1);
+            semaphore.release(maxConcurrentRequestsPerNode);
+            flushQueue();
+        }
+
         void releaseOnePermit() {
+            queuedItems.set(maxConcurrentRequestsPerNode + 1);
             semaphore.release(1);
             flushQueue();
         }
@@ -896,9 +915,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         private void maybeReleasePermits() {
             int queuedItemsCount = queuedItems.get();
             if (queuedItemsCount < maxConcurrentRequestsPerNode) {
-                queuedItems.set(maxConcurrentRequestsPerNode + 1);
-                semaphore.release(maxConcurrentRequestsPerNode);
-                flushQueue();
+                releaseAllPermits();
             }
         }
 

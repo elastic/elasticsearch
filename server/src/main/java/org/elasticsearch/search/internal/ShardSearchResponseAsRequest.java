@@ -27,34 +27,35 @@ public class ShardSearchResponseAsRequest extends TransportRequest {
         super(in);
         result = in.readOptionalWriteable(QuerySearchResult::new);
         if (result == null) {
-            error = in.readException();
             shardId = new ShardId(in);
+            error = in.readException();
         } else {
+            shardId = new ShardId(in);
             error = null;
-            shardId = result.getSearchShardTarget().getShardId();
         }
     }
 
-    public ShardSearchResponseAsRequest(QuerySearchResult result) {
+    public ShardSearchResponseAsRequest(QuerySearchResult result, ShardId shardId) {
         this.result = result;
+        this.shardId = shardId;
         error = null;
-        shardId = result.getSearchShardTarget().getShardId();
     }
 
     public ShardSearchResponseAsRequest(Exception error, ShardId shardId) {
         result = null;
-        this.error = error;
         this.shardId = shardId;
+        this.error = error;
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         if (result == null) {
-            out.writeException(error);
             out.writeWriteable(shardId);
+            out.writeException(error);
         } else {
             out.writeOptionalWriteable(result);
+            out.writeWriteable(shardId);
         }
     }
 

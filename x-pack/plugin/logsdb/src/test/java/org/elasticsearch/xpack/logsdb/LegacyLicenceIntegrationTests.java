@@ -35,11 +35,6 @@ public class LegacyLicenceIntegrationTests extends AbstractLicensesIntegrationTe
         return List.of(P.class);
     }
 
-    @Override
-    protected void setupSuiteScopeCluster() throws Exception {
-
-    }
-
     @Before
     public void setup() throws Exception {
         wipeAllLicenses();

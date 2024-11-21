@@ -121,21 +121,22 @@ public class CategorizeTextAggregator extends DeferableBucketAggregator {
                     continue;
                 }
                 int size = (int) Math.min(bucketOrds.bucketsInOrd(ordIdx), bucketCountThresholds.getShardSize());
+                checkRealMemoryCBForInternalBucket();
                 topBucketsPerOrd.set(ordIdx, categorizer.toOrderedBuckets(size));
             }
             buildSubAggsForAllBuckets(topBucketsPerOrd, Bucket::getBucketOrd, Bucket::setAggregations);
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(ordsToCollect.size())];
-            for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                results[ordIdx] = new InternalCategorizationAggregation(
+
+            return buildAggregations(
+                Math.toIntExact(ordsToCollect.size()),
+                ordIdx -> new InternalCategorizationAggregation(
                     name,
                     bucketCountThresholds.getRequiredSize(),
                     bucketCountThresholds.getMinDocCount(),
                     similarityThreshold,
                     metadata(),
                     Arrays.asList(topBucketsPerOrd.get(ordIdx))
-                );
-            }
-            return results;
+                )
+            );
         }
     }
 

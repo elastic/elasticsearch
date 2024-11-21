@@ -34,6 +34,7 @@ public class EnterpriseSearchFeatureSetUsage extends XPackFeatureSet.Usage {
     public static final String MIN_RULE_COUNT = "min_rule_count";
     public static final String MAX_RULE_COUNT = "max_rule_count";
     public static final String RULE_CRITERIA_TOTAL_COUNTS = "rule_criteria_total_counts";
+    public static final String RULE_TYPE_TOTAL_COUNTS = "rule_type_total_counts";
 
     private final Map<String, Object> searchApplicationsUsage;
     private final Map<String, Object> analyticsCollectionsUsage;

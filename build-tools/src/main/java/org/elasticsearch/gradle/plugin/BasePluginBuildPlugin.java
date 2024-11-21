@@ -167,7 +167,7 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
             copySpec.exclude("plugin-security.codebases");
         });
         bundleSpec.from(
-            (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.github.johnrengelman.shadow")
+            (Callable<TaskProvider<Task>>) () -> project.getPluginManager().hasPlugin("com.gradleup.shadow")
                 ? project.getTasks().named("shadowJar")
                 : project.getTasks().named("jar")
         );

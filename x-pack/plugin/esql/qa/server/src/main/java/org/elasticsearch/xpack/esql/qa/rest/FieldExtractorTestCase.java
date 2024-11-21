@@ -28,6 +28,7 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -1250,6 +1251,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * </pre>.
      */
     public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
+            EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.isEnabled()
+        );
         ESRestTestCase.createIndex("test1", Settings.EMPTY, """
                   "properties": {
                     "Responses": {
@@ -1291,7 +1296,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"process.parent.command_line":"run.bat"}""");
 
-        Map<String, Object> result = runEsql("FROM test*");
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
         assertMap(
             result,
             matchesMapWithOptionalTook(result.get("took")).entry(

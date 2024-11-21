@@ -1,8 +1,8 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
 
 apply plugin: 'elasticsearch.internal-es-plugin'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.publish'
 
 esplugin {
@@ -17,19 +17,15 @@ base {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
-  api "org.antlr:antlr4-runtime:${versions.antlr4}"
+  implementation "org.antlr:antlr4-runtime:${versions.antlr4}"
 
   testImplementation "org.antlr:antlr4-runtime:${versions.antlr4}"
   testImplementation project(':test:framework')
   testImplementation(testArtifact(project(xpackModule('core'))))
 }
 
-/****************************************************************
- *  Enable QA/rest integration tests for snapshot builds only   *
- *  TODO: Enable for all builds upon this feature release       *
- ****************************************************************/
-if (BuildParams.isSnapshotBuild()) {
-  addQaCheckDependencies(project)
+tasks.named('yamlRestTest').configure {
+  usesDefaultDistribution()
 }
 
 /**********************************

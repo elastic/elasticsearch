@@ -54,6 +54,7 @@ processingCommand
     // in development
     | {this.isDevVersion()}? inlinestatsCommand
     | {this.isDevVersion()}? lookupCommand
+    | {this.isDevVersion()}? joinCommand
     ;
 
 whereCommand
@@ -68,7 +69,7 @@ booleanExpression
     | left=booleanExpression operator=OR right=booleanExpression                 #logicalBinary
     | valueExpression (NOT)? IN LP valueExpression (COMMA valueExpression)* RP   #logicalIn
     | valueExpression IS NOT? NULL                                               #isNull
-    | {this.isDevVersion()}? matchBooleanExpression                              #matchExpression
+    | matchBooleanExpression                                                     #matchExpression
     ;
 
 regexBooleanExpression
@@ -321,4 +322,20 @@ lookupCommand
 
 inlinestatsCommand
     : DEV_INLINESTATS stats=aggFields (BY grouping=fields)?
+    ;
+
+joinCommand
+    : type=(DEV_JOIN_LOOKUP | DEV_JOIN_LEFT | DEV_JOIN_RIGHT)? DEV_JOIN joinTarget joinCondition
+    ;
+
+joinTarget
+    : index=identifier (AS alias=identifier)?
+    ;
+
+joinCondition
+    : ON joinPredicate (COMMA joinPredicate)*
+    ;
+
+joinPredicate
+    : valueExpression
     ;

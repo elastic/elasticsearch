@@ -16,6 +16,7 @@ Boolean operators for comparing against one or multiple expressions.
 * <<esql-in-operator>>
 * <<esql-like-operator>>
 * <<esql-rlike-operator>>
+* experimental:[] <<esql-search-operators>>
 // end::op_list[]
 
 include::binary.asciidoc[]
@@ -26,3 +27,4 @@ include::cast.asciidoc[]
 include::in.asciidoc[]
 include::like.asciidoc[]
 include::rlike.asciidoc[]
+include::search.asciidoc[]

@@ -1,5 +1,9 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -9,6 +13,8 @@ dependencies {
   testImplementation project(xpackModule('ccr'))
   testImplementation project(':x-pack:plugin:ccr:qa:')
 }
+
+def clusterPath = getPath()
 
 def leaderCluster = testClusters.register('leader-cluster') {
   testDistribution = 'DEFAULT'
@@ -21,8 +27,20 @@ def followerCluster =  testClusters.register('follow-cluster') {
   setting 'xpack.license.self_generated.type', 'trial'
   setting 'xpack.security.enabled', 'true'
   user username: 'admin', password: 'admin-password', role: 'superuser'
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def leaderUris = leaderInfo.map { it.getAllTransportPortURI() }
+
   setting 'cluster.remote.leader_cluster.seeds',
-          { "\"${leaderCluster.get().getAllTransportPortURI().join(",")}\"" }, IGNORE_VALUE
+          { "\"${leaderUris.get().join(",")}\"" }, IGNORE_VALUE
 }
 
 tasks.register('leader-cluster', RestIntegTestTask) {
@@ -34,7 +52,19 @@ tasks.register('follow-cluster', RestIntegTestTask) {
   dependsOn 'leader-cluster'
   useCluster leaderCluster
   systemProperty 'tests.target_cluster', 'follow'
-  nonInputProperties.systemProperty 'tests.leader_host', followerCluster.map(c -> c.allHttpSocketURI.get(0))
+
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def followInfo = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("follow-cluster")
+    it.parameters.service = serviceProvider
+  }
+  def followUri = followInfo.map { it.allHttpSocketURI.get(0) }
+
+  nonInputProperties.systemProperty 'tests.leader_host', followUri
 }
 
 tasks.named("check").configure { dependsOn "follow-cluster" }

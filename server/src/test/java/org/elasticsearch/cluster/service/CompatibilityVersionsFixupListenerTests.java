@@ -20,13 +20,16 @@ import org.elasticsearch.client.internal.ClusterAdminClient;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
-import org.elasticsearch.cluster.service.TransportVersionsFixupListener.NodeTransportVersionTask;
+import org.elasticsearch.cluster.node.VersionInformation;
+import org.elasticsearch.cluster.service.CompatibilityVersionsFixupListener.NodeCompatibilityVersionsTask;
 import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.features.FeatureService;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.Scheduler;
@@ -37,9 +40,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import static java.util.Map.entry;
 import static org.elasticsearch.test.LambdaMatchers.transformedMatch;
+import static org.hamcrest.Matchers.arrayContaining;
 import static org.hamcrest.Matchers.arrayContainingInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.everyItem;
@@ -53,13 +59,13 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.hamcrest.MockitoHamcrest.argThat;
 
-public class TransportVersionsFixupListenerTests extends ESTestCase {
+public class CompatibilityVersionsFixupListenerTests extends ESTestCase {
 
     private static final Version NEXT_VERSION = Version.V_8_8_1;
     private static final TransportVersion NEXT_TRANSPORT_VERSION = TransportVersion.fromId(NEXT_VERSION.id);
 
     @SuppressWarnings("unchecked")
-    private static MasterServiceTaskQueue<NodeTransportVersionTask> newMockTaskQueue() {
+    private static MasterServiceTaskQueue<NodeCompatibilityVersionsTask> newMockTaskQueue() {
         return mock(MasterServiceTaskQueue.class);
     }
 
@@ -67,6 +73,20 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         var builder = DiscoveryNodes.builder();
         for (int i = 0; i < versions.length; i++) {
             builder.add(DiscoveryNodeUtils.create("node" + i, new TransportAddress(TransportAddress.META_ADDRESS, 9200 + i), versions[i]));
+        }
+        builder.localNodeId("node0").masterNodeId("node0");
+        return builder.build();
+    }
+
+    private static DiscoveryNodes node(VersionInformation... versions) {
+        var builder = DiscoveryNodes.builder();
+        for (int i = 0; i < versions.length; i++) {
+            builder.add(
+                DiscoveryNodeUtils.builder("node" + i)
+                    .address(new TransportAddress(TransportAddress.META_ADDRESS, 9200 + i))
+                    .version(versions[i])
+                    .build()
+            );
         }
         builder.localNodeId("node0").masterNodeId("node0");
         return builder.build();
@@ -114,7 +134,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
     }
 
     public void testNothingFixedWhenNothingToInfer() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -122,7 +142,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodeIdsToCompatibilityVersions(versions(new CompatibilityVersions(TransportVersions.V_8_8_0, Map.of())))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),
@@ -135,7 +155,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
     }
 
     public void testNothingFixedWhenOnNextVersion() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -143,7 +163,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .nodeIdsToCompatibilityVersions(versions(new CompatibilityVersions(NEXT_TRANSPORT_VERSION, Map.of())))
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),
@@ -156,7 +176,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
     }
 
     public void testNothingFixedWhenOnPreviousVersion() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -169,7 +189,41 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             )
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
+            taskQueue,
+            client,
+            new FeatureService(List.of(new TransportFeatures())),
+            null,
+            null
+        );
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
+
+        verify(taskQueue, never()).submitTask(anyString(), any(), any());
+    }
+
+    public void testNothingFixedWhenVersionMappingsAlreadyPresent() {
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+
+        var nodes = node(Version.CURRENT, Version.CURRENT);
+        var versions = nodes.stream()
+            .map(DiscoveryNode::getId)
+            .collect(
+                Collectors.toUnmodifiableMap(
+                    Function.identity(),
+                    x -> new CompatibilityVersions(
+                        TransportVersion.current(),
+                        Map.of(".system-index-1", new SystemIndexDescriptor.MappingsVersion(1, 1234))
+                    )
+                )
+            );
+
+        ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(nodes)
+            .nodeIdsToCompatibilityVersions(versions)
+            .build();
+
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),
@@ -183,7 +237,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testVersionsAreFixed() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -197,9 +251,9 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             .build();
 
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);
-        ArgumentCaptor<NodeTransportVersionTask> task = ArgumentCaptor.forClass(NodeTransportVersionTask.class);
+        ArgumentCaptor<NodeCompatibilityVersionsTask> task = ArgumentCaptor.forClass(NodeCompatibilityVersionsTask.class);
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),
@@ -223,11 +277,109 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         verify(taskQueue).submitTask(anyString(), task.capture(), any());
 
         assertThat(task.getValue().results().keySet(), equalTo(Set.of("node1", "node2")));
-        assertThat(task.getValue().results().values(), everyItem(equalTo(NEXT_TRANSPORT_VERSION)));
+        assertThat(
+            task.getValue().results().values(),
+            everyItem(transformedMatch(CompatibilityVersions::transportVersion, equalTo(NEXT_TRANSPORT_VERSION)))
+        );
+    }
+
+    public void testMappingVersionsFixedAfterNewMaster() throws Exception {
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+
+        var compatibilityVersions = new CompatibilityVersions(
+            TransportVersion.current(),
+            Map.of(".system-index-1", new SystemIndexDescriptor.MappingsVersion(1, 1234))
+        );
+
+        var nodes = node(Version.CURRENT, Version.CURRENT, Version.CURRENT);
+        ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(nodes)
+            .nodeIdsToCompatibilityVersions(
+                Map.ofEntries(
+                    entry("node0", compatibilityVersions),
+                    entry("node1", CompatibilityVersions.EMPTY),
+                    entry("node2", CompatibilityVersions.EMPTY)
+                )
+            )
+            .build();
+
+        ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.captor();
+        ArgumentCaptor<NodeCompatibilityVersionsTask> task = ArgumentCaptor.captor();
+
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
+            taskQueue,
+            client,
+            new FeatureService(List.of(new TransportFeatures())),
+            null,
+            null
+        );
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
+        verify(client).nodesInfo(
+            argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContainingInAnyOrder("node1", "node2"))),
+            action.capture()
+        );
+
+        action.getValue().onResponse(getResponse(Map.of("node1", compatibilityVersions, "node2", compatibilityVersions)));
+        verify(taskQueue).submitTask(anyString(), task.capture(), any());
+
+        ClusterState newState = ClusterStateTaskExecutorUtils.executeAndAssertSuccessful(
+            testState,
+            new CompatibilityVersionsFixupListener.TransportVersionUpdater(),
+            List.of(task.getValue())
+        );
+
+        assertThat(
+            newState.compatibilityVersions().values(),
+            everyItem(
+                transformedMatch(
+                    CompatibilityVersions::systemIndexMappingsVersion,
+                    equalTo(compatibilityVersions.systemIndexMappingsVersion())
+                )
+            )
+        );
+    }
+
+    public void testMappingVerisionsFetchedOnlyForUpdatedNodes() {
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
+        ClusterAdminClient client = mock(ClusterAdminClient.class);
+
+        var compatibilityVersions = new CompatibilityVersions(
+            TransportVersion.current(),
+            Map.of(".system-index-1", new SystemIndexDescriptor.MappingsVersion(1, 1234))
+        );
+        ClusterState testState = ClusterState.builder(ClusterState.EMPTY_STATE)
+            .nodes(
+                node(
+                    VersionInformation.CURRENT,
+                    VersionInformation.CURRENT,
+                    new VersionInformation(Version.V_8_15_0, IndexVersion.current(), IndexVersion.current())
+                )
+            )
+            .nodeIdsToCompatibilityVersions(
+                Map.ofEntries(
+                    entry("node0", compatibilityVersions),
+                    entry("node1", CompatibilityVersions.EMPTY),
+                    entry("node2", CompatibilityVersions.EMPTY)
+                )
+            )
+            .build();
+
+        ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.captor();
+
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
+            taskQueue,
+            client,
+            new FeatureService(List.of(new TransportFeatures())),
+            null,
+            null
+        );
+        listeners.clusterChanged(new ClusterChangedEvent("test", testState, ClusterState.EMPTY_STATE));
+        verify(client).nodesInfo(argThat(transformedMatch(NodesInfoRequest::nodesIds, arrayContaining("node1"))), action.capture());
     }
 
     public void testConcurrentChangesDoNotOverlap() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
 
         ClusterState testState1 = ClusterState.builder(ClusterState.EMPTY_STATE)
@@ -240,7 +392,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
             )
             .build();
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),
@@ -267,7 +419,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
 
     @SuppressWarnings("unchecked")
     public void testFailedRequestsAreRetried() {
-        MasterServiceTaskQueue<NodeTransportVersionTask> taskQueue = newMockTaskQueue();
+        MasterServiceTaskQueue<NodeCompatibilityVersionsTask> taskQueue = newMockTaskQueue();
         ClusterAdminClient client = mock(ClusterAdminClient.class);
         Scheduler scheduler = mock(Scheduler.class);
         Executor executor = mock(Executor.class);
@@ -290,7 +442,7 @@ public class TransportVersionsFixupListenerTests extends ESTestCase {
         ArgumentCaptor<ActionListener<NodesInfoResponse>> action = ArgumentCaptor.forClass(ActionListener.class);
         ArgumentCaptor<Runnable> retry = ArgumentCaptor.forClass(Runnable.class);
 
-        TransportVersionsFixupListener listeners = new TransportVersionsFixupListener(
+        CompatibilityVersionsFixupListener listeners = new CompatibilityVersionsFixupListener(
             taskQueue,
             client,
             new FeatureService(List.of(new TransportFeatures())),

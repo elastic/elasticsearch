@@ -219,6 +219,7 @@ public class AzureHttpHandler implements HttpHandler {
                 final MockAzureBlobStore.AzureBlob blob = mockAzureBlobStore.getBlob(blobPath(exchange), leaseId(exchange));
 
                 final BytesReference responseContent;
+                final RestStatus successStatus;
                 // see Constants.HeaderConstants.STORAGE_RANGE_HEADER
                 final String range = exchange.getRequestHeaders().getFirst("x-ms-range");
                 if (range != null) {
@@ -244,15 +245,17 @@ public class AzureHttpHandler implements HttpHandler {
                         Math.toIntExact(start),
                         Math.toIntExact(Math.min(end - start + 1, blobContents.length() - start))
                     );
+                    successStatus = RestStatus.PARTIAL_CONTENT;
                 } else {
                     responseContent = blob.getContents();
+                    successStatus = RestStatus.OK;
                 }
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add(X_MS_BLOB_CONTENT_LENGTH, String.valueOf(responseContent.length()));
                 exchange.getResponseHeaders().add(X_MS_BLOB_TYPE, blob.type());
                 exchange.getResponseHeaders().add("ETag", "\"blockblob\"");
-                exchange.sendResponseHeaders(RestStatus.OK.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
+                exchange.sendResponseHeaders(successStatus.getStatus(), responseContent.length() == 0 ? -1 : responseContent.length());
                 responseContent.writeTo(exchange.getResponseBody());
 
             } else if (Regex.simpleMatch("DELETE /" + account + "/" + container + "/*", request)) {

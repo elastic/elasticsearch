@@ -1,0 +1,5 @@
+pr: 116915
+summary: Improve message about insecure S3 settings
+area: Snapshot/Restore
+type: enhancement
+issues: []

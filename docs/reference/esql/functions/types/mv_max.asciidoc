@@ -7,6 +7,7 @@
 field | result
 boolean | boolean
 date | date
+date_nanos | date_nanos
 double | double
 integer | integer
 ip | ip

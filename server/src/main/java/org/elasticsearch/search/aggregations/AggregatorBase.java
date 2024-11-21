@@ -347,12 +347,11 @@ public abstract class AggregatorBase extends Aggregator {
 
     /**
      * This method calls the circuit breaker from time to time in order to give it a chance to check available
-     * memory in the parent breaker (Which should be a real memory breaker) and break the execution if we are running out.
-     * To achieve that, we are passing 0 as the estimated bytes every 1024 calls
+     * memory in the real memory breaker every 1024 calls and break the execution if we are running out.
      */
     protected final void checkRealMemoryCB(String label) {
         if ((++callCount & 0x3FF) == 0) {
-            breaker.addEstimateBytesAndMaybeBreak(0, label);
+            breaker.checkRealMemoryUsage(label);
         }
     }
 

@@ -10,14 +10,8 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
-
-import java.lang.module.ModuleFinder;
-import java.lang.module.ModuleReference;
-import java.util.Optional;
-import java.util.Set;
-import java.util.stream.Collectors;
+import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -25,70 +19,14 @@ import java.util.stream.Collectors;
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+    private final PolicyManager policyManager;
 
-    private static final Set<Module> systemModules = findSystemModules();
-
-    private static Set<Module> findSystemModules() {
-        var systemModulesDescriptors = ModuleFinder.ofSystem()
-            .findAll()
-            .stream()
-            .map(ModuleReference::descriptor)
-            .collect(Collectors.toUnmodifiableSet());
-
-        return ModuleLayer.boot()
-            .modules()
-            .stream()
-            .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
-            .collect(Collectors.toUnmodifiableSet());
+    public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+        this.policyManager = policyManager;
     }
 
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
-        var requestingModule = requestingModule(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
-            return;
-        }
-
-        // TODO: this will be checked using policies
-        if (requestingModule.isNamed() && requestingModule.getName().equals("org.elasticsearch.server")) {
-            logger.debug("Allowed: caller in {} is entitled to exit the JVM", requestingModule.getName());
-            return;
-        }
-
-        // Hard-forbidden until we develop the permission granting scheme
-        throw new NotEntitledException("Missing entitlement for " + requestingModule);
-    }
-
-    private static Module requestingModule(Class<?> callerClass) {
-        if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (systemModules.contains(callerModule) == false) {
-                // fast path
-                return callerModule;
-            }
-        }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> systemModules.contains(m) == false)
-                    .findFirst()
-            );
-        return module.orElse(null);
-    }
-
-    private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (requestingModule == null) {
-            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
-            return true;
-        }
-        logger.trace("Not trivially allowed");
-        return false;
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
     }
 }

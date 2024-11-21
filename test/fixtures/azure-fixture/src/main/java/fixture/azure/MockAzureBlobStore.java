@@ -182,14 +182,14 @@ public class MockAzureBlobStore {
 
         public void putBlock(String blockId, BytesReference content, @Nullable String leaseId) {
             synchronized (writeLock) {
-                lease.assertCanWrite(leaseId);
+                lease.checkLeaseForWrite(leaseId);
                 this.blocks.put(blockId, content);
             }
         }
 
         public void putBlockList(List<String> blockIds, @Nullable String leaseId) throws BadRequestException {
             synchronized (writeLock) {
-                lease.assertCanWrite(leaseId);
+                lease.checkLeaseForWrite(leaseId);
                 final List<String> unresolvedBlocks = blockIds.stream().filter(bId -> blocks.containsKey(bId) == false).toList();
                 if (unresolvedBlocks.isEmpty() == false) {
                     logger.warn("Block list contained non-existent block IDs: {}", unresolvedBlocks);
@@ -222,7 +222,7 @@ public class MockAzureBlobStore {
         @Override
         public synchronized void setContents(BytesReference contents, @Nullable String leaseId) {
             synchronized (writeLock) {
-                lease.assertCanWrite(leaseId);
+                lease.checkLeaseForWrite(leaseId);
                 this.contents = contents;
                 this.blocks.clear();
             }
@@ -277,12 +277,12 @@ public class MockAzureBlobStore {
 
         @Override
         public void checkLeaseForRead(@Nullable String leaseId) {
-            lease.assertCanRead(leaseId);
+            lease.checkLeaseForRead(leaseId);
         }
 
         @Override
         public void checkLeaseForWrite(@Nullable String leaseId) {
-            lease.assertCanWrite(leaseId);
+            lease.checkLeaseForWrite(leaseId);
         }
     }
 
@@ -348,7 +348,7 @@ public class MockAzureBlobStore {
             }
         }
 
-        public synchronized void assertCanWrite(@Nullable String requestLeaseId) {
+        public synchronized void checkLeaseForWrite(@Nullable String requestLeaseId) {
             maybeExpire(requestLeaseId);
             switch (state) {
                 case Available, Expired -> {
@@ -376,7 +376,7 @@ public class MockAzureBlobStore {
             }
         }
 
-        public synchronized void assertCanRead(@Nullable String requestLeaseId) {
+        public synchronized void checkLeaseForRead(@Nullable String requestLeaseId) {
             maybeExpire(requestLeaseId);
             switch (state) {
                 case Available, Expired -> {

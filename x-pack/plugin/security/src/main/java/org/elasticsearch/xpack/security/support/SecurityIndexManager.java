@@ -945,7 +945,7 @@ public class SecurityIndexManager implements ClusterStateListener {
         if (routingTable != null && routingTable.allPrimaryShardsActive()) {
             allPrimaryShards = true;
         }
-        if (routingTable != null && routingTable.readyForSearch(project.metadata())) {
+        if (routingTable != null && routingTable.readyForSearch(project)) {
             searchShards = true;
         }
         if (allPrimaryShards == false || searchShards == false) {

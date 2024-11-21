@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -173,11 +174,16 @@ public class AzureHttpHandler implements HttpHandler {
                         mockAzureBlobStore.releaseLease(blobPath(exchange), leaseId);
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
-                    case "renew", "change", "break" -> throw new MockAzureBlobStore.AzureBlobStoreError(
-                        RestStatus.NOT_IMPLEMENTED,
-                        "NotImplemented",
-                        "Attempted to use unsupported lease API: " + leaseAction
-                    );
+                    case "renew", "change", "break" -> {
+                        ExceptionsHelper.maybeDieOnAnotherThread(
+                            new AssertionError("Attempt was made to use not-implemented lease action: " + leaseAction)
+                        );
+                        throw new MockAzureBlobStore.AzureBlobStoreError(
+                            RestStatus.INTERNAL_SERVER_ERROR,
+                            "NotImplemented",
+                            "Attempted to use unsupported lease API: " + leaseAction
+                        );
+                    }
                     default -> throw new MockAzureBlobStore.BadRequestException(
                         "InvalidHeaderValue",
                         "Invalid x-ms-lease-action header: " + leaseAction

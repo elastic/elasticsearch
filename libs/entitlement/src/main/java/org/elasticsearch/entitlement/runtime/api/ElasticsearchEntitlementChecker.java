@@ -13,7 +13,11 @@ import org.elasticsearch.entitlement.bridge.EntitlementChecker;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -23,12 +27,35 @@ import java.util.Optional;
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
+    private static final Set<Module> systemModules = findSystemModules();
+
+    private static Set<Module> findSystemModules() {
+        var systemModulesDescriptors = ModuleFinder.ofSystem()
+            .findAll()
+            .stream()
+            .map(ModuleReference::descriptor)
+            .collect(Collectors.toUnmodifiableSet());
+
+        return ModuleLayer.boot()
+            .modules()
+            .stream()
+            .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
+            .collect(Collectors.toUnmodifiableSet());
+    }
+
     @Override
     public void checkSystemExit(Class<?> callerClass, int status) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;
         }
+
+        // TODO: this will be checked using policies
+        if (requestingModule.isNamed() && requestingModule.getName().equals("org.elasticsearch.server")) {
+            logger.debug("Allowed: caller in {} is entitled to exit the JVM", requestingModule.getName());
+            return;
+        }
+
         // Hard-forbidden until we develop the permission granting scheme
         throw new NotEntitledException("Missing entitlement for " + requestingModule);
     }
@@ -36,7 +63,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     private static Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
             Module callerModule = callerClass.getModule();
-            if (callerModule.getLayer() != ModuleLayer.boot()) {
+            if (systemModules.contains(callerModule) == false) {
                 // fast path
                 return callerModule;
             }
@@ -50,7 +77,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
             .walk(
                 s -> s.skip(framesToSkip)
                     .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> m.getLayer() != ModuleLayer.boot())
+                    .filter(m -> systemModules.contains(m) == false)
                     .findFirst()
             );
         return module.orElse(null);
@@ -58,11 +85,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
-            return true;
-        }
-        if (requestingModule == System.class.getModule()) {
-            logger.debug("Trivially allowed: Caller is in {}", System.class.getModule().getName());
+            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
             return true;
         }
         logger.trace("Not trivially allowed");

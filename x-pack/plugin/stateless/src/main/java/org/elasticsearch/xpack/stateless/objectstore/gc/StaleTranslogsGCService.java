@@ -132,7 +132,8 @@ public class StaleTranslogsGCService {
         Map<String, Set<String>> staleEphemeralIdsFiles
     ) {
         ActionListener.completeWith(listener, () -> {
-            if (new ClusterStateHealth(state).getStatus() == ClusterHealthStatus.RED) {
+            final var project = state.metadata().getProject();
+            if (new ClusterStateHealth(state, project.getConcreteAllIndices(), project.id()).getStatus() == ClusterHealthStatus.RED) {
                 logger.debug("Translog GC did not proceed because cluster state health is red");
                 return null;
             }

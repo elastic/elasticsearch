@@ -385,8 +385,8 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var clusterState = createClusterStateWithIndices(1, 1);
         ClusterChangedEvent event = new ClusterChangedEvent("test", clusterState, ClusterState.EMPTY_STATE);
         service.clusterChanged(event);
-        assertEquals(1, clusterState.metadata().indices().size());
-        var index = clusterState.metadata().indices().values().iterator().next().getIndex();
+        assertEquals(1, clusterState.metadata().getProject().indices().size());
+        var index = clusterState.metadata().getProject().indices().values().iterator().next().getIndex();
         var node = clusterState.nodes().getLocalNode().getId();
         int numSegments = 3;
         int numFields = 200;
@@ -420,7 +420,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         var node = clusterState.nodes().getLocalNode().getId();
         int numSegments = 50;
         int numFields = 1200;
-        for (var indexMetadata : clusterState.metadata().indices().values()) {
+        for (var indexMetadata : clusterState.metadata().getProject().indices().values()) {
             service.getShardMemoryMetrics()
                 .put(
                     new ShardId(indexMetadata.getIndex(), 0),
@@ -448,7 +448,7 @@ public class MemoryMetricsServiceTests extends ESTestCase {
         int totalShards = 0;
         int totalSegments = 0;
         int totalFields = 0;
-        for (var index : clusterState.metadata().indices().values()) {
+        for (var index : clusterState.metadata().getProject().indices().values()) {
             for (int id = 0; id < numberOfShards; id++) {
                 ShardId shardId = new ShardId(index.getIndex(), id);
                 totalShards++;

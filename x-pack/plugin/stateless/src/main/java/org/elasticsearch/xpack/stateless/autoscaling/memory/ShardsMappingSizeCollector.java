@@ -208,8 +208,8 @@ public class ShardsMappingSizeCollector implements ClusterStateListener, IndexEv
             // handle index metadata mapping updates
             for (final IndexService indexService : indicesService) {
                 final Index index = indexService.index();
-                final IndexMetadata oldIndexMetadata = event.previousState().metadata().index(index);
-                final IndexMetadata newIndexMetadata = event.state().metadata().index(index);
+                final IndexMetadata oldIndexMetadata = event.previousState().metadata().getProject().index(index);
+                final IndexMetadata newIndexMetadata = event.state().metadata().getProject().index(index);
                 if (oldIndexMetadata != null
                     && newIndexMetadata != null
                     && ClusterChangedEvent.indexMetadataChanged(oldIndexMetadata, newIndexMetadata)) { // ignore all unrelated events

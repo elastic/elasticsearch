@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -201,19 +202,17 @@ public class SearchMetricsService implements ClusterStateListener {
             replicationInteractiveSizeUsage = -1.0;
         } else {
             if (event.metadataChanged() || shardMetricsInitialized == false) {
-                var state = event.state();
-                indices.keySet().removeIf(index -> state.metadata().hasIndex(index) == false || hasZeroReplicas(index, state));
+                var project = event.state().getMetadata().getProject();
+                indices.keySet().removeIf(index -> project.hasIndex(index) == false || hasZeroReplicas(index, project));
                 shardMetrics.keySet()
-                    .removeIf(
-                        shardId -> state.metadata().hasIndex(shardId.getIndex()) == false || hasZeroReplicas(shardId.getIndex(), state)
-                    );
+                    .removeIf(shardId -> project.hasIndex(shardId.getIndex()) == false || hasZeroReplicas(shardId.getIndex(), project));
 
                 Function<ShardId, ShardMetrics> newShardMetricFactory = shardMetricsInitialized
                     ? newIndexShardMetricFactory()
                     : shardId -> new ShardMetrics();
 
-                SortedMap<String, IndexAbstraction> indicesLookup = state.metadata().getIndicesLookup();
-                for (IndexMetadata metadata : state.metadata().indices().values()) {
+                SortedMap<String, IndexAbstraction> indicesLookup = project.getIndicesLookup();
+                for (IndexMetadata metadata : project.indices().values()) {
                     int shardCopies = metadata.getNumberOfReplicas();
                     if (shardCopies == 0) {
                         continue;
@@ -481,8 +480,8 @@ public class SearchMetricsService implements ClusterStateListener {
 
     record IndexProperties(String name, int shards, int replicas, boolean isSystem, boolean isDataStream, long recency) {}
 
-    private static boolean hasZeroReplicas(Index index, ClusterState state) {
-        return state.metadata().index(index).getNumberOfReplicas() == 0;
+    private static boolean hasZeroReplicas(Index index, ProjectMetadata projectMetadata) {
+        return projectMetadata.index(index).getNumberOfReplicas() == 0;
     }
 
     ConcurrentMap<Index, IndexProperties> getIndices() {

@@ -101,7 +101,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(indexName);
-        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
         int searchPowerOver250 = randomIntBetween(
             ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION,
             ReplicasUpdaterService.SEARCH_POWER_MIN_FULL_REPLICATION + 100
@@ -116,13 +116,13 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
+        assertEquals(2, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
 
         // also check that a newly created index gets scaled up automatically
         var indexName2 = randomIdentifier();
         createIndex(indexName2, indexSettings(5, 1).build());
-        assertEquals(1, clusterService.state().metadata().index(indexName2).getNumberOfReplicas());
+        assertEquals(1, clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas());
 
         indexDocumentsWithTimestamp(
             indexName2,
@@ -131,8 +131,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(indexName2);
-        waitUntil(() -> clusterService.state().metadata().index(indexName2).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().index(indexName2).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas() == 2, 5, TimeUnit.SECONDS);
+        assertEquals(2, clusterService.state().metadata().getProject().index(indexName2).getNumberOfReplicas());
 
         // back to SP 100
         assertAcked(
@@ -145,8 +145,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1, 5, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 1, 5, TimeUnit.SECONDS);
+        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
     }
 
     public void testSearchSizeAffectsReplicasSPBetween100And250() throws Exception {
@@ -201,8 +201,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             return bothInteractiveSizePresent;
         }, 2, TimeUnit.SECONDS);
 
-        assertEquals(1, clusterService.state().metadata().index(index1).getNumberOfReplicas());
-        assertEquals(1, clusterService.state().metadata().index(index2).getNumberOfReplicas());
+        assertEquals(1, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
+        assertEquals(1, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
 
         // switch on relica autoscaling and set SP to 220, which should allow index1 to get two replicas
         assertAcked(
@@ -219,9 +219,9 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 .get()
         );
         // scaling up should happen almost immediately
-        waitUntil(() -> clusterService.state().metadata().index(index1).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().index(index2).getNumberOfReplicas());
-        assertEquals(2, clusterService.state().metadata().index(index1).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
+        assertEquals(1, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
+        assertEquals(2, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
 
         // indexing into index2 so that his index now has roughly 2/3 size of total interactive size
         // index1 has 200 docs, index 2 already 100, so we need another 300
@@ -234,13 +234,13 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         refresh(index2);
 
         // scaling up index2 should happen almost immediately, but we wait 1sec to be sure we catch at least one update interval
-        waitUntil(() -> clusterService.state().metadata().index(index2).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().index(index2).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas() == 2, 1, TimeUnit.SECONDS);
+        assertEquals(2, clusterService.state().metadata().getProject().index(index2).getNumberOfReplicas());
         // index1 should still have 2 replicas, it needs 6*500ms for the change to stabiliza
-        assertEquals(2, clusterService.state().metadata().index(index1).getNumberOfReplicas());
+        assertEquals(2, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
 
-        waitUntil(() -> clusterService.state().metadata().index(index1).getNumberOfReplicas() == 1, 4, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().index(index1).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas() == 1, 4, TimeUnit.SECONDS);
+        assertEquals(1, clusterService.state().metadata().getProject().index(index1).getNumberOfReplicas());
     }
 
     public void testDisablingReplicasScalesDown() throws Exception {
@@ -269,7 +269,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(indexName);
-        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
         assertAcked(
             client().admin()
                 .cluster()
@@ -280,13 +280,13 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
                 )
                 .get()
         );
-        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
-        assertEquals(2, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
+        assertEquals(2, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
 
         // now disable feature
         setFeatureFlag(false);
-        waitUntil(() -> clusterService.state().metadata().index(indexName).getNumberOfReplicas() == 1, 2, TimeUnit.SECONDS);
-        assertEquals(1, clusterService.state().metadata().index(indexName).getNumberOfReplicas());
+        waitUntil(() -> clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas() == 1, 2, TimeUnit.SECONDS);
+        assertEquals(1, clusterService.state().metadata().getProject().index(indexName).getNumberOfReplicas());
     }
 
     public void testMultipleDatastreamsRanking() throws Exception {
@@ -325,14 +325,14 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
 
         setFeatureFlag(true);
         waitUntil(
-            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream1, 2)).getNumberOfReplicas() == 2
-                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream2, 2)).getNumberOfReplicas() == 2,
+            () -> cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream1, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 2)).getNumberOfReplicas() == 2,
             2,
             TimeUnit.SECONDS
         );
         for (String datastream : new String[] { dataStream1, dataStream2 }) {
-            assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
-            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+            assertEquals(1, cs.state().metadata().getProject().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
+            assertEquals(2, cs.state().metadata().getProject().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
         }
 
         // add third data stream, again with 100 docs in first generation, 100 in current write index after rollover
@@ -340,19 +340,19 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         setupDataStream(dataStream3);
         verifyDocs("logs-es3", 400, 1, 2);
         waitUntil(
-            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 2)).getNumberOfReplicas() == 2
-                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 2,
+            () -> cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 2,
             2,
             TimeUnit.SECONDS
         );
         // all write indices should have 2 replicas now
         for (String datastream : new String[] { dataStream1, dataStream2, dataStream3 }) {
-            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+            assertEquals(2, cs.state().metadata().getProject().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
         }
         // only the youngest (last) backing index (logs-es3) should get two replicas, the other two stay at 1
-        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream1, 1)).getNumberOfReplicas());
-        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream2, 1)).getNumberOfReplicas());
-        assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas());
+        assertEquals(1, cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream1, 1)).getNumberOfReplicas());
+        assertEquals(1, cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream2, 1)).getNumberOfReplicas());
+        assertEquals(2, cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas());
 
         // test that data stream with non-interactive data doesn’t get promoted to 2 replicas
         final String dataStream4 = "logs-es4";
@@ -366,7 +366,7 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         );
         refresh(dataStream4);
         // write index should stay at 1 replica because it doesn't contain interactive data
-        assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(dataStream4, 1)).getNumberOfReplicas());
+        assertEquals(1, cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream4, 1)).getNumberOfReplicas());
 
         // add more data to ds4 write index after rolling over, but now inside boost window
         assertAcked(indicesAdmin().rolloverIndex(new RolloverRequest(dataStream4, null)).get());
@@ -374,14 +374,14 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
         refresh(dataStream4);
         // this should scale up ds4 write index, ds3 backing index should get demoted to one replica after some time
         waitUntil(
-            () -> cs.state().metadata().index(getDefaultBackingIndexName(dataStream4, 2)).getNumberOfReplicas() == 2
-                && cs.state().metadata().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 1,
+            () -> cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream4, 2)).getNumberOfReplicas() == 2
+                && cs.state().metadata().getProject().index(getDefaultBackingIndexName(dataStream3, 1)).getNumberOfReplicas() == 1,
             2,
             TimeUnit.SECONDS
         );
         for (String datastream : new String[] { dataStream1, dataStream2, dataStream3, dataStream4 }) {
-            assertEquals(1, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
-            assertEquals(2, cs.state().metadata().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
+            assertEquals(1, cs.state().metadata().getProject().index(getDefaultBackingIndexName(datastream, 1)).getNumberOfReplicas());
+            assertEquals(2, cs.state().metadata().getProject().index(getDefaultBackingIndexName(datastream, 2)).getNumberOfReplicas());
         }
 
         // check that adding a regular index regardless of its small size gets it scaled to 2
@@ -397,8 +397,8 @@ public class AutoscalingReplicaIT extends AbstractStatelessIntegTestCase {
             now
         );
         refresh(regularIndex);
-        waitUntil(() -> cs.state().metadata().index(regularIndex).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
-        assertEquals(2, cs.state().metadata().index(regularIndex).getNumberOfReplicas());
+        waitUntil(() -> cs.state().metadata().getProject().index(regularIndex).getNumberOfReplicas() == 2, 2, TimeUnit.SECONDS);
+        assertEquals(2, cs.state().metadata().getProject().index(regularIndex).getNumberOfReplicas());
     }
 
     private static void verifyDocs(String dataStream, long expectedNumHits, long minGeneration, long maxGeneration) {

@@ -117,7 +117,7 @@ public class TransportSendRecoveryCommitRegistrationAction extends HandledTransp
             return true;
         } else if (e instanceof IndexNotFoundException) {
             var state = clusterService.state();
-            return state.metadata().hasIndex(request.getShardId().getIndexName());
+            return state.metadata().getProject().hasIndex(request.getShardId().getIndexName());
         } else {
             return false;
         }

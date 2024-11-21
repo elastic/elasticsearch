@@ -817,9 +817,9 @@ public class IndexingShardRecoveryIT extends AbstractStatelessIntegTestCase {
             .setIndices(indexName)
             .get()
             .getState();
-        assertThat("Index not found: " + indexName, clusterState.metadata().hasIndex(indexName), equalTo(true));
+        assertThat("Index not found: " + indexName, clusterState.metadata().getProject().hasIndex(indexName), equalTo(true));
 
-        var indexMetadata = clusterState.metadata().index(indexName);
+        var indexMetadata = clusterState.metadata().getProject().index(indexName);
         int shards = Integer.parseInt(indexMetadata.getSettings().get(SETTING_NUMBER_OF_SHARDS));
         for (int shard = 0; shard < shards; shard++) {
             var indexShard = findIndexShard(indexMetadata.getIndex(), shard);

@@ -10,5 +10,5 @@
 package org.elasticsearch.entitlement.bridge;
 
 public interface EntitlementChecker {
-    void checkSystemExit(Class<?> callerClass, int status);
+    void check$java_lang_System$exit(Class<?> callerClass, int status);
 }

@@ -14,12 +14,31 @@ import org.elasticsearch.test.AbstractXContentSerializingTestCase;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.net.HttpURLConnection;
+import java.net.URL;
 
 public class GeoIpTaskStateSerializationTests extends AbstractXContentSerializingTestCase<GeoIpTaskState> {
     @Override
     protected GeoIpTaskState doParseInstance(XContentParser parser) throws IOException {
         return GeoIpTaskState.fromXContent(parser);
     }
+
+
+    public void testStuff() throws IOException {
+        HttpURLConnection connection = createConnection("http://invalid.endpoint");
+        connection.getResponseCode();
+    }
+
+    private static HttpURLConnection createConnection(final String url) throws IOException {
+        final HttpURLConnection conn = (HttpURLConnection) new URL(url).openConnection();
+        conn.setConnectTimeout(10000);
+        conn.setReadTimeout(10000);
+        conn.setDoOutput(false);
+        conn.setInstanceFollowRedirects(false);
+        return conn;
+    }
+
+
 
     @Override
     protected Writeable.Reader<GeoIpTaskState> instanceReader() {

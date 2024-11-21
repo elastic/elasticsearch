@@ -36,19 +36,11 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        Set<DataType> supportedTextParams = Set.of(DataType.KEYWORD, DataType.TEXT);
-        Set<DataType> supportedNumericParams = Set.of(DataType.DOUBLE, DataType.INTEGER);
-        Set<DataType> supportedFuzzinessParams = Set.of(DataType.INTEGER, DataType.KEYWORD, DataType.TEXT);
-        List<Set<DataType>> supportedPerPosition = List.of(
-            supportedTextParams,
-            supportedTextParams,
-            supportedNumericParams,
-            supportedFuzzinessParams
-        );
+        List<Set<DataType>> supportedPerPosition = supportedParams();
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType fieldType : DataType.stringTypes()) {
             for (DataType queryType : DataType.stringTypes()) {
-                addPositiveTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
+                addPositiveTestCase(List.of(fieldType, queryType), suppliers);
                 addNonFieldTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
             }
         }
@@ -61,11 +53,20 @@ public class MatchTests extends AbstractFunctionTestCase {
         );
     }
 
-    private static void addPositiveTestCase(
-        List<DataType> paramDataTypes,
-        List<Set<DataType>> supportedPerPosition,
-        List<TestCaseSupplier> suppliers
-    ) {
+    protected static List<Set<DataType>> supportedParams() {
+        Set<DataType> supportedTextParams = Set.of(DataType.KEYWORD, DataType.TEXT);
+        Set<DataType> supportedNumericParams = Set.of(DataType.DOUBLE, DataType.INTEGER);
+        Set<DataType> supportedFuzzinessParams = Set.of(DataType.INTEGER, DataType.KEYWORD, DataType.TEXT);
+        List<Set<DataType>> supportedPerPosition = List.of(
+            supportedTextParams,
+            supportedTextParams,
+            supportedNumericParams,
+            supportedFuzzinessParams
+        );
+        return supportedPerPosition;
+    }
+
+    protected static void addPositiveTestCase(List<DataType> paramDataTypes, List<TestCaseSupplier> suppliers) {
 
         // Positive case - creates an ES field from the field parameter type
         suppliers.add(

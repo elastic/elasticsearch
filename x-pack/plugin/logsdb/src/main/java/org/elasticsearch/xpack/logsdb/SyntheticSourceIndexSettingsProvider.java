@@ -181,7 +181,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             return true;
         }
 
-        // To allow the following patterns: profiling-metrics and
+        // To allow the following patterns: profiling-metrics and profiling-events
         if (dataStreamName != null && dataStreamName.startsWith("profiling-")) {
             return true;
         }

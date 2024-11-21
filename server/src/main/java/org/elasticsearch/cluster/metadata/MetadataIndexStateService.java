@@ -327,7 +327,7 @@ public class MetadataIndexStateService {
         }
 
         // Check if index closing conflicts with any running snapshots
-        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, indicesToClose);
+        Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState.projectState(), indicesToClose);
         if (snapshottingIndices.isEmpty() == false) {
             throw new SnapshotInProgressException(
                 "Cannot close indices that are being snapshotted: "
@@ -866,7 +866,7 @@ public class MetadataIndexStateService {
                 }
 
                 // Check if index closing conflicts with any running snapshots
-                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState, Set.of(index));
+                Set<Index> snapshottingIndices = SnapshotsService.snapshottingIndices(currentState.projectState(), Set.of(index));
                 if (snapshottingIndices.isEmpty() == false) {
                     closingResults.put(
                         result.getKey(),

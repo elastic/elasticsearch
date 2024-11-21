@@ -459,6 +459,21 @@ public final class DataStreamTestHelper {
         boolean replicated,
         boolean storeFailures
     ) {
+        ProjectMetadata.Builder projectBuilder = ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID);
+        getClusterStateWithDataStreams(projectBuilder, dataStreams, indexNames, currentTime, settings, replicas, replicated, storeFailures);
+        builder.put(projectBuilder);
+    }
+
+    public static void getClusterStateWithDataStreams(
+        ProjectMetadata.Builder builder,
+        List<Tuple<String, Integer>> dataStreams,
+        List<String> indexNames,
+        long currentTime,
+        Settings settings,
+        int replicas,
+        boolean replicated,
+        boolean storeFailures
+    ) {
         builder.put(
             "template_1",
             ComposableIndexTemplate.builder()

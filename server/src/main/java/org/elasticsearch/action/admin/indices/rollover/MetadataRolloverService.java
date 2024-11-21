@@ -59,6 +59,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.cluster.metadata.IndexAbstraction.Type.ALIAS;
@@ -296,7 +297,11 @@ public class MetadataRolloverService {
         boolean isFailureStoreRollover
     ) throws Exception {
 
-        if (SnapshotsService.snapshottingDataStreams(currentState, Collections.singleton(dataStream.getName())).isEmpty() == false) {
+        Set<String> snapshottingDataStreams = SnapshotsService.snapshottingDataStreams(
+            currentState.projectState(currentState.metadata().getProject().id()),
+            Collections.singleton(dataStream.getName())
+        );
+        if (snapshottingDataStreams.isEmpty() == false) {
             // we can't roll over the snapshot concurrently because the snapshot contains the indices that existed when it was started but
             // the cluster metadata of when it completes so the new write index would not exist in the snapshot if there was a concurrent
             // rollover

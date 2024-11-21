@@ -17,7 +17,8 @@ import org.elasticsearch.cluster.metadata.DataStreamMetadata;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -47,9 +48,10 @@ public class DataStreamsActionUtilTests extends ESTestCase {
         var dataStreamIndex3 = new Index(".ds-foo2", IndexMetadata.INDEX_UUID_NA_VALUE);
         var dataStreamIndex4 = new Index(".ds-baz1", IndexMetadata.INDEX_UUID_NA_VALUE);
 
+        var projectId = new ProjectId(randomUUID());
         ClusterState clusterState = ClusterState.builder(new ClusterName("test-cluster"))
-            .metadata(
-                Metadata.builder()
+            .putProjectMetadata(
+                ProjectMetadata.builder(projectId)
                     .putCustom(
                         DataStreamMetadata.TYPE,
                         new DataStreamMetadata(
@@ -72,19 +74,18 @@ public class DataStreamsActionUtilTests extends ESTestCase {
                             dataStreamIndex4
                         )
                     )
-                    .build()
             )
             .build();
 
         var query = new String[] { "foo*", "baz*" };
         var indexNameExpressionResolver = mock(IndexNameExpressionResolver.class);
-        when(indexNameExpressionResolver.dataStreamNames(any(ClusterState.class), any(), eq(query))).thenReturn(
+        when(indexNameExpressionResolver.dataStreamNames((ProjectMetadata) any(), any(), eq(query))).thenReturn(
             List.of("fooDs", "foo2Ds", "bazDs")
         );
 
         var resolved = DataStreamsActionUtil.resolveConcreteIndexNames(
             indexNameExpressionResolver,
-            clusterState,
+            clusterState.getMetadata().getProject(projectId),
             query,
             IndicesOptions.builder().wildcardOptions(IndicesOptions.WildcardOptions.builder().includeHidden(true)).build()
         ).toList();

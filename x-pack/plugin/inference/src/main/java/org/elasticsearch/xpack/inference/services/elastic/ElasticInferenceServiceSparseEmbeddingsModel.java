@@ -108,6 +108,6 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             default -> throw new IllegalArgumentException("Unsupported model for EIS [" + modelId + "]");
         }
 
-        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/sparse-text-embedding/" + modelIdUriPath);
+        return new URI(elasticInferenceServiceComponents().eisGatewayUrl() + "/api/v1/sparse-text-embedding/" + modelIdUriPath);
     }
 }

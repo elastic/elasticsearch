@@ -22,10 +22,14 @@ import java.util.Objects;
  */
 public abstract class LocalClusterStateRequest extends ActionRequest {
 
-    private final TimeValue clusterUpdateTimeout;
+    /**
+     * The timeout for waiting until the cluster is unblocked.
+     * We use the name <code>masterTimeout</code> to be consistent with the master node actions.
+     */
+    private final TimeValue masterTimeout;
 
-    protected LocalClusterStateRequest(TimeValue clusterUpdateTimeout) {
-        this.clusterUpdateTimeout = Objects.requireNonNull(clusterUpdateTimeout);
+    protected LocalClusterStateRequest(TimeValue masterTimeout) {
+        this.masterTimeout = Objects.requireNonNull(masterTimeout);
     }
 
     @Override
@@ -33,7 +37,7 @@ public abstract class LocalClusterStateRequest extends ActionRequest {
         TransportAction.localOnly();
     }
 
-    public TimeValue clusterUpdateTimeout() {
-        return clusterUpdateTimeout;
+    public TimeValue masterTimeout() {
+        return masterTimeout;
     }
 }

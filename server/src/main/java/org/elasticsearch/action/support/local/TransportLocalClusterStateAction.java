@@ -96,7 +96,7 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
         var observer = new ClusterStateObserver(
             initialState,
             clusterService,
-            request.clusterUpdateTimeout(),
+            request.masterTimeout(),
             logger,
             clusterService.threadPool().getThreadContext()
         );

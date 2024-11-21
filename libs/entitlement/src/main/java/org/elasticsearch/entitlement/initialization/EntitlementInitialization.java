@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.initialization;
 
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
@@ -29,6 +30,7 @@ import java.lang.module.ModuleReference;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
+import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -80,19 +82,19 @@ public class EntitlementInitialization {
     }
 
     private static PolicyManager createPolicyManager() throws IOException {
-        Map<String, Policy> pluginPolicies = createPluginPolicies();
+        Map<String, Policy> pluginPolicies = createPluginPolicies(EntitlementBootstrap.bootstrapArgs().pluginData());
 
         // TODO: What should the name be?
         // TODO(ES-10031): Decide what goes in the elasticsearch default policy and extend it
-        var elasticsearchPolicy = new Policy("elasticsearch", List.of());
-        return new PolicyManager(elasticsearchPolicy, pluginPolicies, EntitlementBootstrap.pluginResolver);
+        var serverPolicy = new Policy("server", List.of());
+        return new PolicyManager(serverPolicy, pluginPolicies, EntitlementBootstrap.bootstrapArgs().pluginResolver());
     }
 
-    private static Map<String, Policy> createPluginPolicies() throws IOException {
-        Map<String, Policy> pluginPolicies = new HashMap<>(EntitlementBootstrap.pluginData.size());
-        for (Map.Entry<Path, Boolean> entry : EntitlementBootstrap.pluginData.entrySet()) {
-            Path pluginRoot = entry.getKey();
-            boolean isModular = entry.getValue();
+    private static Map<String, Policy> createPluginPolicies(Collection<Tuple<Path, Boolean>> pluginData) throws IOException {
+        Map<String, Policy> pluginPolicies = new HashMap<>(pluginData.size());
+        for (Tuple<Path, Boolean> entry : pluginData) {
+            Path pluginRoot = entry.v1();
+            boolean isModular = entry.v2();
 
             String pluginName = pluginRoot.getFileName().toString();
             final Policy policy = loadPluginPolicy(pluginRoot, isModular, pluginName);

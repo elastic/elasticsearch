@@ -9,6 +9,7 @@
 
 package org.elasticsearch.entitlement.runtime.policy;
 
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
@@ -17,7 +18,6 @@ import org.elasticsearch.logging.Logger;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
 import java.util.Collections;
-import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -28,7 +28,7 @@ import java.util.stream.Collectors;
 public class PolicyManager {
     private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
 
-    protected final Map<String, List<Entitlement>> mainPolicies;
+    protected final Policy serverPolicy;
     protected final Map<String, Policy> pluginPolicies;
     private final Function<Class<?>, String> pluginResolver;
 
@@ -51,8 +51,7 @@ public class PolicyManager {
     }
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
-        this.mainPolicies = Objects.requireNonNull(defaultPolicy).scopes.stream()
-            .collect(Collectors.toUnmodifiableMap(e -> e.name, e -> e.entitlements));
+        this.serverPolicy = Objects.requireNonNull(defaultPolicy);
         this.pluginPolicies = Collections.unmodifiableMap(Objects.requireNonNull(pluginPolicies));
         this.pluginResolver = pluginResolver;
     }
@@ -68,12 +67,14 @@ public class PolicyManager {
         if (requestingModule.isNamed()
             && requestingModule.getName().equals("org.elasticsearch.server")
             && type == FlagEntitlementType.SYSTEM_EXIT) {
-            logger.debug("Allowed: caller {} in module {} has entitlement {}", callerClass, requestingModule.getName(), type);
+            logger.debug("Allowed: caller [{}] in module [{}] has entitlement [{}]", callerClass, requestingModule.getName(), type);
             return;
         }
 
         // TODO: plugins policy check using pluginResolver and pluginPolicies
-        throw new NotEntitledException("Missing entitlement for " + requestingModule);
+        throw new NotEntitledException(
+            Strings.format("Missing entitlement [%s] for caller [%s] in module [%s]", type, callerClass, requestingModule.getName())
+        );
     }
 
     private static Module requestingModule(Class<?> callerClass) {
@@ -110,6 +111,6 @@ public class PolicyManager {
 
     @Override
     public String toString() {
-        return "PolicyManager{" + "mainPolicies=" + mainPolicies + ", pluginPolicies=" + pluginPolicies + '}';
+        return "PolicyManager{" + "serverPolicy=" + serverPolicy + ", pluginPolicies=" + pluginPolicies + '}';
     }
 }

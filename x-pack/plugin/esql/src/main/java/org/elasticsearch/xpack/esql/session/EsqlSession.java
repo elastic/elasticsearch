@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -298,8 +299,8 @@ public class EsqlSession {
         final Set<String> clusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
-        // key: cluster alias; value = skip_unavailable setting (false for local cluster)
-        Map<String, Boolean> targetClusters = new HashMap<>();
+        // key: cluster alias; value = skip_unavailable setting
+        Map<String, Boolean> targetClusters = Maps.newHashMapWithExpectedSize(clusters.size());
         for (String alias : clusters) {
             targetClusters.put(alias, executionInfo.isSkipUnavailable(alias));
         }

@@ -1291,13 +1291,17 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         );
         if (query != null) {
             QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(query, innerHitsRewriteContext, true);
-            InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            if (false == source.skipInnerHits()) {
+                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            }
             searchExecutionContext.setAliasFilter(context.request().getAliasFilter().getQueryBuilder());
             context.parsedQuery(searchExecutionContext.toQuery(query));
         }
         if (source.postFilter() != null) {
             QueryBuilder rewrittenForInnerHits = Rewriteable.rewrite(source.postFilter(), innerHitsRewriteContext, true);
-            InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            if (false == source.skipInnerHits()) {
+                InnerHitContextBuilder.extractInnerHits(rewrittenForInnerHits, innerHitBuilders);
+            }
             context.parsedPostFilter(searchExecutionContext.toQuery(source.postFilter()));
         }
         if (innerHitBuilders.size() > 0) {

@@ -1296,7 +1296,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         index("test2", """
             {"process.parent.command_line":"run.bat"}""");
 
-        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line ASC NULLS FIRST");
         assertMap(
             result,
             matchesMapWithOptionalTook(result.get("took")).entry(

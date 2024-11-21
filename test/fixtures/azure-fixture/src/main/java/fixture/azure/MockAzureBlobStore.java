@@ -95,6 +95,10 @@ public class MockAzureBlobStore {
 
     public AzureBlob getBlob(String path, @Nullable String leaseId) {
         final AzureBlob azureBlob = getExistingBlob(path);
+        // This is the public implementation of "get blob" which will 404 for uncommitted block blobs
+        if (azureBlob.isCommitted() == false) {
+            throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
+        }
         azureBlob.checkLeaseForRead(leaseId);
         return azureBlob;
     }

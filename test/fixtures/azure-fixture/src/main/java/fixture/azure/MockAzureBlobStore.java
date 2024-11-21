@@ -90,13 +90,15 @@ public class MockAzureBlobStore {
         if (BLOCK_BLOB_TYPE.equals(blobType)) {
             return;
         }
+        final String errorMessage;
         if (PAGE_BLOB_TYPE.equals(blobType) || APPEND_BLOB_TYPE.equals(blobType)) {
-            ExceptionsHelper.maybeDieOnAnotherThread(
-                new AssertionError("Only BlockBlob is supported. This is a limitation of the MockAzureBlobStore")
-            );
+            errorMessage = "Only BlockBlob is supported. This is a limitation of the MockAzureBlobStore";
+        } else {
+            errorMessage = "Invalid blobType: " + blobType;
         }
-        // Anything else is a malformed header
-        throw new MockAzureBlobStore.ConflictException("InvalidHeaderValue", "Unable to parse blobType: " + blobType);
+        // Fail the test and respond with an error
+        failTestWithAssertionError(errorMessage);
+        throw new MockAzureBlobStore.BadRequestException("InvalidHeaderValue", errorMessage);
     }
 
     public AzureBlob getBlob(String path, @Nullable String leaseId) {
@@ -147,6 +149,10 @@ public class MockAzureBlobStore {
             throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
         }
         return azureBlob;
+    }
+
+    static void failTestWithAssertionError(String message) {
+        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
     }
 
     public interface AzureBlob {
@@ -209,9 +215,7 @@ public class MockAzureBlobStore {
                 return true;
             }
             // Fail the test, trigger an internal server error
-            ExceptionsHelper.maybeDieOnAnotherThread(
-                new AssertionError("We've only implemented 'If-None-Match: *' in the MockAzureBlobStore")
-            );
+            failTestWithAssertionError("We've only implemented 'If-None-Match: *' in the MockAzureBlobStore");
             throw new AzureBlobStoreError(
                 RestStatus.INTERNAL_SERVER_ERROR,
                 "UnsupportedHeader",

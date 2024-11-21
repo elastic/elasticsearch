@@ -46,6 +46,7 @@ import java.util.function.Predicate;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import static fixture.azure.MockAzureBlobStore.failTestWithAssertionError;
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
 /**
@@ -180,19 +181,20 @@ public class AzureHttpHandler implements HttpHandler {
                         exchange.sendResponseHeaders(RestStatus.OK.getStatus(), -1);
                     }
                     case "renew", "change", "break" -> {
-                        ExceptionsHelper.maybeDieOnAnotherThread(
-                            new AssertionError("Attempt was made to use not-implemented lease action: " + leaseAction)
-                        );
+                        failTestWithAssertionError("Attempt was made to use not-implemented lease action: " + leaseAction);
                         throw new MockAzureBlobStore.AzureBlobStoreError(
-                            RestStatus.INTERNAL_SERVER_ERROR,
+                            RestStatus.NOT_IMPLEMENTED,
                             "NotImplemented",
                             "Attempted to use unsupported lease API: " + leaseAction
                         );
                     }
-                    default -> throw new MockAzureBlobStore.BadRequestException(
-                        "InvalidHeaderValue",
-                        "Invalid x-ms-lease-action header: " + leaseAction
-                    );
+                    default -> {
+                        failTestWithAssertionError("Unrecognized lease action: " + leaseAction);
+                        throw new MockAzureBlobStore.BadRequestException(
+                            "InvalidHeaderValue",
+                            "Invalid x-ms-lease-action header: " + leaseAction
+                        );
+                    }
                 }
             } else if (Regex.simpleMatch("PUT /" + account + "/" + container + "/*", request)) {
                 // PUT Blob (see https://docs.microsoft.com/en-us/rest/api/storageservices/put-blob)
@@ -433,7 +435,7 @@ public class AzureHttpHandler implements HttpHandler {
         } catch (MockAzureBlobStore.AzureBlobStoreError e) {
             sendError(exchange, e);
         } catch (Exception e) {
-            logger.error("Uncaught exception", e);
+            ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Uncaught exception", e));
             sendError(exchange, RestStatus.INTERNAL_SERVER_ERROR, "InternalError", e.getMessage());
         } finally {
             exchange.close();

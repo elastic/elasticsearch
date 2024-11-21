@@ -55,10 +55,9 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        var truncatedInput = truncate(docsInput, model.getServiceSettings().maxInputTokens());
+        var rerankInput = QueryAndDocsInputs.of(inferenceInputs);
 
-        IbmWatsonxRerankRequest request = new IbmWatsonxRerankRequest(truncator, truncatedInput, model);
+        IbmWatsonxRerankRequest request = new IbmWatsonxRerankRequest(rerankInput.getQuery(), rerankInput.getChunks(), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

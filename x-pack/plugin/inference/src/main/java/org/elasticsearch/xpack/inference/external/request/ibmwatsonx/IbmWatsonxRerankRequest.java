@@ -9,28 +9,41 @@ package org.elasticsearch.xpack.inference.external.request.ibmwatsonx;
 
 import org.apache.http.HttpHeaders;
 import org.apache.http.client.methods.HttpPost;
+import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
+import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
 
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.util.Objects;
 
 public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
-    private final Truncator truncator;
-    private final Truncator.TruncationResult truncationResult;
+    private final String query;
+    private final List<String> input;
+    private final IbmWatsonxRerankTaskSettings taskSettings;
+    private final String modelId;
     private final IbmWatsonxRerankModel model;
+    private final String inferenceEntityId;
 
-    public IbmWatsonxRerankRequest(Truncator truncator, Truncator.TruncationResult input, IbmWatsonxRerankModel model) {
-        this.truncator = Objects.requireNonNull(truncator);
-        this.truncationResult = Objects.requireNonNull(input);
-        this.model = Objects.requireNonNull(model);
+    public IbmWatsonxRerankRequest(String query, List<String> input, IbmWatsonxRerankModel model) {
+        Objects.requireNonNull(model);
+
+        this.input = Objects.requireNonNull(input);
+        this.query = Objects.requireNonNull(query);
+        taskSettings = model.getTaskSettings();
+        this.model = model;
+        this.modelId = model.getServiceSettings().modelId();
+        inferenceEntityId = model.getInferenceEntityId();
     }
 
     @Override
@@ -39,12 +52,7 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new IbmWatsonxRerankRequestEntity(
-                    truncationResult.input(),
-                    model.getServiceSettings().modelId(),
-                    model.getServiceSettings().projectId()
-                )
-            ).getBytes(StandardCharsets.UTF_8)
+                new IbmWatsonxRerankRequestEntity(query, input, taskSettings, modelId)).getBytes(StandardCharsets.UTF_8)
         );
 
         httpPost.setEntity(byteEntity);
@@ -59,21 +67,9 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
         IbmWatsonxRequest.decorateWithBearerToken(httpPost, model.getSecretSettings(), model.getInferenceEntityId());
     }
 
-    public Truncator truncator() {
-        return truncator;
-    }
-
-    public Truncator.TruncationResult truncationResult() {
-        return truncationResult;
-    }
-
-    public IbmWatsonxRerankModel model() {
-        return model;
-    }
-
     @Override
     public String getInferenceEntityId() {
-        return model.getInferenceEntityId();
+        return inferenceEntityId;
     }
 
     @Override
@@ -83,13 +79,18 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
     @Override
     public Request truncate() {
-        var truncatedInput = truncator.truncate(truncationResult.input());
-
-        return new IbmWatsonxRerankRequest(truncator, truncatedInput, model);
+        return this; // TODO?
     }
 
     @Override
     public boolean[] getTruncationInfo() {
-        return truncationResult.truncated().clone();
+        return null;
+    }
+
+    public static URI buildDefaultUri() throws URISyntaxException {
+        return new URIBuilder().setScheme("https")
+            .setHost(CohereUtils.HOST)
+            .setPathSegments(CohereUtils.VERSION_1, CohereUtils.RERANK_PATH)
+            .build();
     }
 }

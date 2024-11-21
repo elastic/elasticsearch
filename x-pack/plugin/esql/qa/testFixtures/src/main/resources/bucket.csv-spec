@@ -760,3 +760,19 @@ c:long |b:date
 3      |2025-10-01T00:00:00.000Z
 4      |2023-11-01T00:00:00.000Z
 ;
+
+bucketWithFilteredCountRefingBucket
+required_capability: implicit_casting_string_literal_to_temporal_amount
+
+FROM employees
+| STATS c = COUNT(*) WHERE b > "1953-01-01T00:00:00.000Z" AND emp_no > 10020 BY b = BUCKET(birth_date, 1 year)
+| SORT c, b
+| LIMIT 4
+;
+
+c:long |b:date
+0      |1952-01-01T00:00:00.000Z
+0      |1953-01-01T00:00:00.000Z
+0      |null
+1      |1965-01-01T00:00:00.000Z
+;

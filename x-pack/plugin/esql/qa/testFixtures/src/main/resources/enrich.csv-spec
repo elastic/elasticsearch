@@ -580,7 +580,6 @@ CPH             |  Copenhagen    |  POINT(12.5683 55.6761)  |  Denmark          
 
 spatialEnrichmentGeoMatchStats#[skip:-8.13.99, reason:ENRICH extended in 8.14.0]
 required_capability: enrich_load
-required_capability: mv_warn
 
 FROM airports
 | ENRICH city_boundaries ON city_location WITH airport, region, city_boundary

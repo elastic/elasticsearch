@@ -81,7 +81,6 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
-        //
         boolean legacyLicensedUsageOfSyntheticSourceAllowed = isLegacyLicensedUsageOfSyntheticSourceAllowed(
             templateIndexMode,
             indexName,

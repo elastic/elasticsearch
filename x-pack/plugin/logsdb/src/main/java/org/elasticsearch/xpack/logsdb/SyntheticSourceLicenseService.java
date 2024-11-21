@@ -27,7 +27,7 @@ final class SyntheticSourceLicenseService {
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
     private static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date";
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
-    private static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2024, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+    static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2024, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
     private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2026, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**

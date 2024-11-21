@@ -180,7 +180,7 @@ public class SearchShardSizeCollector extends AbstractLifecycleComponent
             executor.execute(this::publishAllNow);
         }
         if (event.metadataChanged()) {
-            var metadata = event.state().metadata();
+            var metadata = event.state().metadata().getProject();
             pastPublications.keySet().removeIf(shardId -> metadata.hasIndex(shardId.getIndex()) == false);
         }
         if (event.routingTableChanged()) {

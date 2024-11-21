@@ -423,7 +423,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
     private static String getNodeWhereGCTaskIsAssigned() {
         var state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        PersistentTasksCustomMetadata persistentTasks = state.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata persistentTasks = state.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         var nodeId = persistentTasks.getTask(ObjectStoreGCTask.TASK_NAME).getAssignment().getExecutorNode();
         var executingTaskNode = state.nodes().resolveNode(nodeId).getName();
         return executingTaskNode;
@@ -472,7 +472,7 @@ public class StaleIndicesGCIT extends AbstractStatelessIntegTestCase {
 
     private String resolveIndexUUID(String indexName, String viaNode) {
         var state = client(viaNode).admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
-        var indexMetadata = state.metadata().index(indexName);
+        var indexMetadata = state.metadata().getProject().index(indexName);
         if (indexMetadata == null) {
             logger.warn("Index [{}] is not found in cluster state: {}", indexName, Strings.toString(state, true, true));
         }

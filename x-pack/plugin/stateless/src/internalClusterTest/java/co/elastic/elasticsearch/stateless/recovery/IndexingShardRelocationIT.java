@@ -321,7 +321,7 @@ public class IndexingShardRelocationIT extends AbstractStatelessIntegTestCase {
         });
         safeAwait(masterServiceBarrier); // wait for master service to be blocked, so the shard cannot be reallocated after failure
 
-        final var index = masterClusterService.state().metadata().index(indexName).getIndex();
+        final var index = masterClusterService.state().metadata().getProject().index(indexName).getIndex();
         final var indicesService = internalCluster().getInstance(IndicesService.class, indexNodes.get(0));
         final var indexShard = indicesService.indexService(index).getShard(0);
         indexShard.failShard("test", new ElasticsearchException("test"));

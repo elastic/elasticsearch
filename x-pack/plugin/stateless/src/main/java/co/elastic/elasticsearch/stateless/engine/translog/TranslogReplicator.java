@@ -120,7 +120,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
         final StatelessClusterConsistencyService consistencyService
     ) {
         this(threadPool, settings, objectStoreService, consistencyService, shardId -> {
-            IndexMetadata index = consistencyService.state().metadata().index(shardId.getIndex());
+            IndexMetadata index = consistencyService.state().metadata().getProject().index(shardId.getIndex());
             if (index == null) {
                 return Long.MIN_VALUE;
             }
@@ -876,7 +876,7 @@ public class TranslogReplicator extends AbstractLifecycleComponent {
             var indexRoutingTable = state.routingTable().index(shardId.getIndex());
             if (indexRoutingTable == null) {
                 logger.debug("index not found while checking if shard {} is red", shardId);
-                if (state.getMetadata().hasIndex(shardId.getIndex()) == false) {
+                if (state.getMetadata().getProject().hasIndex(shardId.getIndex()) == false) {
                     return false;
                 } else {
                     logger.warn("found no index routing for {} but found it in metadata", shardId);

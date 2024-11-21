@@ -224,7 +224,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
         }
         var indexRoutingTable = state.routingTable().index(shardId.getIndex());
         if (indexRoutingTable == null) {
-            if (state.getMetadata().hasIndex(shardId.getIndex()) == false) {
+            if (state.getMetadata().getProject().hasIndex(shardId.getIndex()) == false) {
                 return ShardDeletionState.INDEX_DELETED;
             } else {
                 logger.warn("found no index routing for {} but found it in metadata", shardId);
@@ -236,7 +236,7 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
 
         var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();
         var localNode = state.nodes().getLocalNode();
-        var currentPrimaryTerm = state.metadata().index(shardId.getIndex()).primaryTerm(shardId.getId());
+        var currentPrimaryTerm = state.metadata().getProject().index(shardId.getIndex()).primaryTerm(shardId.getId());
 
         if (currentPrimaryTerm == allocationPrimaryTerm) {
             if (localNode.getId().equals(primaryShard.currentNodeId())) {

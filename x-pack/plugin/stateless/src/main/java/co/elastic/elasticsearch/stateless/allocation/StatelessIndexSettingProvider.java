@@ -22,7 +22,7 @@ import co.elastic.elasticsearch.stateless.Stateless;
 
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
-import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
@@ -82,11 +82,12 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
         systemNamePredicate = systemNameRunAutomaton::run;
     }
 
+    @Override
     public Settings getAdditionalIndexSettings(
         String indexName,
         @Nullable String dataStreamName,
         IndexMode templateIndexMode,
-        Metadata metadata,
+        ProjectMetadata projectMetadata,
         Instant resolvedAt,
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
@@ -102,7 +103,7 @@ public class StatelessIndexSettingProvider implements IndexSettingProvider {
             indexName,
             dataStreamName,
             templateIndexMode,
-            metadata,
+            projectMetadata,
             resolvedAt,
             indexTemplateAndCreateRequestSettings,
             combinedTemplateMappings

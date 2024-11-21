@@ -2774,7 +2774,7 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                             continue;
                         }
 
-                        if (event.indexRoutingTableChanged(shardId.getIndexName())) {
+                        if (event.indexRoutingTableChanged(shardId.getIndex())) {
                             var currentShardRoutingTable = event.state().routingTable().shardRoutingTable(shardId);
 
                             // If the routing for any of the shard copies changed, update the shard commit tracking.

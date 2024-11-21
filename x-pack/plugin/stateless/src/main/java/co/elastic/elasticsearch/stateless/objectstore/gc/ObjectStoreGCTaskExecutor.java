@@ -96,7 +96,7 @@ public class ObjectStoreGCTaskExecutor extends PersistentTasksExecutor<ObjectSto
     public void clusterChanged(ClusterChangedEvent event) {
         var clusterState = event.state();
 
-        PersistentTasksCustomMetadata tasksCustomMetadata = clusterState.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+        PersistentTasksCustomMetadata tasksCustomMetadata = clusterState.metadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
         if (tasksCustomMetadata != null && tasksCustomMetadata.getTask(ObjectStoreGCTask.TASK_NAME) != null) {
             clusterService.removeListener(this);
             return;

@@ -269,7 +269,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         final XContentBuilder indexMapping = createIndexMapping(mappingFieldsCount);
         assertAcked(prepareCreate(INDEX_NAME).setMapping(indexMapping).setSettings(indexSettings(1, 0).build()).get());
 
-        final Index testIndex = internalCluster().clusterService().state().metadata().index(INDEX_NAME).getIndex();
+        final Index testIndex = internalCluster().clusterService().state().metadata().getProject().index(INDEX_NAME).getIndex();
         final String publicationNodeId = internalCluster().clusterService()
             .state()
             .getRoutingTable()
@@ -920,7 +920,7 @@ public class AutoscalingMemoryMetricsIT extends AbstractStatelessIntegTestCase {
         // new segments publishes the estimate heap usage
         int numDocs = randomIntBetween(1, 10);
         ClusterState clusterState = internalCluster().getCurrentMasterNodeInstance(ClusterService.class).state();
-        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().index(INDEX_NAME));
+        IndexRouting indexRouting = IndexRouting.fromIndexMetadata(clusterState.metadata().getProject().index(INDEX_NAME));
         Map<ShardId, Integer> firstSegmentFields = new HashMap<>();
         {
             BulkRequestBuilder bulk = client().prepareBulk(INDEX_NAME).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);

@@ -160,7 +160,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
         );
 
         var indexNodeState = internalCluster().getInstance(ClusterService.class, indexNode).state();
-        assertThat(indexNodeState.metadata().hasIndex(indexName), is(false));
+        assertThat(indexNodeState.metadata().getProject().hasIndex(indexName), is(false));
         assertThat(consistentReadFuture.isDone(), is(equalTo(false)));
 
         disruption.stopDisrupting();
@@ -168,7 +168,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
 
         var consistentReadResponse = consistentReadFuture.get();
         var consistentReadResponseState = consistentReadResponse.getState();
-        assertThat(consistentReadResponseState.metadata().hasIndex(indexName), is(true));
+        assertThat(consistentReadResponseState.metadata().getProject().hasIndex(indexName), is(true));
     }
 
     @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch-serverless/issues/1734")
@@ -193,7 +193,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
         );
 
         var indexNodeState = internalCluster().getInstance(ClusterService.class, indexNode).state();
-        assertThat(indexNodeState.metadata().hasIndex(indexName), is(false));
+        assertThat(indexNodeState.metadata().getProject().hasIndex(indexName), is(false));
 
         assertThat(consistentReadFuture.isDone(), is(equalTo(false)));
 
@@ -202,7 +202,7 @@ public class TransportConsistentClusterStateReadIT extends AbstractStatelessInte
 
         var consistentReadResponse = consistentReadFuture.get();
         var consistentReadResponseState = consistentReadResponse.getState();
-        assertThat(consistentReadResponseState.metadata().hasIndex(indexName), is(true));
+        assertThat(consistentReadResponseState.metadata().getProject().hasIndex(indexName), is(true));
     }
 
     public void testCancellation() throws Exception {

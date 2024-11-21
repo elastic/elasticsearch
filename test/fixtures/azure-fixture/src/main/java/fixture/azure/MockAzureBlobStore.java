@@ -19,7 +19,6 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 
-import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -34,10 +33,17 @@ public class MockAzureBlobStore {
     private static final String PAGE_BLOB_TYPE = "PageBlob";
     private static final String APPEND_BLOB_TYPE = "AppendBlob";
 
+    private final LeaseExpiryPredicate leaseExpiryPredicate;
     private final Map<String, AzureBlob> blobs;
 
-    public MockAzureBlobStore() {
+    /**
+     * Provide the means of triggering lease expiration
+     *
+     * @param leaseExpiryPredicate A Predicate that takes an active lease ID and returns true when it should be expired, or null to never fail leases
+     */
+    public MockAzureBlobStore(@Nullable LeaseExpiryPredicate leaseExpiryPredicate) {
         this.blobs = new ConcurrentHashMap<>();
+        this.leaseExpiryPredicate = leaseExpiryPredicate != null ? leaseExpiryPredicate : (current, request) -> false;
     }
 
     public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
@@ -164,7 +170,7 @@ public class MockAzureBlobStore {
         boolean isCommitted();
     }
 
-    private static class MockAzureBlockBlob implements AzureBlob {
+    private class MockAzureBlockBlob implements AzureBlob {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
         private final Map<String, BytesReference> blocks;
@@ -284,7 +290,7 @@ public class MockAzureBlobStore {
      * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob#outcomes-of-lease-operations-on-blobs-by-lease-state">acquire/release rules</a>
      * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob#outcomes-of-use-attempts-on-blobs-by-lease-state">read/write rules</a>
      */
-    public static class Lease {
+    public class Lease {
 
         /**
          * Minimal set of states, we don't support breaking/broken
@@ -296,23 +302,17 @@ public class MockAzureBlobStore {
         }
 
         private String leaseId;
-        private long expireTimeMillisSinceEpoch = Long.MAX_VALUE;
         private State state = State.Available;
 
-        public synchronized String acquire(@Nullable String proposedLeaseId, int leaseTimeSeconds) {
-            expireIfDue();
+        public synchronized String acquire(@Nullable String proposedLeaseId, int leaseDurationSeconds) {
+            maybeExpire(proposedLeaseId);
             switch (state) {
                 case Available, Expired -> {
                     final State prevState = state;
                     state = State.Leased;
                     leaseId = proposedLeaseId != null ? proposedLeaseId : UUID.randomUUID().toString();
-                    setExpireTimeMillisSinceEpoch(leaseTimeSeconds);
-                    logger.debug(
-                        "Granting lease, prior state={}, leaseId={}, expires={}",
-                        prevState,
-                        leaseId,
-                        Instant.ofEpochMilli(expireTimeMillisSinceEpoch)
-                    );
+                    validateLeaseDuration(leaseDurationSeconds);
+                    logger.debug("Granting lease, prior state={}, leaseId={}, expires={}", prevState, leaseId);
                 }
                 case Leased -> {
                     if (leaseId.equals(proposedLeaseId) == false) {
@@ -322,14 +322,13 @@ public class MockAzureBlobStore {
                             "The lease ID specified did not match the lease ID for the blob/container."
                         );
                     }
-                    setExpireTimeMillisSinceEpoch(leaseTimeSeconds);
+                    validateLeaseDuration(leaseDurationSeconds);
                 }
             }
             return leaseId;
         }
 
         public synchronized void release(String requestLeaseId) {
-            expireIfDue();
             switch (state) {
                 case Available -> throw new ConflictException(
                     "LeaseNotPresentWithLeaseOperation",
@@ -345,13 +344,12 @@ public class MockAzureBlobStore {
                     }
                     state = State.Available;
                     this.leaseId = null;
-                    this.expireTimeMillisSinceEpoch = Long.MAX_VALUE;
                 }
             }
         }
 
         public synchronized void assertCanWrite(@Nullable String requestLeaseId) {
-            expireIfDue();
+            maybeExpire(requestLeaseId);
             switch (state) {
                 case Available, Expired -> {
                     if (requestLeaseId != null) {
@@ -379,7 +377,7 @@ public class MockAzureBlobStore {
         }
 
         public synchronized void assertCanRead(@Nullable String requestLeaseId) {
-            expireIfDue();
+            maybeExpire(requestLeaseId);
             switch (state) {
                 case Available, Expired -> {
                     if (requestLeaseId != null) {
@@ -400,24 +398,24 @@ public class MockAzureBlobStore {
             }
         }
 
-        private void expireIfDue() {
-            if (state == State.Leased && System.currentTimeMillis() >= expireTimeMillisSinceEpoch) {
+        /**
+         * If there's an active lease, ask the predicate if we should expire the existing it
+         *
+         * @param requestLeaseId The lease of the request
+         */
+        private void maybeExpire(String requestLeaseId) {
+            if (state == State.Leased && leaseExpiryPredicate.shouldExpireLease(leaseId, requestLeaseId)) {
                 logger.debug("Expiring lease, id={}", leaseId);
                 state = State.Expired;
             }
         }
 
-        private void setExpireTimeMillisSinceEpoch(long leaseTimeSeconds) {
-            if (leaseTimeSeconds == -1) {
-                expireTimeMillisSinceEpoch = Long.MAX_VALUE;
-            } else {
-                if (leaseTimeSeconds < 15 || leaseTimeSeconds > 60) {
-                    throw new BadRequestException(
-                        "InvalidHeaderValue",
-                        AzureHttpHandler.X_MS_LEASE_DURATION + " must be between 16 and 60 seconds (was " + leaseTimeSeconds + ")"
-                    );
-                }
-                expireTimeMillisSinceEpoch = System.currentTimeMillis() + leaseTimeSeconds * 1000L;
+        private void validateLeaseDuration(long leaseTimeSeconds) {
+            if (leaseTimeSeconds != -1 && (leaseTimeSeconds < 15 || leaseTimeSeconds > 60)) {
+                throw new BadRequestException(
+                    "InvalidHeaderValue",
+                    AzureHttpHandler.X_MS_LEASE_DURATION + " must be between 16 and 60 seconds (was " + leaseTimeSeconds + ")"
+                );
             }
         }
     }
@@ -463,5 +461,17 @@ public class MockAzureBlobStore {
         public PreconditionFailedException(String errorCode, String message) {
             super(RestStatus.PRECONDITION_FAILED, errorCode, message);
         }
+    }
+
+    public interface LeaseExpiryPredicate {
+
+        /**
+         * Should the lease be expired?
+         *
+         * @param activeLeaseId The current active lease ID
+         * @param requestLeaseId The request lease ID (if any)
+         * @return true to expire the lease, false otherwise
+         */
+        boolean shouldExpireLease(String activeLeaseId, @Nullable String requestLeaseId);
     }
 }

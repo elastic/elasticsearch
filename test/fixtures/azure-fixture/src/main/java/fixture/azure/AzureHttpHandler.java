@@ -66,11 +66,16 @@ public class AzureHttpHandler implements HttpHandler {
     private final Predicate<String> authHeaderPredicate;
     private final MockAzureBlobStore mockAzureBlobStore;
 
-    public AzureHttpHandler(final String account, final String container, @Nullable Predicate<String> authHeaderPredicate) {
+    public AzureHttpHandler(
+        final String account,
+        final String container,
+        @Nullable Predicate<String> authHeaderPredicate,
+        @Nullable MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
+    ) {
         this.account = Objects.requireNonNull(account);
         this.container = Objects.requireNonNull(container);
         this.authHeaderPredicate = authHeaderPredicate;
-        this.mockAzureBlobStore = new MockAzureBlobStore();
+        this.mockAzureBlobStore = new MockAzureBlobStore(leaseExpiryPredicate);
     }
 
     private static List<String> getAuthHeader(HttpExchange exchange) {

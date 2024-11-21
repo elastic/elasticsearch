@@ -26,7 +26,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
     @SuppressForbidden(reason = "use a http server")
     @Before
     public void configureAzureHandler() {
-        httpServer.createContext("/", new AzureHttpHandler(ACCOUNT, CONTAINER, null));
+        httpServer.createContext("/", new AzureHttpHandler(ACCOUNT, CONTAINER, null, null));
     }
 
     public void testOperationPurposeIsReflectedInBlobStoreStats() throws IOException {

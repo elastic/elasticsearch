@@ -47,7 +47,8 @@ public class RepositoryAzureClientYamlTestSuiteIT extends ESClientYamlSuiteTestC
         AZURE_TEST_CONTAINER,
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
-        decideAuthHeaderPredicate()
+        decideAuthHeaderPredicate(),
+        null
     );
 
     private static Predicate<String> decideAuthHeaderPredicate() {

@@ -42,7 +42,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
     private SyntheticSourceIndexSettingsProvider provider;
     private final AtomicInteger newMapperServiceCounter = new AtomicInteger();
 
-    private static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
+    static LogsdbIndexModeSettingsProvider getLogsdbIndexModeSettingsProvider(boolean enabled) {
         return new LogsdbIndexModeSettingsProvider(Settings.builder().put("cluster.logsdb.enabled", enabled).build());
     }
 

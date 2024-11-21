@@ -194,6 +194,10 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return clusterInfo.get(clusterAlias);
     }
 
+    public Map<String, Cluster> getClusters() {
+        return clusterInfo;
+    }
+
     /**
      * Utility to swap a Cluster object. Guidelines for the remapping function:
      * <ul>

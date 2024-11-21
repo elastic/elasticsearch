@@ -20,6 +20,7 @@ import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.query.SearchTimeoutException;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 
 import java.util.Arrays;
@@ -82,6 +83,15 @@ public class CCSUsage {
         public Builder setClient(String client) {
             this.client = client;
             return this;
+        }
+
+        public Builder setClientFromTask(Task task) {
+            String client = task.getHeader(Task.X_ELASTIC_PRODUCT_ORIGIN_HTTP_HEADER);
+            if (client != null) {
+                return setClient(client);
+            } else {
+                return this;
+            }
         }
 
         public Builder skippedRemote(String remote) {

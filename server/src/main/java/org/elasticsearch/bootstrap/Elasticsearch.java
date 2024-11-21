@@ -41,8 +41,8 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginBundle;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
@@ -206,7 +206,8 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        bootstrap.setPluginsLoader(new PluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile()));
+        var pluginsLoader = new PluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
+        bootstrap.setPluginsLoader(pluginsLoader);
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             logger.info("Bootstrapping Entitlements");

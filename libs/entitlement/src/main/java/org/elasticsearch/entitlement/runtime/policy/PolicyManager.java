@@ -14,11 +14,14 @@ import org.elasticsearch.entitlement.runtime.api.NotEntitledException;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 
+import java.lang.module.ModuleFinder;
+import java.lang.module.ModuleReference;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -30,6 +33,22 @@ public class PolicyManager {
     private final Function<Class<?>, String> pluginResolver;
 
     public static final String ALL_UNNAMED = "ALL-UNNAMED";
+
+    private static final Set<Module> systemModules = findSystemModules();
+
+    private static Set<Module> findSystemModules() {
+        var systemModulesDescriptors = ModuleFinder.ofSystem()
+            .findAll()
+            .stream()
+            .map(ModuleReference::descriptor)
+            .collect(Collectors.toUnmodifiableSet());
+
+        return ModuleLayer.boot()
+            .modules()
+            .stream()
+            .filter(m -> systemModulesDescriptors.contains(m.getDescriptor()))
+            .collect(Collectors.toUnmodifiableSet());
+    }
 
     public PolicyManager(Policy defaultPolicy, Map<String, Policy> pluginPolicies, Function<Class<?>, String> pluginResolver) {
         this.mainPolicies = Objects.requireNonNull(defaultPolicy).scopes.stream()
@@ -45,22 +64,22 @@ public class PolicyManager {
         }
 
         // TODO: real policy check. For now, we only allow our hardcoded System.exit policy for server.
-        if (requestingModule == System.class.getModule() && type == FlagEntitlementType.SYSTEM_EXIT) {
-            logger.debug("Allowed: caller in module {} has entitlement SYSTEM_EXIT", System.class.getModule().getName());
+        // TODO: this will be checked using policies
+        if (requestingModule.isNamed()
+            && requestingModule.getName().equals("org.elasticsearch.server")
+            && type == FlagEntitlementType.SYSTEM_EXIT) {
+            logger.debug("Allowed: caller {} in module {} has entitlement {}", callerClass, requestingModule.getName(), type);
             return;
         }
 
         // TODO: plugins policy check using pluginResolver and pluginPolicies
-
-        // Hard-forbidden until we develop the permission granting scheme
         throw new NotEntitledException("Missing entitlement for " + requestingModule);
     }
 
-    // TODO: FIXME (this does not work, as all elastic modules end up in the boot layer)
     private static Module requestingModule(Class<?> callerClass) {
         if (callerClass != null) {
             Module callerModule = callerClass.getModule();
-            if (callerModule.getLayer() != ModuleLayer.boot()) {
+            if (systemModules.contains(callerModule) == false) {
                 // fast path
                 return callerModule;
             }
@@ -74,7 +93,7 @@ public class PolicyManager {
             .walk(
                 s -> s.skip(framesToSkip)
                     .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> m.getLayer() != ModuleLayer.boot())
+                    .filter(m -> systemModules.contains(m) == false)
                     .findFirst()
             );
         return module.orElse(null);
@@ -82,7 +101,7 @@ public class PolicyManager {
 
     private static boolean isTriviallyAllowed(Module requestingModule) {
         if (requestingModule == null) {
-            logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
+            logger.debug("Trivially allowed: entire call stack is in composed of classes in system modules");
             return true;
         }
         logger.trace("Not trivially allowed");

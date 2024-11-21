@@ -101,16 +101,13 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                 // In case of `... BY groupAttribute = CATEGORIZE(sourceGroupAttribute)` the actual source attribute is different.
                 Attribute sourceGroupAttribute = (aggregatorMode.isInputPartial() == false
                     && group instanceof Alias as
-                    && as.child() instanceof Categorize categorize)
-                        ? Expressions.attribute(categorize.field())
-                        : groupAttribute;
+                    && as.child() instanceof Categorize categorize) ? Expressions.attribute(categorize.field()) : groupAttribute;
                 if (sourceGroupAttribute == null) {
                     throw new EsqlIllegalArgumentException("Unexpected non-named expression[{}] as grouping in [{}]", group, aggregateExec);
                 }
                 Layout.ChannelSet groupAttributeLayout = new Layout.ChannelSet(new HashSet<>(), sourceGroupAttribute.dataType());
-                groupAttributeLayout.nameIds().add(group instanceof Alias as &&
-                    as.child() instanceof Categorize
-                        ? groupAttribute.id() : sourceGroupAttribute.id());
+                groupAttributeLayout.nameIds()
+                    .add(group instanceof Alias as && as.child() instanceof Categorize ? groupAttribute.id() : sourceGroupAttribute.id());
 
                 /*
                  * Check for aliasing in aggregates which occurs in two cases (due to combining project + stats):

@@ -2643,6 +2643,7 @@ c2:l |c2_f:l |m2:i |m2_f:i |c:l
 ;
 
 simpleCountOnFieldWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
 from employees
 | stats c1 = count(emp_no) where emp_no < 10042
 ;
@@ -2652,6 +2653,7 @@ c1:long
 ;
 
 simpleCountOnStarWithFilteringAndNoGrouping
+required_capability: per_agg_filtering
 from employees
 | stats c1 = count(*) where emp_no < 10042
 ;

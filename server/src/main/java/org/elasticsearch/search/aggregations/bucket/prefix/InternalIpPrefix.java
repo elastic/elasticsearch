@@ -108,10 +108,6 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
             aggregations.writeTo(out);
         }
 
-        // public DocValueFormat getFormat() {
-        // return format;
-        // }
-
         public BytesRef getKey() {
             return key;
         }
@@ -152,7 +148,6 @@ public class InternalIpPrefix extends InternalMultiBucketAggregation<InternalIpP
                 && prefixLength == bucket.prefixLength
                 && appendPrefixLength == bucket.appendPrefixLength
                 && docCount == bucket.docCount
-                // && Objects.equals(format, bucket.format)
                 && Objects.equals(key, bucket.key)
                 && Objects.equals(aggregations, bucket.aggregations);
         }

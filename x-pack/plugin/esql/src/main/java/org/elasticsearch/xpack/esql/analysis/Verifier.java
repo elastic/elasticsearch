@@ -511,7 +511,7 @@ public class Verifier {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
                 if (DataType.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                    failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
         }

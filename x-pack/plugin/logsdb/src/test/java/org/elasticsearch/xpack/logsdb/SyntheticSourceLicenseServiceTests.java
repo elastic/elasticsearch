@@ -188,7 +188,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         final License.Builder builder = License.builder()
             .uid(uid)
             .version(License.VERSION_CURRENT)
-            .expiryDate(dateMath("now+2d", System.currentTimeMillis()))
+            .expiryDate(dateMath("now+100d", System.currentTimeMillis()))
             .startDate(start)
             .issueDate(start)
             .type(randomBoolean() ? "gold" : "platinum")

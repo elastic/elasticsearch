@@ -36,6 +36,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long primaryDocumentRejections;
     private final long memoryLimit;
 
+    /* Count number of splits due to SPLIT_BULK_LOW_WATERMARK and SPLIT_BULK_HIGH_WATERMARK
+       These 2 stats are not serialized via X content yet.
+     */
+    private final long lowWaterMarkSplits;
+    private final long highWaterMarkSplits;
+
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
     private final long totalCoordinatingRequests;
@@ -85,6 +91,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         } else {
             totalCoordinatingRequests = -1L;
         }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+            lowWaterMarkSplits = in.readVLong();
+            highWaterMarkSplits = in.readVLong();
+        } else {
+            lowWaterMarkSplits = -1L;
+            highWaterMarkSplits = -1L;
+        }
     }
 
     public IndexingPressureStats(
@@ -107,7 +121,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long currentPrimaryOps,
         long currentReplicaOps,
         long primaryDocumentRejections,
-        long totalCoordinatingRequests
+        long totalCoordinatingRequests,
+        long lowWaterMarkSplits,
+        long highWaterMarkSplits
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -131,6 +147,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         this.primaryDocumentRejections = primaryDocumentRejections;
         this.totalCoordinatingRequests = totalCoordinatingRequests;
+
+        this.lowWaterMarkSplits = lowWaterMarkSplits;
+        this.highWaterMarkSplits = highWaterMarkSplits;
     }
 
     @Override
@@ -159,6 +178,11 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeVLong(totalCoordinatingRequests);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+            out.writeVLong(lowWaterMarkSplits);
+            out.writeVLong(highWaterMarkSplits);
         }
     }
 
@@ -240,6 +264,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     public long getTotalCoordinatingRequests() {
         return totalCoordinatingRequests;
+    }
+
+    public long getHighWaterMarkSplits() {
+        return highWaterMarkSplits;
+    }
+
+    public long getLowWaterMarkSplits() {
+        return lowWaterMarkSplits;
     }
 
     private static final String COMBINED = "combined_coordinating_and_primary";

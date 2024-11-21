@@ -134,7 +134,12 @@ public class ReservedPipelineActionTests extends ESTestCase {
         );
 
         fileSettingsService = spy(
-            new FileSettingsService(clusterService, mock(ReservedClusterStateService.class), newEnvironment(Settings.EMPTY))
+            new FileSettingsService(
+                clusterService,
+                mock(ReservedClusterStateService.class),
+                newEnvironment(Settings.EMPTY),
+                new FileSettingsService.FileSettingsHealthIndicatorService()
+            )
         );
     }
 

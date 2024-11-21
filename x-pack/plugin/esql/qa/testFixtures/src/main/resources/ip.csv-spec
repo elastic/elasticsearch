@@ -16,7 +16,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 equals
-required_capability: mv_warn
 
 from hosts | sort host, card | where ip0 == ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 == ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -60,7 +59,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 lessThan
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 < ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 < ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -73,7 +71,6 @@ lo0            |gamma          |fe80::cae2:65ff:fece:feb9|fe81::cae2:65ff:fece:f
 ;
 
 notEquals
-required_capability: mv_warn
 
 from hosts | sort host, card, ip1 | where ip0 != ip1 | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[ip0 != ip1\] failed, treating result as null. Only first 20 failures recorded.
@@ -125,7 +122,6 @@ null           |[127.0.0.1, 127.0.0.2, 127.0.0.3]
 ;
 
 conditional
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | keep eq, ip0, ip1;
 ignoreOrder:true
@@ -146,7 +142,6 @@ fe80::cae2:65ff:fece:fec1                             |[fe80::cae2:65ff:fece:feb
 ;
 
 in
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -168,7 +163,6 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 
 
 inWithWarningsRegex#[skip:-8.13.99, reason:regex warnings in tests introduced in v 8.14.0]
-required_capability: mv_warn
 
 from hosts | eval eq=case(ip0==ip1, ip0, ip1) | where eq in (ip0, ip1) | keep card, host, ip0, ip1, eq;
 ignoreOrder:true
@@ -188,7 +182,6 @@ eth0           |epsilon        |[fe80::cae2:65ff:fece:feb9, fe80::cae2:65ff:fece
 ;
 
 cidrMatchSimple
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, "127.0.0.2/32") | keep card, host, ip0, ip1;
 warningRegex:evaluation of \[cidr_match\(ip1, \\\"127.0.0.2/32\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -199,7 +192,6 @@ eth1           |beta           |127.0.0.1      |127.0.0.2
 ;
 
 cidrMatchNullField
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip0, "127.0.0.2/32") is null | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -213,7 +205,6 @@ eth2           |epsilon        |[fe81::cae2:65ff:fece:feb9, fe82::cae2:65ff:fece
 ;
 
 cdirMatchMultipleArgs
-required_capability: mv_warn
 
 //tag::cdirMatchMultipleArgs[]
 FROM hosts 
@@ -233,7 +224,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFunctionArg
-required_capability: mv_warn
 
 from hosts | where cidr_match(ip1, concat("127.0.0.2", "/32"), "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -246,7 +236,6 @@ eth0           |gamma          |fe80::cae2:65ff:fece:feb9|127.0.0.3
 ;
 
 cidrMatchFieldArg
-required_capability: mv_warn
 
 from hosts | eval cidr="127.0.0.2" | where cidr_match(ip1, cidr, "127.0.0.3/32") | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -366,7 +355,6 @@ eth0           |beta           |127.0.0.1  |::1
 ;
 
 pushDownIPWithIn
-required_capability: mv_warn
 
 from hosts | where ip1 in (to_ip("::1"), to_ip("127.0.0.1")) | keep card, host, ip0, ip1;
 ignoreOrder:true
@@ -380,7 +368,6 @@ eth0           |beta           |127.0.0.1   |::1
 ;
 
 pushDownIPWithComparision
-required_capability: mv_warn
 
 from hosts | where ip1 > to_ip("127.0.0.1") | keep card, ip1;
 ignoreOrder:true

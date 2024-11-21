@@ -220,20 +220,21 @@ public final class ExchangeSourceHandler {
      * @see ExchangeSinkHandler#fetchPageAsync(boolean, ActionListener)
      */
     public void addRemoteSink(RemoteSink remoteSink, int instances) {
-        for (int i = 0; i < instances; i++) {
-            var fetcher = new RemoteSinkFetcher(remoteSink);
-            fetchExecutor.execute(new AbstractRunnable() {
-                @Override
-                public void onFailure(Exception e) {
-                    fetcher.onSinkFailed(e);
-                }
+        fetchExecutor.execute(new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                failure.unwrapAndCollect(e);
+                buffer.waitForReading().listener().onResponse(null); // resume the Driver if it is being blocked on reading
+            }
 
-                @Override
-                protected void doRun() {
+            @Override
+            protected void doRun() {
+                for (int i = 0; i < instances; i++) {
+                    var fetcher = new RemoteSinkFetcher(remoteSink);
                     fetcher.fetchPage();
                 }
-            });
-        }
+            }
+        });
     }
 
     /**

@@ -423,8 +423,4 @@ public class RestSearchAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
-    @Override
-    public boolean allowsUnsafeBuffers() {
-        return true;
-    }
 }

@@ -15,6 +15,8 @@ import org.elasticsearch.common.util.FeatureFlag;
  */
 public class ElasticInferenceServiceFeature {
 
-    public static final FeatureFlag ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");
+    @Deprecated
+    public static final FeatureFlag DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("eis");
 
+    public static final FeatureFlag ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG = new FeatureFlag("elastic_inference_service");
 }

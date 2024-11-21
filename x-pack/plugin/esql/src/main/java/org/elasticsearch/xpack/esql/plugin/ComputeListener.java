@@ -138,14 +138,13 @@ final class ComputeListener implements Releasable {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
             if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
                 assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
-                assert v.getTotalShards() - v.getSkippedShards() >= 0 : "total - skipped shard count is less than zero: + " + v;
                 return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     /*
                      * Total and skipped shard counts are set early in execution (after can-match).
                      * Until ES|QL supports shard-level partial results, we just set all non-skipped shards
-                     * as successful and none are failed
+                     * as successful and none are failed.
                      */
-                    .setSuccessfulShards(v.getTotalShards() - v.getSkippedShards())
+                    .setSuccessfulShards(v.getTotalShards())
                     .setFailedShards(0)
                     .build();
             } else {

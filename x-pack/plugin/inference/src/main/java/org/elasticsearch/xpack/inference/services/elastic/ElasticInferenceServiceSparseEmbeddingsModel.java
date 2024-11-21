@@ -113,6 +113,8 @@ public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferen
             );
         }
 
-        return new URI(elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/sparse-text-embedding/" + modelIdUriPath);
+        return new URI(
+            elasticInferenceServiceComponents().elasticInferenceServiceUrl() + "/api/v1/sparse-text-embedding/" + modelIdUriPath
+        );
     }
 }

@@ -23,6 +23,8 @@ import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper;
+import org.elasticsearch.index.mapper.vectors.VectorSimilarityByteValueSource;
+import org.elasticsearch.index.mapper.vectors.VectorSimilarityFloatValueSource;
 import org.elasticsearch.index.query.InnerHitsRewriteContext;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -127,8 +129,8 @@ abstract class AbstractKnnVectorQueryBuilderTestCase extends AbstractQueryTestCa
     @Override
     protected void doAssertLuceneQuery(KnnVectorQueryBuilder queryBuilder, Query query, SearchExecutionContext context) throws IOException {
         if (queryBuilder.rescoreVectorBuilder() != null) {
-            assertTrue(query instanceof org.apache.lucene.queries.function.FunctionScoreQuery);
-            query = ((org.apache.lucene.queries.function.FunctionScoreQuery) query).getWrappedQuery();
+            RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
+            query = rescoreQuery.innerQuery();
         }
         if (queryBuilder.getVectorSimilarity() != null) {
             assertTrue(query instanceof VectorSimilarityQuery);

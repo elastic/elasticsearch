@@ -104,7 +104,6 @@ public class BwcSetupExtension {
             loggedExec.dependsOn("checkoutBwcBranch");
             loggedExec.getWorkingDir().set(checkoutDir.get());
 
-
             loggedExec.doFirst(new Action<Task>() {
                 @Override
                 public void execute(Task task) {
@@ -177,8 +176,8 @@ public class BwcSetupExtension {
             .map(launcher -> launcher.getMetadata().getInstallationPath().getAsFile().getAbsolutePath());
     }
 
-
     public abstract static class JavaHomeValueSource implements ValueSource<String, JavaHomeValueSource.Params> {
+
         private String minimumCompilerVersionPath(Version bwcVersion) {
             return (bwcVersion.onOrAfter(BUILD_TOOL_MINIMUM_VERSION))
                 ? "build-tools-internal/" + MINIMUM_COMPILER_VERSION_PATH

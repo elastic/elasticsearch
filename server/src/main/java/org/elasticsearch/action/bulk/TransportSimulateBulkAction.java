@@ -9,6 +9,8 @@
 
 package org.elasticsearch.action.bulk;
 
+import org.apache.lucene.document.StringField;
+import org.apache.lucene.index.IndexableField;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.admin.indices.template.post.TransportSimulateIndexTemplateAction;
@@ -41,6 +43,8 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexingPressure;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.engine.Engine;
+import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceToParse;
 import org.elasticsearch.index.seqno.SequenceNumbers;
@@ -365,7 +369,19 @@ public class TransportSimulateBulkAction extends TransportAbstractBulkAction {
                 0
             );
         });
-        return result.parsedDoc().getIgnoredFields();
+        List<LuceneDocument> luceneDocuments = result.parsedDoc().docs();
+        final Collection<String> ignoredFields;
+        if (luceneDocuments != null && luceneDocuments.size() == 1) {
+            ignoredFields = luceneDocuments.getFirst()
+                .getFields()
+                .stream()
+                .filter(field -> field.name().equals(IgnoredFieldMapper.NAME) && field instanceof StringField)
+                .map(IndexableField::stringValue)
+                .toList();
+        } else {
+            ignoredFields = List.of();
+        }
+        return ignoredFields;
     }
 
     private static CompressedXContent mergeMappings(@Nullable CompressedXContent originalMapping, Map<String, Object> mappingAddition)

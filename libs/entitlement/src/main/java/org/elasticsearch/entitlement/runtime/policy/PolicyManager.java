@@ -71,7 +71,20 @@ public class PolicyManager {
             return;
         }
 
-        // TODO: plugins policy check using pluginResolver and pluginPolicies
+        var pluginName = pluginResolver.apply(callerClass);
+        if (pluginName != null) {
+            var pluginPolicy = pluginPolicies.get(pluginName);
+            if (pluginPolicy != null) {
+                final String scopeName;
+                if (requestingModule.isNamed() == false) {
+                    scopeName = ALL_UNNAMED;
+                } else {
+                    scopeName = requestingModule.getName();
+                }
+                // TODO: plugins policy check
+            }
+        }
+
         throw new NotEntitledException(
             Strings.format("Missing entitlement [%s] for caller [%s] in module [%s]", type, callerClass, requestingModule.getName())
         );

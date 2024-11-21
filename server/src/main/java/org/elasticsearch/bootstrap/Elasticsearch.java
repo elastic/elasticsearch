@@ -42,9 +42,7 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
-import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
-import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -54,10 +52,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -212,17 +208,12 @@ class Elasticsearch {
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             logger.info("Bootstrapping Entitlements");
 
-            List<Tuple<Path, Boolean>> pluginData = new ArrayList<>();
-            Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
-            for (PluginBundle moduleBundle : moduleBundles) {
-                pluginData.add(Tuple.tuple(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular()));
-            }
-            Set<PluginBundle> pluginBundles = PluginsUtils.getPluginBundles(nodeEnv.pluginsFile());
-            for (PluginBundle pluginBundle : pluginBundles) {
-                pluginData.add(Tuple.tuple(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular()));
-            }
-            // TODO: add a functor to map module to plugin name
-            EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
+            List<Tuple<Path, Boolean>> pluginData = pluginsLoader.allBundles()
+                .stream()
+                .map(bundle -> Tuple.tuple(bundle.getDir(), bundle.pluginDescriptor().isModular()))
+                .toList();
+
+            EntitlementBootstrap.bootstrap(pluginData, pluginsLoader::resolveClassToPluginName);
         } else {
             // install SM after natives, shutdown hooks, etc.
             logger.info("Bootstrapping java SecurityManager");

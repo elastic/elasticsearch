@@ -17,7 +17,7 @@ import java.util.Map;
 
 public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
-    private EsqlExecutionInfo executionInfo;  // MP TODO: make final
+    private EsqlExecutionInfo executionInfo;
 
     public EsqlQueryTask(
         long id,
@@ -32,6 +32,10 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
     ) {
         super(id, type, action, description, parentTaskId, headers, originHeaders, asyncExecutionId, keepAlive);
         this.executionInfo = null; // FIXME
+    }
+
+    public void setExecutionInfo(EsqlExecutionInfo executionInfo) {
+        this.executionInfo = executionInfo;
     }
 
     public EsqlExecutionInfo executionInfo() {

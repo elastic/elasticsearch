@@ -21,28 +21,69 @@ import org.apache.lucene.index.MergePolicy;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.telemetry.metric.LongCounter;
 import org.elasticsearch.telemetry.metric.LongHistogram;
+import org.elasticsearch.telemetry.metric.LongWithAttributes;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
+
+import java.util.concurrent.atomic.AtomicLong;
 
 public class MergeMetrics {
 
     public static final String MERGE_SEGMENTS_SIZE = "es.merge.segments.size";
     public static final String MERGE_DOCS_TOTAL = "es.merge.docs.total";
-    public static final String MERGE_TIME_IN_MILLIS = "es.merge.time";
+    public static final String MERGE_SEGMENTS_QUEUED_USAGE = "es.merge.segments.queued.usage";
+    public static final String MERGE_SEGMENTS_RUNNING_USAGE = "es.merge.segments.running.usage";
+    public static final String MERGE_SEGMENTS_MERGED_SIZE = "es.merge.segments.merged.size";
+    public static final String MERGE_TIME_IN_SECONDS = "es.merge.time";
     public static MergeMetrics NOOP = new MergeMetrics(TelemetryProvider.NOOP.getMeterRegistry());
 
     private final LongCounter mergeSizeInBytes;
+    private final LongCounter mergeMergedSegmentSizeInBytes;
     private final LongCounter mergeNumDocs;
-    private final LongHistogram mergeTimeInMillis;
+    private final LongHistogram mergeTimeInSeconds;
+
+    private final AtomicLong runningMergeSizeInBytes = new AtomicLong();
+    private final AtomicLong queuedMergeSizeInBytes = new AtomicLong();
 
     public MergeMetrics(MeterRegistry meterRegistry) {
         mergeSizeInBytes = meterRegistry.registerLongCounter(MERGE_SEGMENTS_SIZE, "Total size of segments merged", "bytes");
+        meterRegistry.registerLongGauge(
+            MERGE_SEGMENTS_QUEUED_USAGE,
+            "Total usage of segments queued to be merged",
+            "bytes",
+            () -> new LongWithAttributes(queuedMergeSizeInBytes.get())
+        );
+        meterRegistry.registerLongGauge(
+            MERGE_SEGMENTS_RUNNING_USAGE,
+            "Total usage of segments currently being merged",
+            "bytes",
+            () -> new LongWithAttributes(runningMergeSizeInBytes.get())
+        );
+        mergeMergedSegmentSizeInBytes = meterRegistry.registerLongCounter(
+            MERGE_SEGMENTS_MERGED_SIZE,
+            "Total size of the new merged segments",
+            "bytes"
+        );
         mergeNumDocs = meterRegistry.registerLongCounter(MERGE_DOCS_TOTAL, "Total number of documents merged", "documents");
-        mergeTimeInMillis = meterRegistry.registerLongHistogram(MERGE_TIME_IN_MILLIS, "Merge time in milliseconds", "milliseconds");
+        mergeTimeInSeconds = meterRegistry.registerLongHistogram(MERGE_TIME_IN_SECONDS, "Merge time in seconds", "seconds");
     }
 
-    public void markMergeMetrics(MergePolicy.OneMerge currentMerge, long tookMillis) {
+    public void incrementQueuedMergeBytes(long totalSize) {
+        queuedMergeSizeInBytes.getAndAdd(totalSize);
+    }
+
+    public void moveQueuedMergeBytesToRunning(long totalSize) {
+        queuedMergeSizeInBytes.getAndAdd(-totalSize);
+        runningMergeSizeInBytes.getAndAdd(totalSize);
+    }
+
+    public void decrementRunningMergeBytes(long totalSize) {
+        runningMergeSizeInBytes.getAndAdd(-totalSize);
+    }
+
+    public void markMergeMetrics(MergePolicy.OneMerge currentMerge, long mergedSegmentSize, long tookMillis) {
         mergeSizeInBytes.incrementBy(currentMerge.totalBytesSize());
+        mergeMergedSegmentSizeInBytes.incrementBy(mergedSegmentSize);
         mergeNumDocs.incrementBy(currentMerge.totalNumDocs());
-        mergeTimeInMillis.record(tookMillis);
+        mergeTimeInSeconds.record(tookMillis / 1000);
     }
 }

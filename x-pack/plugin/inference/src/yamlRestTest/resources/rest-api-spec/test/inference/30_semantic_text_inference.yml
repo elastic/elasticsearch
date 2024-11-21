@@ -540,7 +540,10 @@ setup:
         body: |
           {"delete":{ "_id": "2"}}
           {"update":{"_id": "1"}}
-          {"doc":{"dense_field": "updated text"}}
+          {"doc":{"dense_field": "updated text", "sparse_field": "another text"}}
+
+  - match: { errors: false }
+
 
   - do:
       search:
@@ -554,3 +557,4 @@ setup:
   - match: { hits.total.value: 1 }
   - match: { hits.total.relation: eq }
   - match: { hits.hits.0._source.dense_field.text: "updated text" }
+  - match: { hits.hits.0._source.sparse_field.text: "another text" }

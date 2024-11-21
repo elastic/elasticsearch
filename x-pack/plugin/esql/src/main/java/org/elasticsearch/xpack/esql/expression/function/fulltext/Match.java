@@ -83,7 +83,7 @@ public class Match extends FullTextFunction implements Validatable {
         out.writeNamedWriteable(field());
         out.writeNamedWriteable(query());
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
-            out.writeOptionalWriteable(inferenceResults);
+            out.writeOptionalNamedWriteable(inferenceResults);
         }
     }
 

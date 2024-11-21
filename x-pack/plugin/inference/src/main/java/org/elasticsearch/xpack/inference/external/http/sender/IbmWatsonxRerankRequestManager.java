@@ -12,7 +12,6 @@ import org.apache.logging.log4j.Logger;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.threadpool.ThreadPool;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.ibmwatsonx.IbmWatsonxResponseHandler;
@@ -21,11 +20,9 @@ import org.elasticsearch.xpack.inference.external.response.ibmwatsonx.IbmWatsonx
 
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.inference.common.Truncator.truncate;
 
 public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
     private static final Logger logger = LogManager.getLogger(IbmWatsonxRerankRequestManager.class);
@@ -35,17 +32,15 @@ public class IbmWatsonxRerankRequestManager extends IbmWatsonxRequestManager {
         return new IbmWatsonxResponseHandler("ibm watsonx rerank", (request, response) -> IbmWatsonxRankedResponseEntity.fromResponse(response), false);
     }
 
-    public static IbmWatsonxRerankRequestManager of(IbmWatsonxRerankModel model, Truncator truncator, ThreadPool threadPool) {
-        return new IbmWatsonxRerankRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(truncator), Objects.requireNonNull(threadPool));
+    public static IbmWatsonxRerankRequestManager of(IbmWatsonxRerankModel model, ThreadPool threadPool) {
+        return new IbmWatsonxRerankRequestManager(Objects.requireNonNull(model), Objects.requireNonNull(threadPool));
     }
 
     private final IbmWatsonxRerankModel model;
-    private final Truncator truncator;
 
-    private IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, Truncator truncator, ThreadPool threadPool) {
+    private IbmWatsonxRerankRequestManager(IbmWatsonxRerankModel model, ThreadPool threadPool) {
         super(threadPool, model);
         this.model = model;
-        this.truncator = Objects.requireNonNull(truncator);
     }
 
     @Override

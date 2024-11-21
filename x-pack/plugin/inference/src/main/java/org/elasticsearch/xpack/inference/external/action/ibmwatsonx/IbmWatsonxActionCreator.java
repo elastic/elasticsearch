@@ -47,7 +47,7 @@ public class IbmWatsonxActionCreator implements IbmWatsonxActionVisitor {
     @Override
     public ExecutableAction create(IbmWatsonxRerankModel model, Map<String, Object> taskSettings) {
         var overriddenModel = IbmWatsonxRerankModel.of(model, taskSettings);
-        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.truncator(), serviceComponents.threadPool());
+        var requestCreator = IbmWatsonxRerankRequestManager.of(overriddenModel, serviceComponents.threadPool());
         var failedToSendRequestErrorMessage = constructFailedToSendRequestMessage(
             overriddenModel.getServiceSettings().uri(),
             "Ibm Watsonx rerank"

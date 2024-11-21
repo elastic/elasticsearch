@@ -172,32 +172,32 @@ public final class IpPrefixAggregator extends BucketsAggregator {
             }
 
             try (LongArray bucketOrdsToCollect = bigArrays().newLongArray(totalOrdsToCollect)) {
-                int b = 0;
+                int[] b = new int[] { 0 };
                 for (long i = 0; i < owningBucketOrds.size(); i++) {
                     BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(i));
                     while (ordsEnum.next()) {
-                        bucketOrdsToCollect.set(b++, ordsEnum.ord());
+                        bucketOrdsToCollect.set(b[0]++, ordsEnum.ord());
                     }
                 }
 
                 var subAggregationResults = buildSubAggsForBuckets(bucketOrdsToCollect);
-                InternalAggregation[] results = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-                b = 0;
-                for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
+                b[0] = 0;
+                return buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                     List<InternalIpPrefix.Bucket> buckets = new ArrayList<>(bucketsInOrd.get(ordIdx));
                     BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
                     while (ordsEnum.next()) {
                         long ordinal = ordsEnum.ord();
-                        if (bucketOrdsToCollect.get(b) != ordinal) {
+                        if (bucketOrdsToCollect.get(b[0]) != ordinal) {
                             throw AggregationErrors.iterationOrderChangedWithoutMutating(
                                 bucketOrds.toString(),
                                 ordinal,
-                                bucketOrdsToCollect.get(b)
+                                bucketOrdsToCollect.get(b[0])
                             );
                         }
                         BytesRef ipAddress = new BytesRef();
                         ordsEnum.readValue(ipAddress);
                         long docCount = bucketDocCount(ordinal);
+                        checkRealMemoryCBForInternalBucket();
                         buckets.add(
                             new InternalIpPrefix.Bucket(
                                 config.format(),
@@ -207,16 +207,15 @@ public final class IpPrefixAggregator extends BucketsAggregator {
                                 ipPrefix.prefixLength,
                                 ipPrefix.appendPrefixLength,
                                 docCount,
-                                subAggregationResults.apply(b++)
+                                subAggregationResults.apply(b[0]++)
                             )
                         );
 
                         // NOTE: the aggregator is expected to return sorted results
                         CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());
                     }
-                    results[ordIdx] = new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
-                }
-                return results;
+                    return new InternalIpPrefix(name, config.format(), keyed, minDocCount, buckets, metadata());
+                });
             }
         }
     }

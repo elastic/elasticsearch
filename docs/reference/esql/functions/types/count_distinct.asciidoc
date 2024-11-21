@@ -13,6 +13,10 @@ date | integer | long
 date | long | long
 date | unsigned_long | long
 date | | long
+date_nanos | integer | long
+date_nanos | long | long
+date_nanos | unsigned_long | long
+date_nanos | | long
 double | integer | long
 double | long | long
 double | unsigned_long | long

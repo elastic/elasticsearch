@@ -26,22 +26,17 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
 
-// NOCOMMIT
-// This Categorize function is a no-op, passing on BytesRefs and rebranding them as categories.
-// I doubt that's the way to go, but it gets the job done...
-
 /**
  * Categorizes text messages.
+ * <p>
+ *     This function has no evaluators, as it works like an aggregation (Accumulates values, stores intermediate states, etc).
+ *     For the implementation, see:
+ *     <ul>
+ *         <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizedIntermediateBlockHash}</li>
+ *         <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizeRawBlockHash}</li>
+ *     </ul>
+ * </p>
  *
- * This implementation is incomplete and comes with the following caveats:
- * - it only works correctly on a single node.
- * - when running on multiple nodes, category IDs of the different nodes are
- *   aggregated, even though the same ID can correspond to a totally different
- *   category
- * - the output consists of category IDs, which should be replaced by category
- *   regexes or keys
- *
- * TODO(jan, nik): fix this
  */
 public class Categorize extends GroupingFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

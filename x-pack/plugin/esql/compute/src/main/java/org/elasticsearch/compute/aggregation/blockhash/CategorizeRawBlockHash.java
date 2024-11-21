@@ -10,7 +10,6 @@ package org.elasticsearch.compute.aggregation.blockhash;
 import org.apache.lucene.analysis.core.WhitespaceTokenizer;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
-import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -57,7 +56,7 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     }
 
     /**
-     * NOCOMMIT: Super-duper copy-pasted from the actually generated evaluator; needs cleanup.
+     * Similar implementation to an Evaluator.
      */
     public static final class CategorizeEvaluator implements Releasable {
         private final CategorizationAnalyzer analyzer;
@@ -65,14 +64,6 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         private final TokenListCategorizer.CloseableTokenListCategorizer categorizer;
 
         private final BlockFactory blockFactory;
-
-        static int process(
-            BytesRef v,
-            @Fixed(includeInToString = false, build = true) CategorizationAnalyzer analyzer,
-            @Fixed(includeInToString = false, build = true) TokenListCategorizer.CloseableTokenListCategorizer categorizer
-        ) {
-            return categorizer.computeCategory(v.utf8ToString(), analyzer).getId();
-        }
 
         public CategorizeEvaluator(
             CategorizationAnalyzer analyzer,
@@ -104,12 +95,12 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
                     int first = vBlock.getFirstValueIndex(p);
                     int count = vBlock.getValueCount(p);
                     if (count == 1) {
-                        result.appendInt(process(vBlock.getBytesRef(first, vScratch), this.analyzer, this.categorizer));
+                        result.appendInt(process(vBlock.getBytesRef(first, vScratch)));
                         continue;
                     }
                     int end = first + count;
                     for (int i = first; i < end; i++) {
-                        result.appendInt(process(vBlock.getBytesRef(i, vScratch), this.analyzer, this.categorizer));
+                        result.appendInt(process(vBlock.getBytesRef(i, vScratch)));
                     }
                 }
                 return result.build();
@@ -120,15 +111,14 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
             try (IntVector.FixedBuilder result = blockFactory.newIntVectorFixedBuilder(positionCount)) {
                 BytesRef vScratch = new BytesRef();
                 for (int p = 0; p < positionCount; p++) {
-                    result.appendInt(p, process(vVector.getBytesRef(p, vScratch), this.analyzer, this.categorizer));
+                    result.appendInt(p, process(vVector.getBytesRef(p, vScratch)));
                 }
                 return result.build();
             }
         }
 
-        @Override
-        public String toString() {
-            return "CategorizeEvaluator";
+        private int process(BytesRef v) {
+            return categorizer.computeCategory(v.utf8ToString(), analyzer).getId();
         }
 
         @Override

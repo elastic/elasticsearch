@@ -2908,7 +2908,7 @@ STD_DEV(languages):double
 0.0
 ;
 
-stdDeviationGrouped
+stdDeviationGroupedDoublesOnly
 required_capability: std_dev
 FROM employees
 | STATS STD_DEV(height) BY languages
@@ -2924,59 +2924,21 @@ STD_DEV(height):double | languages:integer
 0.2486543786061287     | null
 ;
 
-stdDeviationGrouped1
+stdDeviationGroupedAllTypes
 required_capability: std_dev
 FROM employees
-| WHERE languages == 1
-| STATS STD_DEV(height)
+| WHERE languages < 3
+| STATS
+    double_std_dev = STD_DEV(height),
+    int_std_dev = STD_DEV(salary),
+    long_std_dev = STD_DEV(avg_worked_seconds)
+  BY languages
+| SORT languages asc
 ;
 
-STD_DEV(height):double
-0.22106409327010415
-;
-
-stdDeviationGrouped2
-required_capability: std_dev
-FROM employees
-| WHERE languages == 2
-| STATS STD_DEV(height)
-;
-
-STD_DEV(height):double
-0.22797190865484734
-;
-
-stdDeviationGrouped3
-required_capability: std_dev
-FROM employees
-| WHERE languages == 3
-| STATS STD_DEV(height)
-;
-
-STD_DEV(height):double
-0.18893070075713295
-;
-
-stdDeviationGrouped4
-required_capability: std_dev
-FROM employees
-| WHERE languages == 4
-| STATS STD_DEV(height)
-;
-
-STD_DEV(height):double
-0.14656141004227627
-;
-
-stdDeviationGrouped5
-required_capability: std_dev
-FROM employees
-| WHERE languages == 5
-| STATS STD_DEV(height)
-;
-
-STD_DEV(height):double
-0.17733860152780256
+double_std_dev:double | int_std_dev:double | long_std_dev:double  | languages:integer
+0.22106409327010415   | 15166.244178730898 | 5.1998715922156096E7 | 1
+0.22797190865484734   | 12139.61099378116  | 5.309085506583288E7  | 2
 ;
 
 stdDeviationNoRows

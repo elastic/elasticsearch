@@ -88,7 +88,7 @@ public final class StdDevStates {
 
     static final class GroupingState implements GroupingAggregatorState {
 
-        private ObjectArray<SingleState> states;
+        private ObjectArray<WelfordAlgorithm> states;
         private final BigArrays bigArrays;
 
         GroupingState(BigArrays bigArrays) {
@@ -96,7 +96,7 @@ public final class StdDevStates {
             this.bigArrays = bigArrays;
         }
 
-        SingleState getOrNull(int position) {
+        WelfordAlgorithm getOrNull(int position) {
             if (position < states.size()) {
                 return states.get(position);
             } else {
@@ -104,7 +104,7 @@ public final class StdDevStates {
             }
         }
 
-        public void combine(int groupId, SingleState state) {
+        public void combine(int groupId, WelfordAlgorithm state) {
             if (state == null) {
                 return;
             }
@@ -115,18 +115,18 @@ public final class StdDevStates {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new SingleState(meanValue, m2Value, countValue);
+                state = new WelfordAlgorithm(meanValue, m2Value, countValue);
                 states.set(groupId, state);
             } else {
-                state.combine(meanValue, m2Value, countValue);
+                state.add(meanValue, m2Value, countValue);
             }
         }
 
-        public SingleState getOrSet(int groupId) {
+        public WelfordAlgorithm getOrSet(int groupId) {
             ensureCapacity(groupId);
             var state = states.get(groupId);
             if (state == null) {
-                state = new SingleState();
+                state = new WelfordAlgorithm();
                 states.set(groupId, state);
             }
             return state;
@@ -188,7 +188,7 @@ public final class StdDevStates {
                         if (Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
-                            builder.appendDouble(st.evaluateFinal());
+                            builder.appendDouble(st.evaluate());
                         }
                     } else {
                         builder.appendNull();

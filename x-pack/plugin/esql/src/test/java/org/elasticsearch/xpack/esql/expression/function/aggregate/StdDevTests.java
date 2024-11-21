@@ -25,7 +25,6 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class StdDevTests extends AbstractAggregationTestCase {
     public StdDevTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
@@ -42,22 +41,7 @@ public class StdDevTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true)
         ).flatMap(List::stream).map(StdDevTests::makeSupplier).collect(Collectors.toCollection(() -> suppliers));
 
-        // No rows
-        for (var dataType : List.of(DataType.INTEGER, DataType.LONG, DataType.DOUBLE)) {
-            suppliers.add(
-                new TestCaseSupplier(
-                    "No rows (" + dataType + ")",
-                    List.of(dataType),
-                    () -> new TestCaseSupplier.TestCase(
-                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(), dataType, "field")),
-                        "StdDev[field=Attribute[channel=0]]",
-                        DataType.DOUBLE,
-                        nullValue()
-                    )
-                )
-            );
-        }
-        return parameterSuppliersFromTypedData(randomizeBytesRefsOffset(suppliers));
+        return parameterSuppliersFromTypedDataWithDefaultChecks(suppliers);
     }
 
     @Override

@@ -49,6 +49,11 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         licenseService.setLicenseService(XPackPlugin.getSharedLicenseService());
         licenseService.setLicenseState(XPackPlugin.getSharedLicenseState());
         var clusterSettings = services.clusterService().getClusterSettings();
+        // The `cluster.logsdb.enabled` setting is registered by this plugin, but its value may be updated by other plugins
+        // before this plugin registers its settings update consumer below. This means we might miss updates that occurred earlier.
+        // To handle this, we explicitly fetch the current `cluster.logsdb.enabled` setting value from the cluster settings
+        // and update it, ensuring we capture any prior changes.
+        logsdbIndexModeSettingsProvider.updateClusterIndexModeLogsdbEnabled(clusterSettings.get(CLUSTER_LOGSDB_ENABLED));
         clusterSettings.addSettingsUpdateConsumer(FALLBACK_SETTING, licenseService::setSyntheticSourceFallback);
         clusterSettings.addSettingsUpdateConsumer(
             CLUSTER_LOGSDB_ENABLED,
@@ -63,10 +68,13 @@ public class LogsDBPlugin extends Plugin implements ActionPlugin {
         if (DiscoveryNode.isStateless(settings)) {
             return List.of(logsdbIndexModeSettingsProvider);
         }
-        return List.of(
-            new SyntheticSourceIndexSettingsProvider(licenseService, parameters.mapperServiceFactory(), logsdbIndexModeSettingsProvider),
-            logsdbIndexModeSettingsProvider
+        var syntheticSettingProvider = new SyntheticSourceIndexSettingsProvider(
+            licenseService,
+            parameters.mapperServiceFactory(),
+            logsdbIndexModeSettingsProvider,
+            () -> parameters.clusterService().state().nodes().getMinSupportedIndexVersion()
         );
+        return List.of(syntheticSettingProvider, logsdbIndexModeSettingsProvider);
     }
 
     @Override

@@ -10,11 +10,13 @@
 package org.elasticsearch.script.field.vectors;
 
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.VectorUtil;
+import org.elasticsearch.simdvec.ESVectorUtil;
 
-import java.util.Iterator;
+import java.util.Arrays;
 
 public class BitMultiDenseVector extends ByteMultiDenseVector {
-    public BitMultiDenseVector(Iterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
+    public BitMultiDenseVector(VectorIterator<byte[]> vectorValues, BytesRef magnitudesBytes, int numVecs, int dims) {
         super(vectorValues, magnitudesBytes, numVecs, dims);
     }
 
@@ -29,6 +31,70 @@ public class BitMultiDenseVector extends ByteMultiDenseVector {
                     + "]."
             );
         }
+    }
+
+    @Override
+    public float maxSimDotProduct(float[][] query) {
+        vectorValues.reset();
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        while (vectorValues.hasNext()) {
+            byte[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                maxes[i] = Math.max(maxes[i], ESVectorUtil.ipFloatBit(query[i], vv));
+            }
+        }
+        float sums = 0;
+        for (float m : maxes) {
+            sums += m;
+        }
+        return sums;
+    }
+
+    @Override
+    public float maxSimDotProduct(byte[][] query) {
+        vectorValues.reset();
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        if (query[0].length == dims) {
+            while (vectorValues.hasNext()) {
+                byte[] vv = vectorValues.next();
+                for (int i = 0; i < query.length; i++) {
+                    maxes[i] = Math.max(maxes[i], ESVectorUtil.andBitCount(query[i], vv));
+                }
+            }
+        } else {
+            while (vectorValues.hasNext()) {
+                byte[] vv = vectorValues.next();
+                for (int i = 0; i < query.length; i++) {
+                    maxes[i] = Math.max(maxes[i], ESVectorUtil.ipByteBit(query[i], vv));
+                }
+            }
+        }
+        float sum = 0;
+        for (float m : maxes) {
+            sum += m;
+        }
+        return sum;
+    }
+
+    @Override
+    public float maxSimInvHamming(byte[][] query) {
+        vectorValues.reset();
+        int bitCount = this.getDims();
+        float[] maxes = new float[query.length];
+        Arrays.fill(maxes, Float.NEGATIVE_INFINITY);
+        while (vectorValues.hasNext()) {
+            byte[] vv = vectorValues.next();
+            for (int i = 0; i < query.length; i++) {
+                maxes[i] = Math.max(maxes[i], ((bitCount - VectorUtil.xorBitCount(vv, query[i])) / (float) bitCount));
+            }
+        }
+        float sum = 0;
+        for (float m : maxes) {
+            sum += m;
+        }
+        return sum;
     }
 
     @Override

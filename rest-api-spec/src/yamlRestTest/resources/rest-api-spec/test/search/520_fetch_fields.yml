@@ -130,7 +130,7 @@ fetch _seq_no via stored_fields:
 fetch _seq_no via fields:
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:
@@ -143,7 +143,7 @@ fetch _seq_no via fields:
 fetch _source via fields:
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:
@@ -156,7 +156,7 @@ fetch _source via fields:
 fetch _feature via fields:
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:
@@ -169,7 +169,7 @@ fetch _feature via fields:
 fetch _nested_path via fields:
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:
@@ -182,7 +182,7 @@ fetch _nested_path via fields:
 fetch _field_names via fields:
 
   - do:
-      catch: "request"
+      catch: bad_request
       search:
         index: test
         body:

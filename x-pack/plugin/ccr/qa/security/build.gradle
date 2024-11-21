@@ -1,4 +1,9 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
+
 import static org.elasticsearch.gradle.PropertyNormalization.IGNORE_VALUE
 
 apply plugin: 'elasticsearch.internal-testclusters'
@@ -10,26 +15,38 @@ dependencies {
   testImplementation project(':x-pack:plugin:ccr:qa')
 }
 
+def clusterPath = getPath()
+
 def leadCluster = testClusters.register('leader-cluster') {
-    testDistribution = 'DEFAULT'
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    extraConfigFile 'roles.yml', file('leader-roles.yml')
-    user username: "test_admin", role: "superuser"
-    user username: "test_ccr", role: "ccruser"
+  testDistribution = 'DEFAULT'
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  extraConfigFile 'roles.yml', file('leader-roles.yml')
+  user username: "test_admin", role: "superuser"
+  user username: "test_ccr", role: "ccruser"
 }
 
 testClusters.register('follow-cluster') {
-    testDistribution = 'DEFAULT'
-    setting 'cluster.remote.leader_cluster.seeds', {
-      "\"${leadCluster.get().getAllTransportPortURI().join(",")}\""
-    }, IGNORE_VALUE
-    setting 'xpack.license.self_generated.type', 'trial'
-    setting 'xpack.security.enabled', 'true'
-    setting 'xpack.monitoring.collection.enabled', 'false' // will be enabled by tests
-    extraConfigFile 'roles.yml', file('follower-roles.yml')
-    user username: "test_admin", role: "superuser"
-    user username: "test_ccr", role: "ccruser"
+  testDistribution = 'DEFAULT'
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderUris = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.AllTransportPortURI }
+
+  setting 'cluster.remote.leader_cluster.seeds', {
+    "\"${leaderUris.get().join(",")}\""
+  }, IGNORE_VALUE
+  setting 'xpack.license.self_generated.type', 'trial'
+  setting 'xpack.security.enabled', 'true'
+  setting 'xpack.monitoring.collection.enabled', 'false' // will be enabled by tests
+  extraConfigFile 'roles.yml', file('follower-roles.yml')
+  user username: "test_admin", role: "superuser"
+  user username: "test_ccr", role: "ccruser"
 }
 
 tasks.register('leader-cluster', RestIntegTestTask) {
@@ -41,7 +58,17 @@ def followerClusterTestTask = tasks.register('follow-cluster', RestIntegTestTask
   dependsOn 'leader-cluster'
   useCluster leadCluster
   systemProperty 'tests.target_cluster', 'follow'
-  nonInputProperties.systemProperty 'tests.leader_host', leadCluster.map(c-> c.getAllHttpSocketURI().get(0))
+  Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+    project.gradle.sharedServices,
+    TestClustersPlugin.REGISTRY_SERVICE_NAME
+  )
+  def leaderUri = project.getProviders().of(TestClusterValueSource.class) {
+    it.parameters.path.set(clusterPath)
+    it.parameters.clusterName.set("leader-cluster")
+    it.parameters.service = serviceProvider
+  }.map { it.allHttpSocketURI.get(0) }
+
+  nonInputProperties.systemProperty 'tests.leader_host', leaderUri
 }
 
 tasks.named("check").configure { dependsOn(followerClusterTestTask) }

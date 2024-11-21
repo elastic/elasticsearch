@@ -1,4 +1,8 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
 
 apply plugin: 'elasticsearch.internal-test-artifact'
 
@@ -11,7 +15,10 @@ dependencies {
 
 Project mainProject = project
 
+
 subprojects {
+  def clusterPath = getPath()
+
   // Use tests from the root security qa project in subprojects
   configurations.create('testArtifacts').transitive(false)
 
@@ -46,6 +53,17 @@ subprojects {
     dependsOn copyTestClasses
     classpath += configurations.testArtifacts
     testClassesDirs = project.files(testArtifactsDir)
+
+    Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+      project.gradle.sharedServices,
+      TestClustersPlugin.REGISTRY_SERVICE_NAME
+    )
+    project.getProviders().of(TestClusterValueSource.class) {
+      it.parameters.path.set(clusterPath)
+      it.parameters.clusterName.set("javaRestTest")
+      it.parameters.service = serviceProvider
+    }
+
     nonInputProperties.systemProperty 'tests.audit.logfile',
       "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',

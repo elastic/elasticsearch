@@ -11,15 +11,16 @@ package org.elasticsearch.entitlement.initialization;
 
 import org.elasticsearch.core.internal.provider.ProviderLocator;
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
+import org.elasticsearch.entitlement.instrumentation.CheckerMethod;
 import org.elasticsearch.entitlement.instrumentation.InstrumentationService;
 import org.elasticsearch.entitlement.instrumentation.MethodKey;
 import org.elasticsearch.entitlement.instrumentation.Transformer;
 import org.elasticsearch.entitlement.runtime.api.ElasticsearchEntitlementChecker;
 
 import java.lang.instrument.Instrumentation;
-import java.lang.reflect.Method;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Called by the agent during {@code agentmain} to configure the entitlement system,
@@ -40,18 +41,24 @@ public class EntitlementInitialization {
     public static void initialize(Instrumentation inst) throws Exception {
         manager = new ElasticsearchEntitlementChecker();
 
-        // TODO: Configure actual entitlement grants instead of this hardcoded one
-        Method targetMethod = System.class.getMethod("exit", int.class);
-        Method instrumentationMethod = Class.forName("org.elasticsearch.entitlement.bridge.EntitlementChecker")
-            .getMethod("checkSystemExit", Class.class, int.class);
-        Map<MethodKey, Method> methodMap = Map.of(INSTRUMENTER_FACTORY.methodKeyForTarget(targetMethod), instrumentationMethod);
+        Map<MethodKey, CheckerMethod> methodMap = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
+            "org.elasticsearch.entitlement.bridge.EntitlementChecker"
+        );
 
-        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), Set.of(internalName(System.class))), true);
-        inst.retransformClasses(System.class);
+        var classesToTransform = methodMap.keySet().stream().map(MethodKey::className).collect(Collectors.toSet());
+
+        inst.addTransformer(new Transformer(INSTRUMENTER_FACTORY.newInstrumenter("", methodMap), classesToTransform), true);
+        // TODO: should we limit this array somehow?
+        var classesToRetransform = classesToTransform.stream().map(EntitlementInitialization::internalNameToClass).toArray(Class[]::new);
+        inst.retransformClasses(classesToRetransform);
     }
 
-    private static String internalName(Class<?> c) {
-        return c.getName().replace('.', '/');
+    private static Class<?> internalNameToClass(String internalName) {
+        try {
+            return Class.forName(internalName.replace('/', '.'), false, ClassLoader.getPlatformClassLoader());
+        } catch (ClassNotFoundException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private static final InstrumentationService INSTRUMENTER_FACTORY = new ProviderLocator<>(

@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.SemanticTextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -24,12 +25,14 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 import static org.junit.Assert.assertNotNull;
@@ -108,6 +111,9 @@ public class LoadMapping {
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
             } else if (esDataType == DATETIME) {
                 field = DateEsField.dateEsField(name, properties, docValues);
+            } else if (esDataType == SEMANTIC_TEXT) {
+                String inferenceId = textSetting(content.get("inference_id"), "test_inference_id");
+                field = new SemanticTextEsField(name, properties, docValues, false, List.of(inferenceId));
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);

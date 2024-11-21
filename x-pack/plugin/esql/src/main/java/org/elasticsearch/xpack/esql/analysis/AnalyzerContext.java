@@ -16,7 +16,6 @@ public record AnalyzerContext(
     EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
     EnrichResolution enrichResolution,
-    InferenceContext inferenceContext,
     boolean isCrossClusterSearch
 ) {
     public AnalyzerContext(
@@ -25,6 +24,6 @@ public record AnalyzerContext(
         IndexResolution indexResolution,
         EnrichResolution enrichResolution
     ) {
-        this(configuration, functionRegistry, indexResolution, enrichResolution, null, false);
+        this(configuration, functionRegistry, indexResolution, enrichResolution, false);
     }
 }

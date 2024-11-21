@@ -14,6 +14,9 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.IndexFieldCapabilities;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.InferenceFieldMetadata;
+import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.index.IndexMode;
@@ -25,6 +28,7 @@ import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.InvalidMappedField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
+import org.elasticsearch.xpack.esql.core.type.SemanticTextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -44,6 +48,7 @@ import java.util.TreeSet;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
 
@@ -68,24 +73,32 @@ public class IndexResolver {
         .build();
 
     private final Client client;
+    private final ClusterService clusterService;
 
-    public IndexResolver(Client client) {
+    public IndexResolver(Client client, ClusterService clusterService) {
         this.client = client;
+        this.clusterService = clusterService;
     }
 
     /**
      * Resolves a pattern to one (potentially compound meaning that spawns multiple indices) mapping.
      */
     public void resolveAsMergedMapping(String indexWildcard, Set<String> fieldNames, ActionListener<IndexResolution> listener) {
+        Map<String, IndexMetadata> indexMetadata = clusterService.state().metadata().getIndices();
+
         client.execute(
             EsqlResolveFieldsAction.TYPE,
             createFieldCapsRequest(indexWildcard, fieldNames),
-            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, response)))
+            listener.delegateFailureAndWrap((l, response) -> l.onResponse(mergedMappings(indexWildcard, indexMetadata, response)))
         );
     }
 
     // public for testing only
-    public IndexResolution mergedMappings(String indexPattern, FieldCapabilitiesResponse fieldCapsResponse) {
+    public IndexResolution mergedMappings(
+        String indexPattern,
+        Map<String, IndexMetadata> indexMetadata,
+        FieldCapabilitiesResponse fieldCapsResponse
+    ) {
         assert ThreadPool.assertCurrentThreadPool(ThreadPool.Names.SEARCH_COORDINATION); // too expensive to run this on a transport worker
         if (fieldCapsResponse.getIndexResponses().isEmpty()) {
             // TODO in follow-on PR, handle the case where remotes were specified with non-existent indices, according to skip_unavailable
@@ -134,7 +147,7 @@ public class IndexResolver {
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, caps, isAlias)
+                ? createField(fieldCapsResponse, name, fullName, caps, isAlias, indexMetadata)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -197,7 +210,8 @@ public class IndexResolver {
         String name,
         String fullName,
         List<IndexFieldCapabilities> fcs,
-        boolean isAlias
+        boolean isAlias,
+        Map<String, IndexMetadata> indexMetadata
     ) {
         IndexFieldCapabilities first = fcs.get(0);
         List<IndexFieldCapabilities> rest = fcs.subList(1, fcs.size());
@@ -232,6 +246,15 @@ public class IndexResolver {
         }
         if (type == DATETIME) {
             return DateEsField.dateEsField(name, new HashMap<>(), aggregatable);
+        }
+        if (type == SEMANTIC_TEXT) {
+            return new SemanticTextEsField(
+                name,
+                new HashMap<>(),
+                aggregatable,
+                isAlias,
+                inferenceIdsForField(indexMetadata, fieldCapsResponse, name)
+            );
         }
         if (type == UNSUPPORTED) {
             return unsupported(name, first);
@@ -280,5 +303,22 @@ public class IndexResolver {
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
         req.setMergeResults(false);
         return req;
+    }
+
+    public List<String> inferenceIdsForField(
+        Map<String, IndexMetadata> indexMetadata,
+        FieldCapabilitiesResponse fieldCapsResponse,
+        String name
+    ) {
+        List<String> inferenceIds = new ArrayList<>();
+
+        for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
+            String indexName = ir.getIndexName();
+            InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.get(indexName).getInferenceFields().get(name);
+            if (inferenceFieldMetadata != null) {
+                inferenceIds.add(inferenceFieldMetadata.getInferenceId());
+            }
+        }
+        return inferenceIds;
     }
 }

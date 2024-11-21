@@ -297,14 +297,7 @@ public class EsqlSession {
                 inferenceContext.setIndices(indices.get().concreteIndices());
             }
             Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(
-                    configuration,
-                    functionRegistry,
-                    indices,
-                    policies,
-                    inferenceContext,
-                    executionInfo.isCrossClusterSearch()
-                ),
+                new AnalyzerContext(configuration, functionRegistry, indices, policies, executionInfo.isCrossClusterSearch()),
                 verifier
             );
             var plan = analyzer.analyze(parsed);

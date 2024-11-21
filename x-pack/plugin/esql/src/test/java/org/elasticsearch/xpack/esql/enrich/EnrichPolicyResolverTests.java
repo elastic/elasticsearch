@@ -418,7 +418,7 @@ public class EnrichPolicyResolverTests extends ESTestCase {
             super(
                 mockClusterService(policies),
                 transports.get(cluster),
-                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings))
+                new IndexResolver(new FieldCapsClient(threadPool, aliases, mappings), mockClusterService(policies))
             );
             this.policies = policies;
             this.cluster = cluster;

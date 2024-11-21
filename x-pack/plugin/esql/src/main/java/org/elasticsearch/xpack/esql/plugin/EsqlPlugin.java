@@ -112,7 +112,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         setupSharedSecrets();
         return List.of(
             new PlanExecutor(
-                new IndexResolver(services.client()),
+                new IndexResolver(services.client(), services.clusterService()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
                 services.client(),

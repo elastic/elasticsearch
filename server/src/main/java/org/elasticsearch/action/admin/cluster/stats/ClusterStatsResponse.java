@@ -40,6 +40,8 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
     final String clusterUUID;
     private final Map<String, RemoteClusterStats> remoteClustersStats;
 
+    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
+
     public ClusterStatsResponse(
         long timestamp,
         String clusterUUID,
@@ -147,7 +149,10 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         if (remoteClustersStats != null) {
             builder.field("clusters", remoteClustersStats);
         }
+        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
         ccsMetrics.toXContent(builder, params);
+        builder.endObject();
+
         builder.endObject();
 
         return builder;

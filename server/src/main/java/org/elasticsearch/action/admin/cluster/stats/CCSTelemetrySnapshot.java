@@ -41,7 +41,6 @@ import java.util.Objects;
  * <br>
  */
 public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment {
-    public static final String CCS_TELEMETRY_FIELD_NAME = "_search";
     private long totalCount;
     private long successCount;
     private final Map<String, Long> failureReasons;
@@ -328,30 +327,26 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-        builder.startObject(CCS_TELEMETRY_FIELD_NAME);
+        builder.field("total", totalCount);
+        builder.field("success", successCount);
+        builder.field("skipped", skippedRemotes);
+        publishLatency(builder, "took", took);
+        publishLatency(builder, "took_mrt_true", tookMrtTrue);
+        publishLatency(builder, "took_mrt_false", tookMrtFalse);
+        builder.field("remotes_per_search_max", remotesPerSearchMax);
+        builder.field("remotes_per_search_avg", remotesPerSearchAvg);
+        builder.field("failure_reasons", failureReasons);
+        builder.field("features", featureCounts);
+        builder.field("clients", clientCounts);
+        builder.startObject("clusters");
         {
-            builder.field("total", totalCount);
-            builder.field("success", successCount);
-            builder.field("skipped", skippedRemotes);
-            publishLatency(builder, "took", took);
-            publishLatency(builder, "took_mrt_true", tookMrtTrue);
-            publishLatency(builder, "took_mrt_false", tookMrtFalse);
-            builder.field("remotes_per_search_max", remotesPerSearchMax);
-            builder.field("remotes_per_search_avg", remotesPerSearchAvg);
-            builder.field("failure_reasons", failureReasons);
-            builder.field("features", featureCounts);
-            builder.field("clients", clientCounts);
-            builder.startObject("clusters");
-            {
-                for (var entry : byRemoteCluster.entrySet()) {
-                    String remoteName = entry.getKey();
-                    if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {
-                        remoteName = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
-                    }
-                    builder.field(remoteName, entry.getValue());
+            for (var entry : byRemoteCluster.entrySet()) {
+                String remoteName = entry.getKey();
+                if (RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY.equals(remoteName)) {
+                    remoteName = SearchResponse.LOCAL_CLUSTER_NAME_REPRESENTATION;
                 }
+                builder.field(remoteName, entry.getValue());
             }
-            builder.endObject();
         }
         builder.endObject();
         return builder;

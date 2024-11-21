@@ -304,9 +304,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
          * @param relativeStartNanos           the relative start time in nanoseconds
          * @param relativeCurrentNanosProvider provides the current relative time
          */
-        public SearchTimeProvider
-
-        {}
+        public SearchTimeProvider {}
 
         public long buildTookInMillis() {
             return TimeUnit.NANOSECONDS.toMillis(relativeCurrentNanosProvider.getAsLong() - relativeStartNanos);

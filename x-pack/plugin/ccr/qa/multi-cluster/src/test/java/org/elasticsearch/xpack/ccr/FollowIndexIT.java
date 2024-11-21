@@ -18,6 +18,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DateFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.repositories.fs.FsRepository;
 import org.elasticsearch.rest.RestStatus;
 
@@ -366,8 +367,10 @@ public class FollowIndexIT extends ESCCRRestTestCase {
         final String leaderIndexName = "synthetic_leader";
         if ("leader".equals(targetCluster)) {
             logger.info("Running against leader cluster");
-            createIndex(adminClient(), leaderIndexName, Settings.EMPTY, """
-                "_source": {"mode": "synthetic"},
+            Settings settings = Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.SYNTHETIC)
+                .build();
+            createIndex(adminClient(), leaderIndexName, settings, """
                 "properties": {"kwd": {"type": "keyword"}}}""", null);
             for (int i = 0; i < numDocs; i++) {
                 logger.info("Indexing doc [{}]", i);
@@ -392,7 +395,6 @@ public class FollowIndexIT extends ESCCRRestTestCase {
             }
             assertBusy(() -> {
                 verifyDocuments(client(), followIndexName, numDocs);
-                assertMap(getIndexMappingAsMap(followIndexName), matchesMap().extraOk().entry("_source", Map.of("mode", "synthetic")));
                 if (overrideNumberOfReplicas) {
                     assertMap(getIndexSettingsAsMap(followIndexName), matchesMap().extraOk().entry("index.number_of_replicas", "0"));
                 } else {

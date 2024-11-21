@@ -544,7 +544,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+            if (currentPipeline.getConfig().equals(pipelineConfig)) {
                 return true;
             }
         }
@@ -1327,7 +1327,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 Pipeline newPipeline = Pipeline.create(
                     newConfiguration.getId(),
-                    newConfiguration.getConfigAsMap(),
+                    newConfiguration.getConfig(false),
                     processorFactories,
                     scriptService
                 );
@@ -1458,7 +1458,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     public synchronized void reloadPipeline(ProjectId projectId, String id) throws Exception {
         var originalPipelines = this.pipelines.getOrDefault(projectId, ImmutableOpenMap.of());
         PipelineHolder holder = originalPipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService);
         ImmutableOpenMap<String, PipelineHolder> updatedPipelines = ImmutableOpenMap.builder(originalPipelines)
             .fPut(id, new PipelineHolder(holder.configuration, updatedPipeline))
             .build();

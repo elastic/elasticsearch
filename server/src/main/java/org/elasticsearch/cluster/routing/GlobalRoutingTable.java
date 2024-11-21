@@ -305,6 +305,10 @@ public class GlobalRoutingTable implements Iterable<RoutingTable>, Diffable<Glob
         return Optional.ofNullable(routingTable(id)).map(rt -> rt.index(index));
     }
 
+    public boolean hasIndices() {
+        return routingTables().values().stream().anyMatch(rt -> rt.indicesRouting().isEmpty() == false);
+    }
+
     private static class GlobalRoutingTableDiff implements Diff<GlobalRoutingTable> {
 
         private static final KeySerializer<ProjectId> PROJECT_ID_KEY_SERIALIZER = DiffableUtils.getWriteableKeySerializer(ProjectId.READER);

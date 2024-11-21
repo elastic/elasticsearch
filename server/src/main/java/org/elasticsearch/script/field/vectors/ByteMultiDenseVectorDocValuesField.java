@@ -23,7 +23,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
     private final BinaryDocValues magnitudes;
     protected final int dims;
     protected int numVecs;
-    protected Iterator<byte[]> vectorValue;
+    protected VectorIterator<byte[]> vectorValue;
     protected boolean decoded;
     protected BytesRef value;
     protected BytesRef magnitudesValue;
@@ -111,7 +111,7 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
         return value == null;
     }
 
-    static class ByteVectorIterator implements Iterator<byte[]> {
+    static class ByteVectorIterator implements VectorIterator<byte[]> {
         private final byte[] buffer;
         private final BytesRef vectorValues;
         private final int size;
@@ -137,6 +137,16 @@ public class ByteMultiDenseVectorDocValuesField extends MultiDenseVectorDocValue
             System.arraycopy(vectorValues.bytes, vectorValues.offset + idx * buffer.length, buffer, 0, buffer.length);
             idx++;
             return buffer;
+        }
+
+        @Override
+        public Iterator<byte[]> copy() {
+            return new ByteVectorIterator(vectorValues, new byte[buffer.length], size);
+        }
+
+        @Override
+        public void reset() {
+            idx = 0;
         }
     }
 }

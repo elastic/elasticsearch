@@ -9,7 +9,10 @@
 
 package org.elasticsearch.cluster.routing;
 
-import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.TransportVersion;
+import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.ProjectState;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
@@ -19,24 +22,38 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 public class IndexRoutingTableTests extends ESTestCase {
 
     public void testReadyForSearch() {
-        innerReadyForSearch(false);
-        innerReadyForSearch(true);
+        innerReadyForSearch(false, false);
+        innerReadyForSearch(false, true);
+        innerReadyForSearch(true, false);
+        innerReadyForSearch(true, true);
     }
 
-    private void innerReadyForSearch(boolean fastRefresh) {
+    // TODO: remove if (fastRefresh && beforeFastRefreshRCO) branches (ES-9563)
+    private void innerReadyForSearch(boolean fastRefresh, boolean beforeFastRefreshRCO) {
         Index index = new Index(randomIdentifier(), UUIDs.randomBase64UUID());
-        ProjectMetadata projectMetadata = mock(ProjectMetadata.class, Mockito.RETURNS_DEEP_STUBS);
-        when(projectMetadata.index(any(Index.class)).getSettings()).thenReturn(
+
+        final ProjectId projectId = randomProjectId();
+        ClusterState clusterState = mock(ClusterState.class, Mockito.RETURNS_DEEP_STUBS);
+        when(clusterState.projectState(eq(projectId))).thenCallRealMethod();
+        when(clusterState.metadata().hasProject(eq(projectId))).thenReturn(true);
+        when(clusterState.metadata().getProject(eq(projectId)).index(any(Index.class)).getSettings()).thenReturn(
             Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
         );
+        when(clusterState.getMinTransportVersion()).thenReturn(
+            beforeFastRefreshRCO ? TransportVersion.fromId(FAST_REFRESH_RCO_2.id() - 1_00_0) : TransportVersion.current()
+        );
+        ProjectState projectState = clusterState.projectState(projectId);
+
         // 2 primaries that are search and index
         ShardId p1 = new ShardId(index, 0);
         IndexShardRoutingTable shardTable1 = new IndexShardRoutingTable(
@@ -49,16 +66,16 @@ public class IndexRoutingTableTests extends ESTestCase {
             List.of(getShard(p2, true, ShardRoutingState.STARTED, ShardRouting.Role.DEFAULT))
         );
         IndexRoutingTable indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+        assertTrue(indexRoutingTable.readyForSearch(projectState));
 
         // 2 primaries that are index only
         shardTable1 = new IndexShardRoutingTable(p1, List.of(getShard(p1, true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY)));
         shardTable2 = new IndexShardRoutingTable(p2, List.of(getShard(p2, true, ShardRoutingState.STARTED, ShardRouting.Role.INDEX_ONLY)));
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+        if (fastRefresh && beforeFastRefreshRCO) {
+            assertTrue(indexRoutingTable.readyForSearch(projectState));
         } else {
-            assertFalse(indexRoutingTable.readyForSearch(projectMetadata));
+            assertFalse(indexRoutingTable.readyForSearch(projectState));
         }
 
         // 2 unassigned primaries that are index only
@@ -71,7 +88,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             List.of(getShard(p2, true, ShardRoutingState.UNASSIGNED, ShardRouting.Role.INDEX_ONLY))
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertFalse(indexRoutingTable.readyForSearch(projectMetadata));
+        assertFalse(indexRoutingTable.readyForSearch(projectState));
 
         // 2 primaries that are index only with replicas that are not all available
         shardTable1 = new IndexShardRoutingTable(
@@ -91,10 +108,10 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+        if (fastRefresh && beforeFastRefreshRCO) {
+            assertTrue(indexRoutingTable.readyForSearch(projectState));
         } else {
-            assertFalse(indexRoutingTable.readyForSearch(projectMetadata));
+            assertFalse(indexRoutingTable.readyForSearch(projectState));
         }
 
         // 2 primaries that are index only with some replicas that are all available
@@ -115,11 +132,9 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+        assertTrue(indexRoutingTable.readyForSearch(projectState));
 
         // 2 unassigned primaries that are index only with some replicas that are all available
-        // Fast refresh indices do not support replicas so this can not practically happen. If we add support we will want to ensure
-        // that readyForSearch allows for searching replicas when the index shard is not available.
         shardTable1 = new IndexShardRoutingTable(
             p1,
             List.of(
@@ -137,10 +152,10 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        if (fastRefresh) {
-            assertFalse(indexRoutingTable.readyForSearch(projectMetadata));// if we support replicas for fast refreshes this needs to change
+        if (fastRefresh && beforeFastRefreshRCO) {
+            assertFalse(indexRoutingTable.readyForSearch(projectState));
         } else {
-            assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+            assertTrue(indexRoutingTable.readyForSearch(projectState));
         }
 
         // 2 primaries that are index only with at least 1 replica per primary that is available
@@ -161,7 +176,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             )
         );
         indexRoutingTable = new IndexRoutingTable(index, new IndexShardRoutingTable[] { shardTable1, shardTable2 });
-        assertTrue(indexRoutingTable.readyForSearch(projectMetadata));
+        assertTrue(indexRoutingTable.readyForSearch(projectState));
     }
 
     private ShardRouting getShard(ShardId shardId, boolean isPrimary, ShardRoutingState state, ShardRouting.Role role) {

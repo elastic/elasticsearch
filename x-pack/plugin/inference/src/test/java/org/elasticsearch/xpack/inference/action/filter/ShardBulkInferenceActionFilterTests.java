@@ -320,7 +320,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
 
         InferenceServiceRegistry inferenceServiceRegistry = mock(InferenceServiceRegistry.class);
         when(inferenceServiceRegistry.getService(any())).thenReturn(Optional.of(inferenceService));
-        ShardBulkInferenceActionFilter filter = new ShardBulkInferenceActionFilter(inferenceServiceRegistry, modelRegistry, batchSize);
+        // TODO: add cluster service
+        ShardBulkInferenceActionFilter filter = new ShardBulkInferenceActionFilter(
+            null,
+            inferenceServiceRegistry,
+            modelRegistry,
+            batchSize
+        );
         return filter;
     }
 

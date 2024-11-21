@@ -413,7 +413,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     public void preParse(DocumentParserContext context) throws IOException {
         BytesReference originalSource = context.sourceToParse().source();
         XContentType contentType = context.sourceToParse().getXContentType();
-        final BytesReference adaptedSource = applyFilters(originalSource, contentType);
+        final BytesReference adaptedSource = applyFilters(context.mappingLookup(), originalSource, contentType);
 
         if (adaptedSource != null) {
             final BytesRef ref = adaptedSource.toBytesRef();
@@ -430,13 +430,26 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     @Nullable
-    public BytesReference applyFilters(@Nullable BytesReference originalSource, @Nullable XContentType contentType) throws IOException {
-        if (stored() == false) {
+    public BytesReference applyFilters(
+        @Nullable MappingLookup mappingLookup,
+        @Nullable BytesReference originalSource,
+        @Nullable XContentType contentType
+    ) throws IOException {
+        if (stored() == false || originalSource == null) {
             return null;
         }
-        if (originalSource != null && sourceFilter != null) {
+        var modSourceFilter = sourceFilter;
+        if (mappingLookup != null && mappingLookup.inferenceFields().isEmpty() == false) {
+            String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
+            if (excludes != null) {
+                System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);
+            }
+            modExcludes[modExcludes.length - 1] = InferenceMetadataFieldsMapper.NAME;
+            modSourceFilter = new SourceFilter(includes, modExcludes);
+        }
+        if (modSourceFilter != null) {
             // Percolate and tv APIs may not set the source and that is ok, because these APIs will not index any data
-            return Source.fromBytes(originalSource, contentType).filter(sourceFilter).internalSourceRef();
+            return Source.fromBytes(originalSource, contentType).filter(modSourceFilter).internalSourceRef();
         } else {
             return originalSource;
         }

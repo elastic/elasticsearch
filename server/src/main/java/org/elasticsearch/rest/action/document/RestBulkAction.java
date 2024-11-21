@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
@@ -108,9 +109,11 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            ReleasableBytesReference content = request.requiredReleasableContent();
+
             try {
                 bulkRequest.add(
-                    request.requiredContent(),
+                    content,
                     defaultIndex,
                     defaultRouting,
                     defaultFetchSourceContext,
@@ -125,8 +128,10 @@ public class RestBulkAction extends BaseRestHandler {
             } catch (Exception e) {
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-
-            return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            return channel -> {
+                content.mustIncRef();
+                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+            };
         } else {
             if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
                 request.param("type");
@@ -277,11 +282,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public boolean supportsBulkContent() {
-        return true;
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
         return true;
     }
 

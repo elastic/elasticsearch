@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
@@ -15,6 +16,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.transport.TransportAddress;
 import org.elasticsearch.compute.operator.DriverTaskRunner;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -27,8 +29,10 @@ import org.elasticsearch.script.ScriptEngine;
 import org.elasticsearch.search.lookup.SearchLookup;
 import org.elasticsearch.tasks.TaskInfo;
 import org.elasticsearch.test.AbstractMultiClustersTestCase;
+import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.plugin.ComputeService;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.junit.Before;
 
@@ -40,8 +44,10 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
 import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomPragmas;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
 
@@ -188,5 +194,45 @@ public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
         PauseFieldPlugin.allowEmitting.countDown();
         Exception error = expectThrows(Exception.class, requestFuture::actionGet);
         assertThat(error.getMessage(), containsString("proxy timeout"));
+    }
+
+    public void testSameRemoteClusters() throws Exception {
+        TransportAddress address = cluster(REMOTE_CLUSTER).getInstance(TransportService.class).getLocalNode().getAddress();
+        int moreClusters = between(1, 5);
+        for (int i = 0; i < moreClusters; i++) {
+            String clusterAlias = REMOTE_CLUSTER + "-" + i;
+            configureRemoteClusterWithSeedAddresses(clusterAlias, List.of(address));
+        }
+        int numDocs = between(10, 100);
+        createRemoteIndex(numDocs);
+        EsqlQueryRequest request = EsqlQueryRequest.syncEsqlQueryRequest();
+        request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+        request.pragmas(randomPragmas());
+        ActionFuture<EsqlQueryResponse> future = client().execute(EsqlQueryAction.INSTANCE, request);
+        try {
+            try {
+                assertBusy(() -> {
+                    List<TaskInfo> tasks = client(REMOTE_CLUSTER).admin()
+                        .cluster()
+                        .prepareListTasks()
+                        .setActions(ComputeService.CLUSTER_ACTION_NAME)
+                        .get()
+                        .getTasks();
+                    assertThat(tasks, hasSize(moreClusters + 1));
+                });
+            } finally {
+                PauseFieldPlugin.allowEmitting.countDown();
+            }
+            try (EsqlQueryResponse resp = future.actionGet(30, TimeUnit.SECONDS)) {
+                // TODO: This produces incorrect results because data on the remote cluster is processed multiple times.
+                long expectedCount = numDocs * (moreClusters + 1L);
+                assertThat(getValuesList(resp), equalTo(List.of(List.of(expectedCount))));
+            }
+        } finally {
+            for (int i = 0; i < moreClusters; i++) {
+                String clusterAlias = REMOTE_CLUSTER + "-" + i;
+                removeRemoteCluster(clusterAlias);
+            }
+        }
     }
 }

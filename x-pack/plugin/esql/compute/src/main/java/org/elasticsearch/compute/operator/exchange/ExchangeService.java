@@ -23,6 +23,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BlockStreamInput;
+import org.elasticsearch.core.Assertions;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.tasks.CancellableTask;
@@ -40,6 +41,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -71,6 +73,8 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     private final BlockFactory blockFactory;
 
     private final Map<String, ExchangeSinkHandler> sinks = ConcurrentCollections.newConcurrentMap();
+    // for assertions
+    private final Set<String> assertingExchangeIds = Assertions.ENABLED ? ConcurrentCollections.newConcurrentSet() : Set.of();
 
     public ExchangeService(Settings settings, ThreadPool threadPool, String executorName, BlockFactory blockFactory) {
         this.threadPool = threadPool;
@@ -279,6 +283,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
      * @param conn             the connection to the remote node where the remote exchange sink is located
      */
     public RemoteSink newRemoteSink(Task parentTask, String exchangeId, TransportService transportService, Transport.Connection conn) {
+        assert assertingExchangeIds.add(exchangeId) : "exchange id [" + exchangeId + "] already used";
         return new TransportRemoteSink(transportService, blockFactory, conn, parentTask, exchangeId, executor);
     }
 

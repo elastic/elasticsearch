@@ -86,6 +86,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
             licenseService.fallbackToStoredSource(false, randomBoolean())
         );
         Mockito.verifyNoInteractions(licenseState);
+        Mockito.verifyNoInteractions(mockLicenseService);
     }
 
     public void testGoldOrPlatinumLicense() throws Exception {

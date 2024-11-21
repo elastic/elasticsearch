@@ -1,5 +1,0 @@
-pr: 110527
-summary: "ESQL: Add boolean support to Max and Min aggs"
-area: ES|QL
-type: feature
-issues: []

@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -98,6 +99,7 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
     private final ClusterService clusterService;
 
     public ComputeService(
@@ -105,6 +107,7 @@ public class ComputeService {
         TransportService transportService,
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
@@ -125,6 +128,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
+        this.lookupFromIndexService = lookupFromIndexService;
         this.clusterService = clusterService;
     }
 
@@ -251,19 +255,17 @@ public class ComputeService {
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
-                // took time and shard counts for SKIPPED clusters were added at end of planning, so only update other cases here
-                if (execInfo.getCluster(clusterAlias).getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
-                    execInfo.swapCluster(
-                        clusterAlias,
-                        (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
-                            .setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
-                            .setTotalShards(0)
-                            .setSuccessfulShards(0)
-                            .setSkippedShards(0)
-                            .setFailedShards(0)
-                            .build()
-                    );
-                }
+                execInfo.swapCluster(clusterAlias, (k, v) -> {
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
+                        .setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0);
+                    if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
+                        builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
+                    }
+                    return builder.build();
+                });
             }
         }
     }
@@ -431,6 +433,7 @@ public class ComputeService {
                 context.exchangeSource(),
                 context.exchangeSink(),
                 enrichLookupService,
+                lookupFromIndexService,
                 new EsPhysicalOperationProviders(contexts)
             );
 

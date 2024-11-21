@@ -36,7 +36,7 @@ public class InferenceRestIT extends ESClientYamlSuiteTestCase {
         var baseSettings = super.restClientSettings();
         return Settings.builder()
             .put(baseSettings)
-            .put(CLIENT_SOCKET_TIMEOUT, "120s")  // Long timeout for model download
+            .put(CLIENT_SOCKET_TIMEOUT, "300s")  // Long timeout for model download
             .build();
     }
 

@@ -8,7 +8,6 @@
  */
 package org.elasticsearch.action.datastreams;
 
-import org.apache.logging.log4j.core.appender.rolling.action.Action;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionResponse;

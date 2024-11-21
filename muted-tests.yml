@@ -223,9 +223,6 @@ tests:
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/114824
-- class: org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluatorTests
-  method: testTermQuery
-  issue: https://github.com/elastic/elasticsearch/issues/116879
 - class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
   method: testQueryBuilderBWC {p0=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116989
@@ -244,6 +241,15 @@ tests:
 - class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsStoredSourceChallengeRestIT
   method: testEsqlSource
   issue: https://github.com/elastic/elasticsearch/issues/117212
+- class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
+  method: testEnterpriseDownloaderTask
+  issue: https://github.com/elastic/elasticsearch/issues/115163
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
 
 # Examples:
 #

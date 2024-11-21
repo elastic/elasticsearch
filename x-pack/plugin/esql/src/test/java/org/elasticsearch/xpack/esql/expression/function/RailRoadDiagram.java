@@ -90,6 +90,18 @@ public class RailRoadDiagram {
     }
 
     /**
+     * Generate a railroad diagram for a search operator. The output would look like
+     * {@code field : value}.
+     */
+    static String searchOperator(String operator) throws IOException {
+        List<Expression> expressions = new ArrayList<>();
+        expressions.add(new Literal("field"));
+        expressions.add(new Syntax(operator));
+        expressions.add(new Literal("query"));
+        return toSvg(new Sequence(expressions.toArray(Expression[]::new)));
+    }
+
+    /**
      * Generate a railroad diagram for unary operator. The output would look like
      * {@code -v}.
      */

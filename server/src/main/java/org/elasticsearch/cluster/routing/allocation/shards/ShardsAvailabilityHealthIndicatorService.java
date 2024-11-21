@@ -693,7 +693,7 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata != null) {
             diagnosisDefs.addAll(checkIsAllocationDisabled(indexMetadata, nodeAllocationResults));
-            diagnosisDefs.addAll(checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, state));
+            diagnosisDefs.addAll(checkNodeRoleRelatedIssues(indexMetadata, nodeAllocationResults, state, shardRouting));
         }
         if (diagnosisDefs.isEmpty()) {
             diagnosisDefs.add(ACTION_CHECK_ALLOCATION_EXPLAIN_API);
@@ -748,12 +748,14 @@ public class ShardsAvailabilityHealthIndicatorService implements HealthIndicator
      * @param indexMetadata Index metadata for the shard being diagnosed.
      * @param nodeAllocationResults allocation decision results for all nodes in the cluster.
      * @param clusterState the current cluster state.
+     * @param shardRouting the shard the nodeAllocationResults refer to
      * @return A list of diagnoses for the provided unassigned shard
      */
     protected List<Diagnosis.Definition> checkNodeRoleRelatedIssues(
         IndexMetadata indexMetadata,
         List<NodeAllocationResult> nodeAllocationResults,
-        ClusterState clusterState
+        ClusterState clusterState,
+        ShardRouting shardRouting
     ) {
         List<Diagnosis.Definition> diagnosisDefs = new ArrayList<>();
         if (indexMetadata.getTierPreference().isEmpty() == false) {

@@ -1227,7 +1227,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1286,7 +1287,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1350,7 +1352,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1409,7 +1412,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1473,7 +1477,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            clusterState
+            clusterState,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1509,7 +1514,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1545,7 +1551,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1580,7 +1587,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         // checkDataTierRelatedIssues will leave list empty. Diagnosis methods upstream will add "Check allocation explain" action.
@@ -1619,7 +1627,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));
@@ -1658,7 +1667,8 @@ public class ShardsAvailabilityHealthIndicatorServiceTests extends ESTestCase {
                     1
                 )
             ),
-            ClusterState.EMPTY_STATE
+            ClusterState.EMPTY_STATE,
+            null
         );
 
         assertThat(actions, hasSize(1));

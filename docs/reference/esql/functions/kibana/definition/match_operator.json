@@ -26,6 +26,42 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : "Field that the query will target."

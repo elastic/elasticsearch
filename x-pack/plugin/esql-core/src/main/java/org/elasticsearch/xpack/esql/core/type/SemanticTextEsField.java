@@ -11,20 +11,21 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 
 import java.io.IOException;
-import java.util.List;
 import java.util.Map;
+import java.util.Objects;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 
 public class SemanticTextEsField extends EsField {
-    private final List<String> inferenceIds;
+    private final Set<String> inferenceIds;
 
     public SemanticTextEsField(
         String name,
         Map<String, EsField> properties,
         boolean aggregatable,
         boolean isAlias,
-        List<String> infereceIds
+        Set<String> infereceIds
     ) {
         super(name, SEMANTIC_TEXT, properties, aggregatable, isAlias);
         this.inferenceIds = infereceIds;
@@ -36,7 +37,7 @@ public class SemanticTextEsField extends EsField {
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readBoolean(),
-            in.readCollectionAsList(StreamInput::readString)
+            in.readCollectionAsSet(StreamInput::readString)
         );
     }
 
@@ -53,8 +54,24 @@ public class SemanticTextEsField extends EsField {
         return "SemanticTextEsField";
     }
 
-    public List<String> inferenceIds() {
+    public Set<String> inferenceIds() {
         return inferenceIds;
+    }
+
+    @Override
+    public boolean equals(Object obj) {
+        if (super.equals(obj) == false) {
+            return false;
+        }
+        if (obj instanceof SemanticTextEsField other) {
+            return super.equals(other) && Objects.equals(inferenceIds, other.inferenceIds);
+        }
+        return false;
+    }
+
+    @Override
+    public int hashCode() {
+        return Objects.hash(super.hashCode(), inferenceIds);
     }
 
 }

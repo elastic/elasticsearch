@@ -305,12 +305,12 @@ public class IndexResolver {
         return req;
     }
 
-    public List<String> inferenceIdsForField(
+    public Set<String> inferenceIdsForField(
         Map<String, IndexMetadata> indexMetadata,
         FieldCapabilitiesResponse fieldCapsResponse,
         String name
     ) {
-        List<String> inferenceIds = new ArrayList<>();
+        Set<String> inferenceIds = new HashSet<>();
 
         for (FieldCapabilitiesIndexResponse ir : fieldCapsResponse.getIndexResponses()) {
             String indexName = ir.getIndexName();

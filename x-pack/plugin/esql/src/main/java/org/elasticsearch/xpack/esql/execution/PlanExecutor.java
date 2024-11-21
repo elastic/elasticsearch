@@ -86,8 +86,7 @@ public class PlanExecutor {
             verifier,
             planningMetrics,
             indicesExpressionGrouper,
-            client,
-            clusterService.state()
+            client
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

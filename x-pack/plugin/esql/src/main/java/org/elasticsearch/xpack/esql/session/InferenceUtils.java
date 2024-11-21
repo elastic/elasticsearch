@@ -16,10 +16,10 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.utils.SemanticTextInferenceUtils;
-import org.elasticsearch.xpack.esql.analysis.InferenceContext;
+import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.SemanticTextEsField;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.util.Collection;
@@ -39,7 +39,6 @@ public final class InferenceUtils {
     public static void setInferenceResults(
         LogicalPlan plan,
         Client client,
-        InferenceContext inferenceContext,
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
@@ -71,7 +70,7 @@ public final class InferenceUtils {
         for (SemanticQuery semanticQuery : semanticQueries) {
             InferenceAction.Request inferenceRequest = new InferenceAction.Request(
                 TaskType.ANY,
-                inferenceContext.semanticTextInferenceId(semanticQuery.fieldName()),
+                semanticQuery.inferenceId(),
                 null,
                 List.of(semanticQuery.queryString()),
                 Map.of(),
@@ -97,18 +96,18 @@ public final class InferenceUtils {
         }
     }
 
-    private record SemanticQuery(String fieldName, String queryString) {};
+    private record SemanticQuery(String fieldName, String queryString, String inferenceId) {};
 
     private static Set<SemanticQuery> semanticQueries(LogicalPlan analyzedPlan) {
         Set<SemanticQuery> result = new HashSet<>();
 
-        analyzedPlan.forEachDown(plan -> {
-            if (plan instanceof Filter) {
-                ((Filter) plan).condition().forEachDown(expression -> {
-                    if (expression instanceof Match && ((Match) expression).field().dataType() == DataType.SEMANTIC_TEXT) {
-                        result.add(new SemanticQuery(((Match) expression).field().sourceText(), ((Match) expression).query().sourceText()));
-                    }
-                });
+        analyzedPlan.forEachExpressionDown(Match.class, match -> {
+            if (match.field().dataType() == DataType.SEMANTIC_TEXT && match.field() instanceof FieldAttribute) {
+                FieldAttribute field = (FieldAttribute) match.field();
+                SemanticTextEsField esField = (SemanticTextEsField) field.field();
+                if (esField.inferenceIds().size() == 1) {
+                    result.add(new SemanticQuery(field.sourceText(), match.query().sourceText(), esField.inferenceIds().iterator().next()));
+                }
             }
         });
 
@@ -116,17 +115,9 @@ public final class InferenceUtils {
     }
 
     private static void setInferenceResult(LogicalPlan analyzedPlan, String fieldName, String query, InferenceResults inferenceResults) {
-        analyzedPlan.forEachDown(plan -> {
-            if (plan instanceof Filter) {
-                Filter filter = (Filter) plan;
-                filter.condition().forEachDown(expression -> {
-                    if (expression instanceof Match) {
-                        Match match = (Match) expression;
-                        if (match.field().sourceText().equals(fieldName) && match.query().sourceText().equals(query)) {
-                            match.setInferenceResults(inferenceResults);
-                        }
-                    }
-                });
+        analyzedPlan.forEachExpressionDown(Match.class, match -> {
+            if (match.field().sourceText().equals(fieldName) && match.query().sourceText().equals(query)) {
+                match.setInferenceResults(inferenceResults);
             }
         });
     }

@@ -12,7 +12,6 @@ import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -31,7 +30,6 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
-import org.elasticsearch.xpack.esql.analysis.InferenceContext;
 import org.elasticsearch.xpack.esql.analysis.PreAnalyzer;
 import org.elasticsearch.xpack.esql.analysis.TableInfo;
 import org.elasticsearch.xpack.esql.analysis.Verifier;
@@ -113,7 +111,6 @@ public class EsqlSession {
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
     private final Client client;
-    private final InferenceContext inferenceContext;
 
     public EsqlSession(
         String sessionId,
@@ -127,8 +124,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanningMetrics planningMetrics,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        Client client,
-        ClusterState clusterState
+        Client client
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -143,7 +139,6 @@ public class EsqlSession {
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
         this.client = client;
-        this.inferenceContext = new InferenceContext(clusterState.getMetadata().getIndices());
     }
 
     public String sessionId() {
@@ -165,7 +160,6 @@ public class EsqlSession {
                         InferenceUtils.setInferenceResults(
                             analyzedPlan,
                             client,
-                            inferenceContext,
                             listener,
                             (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
                         );
@@ -293,9 +287,6 @@ public class EsqlSession {
 
         preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
-            if (indices.isValid()) {
-                inferenceContext.setIndices(indices.get().concreteIndices());
-            }
             Analyzer analyzer = new Analyzer(
                 new AnalyzerContext(configuration, functionRegistry, indices, policies, executionInfo.isCrossClusterSearch()),
                 verifier

@@ -27,6 +27,7 @@ import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -113,7 +114,7 @@ public class LoadMapping {
                 field = DateEsField.dateEsField(name, properties, docValues);
             } else if (esDataType == SEMANTIC_TEXT) {
                 String inferenceId = textSetting(content.get("inference_id"), "test_inference_id");
-                field = new SemanticTextEsField(name, properties, docValues, false, List.of(inferenceId));
+                field = new SemanticTextEsField(name, properties, docValues, false, Set.of(inferenceId));
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);

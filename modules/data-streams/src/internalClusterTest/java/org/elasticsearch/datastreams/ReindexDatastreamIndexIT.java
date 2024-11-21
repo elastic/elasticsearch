@@ -40,7 +40,6 @@ import static org.elasticsearch.cluster.metadata.MetadataIndexTemplateService.DE
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasKey;
 
 public class ReindexDatastreamIndexIT extends ESIntegTestCase {
 
@@ -164,22 +163,13 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertEquals("text", XContentMapValues.extractValue("properties.foo1.type", destMappings));
     }
 
-
     // TODO error on set read-only if don't have perms
-
     // TODO check settings added after
-
     // TODO check tsdb start/end time correct
-
     // TODO check other metadata
-
     // TODO check logsdb/tsdb work
-
     // TODO settings and mappings that come from template
-
-    // TODO test that does not fail on create if index exists. (Not sure how to do this since relies on race condition)
-    // Even though we delete the dest index, it could be created by another thread after the delete.
-    // Subsequent operations should not fail if it does exist
+    // TODO test that does not fail on create if index exists after delete (Not sure how to do this since relies on race condition)
 
     static void indexDocs(String index, int numDocs) {
         BulkRequest bulkRequest = new BulkRequest();
@@ -194,5 +184,4 @@ public class ReindexDatastreamIndexIT extends ESIntegTestCase {
         assertThat(bulkResponse.getItems().length, equalTo(numDocs));
         indicesAdmin().refresh(new RefreshRequest(index)).actionGet();
     }
-
 }

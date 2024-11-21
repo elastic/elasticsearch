@@ -119,7 +119,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
                 );
             }
-        });
+        }).alwaysSerialize();
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,

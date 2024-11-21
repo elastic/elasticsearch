@@ -227,15 +227,14 @@ public class SearchTransportService {
         Transport.Connection connection,
         final NodeSearchRequest requests,
         SearchTask task,
-        final ActionListener<SearchPhaseResult> listener
+        final ActionListener<TransportResponse.Empty> listener
     ) {
-        final ActionListener<? super SearchPhaseResult> handler = responseWrapper.apply(connection, listener);
         transportService.sendChildRequest(
             connection,
             BATCH_QUERY_ACTION_NAME,
             requests,
             task,
-            new ConnectionCountingHandler<>(handler, in -> new QuerySearchResult(in, true), connection)
+            new ActionListenerResponseHandler<>(listener, in -> TransportResponse.Empty.INSTANCE, EsExecutors.DIRECT_EXECUTOR_SERVICE)
         );
     }
 
@@ -530,11 +529,10 @@ public class SearchTransportService {
             BATCH_QUERY_ACTION_NAME,
             EsExecutors.DIRECT_EXECUTOR_SERVICE,
             NodeSearchRequest::new,
-            (request, channel, task) -> searchService.executeQueryPhase(
-                request,
-                task.getParentTaskId().getNodeId(),
-                transportService,
-                (parentNode, shardSearchResponseAsRequest) -> {
+            (request, channel, task) -> {
+                new ChannelActionListener<>(channel).onResponse(TransportResponse.Empty.INSTANCE);
+                searchService.executeQueryPhase(request, task, transportService, (parentNode, shardSearchResponseAsRequest) -> {
+
                     transportService.sendChildRequest(
                         parentNode,
                         QUERY_RESPONSE_ACTION_NAME,
@@ -543,8 +541,8 @@ public class SearchTransportService {
                         TransportRequestOptions.EMPTY,
                         TransportResponseHandler.empty(EsExecutors.DIRECT_EXECUTOR_SERVICE, ActionListener.noop())
                     );
-                }
-            )
+                });
+            }
         );
 
         transportService.registerRequestHandler(
@@ -553,7 +551,8 @@ public class SearchTransportService {
             ShardSearchResponseAsRequest::new,
             (request, channel, task) -> {
                 Task parentTask = transportService.getTaskManager().getTask(task.getParentTaskId().getId());
-                if (parentTask instanceof SearchTask searchTask) {
+                Task originalTask = transportService.getTaskManager().getTask(parentTask.getParentTaskId().getId());
+                if (originalTask instanceof SearchTask searchTask) {
                     searchTask.getResponseAsRequestConsumer().accept(request);
                 }
             }

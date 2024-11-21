@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.TopDocs;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionListener;
+import org.elasticsearch.action.ActionListenerResponseHandler;
 import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.search.CanMatchNodeRequest;
@@ -126,12 +127,14 @@ import org.elasticsearch.search.sort.SortAndFormats;
 import org.elasticsearch.search.sort.SortBuilder;
 import org.elasticsearch.search.suggest.Suggest;
 import org.elasticsearch.search.suggest.completion.CompletionSuggestion;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.telemetry.tracing.Tracer;
 import org.elasticsearch.threadpool.Scheduler;
 import org.elasticsearch.threadpool.Scheduler.Cancellable;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.transport.Transports;
@@ -583,31 +586,40 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     public void executeQueryPhase(
         NodeSearchRequest requests,
-        String parentNodeId,
+        Task parentTask,
         TransportService transportService,
         BiConsumer<DiscoveryNode, ShardSearchResponseAsRequest> resultConsumer
     ) {
-        DiscoveryNode parentNode = clusterService.state().nodes().get(parentNodeId);
+        DiscoveryNode parentNode = clusterService.state().nodes().get(parentTask.getParentTaskId().getNodeId());
+        Transport.Connection connection = transportService.getLocalNodeConnection();
         for (ShardSearchRequest request : requests.getShardRequests()) {
-            SearchShardTask task = (SearchShardTask) transportService.getTaskManager().register("transport", QUERY_ACTION_NAME, request);
-            executeQueryPhase(request, task, new ActionListener<SearchPhaseResult>() {
-                @Override
-                public void onResponse(SearchPhaseResult searchPhaseResult) {
-                    assert searchPhaseResult instanceof QuerySearchResult;
-                    resultConsumer.accept(
-                        parentNode,
-                        new ShardSearchResponseAsRequest(
-                            (QuerySearchResult) searchPhaseResult,
-                            searchPhaseResult.getSearchShardTarget().getShardId()
-                        )
-                    );
-                }
 
-                @Override
-                public void onFailure(Exception e) {
-                    resultConsumer.accept(parentNode, new ShardSearchResponseAsRequest(e, request.shardId()));
-                }
-            });
+            ActionListenerResponseHandler<SearchPhaseResult> responseHandler = new ActionListenerResponseHandler<>(
+                new ActionListener<SearchPhaseResult>() {
+                    @Override
+                    public void onResponse(SearchPhaseResult searchPhaseResult) {
+                        assert searchPhaseResult instanceof QuerySearchResult;
+                        resultConsumer.accept(
+                            parentNode,
+                            new ShardSearchResponseAsRequest(
+                                (QuerySearchResult) searchPhaseResult,
+                                searchPhaseResult.getSearchShardTarget().getShardId()
+                            )
+                        );
+                    }
+
+                    @Override
+                    public void onFailure(Exception e) {
+                        resultConsumer.accept(parentNode, new ShardSearchResponseAsRequest(e, request.shardId()));
+                    }
+                },
+                in -> {
+                    // only used locally no need a reader
+                    throw new AssertionError();
+                },
+                EsExecutors.DIRECT_EXECUTOR_SERVICE
+            );
+            transportService.sendChildRequest(connection, QUERY_ACTION_NAME, request, parentTask, responseHandler);
         }
     }
 

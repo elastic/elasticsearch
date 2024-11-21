@@ -156,7 +156,10 @@ public class SearchRequest extends ActionRequest implements IndicesRequest.Repla
     }
 
     public boolean shouldBatchRequestsPerDataNode() {
-        return searchType() == SearchType.QUERY_THEN_FETCH && source != null && source.aggregations() != null;
+        return searchType() == SearchType.QUERY_THEN_FETCH
+            && source != null
+            && source.aggregations() != null
+            && (source.sorts() == null || source.sorts().isEmpty());
     }
 
     /**

@@ -290,10 +290,13 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                 return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, 0, false).newCollector());
             } else {
                 // SORT ..., _score, ...
-                var l = new ArrayList<>(Arrays.asList(sortFields));
-                l.add(SortField.FIELD_DOC);
-                l.add(SortField.FIELD_SCORE);
-                var sort = new Sort(l.toArray(SortField[]::new));
+                var sort = new Sort();
+                if (sortFields != null) {
+                    var l = new ArrayList<>(Arrays.asList(sortFields));
+                    l.add(SortField.FIELD_DOC);
+                    l.add(SortField.FIELD_SCORE);
+                    sort = new Sort(l.toArray(SortField[]::new));
+                }
                 return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, 0, false).newCollector());
             }
         }

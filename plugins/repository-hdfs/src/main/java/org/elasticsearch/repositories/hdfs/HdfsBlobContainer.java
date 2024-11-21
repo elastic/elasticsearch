@@ -16,6 +16,7 @@ import org.apache.hadoop.fs.FileStatus;
 import org.apache.hadoop.fs.Options;
 import org.apache.hadoop.fs.Options.CreateOpts;
 import org.apache.hadoop.fs.Path;
+import org.elasticsearch.SpecialPermission;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
@@ -38,6 +39,9 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.nio.file.FileAlreadyExistsException;
 import java.nio.file.NoSuchFileException;
+import java.security.AccessController;
+import java.security.PrivilegedActionException;
+import java.security.PrivilegedExceptionAction;
 import java.util.Collections;
 import java.util.EnumSet;
 import java.util.Iterator;
@@ -262,8 +266,16 @@ final class HdfsBlobContainer extends AbstractBlobContainer {
 
     private void writeToPath(BytesReference bytes, Path blobPath, FileContext fileContext, EnumSet<CreateFlag> createFlags)
         throws IOException {
-        try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
-            bytes.writeTo(stream);
+        SpecialPermission.check();
+        try {
+            AccessController.doPrivileged((PrivilegedExceptionAction<Void>) () -> {
+                try (FSDataOutputStream stream = fileContext.create(blobPath, createFlags, createOpts)) {
+                    bytes.writeTo(stream);
+                }
+                return null;
+            });
+        } catch (PrivilegedActionException e) {
+            throw (IOException) e.getCause();
         }
     }
 

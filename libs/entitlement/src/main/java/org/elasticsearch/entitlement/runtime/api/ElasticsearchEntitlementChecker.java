@@ -44,7 +44,7 @@ public class ElasticsearchEntitlementChecker implements EntitlementChecker {
     }
 
     @Override
-    public void checkSystemExit(Class<?> callerClass, int status) {
+    public void check$java_lang_System$exit(Class<?> callerClass, int status) {
         var requestingModule = requestingModule(callerClass);
         if (isTriviallyAllowed(requestingModule)) {
             return;

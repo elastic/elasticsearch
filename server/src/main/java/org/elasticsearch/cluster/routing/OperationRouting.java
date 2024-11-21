@@ -33,6 +33,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 
 public class OperationRouting {
@@ -126,7 +127,7 @@ public class OperationRouting {
             if (iterator != null) {
                 final List<ShardRouting> shardsThatCanHandleSearches;
                 if (isStateless) {
-                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(projectState.metadata(), iterator);
+                    shardsThatCanHandleSearches = statelessShardsThatHandleSearches(projectState, iterator);
                 } else {
                     shardsThatCanHandleSearches = statefulShardsThatHandleSearches(iterator);
                 }
@@ -146,7 +147,7 @@ public class OperationRouting {
         return shardsThatCanHandleSearches;
     }
 
-    private static List<ShardRouting> statelessShardsThatHandleSearches(ProjectMetadata project, ShardIterator iterator) {
+    private static List<ShardRouting> statelessShardsThatHandleSearches(ProjectState project, ShardIterator iterator) {
         return iterator.getShardRoutings().stream().filter(shardRouting -> canSearchShard(shardRouting, project)).toList();
     }
 
@@ -301,9 +302,15 @@ public class OperationRouting {
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
     }
 
-    public static boolean canSearchShard(ShardRouting shardRouting, ProjectMetadata project) {
-        if (INDEX_FAST_REFRESH_SETTING.get(project.index(shardRouting.index()).getSettings())) {
-            return shardRouting.isPromotableToPrimary();
+    public static boolean canSearchShard(ShardRouting shardRouting, ProjectState project) {
+        // TODO: remove if and always return isSearchable (ES-9563)
+        if (INDEX_FAST_REFRESH_SETTING.get(project.metadata().index(shardRouting.index()).getSettings())) {
+            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
+            if (project.cluster().getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO_2)) {
+                return shardRouting.isSearchable();
+            } else {
+                return shardRouting.isPromotableToPrimary();
+            }
         } else {
             return shardRouting.isSearchable();
         }

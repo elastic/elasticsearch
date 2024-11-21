@@ -16,7 +16,7 @@ setup:
   # This is to ensure that all index shards (write and read) are available. In serverless this can take some time.
   - do:
       cluster.health:
-        wait_for_no_initializing_shards: true
+        wait_for_active_shards: all
 
   # Create an index with synonym_filter that uses that synonyms set
   - do:

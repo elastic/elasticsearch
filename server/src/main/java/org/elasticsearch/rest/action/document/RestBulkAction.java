@@ -125,10 +125,7 @@ public class RestBulkAction extends BaseRestHandler {
             }
             return channel -> {
                 content.mustIncRef();
-                client.bulk(
-                    bulkRequest,
-                    ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content)
-                );
+                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
             };
         } else {
             String waitForActiveShards = request.param("wait_for_active_shards");

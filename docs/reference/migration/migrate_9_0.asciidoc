@@ -1,6 +1,3 @@
-// THIS IS A GENERATED FILE. DO NOT EDIT DIRECTLY.
-// The content generated here are is not correct and most has been manually commented out until it can be fixed.
-// See ES-9931 for more details.
 [[migrating-9.0]]
 == Migrating to 9.0
 ++++
@@ -23,204 +20,229 @@ The following changes in {es} 9.0 might affect your applications
 and prevent them from operating normally.
 Before upgrading to 9.0, review these changes and take the described steps
 to mitigate the impact.
-//
-// [discrete]
-// [[breaking_90_analysis_changes]]
-// ==== Analysis changes
-//
-// [[set_lenient_to_true_by_default_when_using_updateable_synonyms]]
-// .Set lenient to true by default when using updateable synonyms
-// [%collapsible]
-// ====
-// *Details* +
-// When a `synonym` or `synonym_graph` token filter is configured with `updateable: true`, the default `lenient`
-// value will now be `true`.
-//
-// *Impact* +
-// `synonym` or `synonym_graph` token filters configured with `updateable: true` will ignore invalid synonyms by
-// default. This prevents shard initialization errors on invalid synonyms.
-// ====
-//
-// [discrete]
-// [[breaking_90_mapping_changes]]
-// ==== Mapping changes
-//
-// [[jdk_locale_database_change]]
-// .JDK locale database change
-// [%collapsible]
-// ====
-// *Details* +
-// {es} 8.16 changes the version of the JDK that is included from version 22 to version 23. This changes the locale database that is used by Elasticsearch from the COMPAT database to the CLDR database. This change can cause significant differences to the textual date formats accepted by Elasticsearch, and to calculated week-dates.
-//
-// If you run {es} 8.16 on JDK version 22 or below, it will use the COMPAT locale database to match the behavior of 8.15. However, starting with {es} 9.0, {es} will use the CLDR database regardless of JDK version it is run on.
-//
-// *Impact* +
-// This affects you if you use custom date formats using textual or week-date field specifiers. If you use date fields or calculated week-dates that change between the COMPAT and CLDR databases, then this change will cause Elasticsearch to reject previously valid date fields as invalid data. You might need to modify your ingest or output integration code to account for the differences between these two JDK versions.
-//
-// Starting in version 8.15.2, Elasticsearch will log deprecation warnings if you are using date format specifiers that might change on upgrading to JDK 23. These warnings are visible in Kibana.
-//
-// For detailed guidance, refer to <<custom-date-format-locales,Differences in locale information between JDK versions>> and the https://ela.st/jdk-23-locales[Elastic blog].
-// ====
-//
-// [discrete]
-// [[breaking_90_analysis_changes]]
-// ==== Analysis changes
-//
-// [[snowball_stemmers_have_been_upgraded]]
-// .Snowball stemmers have been upgraded
-// [%collapsible]
-// ====
-// *Details* +
-// Lucene 10 ships with an upgrade of its Snowball stemmers.  For details see https://github.com/apache/lucene/issues/13209. Users using Snowball stemmers that are experiencing changes in search behaviour on  existing data are advised to reindex.
-//
-// *Impact* +
-// The upgrade should generally provide improved stemming results. Small changes in token analysis can lead to mismatches with previously index data, so existing indices using Snowball stemmers as part of their analysis chain should be reindexed.
-// ====
-//
-// [[german2_snowball_stemmer_an_alias_for_german_stemmer]]
-// .The "german2" snowball stemmer is now an alias for the "german" stemmer
-// [%collapsible]
-// ====
-// *Details* +
-// Lucene 10 has merged the improved "german2" snowball language stemmer with the "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for "german". This may results in slightly different tokens being generated for terms with umlaut substitution (like "ue" for "ü" etc...)
-//
-// *Impact* +
-// Replace usages of "german2" with "german" in analysis configuration. Old indices that use the "german" stemmer should be reindexed if possible.
-// ====
-//
-// [[persian_analyzer_has_stemmer_by_default]]
-// .The 'persian' analyzer has stemmer by default
-// [%collapsible]
-// ====
-// *Details* +
-// Lucene 10 has added a final stemming step to its PersianAnalyzer that Elasticsearch exposes as 'persian' analyzer. Existing indices will keep the old non-stemming behaviour while new indices will see the updated behaviour with added stemming. Users that wish to maintain the non-stemming behaviour need to define their own analyzer as outlined in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer. Users that wish to use the new stemming behaviour for existing indices will have to reindex their data.
-//
-// *Impact* +
-// Indexing with the 'persian' analyzer will produce slightly different tokens. Users should check if this impacts their search results. If they wish to maintain the legacy non-stemming behaviour they can define their own analyzer equivalent as explained in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
-// ====
-//
-// [[korean_dictionary_for_nori_has_been_updated]]
-// .The Korean dictionary for Nori has been updated
-// [%collapsible]
-// ====
-// *Details* +
-// Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1).  For details see https://github.com/apache/lucene/issues/11452. Users experiencing changes in search behaviour on existing data are advised to reindex.
-//
-// *Impact* +
-// The change is small and should generally provide better analysis results. Existing indices for full-text use cases should be reindexed though.
-// ====
-//
-// [discrete]
-// [[breaking_90_cluster_and_node_setting_changes]]
-// ==== Cluster and node setting changes
-//
-// [[remove_unsupported_legacy_value_for_discovery_type]]
-// .Remove unsupported legacy value for `discovery.type`
-// [%collapsible]
-// ====
-// *Details* +
-// Earlier versions of {es} had a `discovery.type` setting which permitted values that referred to legacy discovery types. From v9.0.0 onwards, the only supported values for this setting are `multi-node` (the default) and `single-node`.
-//
-// *Impact* +
-// Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file.
-// ====
-//
-// [discrete]
-// [[breaking_90_es_ql_changes]]
-// ==== ES|QL changes
-//
-// [[esql_entirely_remove_meta_functions]]
-// .ESQL: Entirely remove META FUNCTIONS
-// [%collapsible]
-// ====
-// *Details* +
-// Removes an undocumented syntax from ESQL: META FUNCTION. This was never
-// reliable or really useful. Consult the documentation instead.
-//
-// *Impact* +
-// Removes an undocumented syntax from ESQL: META FUNCTION
-// ====
-//
-// [discrete]
-// [[breaking_90_rest_api_changes]]
-// ==== REST API changes
-//
-// [[remove_cluster_state_from_cluster_reroute_response]]
-// .Remove cluster state from `/_cluster/reroute` response
-// [%collapsible]
-// ====
-// *Details* +
-// The `POST /_cluster/reroute` API no longer returns the cluster state in its response. The `?metric` query parameter to this API now has no effect and its use will be forbidden in a future version.
-//
-// *Impact* +
-// Cease usage of the `?metric` query parameter when calling the `POST /_cluster/reroute` API.
-// ====
-//
-// [[remove_deprecated_local_attribute_from_alias_apis]]
-// .Remove deprecated local attribute from alias APIs
-// [%collapsible]
-// ====
-// *Details* +
-// The following APIs no longer accept the `?local` query parameter: `GET /_alias`, `GET /_aliases`, `GET /_alias/{name}`, `HEAD /_alias/{name}`, `GET /{index}/_alias`, `HEAD /{index}/_alias`, `GET /{index}/_alias/{name}`, `HEAD /{index}/_alias/{name}`, `GET /_cat/aliases`, and `GET /_cat/aliases/{alias}`. This parameter has been deprecated and ignored since version 8.12.
-//
-// *Impact* +
-// Cease usage of the `?local` query parameter when calling the listed APIs.
-// ====
-//
-// [[reworking_rrf_retriever_to_be_evaluated_during_rewrite_phase]]
-// .Reworking RRF retriever to be evaluated during rewrite phase
-// [%collapsible]
-// ====
-// *Details* +
-// In this release (8.16), we have introduced major changes to the retrievers framework
-// and how they can be evaluated, focusing mainly on compound retrievers
-// like `rrf` and `text_similarity_reranker`, which allowed us to support full
-// composability (i.e. any retriever can be nested under any compound retriever),
-// as well as supporting additional search features like collapsing, explaining,
-// aggregations, and highlighting.
-//
-// To ensure consistency, and given that this rework is not available until 8.16,
-// `rrf` and `text_similarity_reranker`  retriever queries would now
-// throw an exception in a mixed cluster scenario, where there are nodes
-// both in current or later (i.e. >= 8.16) and previous ( <= 8.15) versions.
-//
-// As part of the rework, we have also removed the `_rank` property from
-// the responses of an `rrf` retriever.
-//
-// *Impact* +
-// - Users will not be able to use the `rrf` and `text_similarity_reranker` retrievers in a mixed cluster scenario
-// with previous releases (i.e. prior to 8.16), and the request will throw an `IllegalArgumentException`.
-// - `_rank` has now been removed from the output of the `rrf` retrievers so trying to directly parse the field
-// will throw an exception
-// ====
-//
-// [[update_data_stream_lifecycle_telemetry_to_track_global_retention]]
-// .Update data stream lifecycle telemetry to track global retention
-// [%collapsible]
-// ====
-// *Details* +
-// In this release we introduced global retention settings that fulfil the following criteria:
-//
-// - a data stream managed by the data stream lifecycle,
-// - a data stream that is not an internal data stream.
-//
-// As a result, we defined different types of retention:
-//
-// - **data retention**: the retention configured on data stream level by the data stream user or owner
-// - **default global retention:** the retention configured by an admin on a cluster level and applied to any
-// data stream that doesn't have data retention and fulfils the criteria.
-// - **max global retention:** the retention configured by an admin to guard against having long retention periods.
-// Any data stream that fulfills the criteria will adhere to the data retention unless it exceeds the max retention,
-// in which case the max global retention applies.
-// - **effective retention:** the retention that applies on the data stream that fulfill the criteria at a given moment
-// in time. It takes into consideration all the retention above and resolves it to the retention that will take effect.
-//
-// Considering the above changes, having a field named `retention` in the usage API was confusing. For this reason, we
-// renamed it to `data_retention` and added telemetry about the other configurations too.
-//
-// *Impact* +
-// Users that use the field `data_lifecycle.retention` should use the `data_lifecycle.data_retention`
-// ====
+
+
+There are no notable breaking changes in {es} 9.0.
+But there are some less critical breaking changes.
+
+[discrete]
+[[breaking_90_analysis_changes]]
+==== Analysis changes
+
+[[snowball_stemmers_have_been_upgraded]]
+.Snowball stemmers have been upgraded
+[%collapsible]
+====
+*Details* +
+Lucene 10 ships with an upgrade of its Snowball stemmers.  For details see https://github.com/apache/lucene/issues/13209. Users using Snowball stemmers that are experiencing changes in search behaviour on  existing data are advised to reindex.
+
+*Impact* +
+The upgrade should generally provide improved stemming results. Small changes in token analysis can lead to mismatches with previously index data, so existing indices using Snowball stemmers as part of their analysis chain should be reindexed.
+====
+
+[[german2_snowball_stemmer_an_alias_for_german_stemmer]]
+.The "german2" snowball stemmer is now an alias for the "german" stemmer
+[%collapsible]
+====
+*Details* +
+Lucene 10 has merged the improved "german2" snowball language stemmer with the "german" stemmer. For Elasticsearch, "german2" is now a deprecated alias for "german". This may results in slightly different tokens being generated for terms with umlaut substitution (like "ue" for "ü" etc...)
+
+*Impact* +
+Replace usages of "german2" with "german" in analysis configuration. Old indices that use the "german" stemmer should be reindexed if possible.
+====
+
+[[persian_analyzer_has_stemmer_by_default]]
+.The 'persian' analyzer has stemmer by default
+[%collapsible]
+====
+*Details* +
+Lucene 10 has added a final stemming step to its PersianAnalyzer that Elasticsearch exposes as 'persian' analyzer. Existing indices will keep the old non-stemming behaviour while new indices will see the updated behaviour with added stemming. Users that wish to maintain the non-stemming behaviour need to define their own analyzer as outlined in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer. Users that wish to use the new stemming behaviour for existing indices will have to reindex their data.
+
+*Impact* +
+Indexing with the 'persian' analyzer will produce slightly different tokens. Users should check if this impacts their search results. If they wish to maintain the legacy non-stemming behaviour they can define their own analyzer equivalent as explained in https://www.elastic.co/guide/en/elasticsearch/reference/8.15/analysis-lang-analyzer.html#persian-analyzer.
+====
+
+[[korean_dictionary_for_nori_has_been_updated]]
+.The Korean dictionary for Nori has been updated
+[%collapsible]
+====
+*Details* +
+Lucene 10 ships with an updated Korean dictionary (mecab-ko-dic-2.1.1).  For details see https://github.com/apache/lucene/issues/11452. Users experiencing changes in search behaviour on existing data are advised to reindex.
+
+*Impact* +
+The change is small and should generally provide better analysis results. Existing indices for full-text use cases should be reindexed though.
+====
+
+[discrete]
+[[breaking_90_cluster_and_node_setting_changes]]
+==== Cluster and node setting changes
+
+[[minimum_shard_balancer_threshold_1_0]]
+.Minimum shard balancer threshold is now 1.0
+[%collapsible]
+====
+*Details* +
+Earlier versions of {es} accepted any non-negative value for `cluster.routing.allocation.balance.threshold`, but values smaller than `1.0` do not make sense and have been ignored since version 8.6.1. From 9.0.0 these nonsensical values are now forbidden.
+
+*Impact* +
+Do not set `cluster.routing.allocation.balance.threshold` to a value less than `1.0`.
+====
+
+[[remove_cluster_routing_allocation_disk_watermark_enable_for_single_data_node_setting]]
+.Remove `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` setting
+[%collapsible]
+====
+*Details* +
+Prior to 7.8, whenever a cluster had only a single data node, the watermarks would not be respected. In order to change this in 7.8+ in a backwards compatible way, we introduced the  `cluster.routing.allocation.disk.watermark.enable_for_single_data_node` node setting. The setting was deprecated in 7.14 and was made to accept only true in 8.0
+
+*Impact* +
+No known end user impact
+====
+
+[[remove_deprecated_xpack_searchable_snapshot_allocate_on_rolling_restart_setting]]
+.Remove deprecated `xpack.searchable.snapshot.allocate_on_rolling_restart` setting
+[%collapsible]
+====
+*Details* +
+The `xpack.searchable.snapshot.allocate_on_rolling_restart` setting was created as an escape-hatch just in case relying on the `cluster.routing.allocation.enable=primaries` setting for allocating searchable snapshots during rolling restarts had some unintended side-effects. It has been deprecated since 8.2.0.
+
+*Impact* +
+Remove `xpack.searchable.snapshot.allocate_on_rolling_restart` from your settings if present.
+====
+
+[[remove_unsupported_legacy_value_for_discovery_type]]
+.Remove unsupported legacy value for `discovery.type`
+[%collapsible]
+====
+*Details* +
+Earlier versions of {es} had a `discovery.type` setting which permitted values that referred to legacy discovery types. From v9.0.0 onwards, the only supported values for this setting are `multi-node` (the default) and `single-node`.
+
+*Impact* +
+Remove any value for `discovery.type` from your `elasticsearch.yml` configuration file.
+====
+
+[discrete]
+[[breaking_90_ingest_changes]]
+==== Ingest changes
+
+[[remove_ecs_option_on_user_agent_processor]]
+.Remove `ecs` option on `user_agent` processor
+[%collapsible]
+====
+*Details* +
+The `user_agent` ingest processor no longer accepts the `ecs` option. (It was previously deprecated and ignored.)
+
+*Impact* +
+Users should stop using the `ecs` option when creating instances of the `user_agent` ingest processor. The option will be removed from existing processors stored in the cluster state on upgrade.
+====
+
+[[remove_ignored_fallback_option_on_geoip_processor]]
+.Remove ignored fallback option on GeoIP processor
+[%collapsible]
+====
+*Details* +
+The option fallback_to_default_databases on the geoip ingest processor has been removed. (It was deprecated and ignored since 8.0.0.)
+
+*Impact* +
+Customers should stop remove the noop fallback_to_default_databases option on any geoip ingest processors.
+====
+
+[discrete]
+[[breaking_90_mapping_changes]]
+==== Mapping changes
+
+[[remove_support_for_type_fields_copy_to_boost_in_metadata_field_definition]]
+.Remove support for type, fields, copy_to and boost in metadata field definition
+[%collapsible]
+====
+*Details* +
+The type, fields, copy_to and boost parameters are no longer supported in metadata field definition
+
+*Impact* +
+Users providing type, fields, copy_to or boost as part of metadata field definition should remove them from their mappings.
+====
+
+[discrete]
+[[breaking_90_rest_api_changes]]
+==== REST API changes
+
+[[apply_more_strict_parsing_of_actions_in_bulk_api]]
+.Apply more strict parsing of actions in bulk API
+[%collapsible]
+====
+*Details* +
+Previously, the following classes of malformed input were deprecated but not rejected in the action lines of the a bulk request: missing closing brace; additional keys after the action (which were ignored); additional data after the closing brace (which was ignored). They will now be considered errors and rejected.
+
+*Impact* +
+Users must provide well-formed input when using the bulk API. (They can request REST API compatibility with v8 to get the previous behaviour back as an interim measure.)
+====
+
+[[error_json_structure_has_changed_when_detailed_errors_are_disabled]]
+.Error JSON structure has changed when detailed errors are disabled
+[%collapsible]
+====
+*Details* +
+This change modifies the JSON format of error messages returned to REST clients
+when detailed messages are turned off.
+Previously, JSON returned when an exception occurred, and `http.detailed_errors.enabled: false` was set,
+just consisted of a single `"error"` text field with some basic information.
+Setting `http.detailed_errors.enabled: true` (the default) changed this field
+to an object with more detailed information.
+With this change, non-detailed errors now have the same structure as detailed errors. `"error"` will now always
+be an object with, at a minimum, a `"type"` and `"reason"` field. Additional fields are included when detailed
+errors are enabled.
+To use the previous structure for non-detailed errors, use the v8 REST API.
+
+*Impact* +
+If you have set `http.detailed_errors.enabled: false` (the default is `true`)
+the structure of JSON when any exceptions occur now matches the structure when
+detailed errors are enabled.
+To use the previous structure for non-detailed errors, use the v8 REST API.
+====
+
+[[remove_cluster_state_from_cluster_reroute_response]]
+.Remove cluster state from `/_cluster/reroute` response
+[%collapsible]
+====
+*Details* +
+The `POST /_cluster/reroute` API no longer returns the cluster state in its response. The `?metric` query parameter to this API now has no effect and its use will be forbidden in a future version.
+
+*Impact* +
+Cease usage of the `?metric` query parameter when calling the `POST /_cluster/reroute` API.
+====
+
+[[remove_deprecated_local_attribute_from_alias_apis]]
+.Remove deprecated local attribute from alias APIs
+[%collapsible]
+====
+*Details* +
+The following APIs no longer accept the `?local` query parameter: `GET /_alias`, `GET /_aliases`, `GET /_alias/{name}`, `HEAD /_alias/{name}`, `GET /{index}/_alias`, `HEAD /{index}/_alias`, `GET /{index}/_alias/{name}`, `HEAD /{index}/_alias/{name}`, `GET /_cat/aliases`, and `GET /_cat/aliases/{alias}`. This parameter has been deprecated and ignored since version 8.12.
+
+*Impact* +
+Cease usage of the `?local` query parameter when calling the listed APIs.
+====
+
+[[remove_legacy_params_from_range_query]]
+.Remove legacy params from range query
+[%collapsible]
+====
+*Details* +
+The deprecated range query parameters `to`, `from`, `include_lower`, and `include_upper` are no longer supported.
+
+*Impact* +
+Users should use `lt`, `lte`, `gt`, and `gte` query parameters instead.
+====
+
+[[remove_support_for_deprecated_force_source_highlighting_parameter]]
+.Remove support for deprecated `force_source` highlighting parameter
+[%collapsible]
+====
+*Details* +
+The deprecated highlighting `force_source` parameter is no longer supported.
+
+*Impact* +
+Users should remove usages of the `force_source` parameter from their search requests.
+====
 
 
 [discrete]
@@ -235,85 +257,45 @@ after upgrading to 9.0.
 
 To find out if you are using any deprecated functionality,
 enable <<deprecation-logging, deprecation logging>>.
-//
-// [discrete]
-// [[deprecations_90_analysis]]
-// ==== Analysis deprecations
-//
-// [[deprecate_dutch_kp_lovins_stemmer_as_they_are_removed_in_lucene_10]]
-// .Deprecate dutch_kp and lovins stemmer as they are removed in Lucene 10
-// [%collapsible]
-// ====
-// *Details* +
-// kp, dutch_kp, dutchKp and lovins stemmers are deprecated and will be removed.
-//
-// *Impact* +
-// These stemmers will be removed and will be no longer supported.
-// ====
-//
-// [[deprecate_edge_ngram_side_parameter]]
-// .deprecate `edge_ngram` side parameter
-// [%collapsible]
-// ====
-// *Details* +
-// edge_ngram will no longer accept the side parameter.
-//
-// *Impact* +
-// Users will need to update any usage of edge_ngram token filter that utilizes `side`. If the `back` value was used, they can achieve the same behavior by using the `reverse` token filter.
-// ====
-//
-// [discrete]
-// [[deprecations_90_crud]]
-// ==== CRUD deprecations
-//
-// [[deprecate_dot_prefixed_indices_composable_template_index_patterns]]
-// .Deprecate dot-prefixed indices and composable template index patterns
-// [%collapsible]
-// ====
-// *Details* +
-// Indices beginning with a dot '.' are reserved for system and internal indices, and should not be used by and end-user. Additionally, composable index templates that contain patterns for dot-prefixed indices should also be avoided, as these patterns are meant for internal use only. In a future Elasticsearch version, creation of these dot-prefixed indices will no longer be allowed.
-//
-// *Impact* +
-// Requests performing an action that would create an index beginning with a dot (indexing a document, manual creation, reindex), or creating an index template with index patterns beginning with a dot, will contain a deprecation header warning about dot-prefixed indices in the response.
-// ====
-//
-// [discrete]
-// [[deprecations_90_rest_api]]
-// ==== REST API deprecations
-//
-// [[adding_deprecation_warnings_for_rrf_using_rank_sub_searches]]
-// .Adding deprecation warnings for rrf using rank and `sub_searches`
-// [%collapsible]
-// ====
-// *Details* +
-// Search API parameter `sub_searches` will no longer be a supported and will be removed in future releases. Similarly, `rrf` can only be used through the specified `retriever` and no longer though the `rank` parameter
-//
-// *Impact* +
-// Requests specifying rrf through `rank` and/or `sub_searches` elements will be disallowed in a future version. Users should instead utilize the new `retriever` parameter.
-// ====
-//
-// [[deprecate_legacy_params_from_range_query]]
-// .Deprecate legacy params from range query
-// [%collapsible]
-// ====
-// *Details* +
-// Range query will not longer accept `to`, `from`, `include_lower`, and `include_upper` parameters.
-//
-// *Impact* +
-// Instead use `gt`, `gte`, `lt` and `lte` parameters.
-// ====
-//
-// [[inference_api_deprecate_elser_service]]
-// .[Inference API] Deprecate elser service
-// [%collapsible]
-// ====
-// *Details* +
-// The `elser` service of the inference API will be removed in an upcoming release. Please use the elasticsearch service instead.
-//
-// *Impact* +
-// In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API.
-// ====
 
-// BELOW WAS MANUALLY ADDED TO FIX THE BUILD
-include::migrate_9_0/transient-settings-migration-guide.asciidoc[]
-//include::migrate_9_0/rest-api-changes.asciidoc[] //see ES-9932
+[discrete]
+[[deprecations_90_mapping]]
+==== Mapping deprecations
+
+[[deprecate_source_mode_in_mappings]]
+.Deprecate `_source.mode` in mappings
+[%collapsible]
+====
+*Details* +
+Configuring `_source.mode` in mappings is deprecated and will be removed in future versions. Use `index.mapping.source.mode` index setting instead.
+
+*Impact* +
+Use `index.mapping.source.mode` index setting instead
+====
+
+[discrete]
+[[deprecations_90_rest_api]]
+==== REST API deprecations
+
+[[document_type_deprecated_on_simulate_pipeline_api]]
+.Document `_type` deprecated on simulate pipeline API
+[%collapsible]
+====
+*Details* +
+Passing a document with a `_type` property is deprecated in the `/_ingest/pipeline/{id}/_simulate` and `/_ingest/pipeline/_simulate` APIs.
+
+*Impact* +
+Users should already have stopped using mapping types, which were deprecated in {es} 7. This deprecation warning will fire if they specify mapping types on documents pass to the simulate pipeline API.
+====
+
+[[inference_api_deprecate_elser_service]]
+.[Inference API] Deprecate elser service
+[%collapsible]
+====
+*Details* +
+The `elser` service of the inference API will be removed in an upcoming release. Please use the elasticsearch service instead.
+
+*Impact* +
+In the current version there is no impact. In a future version, users of the `elser` service will no longer be able to use it, and will be required to use the `elasticsearch` service to access elser through the inference API.
+====
+

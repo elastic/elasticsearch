@@ -14,7 +14,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.RefCounted;
 
 import java.io.IOException;
 
@@ -22,7 +21,7 @@ import java.io.IOException;
  * A specialized, bytes only request, that can potentially be optimized on the network
  * layer, specifically for the same large buffer send to several nodes.
  */
-public class BytesTransportRequest extends TransportRequest implements RefCounted {
+public class BytesTransportRequest extends TransportRequest {
 
     final ReleasableBytesReference bytes;
     private final TransportVersion version;

@@ -252,7 +252,6 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
             if (request.shouldBatchRequestsPerDataNode()) {
                 for (PendingExecutions pendingExecutions : pendingExecutionsPerNode.values()) {
                     List<ShardRequest> requests = new ArrayList<>();
-                    // TODO MP drain maxConcurrentRequestsPerNode?!
                     pendingExecutions.queue.drainTo(requests);
                     if (requests.size() > 1) {
                         Transport.Connection connection;
@@ -857,10 +856,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 int queuedItemsCount = queuedItems.incrementAndGet();
                 if (shouldBatchRequestsPerDataNode) {
                     if (queuedItemsCount == maxConcurrentRequestsPerNode) {
-                        // here
                         List<ShardRequest> requests = new ArrayList<>(maxConcurrentRequestsPerNode);
                         queue.drainTo(requests);
-                        // TODO mp check duplicate code
                         Transport.Connection connection;
                         PendingExecutions p;
                         try {

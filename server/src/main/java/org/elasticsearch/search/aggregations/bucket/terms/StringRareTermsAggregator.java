@@ -145,6 +145,7 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
                             long docCount = bucketDocCount(collectedBuckets.ord());
                             // if the key is below threshold, reinsert into the new ords
                             if (docCount <= maxDocCount) {
+                                checkRealMemoryCBForInternalBucket();
                                 StringRareTerms.Bucket bucket = new StringRareTerms.Bucket(
                                     BytesRef.deepCopyOf(scratch),
                                     docCount,
@@ -181,21 +182,12 @@ public class StringRareTermsAggregator extends AbstractRareTermsAggregator {
              * Now build the results!
              */
             buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+
+            return StringRareTermsAggregator.this.buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                 StringRareTerms.Bucket[] buckets = rarestPerOrd.get(ordIdx);
                 Arrays.sort(buckets, ORDER.comparator());
-                result[ordIdx] = new StringRareTerms(
-                    name,
-                    ORDER,
-                    metadata(),
-                    format,
-                    Arrays.asList(buckets),
-                    maxDocCount,
-                    filters.get(ordIdx)
-                );
-            }
-            return result;
+                return new StringRareTerms(name, ORDER, metadata(), format, Arrays.asList(buckets), maxDocCount, filters.get(ordIdx));
+            });
         }
     }
 

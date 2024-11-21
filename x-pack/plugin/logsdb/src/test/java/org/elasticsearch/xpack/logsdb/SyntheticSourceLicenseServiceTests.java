@@ -40,7 +40,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     }
 
     public void testLicenseAllowsSyntheticSource() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -52,7 +52,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     }
 
     public void testLicenseAllowsSyntheticSourceTemplateValidation() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -64,7 +64,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     }
 
     public void testDefaultDisallow() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -76,7 +76,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     }
 
     public void testFallback() {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
         licenseService.setLicenseService(mockLicenseService);
@@ -93,7 +93,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         License license = createGoldOrPlatinumLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
         licenseService.setLicenseState(licenseState);
@@ -110,7 +110,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         License license = createGoldOrPlatinumLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
@@ -129,7 +129,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE))).thenReturn(false);
         licenseService.setLicenseState(licenseState);
@@ -147,7 +147,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.getOperationMode()).thenReturn(license.operationMode());
         when(licenseState.isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY))).thenReturn(true);
         licenseService.setLicenseState(licenseState);

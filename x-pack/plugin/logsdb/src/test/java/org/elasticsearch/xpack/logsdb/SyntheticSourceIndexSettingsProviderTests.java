@@ -48,7 +48,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
 
     @Before
     public void setup() throws Exception {
-        MockLicenseState licenseState = mock(MockLicenseState.class);
+        MockLicenseState licenseState = MockLicenseState.createMock();
         when(licenseState.isAllowed(any())).thenReturn(true);
         var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);

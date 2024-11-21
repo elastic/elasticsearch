@@ -26,7 +26,8 @@ final class SyntheticSourceLicenseService {
 
     private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
     // You can only override this property if you received explicit approval from Elastic.
-    private static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";
+    private static final String CUTOFF_DATE_SYS_PROP_NAME =
+        "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
     static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2024, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
     private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2026, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
@@ -75,21 +76,28 @@ final class SyntheticSourceLicenseService {
             return true;
         }
 
-        var operationMode = licenseState.getOperationMode();
+        var licenseStateSnapshot = licenseState.copyCurrentLicenseState();
+        var operationMode = licenseStateSnapshot.getOperationMode();
+        var license = licenseService.getLicense();
+        if (license == null) {
+            return true;
+        }
+
         LicensedFeature.Momentary licensedFeature;
-        boolean beforeCutoffDate = licenseService.getLicense().startDate() <= cutoffDate;
+        boolean beforeCutoffDate = license.startDate() <= cutoffDate;
         if (legacyLicensedUsageOfSyntheticSourceAllowed
             && beforeCutoffDate
             && (operationMode == License.OperationMode.GOLD || operationMode == License.OperationMode.PLATINUM)) {
             // platinum license will allow synthetic source with gold legacy licensed feature too.
             licensedFeature = SYNTHETIC_SOURCE_FEATURE_LEGACY;
+            LOGGER.debug("legacy license [{}] is allowed to use synthetic source", operationMode.description());
         } else {
             licensedFeature = SYNTHETIC_SOURCE_FEATURE;
         }
         if (isTemplateValidation) {
-            return licensedFeature.checkWithoutTracking(licenseState) == false;
+            return licensedFeature.checkWithoutTracking(licenseStateSnapshot) == false;
         } else {
-            return licensedFeature.check(licenseState) == false;
+            return licensedFeature.check(licenseStateSnapshot) == false;
         }
     }
 

@@ -7,9 +7,11 @@
 
 package org.elasticsearch.xpack.inference.services;
 
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
@@ -18,12 +20,13 @@ import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.xpack.inference.external.http.sender.CompletionInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
-import org.elasticsearch.xpack.inference.external.http.sender.UnifiedCompletionInputs;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -63,17 +66,27 @@ public abstract class SenderService implements InferenceService {
         ActionListener<InferenceServiceResults> listener
     ) {
         init();
-        if (query != null) {
-            doInfer(model, new QueryAndDocsInputs(query, input, stream), taskSettings, inputType, timeout, listener);
-        } else {
-            doInfer(model, new DocumentsOnlyInput(input, stream), taskSettings, inputType, timeout, listener);
-        }
+        var inferenceInput = createInput(model, input, query, stream);
+        doInfer(model, inferenceInput, taskSettings, inputType, timeout, listener);
+    }
+
+    private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
+        return switch (model.getTaskType()) {
+            // TODO implement parameters
+            case COMPLETION -> new CompletionInputs(null);
+            case RERANK -> new QueryAndDocsInputs(query, input, stream);
+            case TEXT_EMBEDDING -> new DocumentsOnlyInput(input, stream);
+            default -> throw new ElasticsearchStatusException(
+                Strings.format("Invalid task type received when determining input type: [%s]", model.getTaskType().toString()),
+                RestStatus.BAD_REQUEST
+            );
+        };
     }
 
     @Override
     public void completionInfer(Model model, Object parameters, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
         init();
-        doUnifiedCompletionInfer(model, new UnifiedCompletionInputs(parameters), timeout, listener);
+        doUnifiedCompletionInfer(model, new CompletionInputs(parameters), timeout, listener);
     }
 
     @Override
@@ -103,7 +116,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doUnifiedCompletionInfer(
         Model model,
-        UnifiedCompletionInputs inputs,
+        CompletionInputs inputs,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

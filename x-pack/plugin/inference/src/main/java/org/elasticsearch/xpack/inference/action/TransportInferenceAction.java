@@ -175,18 +175,25 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        Runnable a = () -> service.infer(
-            model,
-            request.getQuery(),
-            request.getInput(),
-            request.isStreaming(),
-            request.getTaskSettings(),
-            request.getInputType(),
-            request.getInferenceTimeout(),
-            listener
-        );
+        Runnable inferenceRunnable = inferRunnable(model, request, service, listener);
+
         if (request.isStreaming() == false || service.canStream(request.getTaskType())) {
-            service.infer(
+            inferenceRunnable.run();
+        } else {
+            listener.onFailure(unsupportedStreamingTaskException(request, service));
+        }
+    }
+
+    private static Runnable inferRunnable(
+        Model model,
+        InferenceAction.Request request,
+        InferenceService service,
+        ActionListener<InferenceServiceResults> listener
+    ) {
+        return request.isUnifiedCompletionMode()
+            // TODO add parameters
+            ? () -> service.completionInfer(model, null, request.getInferenceTimeout(), listener)
+            : () -> service.infer(
                 model,
                 request.getQuery(),
                 request.getInput(),
@@ -196,9 +203,6 @@ public class TransportInferenceAction extends HandledTransportAction<InferenceAc
                 request.getInferenceTimeout(),
                 listener
             );
-        } else {
-            listener.onFailure(unsupportedStreamingTaskException(request, service));
-        }
     }
 
     private ElasticsearchStatusException unsupportedStreamingTaskException(InferenceAction.Request request, InferenceService service) {

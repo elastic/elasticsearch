@@ -212,6 +212,10 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
                     return e;
                 }
+            } else if (query != null) {
+                var e = new ActionRequestValidationException();
+                e.addValidationError(format("Task type [%s] does not support field [query]", TaskType.RERANK));
+                return e;
             }
 
             return null;

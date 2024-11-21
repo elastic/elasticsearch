@@ -7,15 +7,15 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-public class UnifiedCompletionInputs extends InferenceInputs {
-    public static UnifiedCompletionInputs of(InferenceInputs inferenceInputs) {
-        return InferenceInputs.abc(inferenceInputs, UnifiedCompletionInputs.class);
+public class CompletionInputs extends InferenceInputs {
+    public static CompletionInputs of(InferenceInputs inferenceInputs) {
+        return InferenceInputs.abc(inferenceInputs, CompletionInputs.class);
     }
 
     private final Object parameters;
     private final boolean stream;
 
-    public UnifiedCompletionInputs(Object parameters) {
+    public CompletionInputs(Object parameters) {
         super();
         this.parameters = parameters;
         // TODO retrieve this from the parameters eventually

@@ -198,7 +198,15 @@ public class MockAzureBlobStore {
             if ("*".equals(ifNoneMatchHeaderValue)) {
                 return true;
             }
-            throw new BadRequestException("UnsupportedHeader", "The test fixture only supports * for if-none-match");
+            // Fail the test, trigger an internal server error
+            ExceptionsHelper.maybeDieOnAnotherThread(
+                new AssertionError("We've only implemented 'If-None-Match: *' in the MockAzureBlobStore")
+            );
+            throw new AzureBlobStoreError(
+                RestStatus.INTERNAL_SERVER_ERROR,
+                "UnsupportedHeader",
+                "The test fixture only supports * for If-None-Match"
+            );
         }
 
         @Override

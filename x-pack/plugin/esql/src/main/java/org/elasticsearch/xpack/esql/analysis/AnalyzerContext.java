@@ -15,5 +15,15 @@ public record AnalyzerContext(
     Configuration configuration,
     EsqlFunctionRegistry functionRegistry,
     IndexResolution indexResolution,
+    IndexResolution lookupResolution,
     EnrichResolution enrichResolution
-) {}
+) {
+    public AnalyzerContext(
+        Configuration configuration,
+        EsqlFunctionRegistry functionRegistry,
+        IndexResolution indexResolution,
+        EnrichResolution enrichResolution
+    ) {
+        this(configuration, functionRegistry, indexResolution, IndexResolution.invalid("<none>"), enrichResolution);
+    }
+}

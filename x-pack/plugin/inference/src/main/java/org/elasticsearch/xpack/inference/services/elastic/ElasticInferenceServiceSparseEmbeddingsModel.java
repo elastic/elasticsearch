@@ -25,7 +25,7 @@ import java.net.URISyntaxException;
 import java.util.Locale;
 import java.util.Map;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 public class ElasticInferenceServiceSparseEmbeddingsModel extends ElasticInferenceServiceModel {
 

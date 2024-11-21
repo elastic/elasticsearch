@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import java.util.Locale;
 import java.util.Objects;
 
-import static org.elasticsearch.xpack.inference.InferencePlugin.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 import static org.elasticsearch.xpack.inference.external.action.ActionUtils.constructFailedToSendRequestMessage;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceService.ELASTIC_INFERENCE_SERVICE_IDENTIFIER;
 
 public class ElasticInferenceServiceActionCreator implements ElasticInferenceServiceActionVisitor {
 

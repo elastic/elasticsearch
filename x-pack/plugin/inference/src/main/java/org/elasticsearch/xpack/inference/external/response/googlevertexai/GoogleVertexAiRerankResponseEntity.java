@@ -109,14 +109,19 @@ public class GoogleVertexAiRerankResponseEntity {
                 throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDoc.SCORE.getPreferredName()));
             }
 
-            return new RankedDocsResults.RankedDoc(index, parsedRankedDoc.score, parsedRankedDoc.content);
+            if (parsedRankedDoc.id == null) {
+                throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDoc.ID.getPreferredName()));
+            }
+
+            return new RankedDocsResults.RankedDoc(Integer.parseInt(parsedRankedDoc.id), parsedRankedDoc.score, parsedRankedDoc.content);
         });
     }
 
-    private record RankedDoc(@Nullable Float score, @Nullable String content) {
+    private record RankedDoc(@Nullable Float score, @Nullable String content, @Nullable String id) {
 
         private static final ParseField CONTENT = new ParseField("content");
         private static final ParseField SCORE = new ParseField("score");
+        private static final ParseField ID = new ParseField("id");
         private static final ObjectParser<Builder, Void> PARSER = new ObjectParser<>(
             "google_vertex_ai_rerank_response",
             true,
@@ -126,6 +131,7 @@ public class GoogleVertexAiRerankResponseEntity {
         static {
             PARSER.declareString(Builder::setContent, CONTENT);
             PARSER.declareFloat(Builder::setScore, SCORE);
+            PARSER.declareString(Builder::setId, ID);
         }
 
         public static RankedDoc parse(XContentParser parser) {
@@ -137,6 +143,7 @@ public class GoogleVertexAiRerankResponseEntity {
 
             private String content;
             private Float score;
+            private String id;
 
             private Builder() {}
 
@@ -150,8 +157,13 @@ public class GoogleVertexAiRerankResponseEntity {
                 return this;
             }
 
+            public Builder setId(String id) {
+                this.id = id;
+                return this;
+            }
+
             public RankedDoc build() {
-                return new RankedDoc(score, content);
+                return new RankedDoc(score, content, id);
             }
         }
     }

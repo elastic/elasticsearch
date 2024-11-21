@@ -39,7 +39,7 @@ public class GoogleVertexAiRerankResponseEntityTests extends ESTestCase {
             new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
         );
 
-        assertThat(parsedResults.getRankedDocs(), is(List.of(new RankedDocsResults.RankedDoc(0, 0.97F, "content 2"))));
+        assertThat(parsedResults.getRankedDocs(), is(List.of(new RankedDocsResults.RankedDoc(2, 0.97F, "content 2"))));
     }
 
     public void testFromResponse_CreatesResultsForMultipleItems() throws IOException {
@@ -68,7 +68,7 @@ public class GoogleVertexAiRerankResponseEntityTests extends ESTestCase {
 
         assertThat(
             parsedResults.getRankedDocs(),
-            is(List.of(new RankedDocsResults.RankedDoc(0, 0.97F, "content 2"), new RankedDocsResults.RankedDoc(1, 0.90F, "content 1")))
+            is(List.of(new RankedDocsResults.RankedDoc(2, 0.97F, "content 2"), new RankedDocsResults.RankedDoc(1, 0.90F, "content 1")))
         );
     }
 

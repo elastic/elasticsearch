@@ -74,7 +74,9 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
             if (dataStreamInfos.size() == 1) {
                 List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
-                    .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
+                    .filter(
+                        index -> clusterService.state().getMetadata().getProject().index(index).getCreationVersion().isLegacyIndexVersion()
+                    )
                     .toList();
                 reindexDataStreamTask.setPendingIndices(indicesToBeReindexed.stream().map(Index::getName).toList());
                 for (Index index : indicesToBeReindexed) {
@@ -101,6 +103,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     private TimeValue getTimeToLive(ReindexDataStreamTask reindexDataStreamTask) {
         PersistentTasksCustomMetadata persistentTasksCustomMetadata = clusterService.state()
             .getMetadata()
+            .getProject()
             .custom(PersistentTasksCustomMetadata.TYPE);
         PersistentTasksCustomMetadata.PersistentTask<?> persistentTask = persistentTasksCustomMetadata.getTask(
             reindexDataStreamTask.getPersistentTaskId()

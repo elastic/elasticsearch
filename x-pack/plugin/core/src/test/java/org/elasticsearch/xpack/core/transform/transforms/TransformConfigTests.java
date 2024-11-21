@@ -930,7 +930,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             equalTo(
                 Collections.singletonList(
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
@@ -952,7 +952,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
             equalTo(
                 List.of(
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,
@@ -982,7 +982,7 @@ public class TransformConfigTests extends AbstractSerializingTransformTestCase<T
                         null
                     ),
                     new DeprecationIssue(
-                        Level.WARNING,
+                        Level.CRITICAL,
                         "Transform [" + id + "] uses the deprecated setting [max_page_search_size]",
                         TransformDeprecations.MAX_PAGE_SEARCH_SIZE_BREAKING_CHANGES_URL,
                         TransformDeprecations.ACTION_MAX_PAGE_SEARCH_SIZE_IS_DEPRECATED,

@@ -72,10 +72,9 @@ public abstract class TransportLocalClusterStateAction<Request extends LocalClus
             } else {
                 waitForClusterUnblock(task, request, listener, state, clusterBlockException);
             }
-            return;
+        } else {
+            innerDoExecute(task, request, listener, state);
         }
-
-        innerDoExecute(task, request, listener, state);
     }
 
     private void innerDoExecute(Task task, Request request, ActionListener<Response> listener, ClusterState state) {

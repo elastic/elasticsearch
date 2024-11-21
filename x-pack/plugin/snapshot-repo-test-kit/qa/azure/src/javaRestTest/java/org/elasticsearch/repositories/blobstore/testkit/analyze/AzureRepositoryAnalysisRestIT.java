@@ -25,6 +25,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.concurrent.ThreadLocalRandom;
 import java.util.function.Predicate;
 
 import static org.hamcrest.Matchers.blankOrNullString;
@@ -50,7 +51,9 @@ public class AzureRepositoryAnalysisRestIT extends AbstractRepositoryAnalysisRes
         AZURE_TEST_TENANT_ID,
         AZURE_TEST_CLIENT_ID,
         decideAuthHeaderPredicate(),
-        null
+        // 5% of the time, in a contended lease scenario, expire the existing lease
+        (currentLeaseId, requestLeaseId) -> currentLeaseId.equals(requestLeaseId) == false
+            && ThreadLocalRandom.current().nextDouble() < 0.05
     );
 
     private static Predicate<String> decideAuthHeaderPredicate() {

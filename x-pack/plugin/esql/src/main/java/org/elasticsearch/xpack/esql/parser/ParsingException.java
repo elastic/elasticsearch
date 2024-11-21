@@ -18,7 +18,7 @@ public class ParsingException extends EsqlClientException {
     public ParsingException(String message, Exception cause, int line, int charPositionInLine) {
         super(message, cause);
         this.line = line;
-        this.charPositionInLine = charPositionInLine;
+        this.charPositionInLine = charPositionInLine + 1;
     }
 
     ParsingException(String message, Object... args) {
@@ -42,7 +42,7 @@ public class ParsingException extends EsqlClientException {
     }
 
     public int getColumnNumber() {
-        return charPositionInLine + 1;
+        return charPositionInLine;
     }
 
     public String getErrorMessage() {

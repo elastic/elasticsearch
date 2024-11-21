@@ -141,6 +141,12 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * Support for loading values over enrich. This is supported by all versions of ESQL but not
+         * the unit test CsvTests.
+         */
+        ENRICH_LOAD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -307,7 +313,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON,
 
         /**
          * Removing support for the {@code META} keyword.

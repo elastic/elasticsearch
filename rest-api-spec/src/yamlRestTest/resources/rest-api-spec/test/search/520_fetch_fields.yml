@@ -166,7 +166,7 @@ fetch _feature via fields:
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: illegal_argument_exception }
-  - match: { error.root_cause.0.reason: "error fetching [_feature]: Cannot fetch values for internal field [_feature]."
+  - match: { error.root_cause.0.reason: "error fetching [_feature]: Cannot fetch values for internal field [_feature]." }
 
 ---
 fetch _nested_path via fields:

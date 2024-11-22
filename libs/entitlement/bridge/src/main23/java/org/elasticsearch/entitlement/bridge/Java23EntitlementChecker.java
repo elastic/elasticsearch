@@ -7,18 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask
+package org.elasticsearch.entitlement.bridge;
 
-apply plugin: 'elasticsearch.build'
-apply plugin: 'elasticsearch.mrjar'
-
-tasks.named('jar').configure {
-  // guarding for intellij
-  if (sourceSets.findByName("main23")) {
-    from sourceSets.main23.output
-  }
-}
-
-tasks.withType(CheckForbiddenApisTask).configureEach {
-  replaceSignatureFiles 'jdk-signatures'
-}
+public interface Java23EntitlementChecker extends EntitlementChecker {}

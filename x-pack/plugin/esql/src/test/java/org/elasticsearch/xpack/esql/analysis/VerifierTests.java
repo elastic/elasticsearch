@@ -1573,6 +1573,7 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testMatchWithSemanticTextWithCCQ() {
+        assumeTrue("semantic_text support is not enabled", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
         Analyzer analyzer = AnalyzerTestUtils.analyzerWithSemanticTextMapping(true);
 
         assertEquals(

@@ -10,6 +10,7 @@
 package org.elasticsearch.index.mapper;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -19,6 +20,8 @@ import java.io.IOException;
 import java.util.Map;
 
 public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
+    public static final FeatureFlag INFERENCE_METADATA_FIELDS_FEATURE_FLAG = new FeatureFlag("inference_metadata_fields");
+
     public static final String NAME = "_inference_fields";
     public static final String CONTENT_TYPE = "_inference_fields";
 

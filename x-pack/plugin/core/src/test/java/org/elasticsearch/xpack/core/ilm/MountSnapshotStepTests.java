@@ -289,7 +289,7 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
         );
     }
 
-    public void doTestMountWithoutSnapshotIndexNameInState(String prefix) throws Exception {
+    private void doTestMountWithoutSnapshotIndexNameInState(String prefix) throws Exception {
         {
             String indexNameSnippet = randomAlphaOfLength(10);
             String indexName = prefix + indexNameSnippet;

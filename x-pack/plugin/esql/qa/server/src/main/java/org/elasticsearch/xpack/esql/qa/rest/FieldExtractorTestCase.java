@@ -1274,6 +1274,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
+            EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.isEnabled()
+        );
         ESRestTestCase.createIndex("test1", Settings.EMPTY, """
             "properties": {
               "Responses": {

@@ -188,6 +188,7 @@ COUNT(*):long | my_field:semantic_text
 ;
 
 grok
+required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
 | GROK st_logs """%{TIMESTAMP_ISO8601:date} %{IP:ip} %{EMAILADDRESS:email} %{NUMBER:num}"""
@@ -202,6 +203,7 @@ st_logs:semantic_text                                     | date:keyword        
 ;
 
 dissect
+required_capability: semantic_text_type
 
 FROM semantic_text METADATA _id
 | DISSECT st_logs """%{date} %{ip} %{email} %{num}"""

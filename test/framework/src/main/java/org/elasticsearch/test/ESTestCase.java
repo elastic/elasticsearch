@@ -1209,6 +1209,18 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomAlphaOfLength(codeUnits);
     }
 
+    public static Long randomNullOrLong() {
+        return randomBoolean() ? null : randomLong();
+    }
+
+    public static Integer randomNullOrInt() {
+        return randomBoolean() ? null : randomInt();
+    }
+
+    public static Float randomNullOrFloat() {
+        return randomBoolean() ? null : randomFloat();
+    }
+
     /**
      * Creates a valid random identifier such as node id or index name
      */

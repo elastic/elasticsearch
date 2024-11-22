@@ -35,11 +35,12 @@ public record UnifiedCompletionRequest(
     @Nullable Boolean stream,
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
-    @Nullable Tool tool,
+    @Nullable List<Tool> tool,
     @Nullable Float topP,
     @Nullable String user
 ) implements Writeable {
 
+    @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
         InferenceAction.NAME,
         args -> new UnifiedCompletionRequest(
@@ -51,7 +52,7 @@ public record UnifiedCompletionRequest(
             (Boolean) args[5],
             (Float) args[6],
             (ToolChoice) args[7],
-            (Tool) args[8],
+            (List<Tool>) args[8],
             (Float) args[9],
             (String) args[10]
         )
@@ -60,18 +61,18 @@ public record UnifiedCompletionRequest(
     static {
         PARSER.declareObjectArray(constructorArg(), Message.PARSER::apply, new ParseField("messages"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("model"));
-        PARSER.declareLong(optionalConstructorArg(), new ParseField("max_tokens"));
+        PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("n"));
-        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"), ObjectParser.ValueType.VALUE);
+        PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"), ObjectParser.ValueType.VALUE_ARRAY);
         PARSER.declareBoolean(optionalConstructorArg(), new ParseField("stream"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
         PARSER.declareField(
             optionalConstructorArg(),
             (p, c) -> parseToolChoice(p),
             new ParseField("tool_choice"),
-            ObjectParser.ValueType.VALUE
+            ObjectParser.ValueType.OBJECT_OR_STRING
         );
-        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tool"));
+        PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("user"));
     }
@@ -86,7 +87,7 @@ public record UnifiedCompletionRequest(
             in.readOptionalBoolean(),
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
-            in.readOptionalWriteable(Tool::new),
+            in.readCollectionAsImmutableList(Tool::new),
             in.readOptionalFloat(),
             in.readOptionalString()
         );
@@ -102,7 +103,7 @@ public record UnifiedCompletionRequest(
         out.writeOptionalBoolean(stream);
         out.writeOptionalFloat(temperature);
         out.writeOptionalNamedWriteable(toolChoice);
-        out.writeOptionalWriteable(tool);
+        out.writeOptionalCollection(tool);
         out.writeOptionalFloat(topP);
         out.writeOptionalString(user);
     }
@@ -116,8 +117,9 @@ public record UnifiedCompletionRequest(
             Message.class.getSimpleName(),
             args -> new Message((Content) args[0], (String) args[1], (String) args[2], (String) args[3], (List<ToolCall>) args[4])
         );
+
         static {
-            PARSER.declareField(constructorArg(), (p, c) -> parseContent(p), new ParseField("content"), ObjectParser.ValueType.VALUE);
+            PARSER.declareField(constructorArg(), (p, c) -> parseContent(p), new ParseField("content"), ObjectParser.ValueType.VALUE_ARRAY);
             PARSER.declareString(constructorArg(), new ParseField("role"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("name"));
             PARSER.declareString(optionalConstructorArg(), new ParseField("tool_call_id"));
@@ -248,7 +250,7 @@ public record UnifiedCompletionRequest(
 
         public record FunctionField(String arguments, String name) implements Writeable {
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                FunctionField.class.getSimpleName(),
+                "tool_call_function_field",
                 args -> new FunctionField((String) args[0], (String) args[1])
             );
 
@@ -348,7 +350,7 @@ public record UnifiedCompletionRequest(
 
         static {
             PARSER.declareString(constructorArg(), new ParseField("type"));
-            PARSER.declareObject(constructorArg(), ToolCall.FunctionField.PARSER::apply, new ParseField("function"));
+            PARSER.declareObject(constructorArg(), FunctionField.PARSER::apply, new ParseField("function"));
         }
 
         public ToolChoiceObject(StreamInput in) throws IOException {
@@ -368,7 +370,7 @@ public record UnifiedCompletionRequest(
 
         public record FunctionField(String name) implements Writeable {
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                FunctionField.class.getSimpleName(),
+                "tool_choice_function_field",
                 args -> new FunctionField((String) args[0])
             );
 
@@ -441,14 +443,14 @@ public record UnifiedCompletionRequest(
 
             @SuppressWarnings("unchecked")
             static final ConstructingObjectParser<FunctionField, Void> PARSER = new ConstructingObjectParser<>(
-                FunctionField.class.getSimpleName(),
+                "tool_function_field",
                 args -> new FunctionField((String) args[0], (String) args[1], (Map<String, Object>) args[2], (Boolean) args[3])
             );
 
             static {
                 PARSER.declareString(optionalConstructorArg(), new ParseField("description"));
                 PARSER.declareString(constructorArg(), new ParseField("name"));
-                PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField("name"));
+                PARSER.declareObject(optionalConstructorArg(), (p, c) -> p.mapOrdered(), new ParseField("parameters"));
                 PARSER.declareBoolean(optionalConstructorArg(), new ParseField("strict"));
             }
 

@@ -47,6 +47,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             randomMap(0, 3, () -> new Tuple<>(randomAlphaOfLength(4), randomAlphaOfLength(4))),
             randomFrom(InputType.values()),
             TimeValue.timeValueMillis(randomLongBetween(1, 2048)),
+            false,
             false
         );
     }
@@ -82,6 +83,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException e = request.validate();
@@ -97,6 +99,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException e = request.validate();
@@ -112,6 +115,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException inputNullError = inputNullRequest.validate();
@@ -128,6 +132,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException inputEmptyError = inputEmptyRequest.validate();
@@ -144,6 +149,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException queryNullError = queryNullRequest.validate();
@@ -160,6 +166,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             null,
             null,
             null,
+            false,
             false
         );
         ActionRequestValidationException queryEmptyError = queryEmptyRequest.validate();
@@ -193,6 +200,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
+                    false,
                     false
                 );
             }
@@ -204,6 +212,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
+                false,
                 false
             );
             case 2 -> {
@@ -217,6 +226,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
+                    false,
                     false
                 );
             }
@@ -236,6 +246,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     taskSettings,
                     instance.getInputType(),
                     instance.getInferenceTimeout(),
+                    false,
                     false
                 );
             }
@@ -249,6 +260,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     nextInputType,
                     instance.getInferenceTimeout(),
+                    false,
                     false
                 );
             }
@@ -260,6 +272,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 instance.getInputType(),
                 instance.getInferenceTimeout(),
+                false,
                 false
             );
             case 6 -> {
@@ -276,6 +289,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                     instance.getTaskSettings(),
                     instance.getInputType(),
                     TimeValue.timeValueMillis(newDuration.plus(additionalTime).toMillis()),
+                    false,
                     false
                 );
             }
@@ -294,6 +308,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
+                false,
                 false
             );
         } else if (version.before(TransportVersions.V_8_13_0)) {
@@ -305,6 +320,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 instance.getTaskSettings(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
+                false,
                 false
             );
         } else if (version.before(TransportVersions.V_8_13_0)
@@ -319,6 +335,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                         instance.getTaskSettings(),
                         InputType.INGEST,
                         InferenceAction.Request.DEFAULT_TIMEOUT,
+                        false,
                         false
                     );
                 } else if (version.before(TransportVersions.V_8_13_0)
@@ -331,6 +348,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getTaskSettings(),
                             InputType.UNSPECIFIED,
                             InferenceAction.Request.DEFAULT_TIMEOUT,
+                            false,
                             false
                         );
                     } else if (version.before(TransportVersions.V_8_14_0)) {
@@ -342,6 +360,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                             instance.getTaskSettings(),
                             instance.getInputType(),
                             InferenceAction.Request.DEFAULT_TIMEOUT,
+                            false,
                             false
                         );
                     }
@@ -359,6 +378,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
                 Map.of(),
                 InputType.UNSPECIFIED,
                 InferenceAction.Request.DEFAULT_TIMEOUT,
+                false,
                 false
             ),
             TransportVersions.V_8_13_0
@@ -374,6 +394,7 @@ public class InferenceActionRequestTests extends AbstractBWCWireSerializationTes
             Map.of(),
             InputType.INGEST,
             InferenceAction.Request.DEFAULT_TIMEOUT,
+            false,
             false
         );
 

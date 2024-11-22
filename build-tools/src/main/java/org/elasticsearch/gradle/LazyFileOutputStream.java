@@ -39,12 +39,6 @@ class LazyFileOutputStream extends OutputStream {
                 bootstrap();
                 delegate.write(b, off, len);
             }
-
-            @Override
-            public void write(byte b[]) throws IOException {
-                bootstrap();
-                delegate.write(b);
-            }
         };
     }
 

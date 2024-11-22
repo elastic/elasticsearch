@@ -34,7 +34,6 @@ abstract class AbstractCustomJavaToolchainResolver implements JavaToolchainResol
             case X86_64 -> "x64";
             case AARCH64 -> "aarch64";
             case X86 -> "x86";
-            default -> throw new UnsupportedOperationException("Architecture " + architecture);
         };
     }
 

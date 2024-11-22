@@ -57,7 +57,9 @@ public class MapperFeatures implements FeatureSpecification {
         );
     }
 
-    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature("mapper.constant_keyword.synthetic_source_write_fix");
+    public static final NodeFeature CONSTANT_KEYWORD_SYNTHETIC_SOURCE_WRITE_FIX = new NodeFeature(
+        "mapper.constant_keyword.synthetic_source_write_fix"
+    );
 
     @Override
     public Set<NodeFeature> getTestFeatures() {

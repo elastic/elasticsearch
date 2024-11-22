@@ -10,6 +10,7 @@ package org.elasticsearch.xpack.esql.plugin;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase;
 import org.junit.Before;
@@ -44,11 +45,41 @@ public void testSimpleTermQuery() throws Exception {
     public void testTermWithinEval() {
         var query = """
             FROM test
-            | EVAL matches_query = term(title,"fox")
+            | EVAL term_query = term(title,"fox")
             """;
 
         var error = expectThrows(VerificationException.class, () -> run(query));
         assertThat(error.getMessage(), containsString("[Term] function is only supported in WHERE commands"));
+    }
+
+    public void testMultipleTerm() {
+        var query = """
+            FROM test
+            | WHERE term(content,"fox") AND term(content,"brown")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(2), List.of(4), List.of(5)));
+        }
+    }
+
+    public void testNotWhereTerm() {
+        var query = """
+            FROM test
+            | WHERE NOT term(content,"brown")
+            | KEEP id
+            | SORT id
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id"));
+            assertColumnTypes(resp.columns(), List.of("integer"));
+            assertValues(resp.values(), List.of(List.of(5)));
+        }
     }
 
     private void createAndPopulateIndex() {

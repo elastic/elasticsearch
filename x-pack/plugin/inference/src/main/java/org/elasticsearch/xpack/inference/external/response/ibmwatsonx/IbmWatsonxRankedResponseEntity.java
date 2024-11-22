@@ -112,7 +112,7 @@ public class IbmWatsonxRankedResponseEntity {
     private static RankedDocsResults.RankedDoc parseRankedDocObject(XContentParser parser) throws IOException {
         ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
         int index = -1;
-        float relevanceScore = -1;
+        float score = -1;
         String documentText = null;
         parser.nextToken();
         while (parser.currentToken() != XContentParser.Token.END_OBJECT) {
@@ -123,9 +123,9 @@ public class IbmWatsonxRankedResponseEntity {
                         index = parser.intValue();
                         parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
                         break;
-                    case "relevance_score":
+                    case "score":
                         parser.nextToken(); // move to VALUE_NUMBER
-                        relevanceScore = parser.floatValue();
+                        score = parser.floatValue();
                         parser.nextToken(); // move to next FIELD_NAME or END_OBJECT
                         break;
                     case "document":
@@ -151,12 +151,12 @@ public class IbmWatsonxRankedResponseEntity {
         if (index == -1) {
             logger.warn("Failed to find required field [index] in Cohere rerank response");
         }
-        if (relevanceScore == -1) {
+        if (score == -1) {
             logger.warn("Failed to find required field [relevance_score] in Cohere rerank response");
         }
         // documentText may or may not be present depending on the request parameter
 
-        return new RankedDocsResults.RankedDoc(index, relevanceScore, documentText);
+        return new RankedDocsResults.RankedDoc(index, score, documentText);
     }
 
     private IbmWatsonxRankedResponseEntity() {}

@@ -13,7 +13,6 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
-import org.elasticsearch.xpack.inference.common.Truncator;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.request.cohere.CohereUtils;
@@ -48,7 +47,18 @@ public class IbmWatsonxRerankRequest implements IbmWatsonxRequest {
 
     @Override
     public HttpRequest createHttpRequest() {
-        HttpPost httpPost = new HttpPost(model.uri());
+//        HttpPost httpPost = new HttpPost(model.uri());
+
+
+        URI uri;
+
+        try {
+            uri = new URI("https://us-south.ml.cloud.ibm.com/ml/v1/text/reranks?version=2024-05-02");
+        } catch (URISyntaxException ex) {
+            throw new IllegalArgumentException("cannot parse URI patter");
+        }
+
+        HttpPost httpPost = new HttpPost(uri);
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(

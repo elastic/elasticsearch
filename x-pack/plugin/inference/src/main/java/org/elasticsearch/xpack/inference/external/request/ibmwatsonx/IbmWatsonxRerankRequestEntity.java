@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.inference.external.request.ibmwatsonx;
 
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.ibmwatsonx.rerank.IbmWatsonxRerankTaskSettings;
 
 import java.io.IOException;
@@ -19,9 +18,10 @@ import java.util.Objects;
 public record IbmWatsonxRerankRequestEntity(String model, String query, List<String> documents, IbmWatsonxRerankTaskSettings taskSettings)
     implements ToXContentObject {
 
-    private static final String DOCUMENTS_FIELD = "documents";
+    private static final String INPUTS_FIELD = "inputs";
     private static final String QUERY_FIELD = "query";
-    private static final String MODEL_FIELD = "model";
+    private static final String MODEL_ID_FIELD = "model_id";
+    private static final String PROJECT_ID_FIELD = "project_id";
 
     public IbmWatsonxRerankRequestEntity {
         Objects.requireNonNull(query);
@@ -37,21 +37,16 @@ public record IbmWatsonxRerankRequestEntity(String model, String query, List<Str
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
 
-        builder.field(MODEL_FIELD, model);
+        builder.field(MODEL_ID_FIELD, model);
         builder.field(QUERY_FIELD, query);
-        builder.field(DOCUMENTS_FIELD, documents);
-
-        if (taskSettings.getDoesReturnDocuments() != null) {
-            builder.field(CohereRerankTaskSettings.RETURN_DOCUMENTS, taskSettings.getDoesReturnDocuments());
+        builder.startArray(INPUTS_FIELD);
+        for (String document : documents) {
+            builder.startObject();
+            builder.field("text", document);
+            builder.endObject();
         }
-
-        if (taskSettings.getTopNDocumentsOnly() != null) {
-            builder.field(CohereRerankTaskSettings.TOP_N_DOCS_ONLY, taskSettings.getTopNDocumentsOnly());
-        }
-
-        if (taskSettings.getMaxChunksPerDoc() != null) {
-            builder.field(CohereRerankTaskSettings.MAX_CHUNKS_PER_DOC, taskSettings.getMaxChunksPerDoc());
-        }
+        builder.endArray();
+        builder.field(PROJECT_ID_FIELD, "7fb44976-e9fd-4360-822a-1ef62bedd911");
 
         builder.endObject();
 

@@ -28,6 +28,8 @@ import java.io.IOException;
 import java.util.List;
 
 import static java.util.Collections.emptyList;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 
 public class StdDev extends AggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(Expression.class, "StdDev", StdDev::new);
@@ -66,6 +68,17 @@ public class StdDev extends AggregateFunction implements ToAggregator {
     @Override
     public DataType dataType() {
         return DataType.DOUBLE;
+    }
+
+    @Override
+    protected Expression.TypeResolution resolveType() {
+        return isType(
+            field(),
+            dt -> dt.isNumeric() && dt != DataType.UNSIGNED_LONG,
+            sourceText(),
+            DEFAULT,
+            "numeric except unsigned_long or counter types"
+        );
     }
 
     @Override

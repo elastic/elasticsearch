@@ -2951,3 +2951,38 @@ FROM employees
 STD_DEV(languages):double
 null
 ;
+
+stdDevMultiValue
+required_capability: std_dev
+FROM employees
+| STATS STD_DEV(salary_change)
+;
+
+STD_DEV(salary_change):double
+7.062226788733394
+;
+
+stdDevFilter
+required_capability: std_dev
+FROM employees
+| STATS greater_than = STD_DEV(salary_change) WHERE languages > 3
+, less_than = STD_DEV(salary_change) WHERE languages <= 3
+, salary = STD_DEV(salary * 2)
+, count = COUNT(*) BY gender
+;
+
+greater_than:double | less_than:double  | salary:double      | count:long | gender:keyword
+6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
+6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
+6.4543266953142835  | 7.57786788789264  | 29045.770666969744 | 33         | F
+;
+
+stdDevRow
+required_capability: std_dev
+ROW a = [1,2,3], b = 5
+| STATS STD_DEV(a), STD_DEV(b)
+;
+
+STD_DEV(a):double | STD_DEV(b):double
+0.816496580927726 | 0.0
+;

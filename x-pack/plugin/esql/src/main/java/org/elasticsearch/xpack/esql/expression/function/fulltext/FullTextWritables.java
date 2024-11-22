@@ -16,6 +16,6 @@ import java.util.List;
 public class FullTextWritables {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(MatchQueryPredicate.ENTRY, MultiMatchQueryPredicate.ENTRY, QueryString.ENTRY, Match.ENTRY);
+        return List.of(MatchQueryPredicate.ENTRY, MultiMatchQueryPredicate.ENTRY, QueryString.ENTRY, Match.ENTRY, Term.ENTRY);
     }
 }

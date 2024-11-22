@@ -32,6 +32,7 @@ import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -256,6 +257,8 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
             return true;
         } else if (exp instanceof Match mf) {
             return mf.field() instanceof FieldAttribute && DataType.isString(mf.field().dataType());
+        } else if (exp instanceof Term term) {
+            return term.field() instanceof FieldAttribute && DataType.isString(term.field().dataType());
         }
         return false;
     }

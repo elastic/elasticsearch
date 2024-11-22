@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -89,6 +90,7 @@ public final class EsqlExpressionTranslators {
         new ExpressionTranslators.MultiMatches(),
         new MatchFunctionTranslator(),
         new QueryStringFunctionTranslator(),
+        new TermFunctionTranslator(),
         new Scalars()
     );
 
@@ -536,6 +538,13 @@ public final class EsqlExpressionTranslators {
         @Override
         protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
             return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), Map.of());
+        }
+    }
+
+    public static class TermFunctionTranslator extends ExpressionTranslator<Term> {
+        @Override
+        protected Query asQuery(Term term, TranslatorHandler handler) {
+            return new TermQuery(term.source(), ((FieldAttribute) term.field()).name(), term.queryAsText());
         }
     }
 }

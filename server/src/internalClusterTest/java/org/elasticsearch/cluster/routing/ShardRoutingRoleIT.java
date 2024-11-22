@@ -19,7 +19,6 @@ import org.elasticsearch.action.admin.cluster.shards.TransportClusterSearchShard
 import org.elasticsearch.action.admin.indices.refresh.TransportUnpromotableShardRefreshAction;
 import org.elasticsearch.action.search.ClosePointInTimeRequest;
 import org.elasticsearch.action.search.OpenPointInTimeRequest;
-import org.elasticsearch.action.search.SearchRequestBuilder;
 import org.elasticsearch.action.search.TransportClosePointInTimeAction;
 import org.elasticsearch.action.search.TransportOpenPointInTimeAction;
 import org.elasticsearch.action.support.broadcast.BroadcastResponse;
@@ -74,7 +73,7 @@ import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
 import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -508,13 +507,7 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
             }
             // Regular search
-            assertResponses(response -> {
-                final var profileResults = response.getProfileResults();
-                assertThat(profileResults, not(anEmptyMap()));
-                for (final var searchShardProfileKey : profileResults.keySet()) {
-                    assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
-                }
-            }, IntStream.rangeClosed(0, 10).mapToObj(num -> {
+            for (int i = 0; i < 10; i++) {
                 final var search = prepareSearch(INDEX_NAME).setProfile(true);
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> search.setRouting(randomAlphaOfLength(10));
@@ -523,17 +516,16 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                         // do nothing
                     }
                 }
-                return search;
-            }).toArray(SearchRequestBuilder[]::new));
-
+                assertResponse(search, resp -> {
+                    final var profileResults = resp.getProfileResults();
+                    assertThat(profileResults, not(anEmptyMap()));
+                    for (final var searchShardProfileKey : profileResults.keySet()) {
+                        assertThat(searchShardProfileKeys, hasItem(searchShardProfileKey));
+                    }
+                });
+            }
             // Search with PIT
-            assertResponses(response -> {
-                var profileResults = response.getProfileResults();
-                assertThat(profileResults, not(anEmptyMap()));
-                for (final var profileKey : profileResults.keySet()) {
-                    assertThat(profileKey, in(searchShardProfileKeys));
-                }
-            }, IntStream.rangeClosed(0, 10).mapToObj(num -> {
+            for (int i = 0; i < 10; i++) {
                 final var openRequest = new OpenPointInTimeRequest(INDEX_NAME).keepAlive(TimeValue.timeValueMinutes(1));
                 switch (randomIntBetween(0, 2)) {
                     case 0 -> openRequest.routing(randomAlphaOfLength(10));
@@ -546,12 +538,17 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
                 }
                 BytesReference pitId = client().execute(TransportOpenPointInTimeAction.TYPE, openRequest).actionGet().getPointInTimeId();
                 try {
-                    return prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true);
+                    assertResponse(prepareSearch().setPointInTime(new PointInTimeBuilder(pitId)).setProfile(true), response -> {
+                        var profileResults = response.getProfileResults();
+                        assertThat(profileResults, not(anEmptyMap()));
+                        for (final var profileKey : profileResults.keySet()) {
+                            assertThat(profileKey, in(searchShardProfileKeys));
+                        }
+                    });
                 } finally {
                     client().execute(TransportClosePointInTimeAction.TYPE, new ClosePointInTimeRequest(pitId));
                 }
-            }).toArray(SearchRequestBuilder[]::new));
-
+            }
             // search-shards API
             for (int i = 0; i < 10; i++) {
                 final var search = new ClusterSearchShardsRequest(TEST_REQUEST_TIMEOUT, INDEX_NAME);
@@ -585,9 +582,9 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             case SHARDS -> preference.type()
                 + ":"
                 + String.join(
-                    ",",
-                    randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
-                );
+                ",",
+                randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
+            );
         };
     }
 

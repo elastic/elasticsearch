@@ -193,6 +193,9 @@ public class UpdateHelper {
         final Map<String, Object> changes = currentRequest.sourceAsMap(XContentParserDecorator.NOOP);
         final MappingLookup mappingLookup = indexShard.mapperService().mappingLookup();
 
+        // Get and remove inference field updates from the changes map so that we can apply these updates in a normalized way.
+        // Otherwise, XContentHelper.update may merge the changes in a way that results in multiple independent map entries for an inference
+        // field, which breaks downstream source transformation.
         final Map<String, Object> inferenceFieldUpdates = new HashMap<>();
         final Map<String, Object> filteredChanges = getAndRemoveInferenceFieldUpdates(
             changes,
@@ -202,6 +205,7 @@ public class UpdateHelper {
         boolean noop = XContentHelper.update(updatedSourceAsMap, filteredChanges, detectNoop) == false;
 
         if (inferenceFieldUpdates.isEmpty() == false) {
+            // Apply inference field updates in a normalized way
             noop = false;
             for (var entry : inferenceFieldUpdates.entrySet()) {
                 InferenceFieldMapperUtil.insertValue(entry.getKey(), updatedSourceAsMap, entry.getValue());

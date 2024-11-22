@@ -279,7 +279,7 @@ public class Verifier {
             });
         }
     }
-    
+
     private void checkSort(LogicalPlan p, Set<Failure> failures) {
         if (p instanceof OrderBy ob) {
             ob.order().forEach(o -> {

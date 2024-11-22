@@ -27,7 +27,7 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
 
-  // guarding for idea integration
+  // guarding for intellij
   if (sourceSets.findByName("main23")) {
     main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
   }

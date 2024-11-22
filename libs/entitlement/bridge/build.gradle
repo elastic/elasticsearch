@@ -20,7 +20,10 @@ configurations {
 }
 
 tasks.named('jar').configure {
-  from sourceSets.main23.output
+  // guarding for intellij
+  if (sourceSets.findByName("main23")) {
+    from sourceSets.main23.output
+  }
 }
 
 artifacts {

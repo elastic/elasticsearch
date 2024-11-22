@@ -41,7 +41,7 @@ public class RestPutLicenseAction extends BaseRestHandler {
             throw new IllegalArgumentException("The license must be provided in the request body");
         }
         PutLicenseRequest putLicenseRequest = new PutLicenseRequest(getMasterNodeTimeout(request), getAckTimeout(request));
-        putLicenseRequest.license(request.content(), request.getXContentType());
+        putLicenseRequest.license(request.releasableContent(), request.getXContentType());
         putLicenseRequest.acknowledge(request.paramAsBoolean("acknowledge", false));
 
         if (License.LicenseType.isBasic(putLicenseRequest.license().type())) {

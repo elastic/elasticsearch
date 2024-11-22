@@ -23,7 +23,6 @@ import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpBody;
@@ -304,15 +303,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
-     * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
-     * Please use {@link #releasableContent()} to avoid content copy.
-     */
-    @SuppressForbidden(reason = "temporarily support content copy while migrating RestHandlers to ref counted pooled buffers")
-    public BytesReference content() {
-        return BytesReference.copyBytes(releasableContent());
-    }
-
-    /**
      * Returns a direct reference to the network buffer containing the request body. The HTTP layers will release their references to this
      * buffer as soon as they have finished the synchronous steps of processing the request on the network thread, which will by default
      * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
@@ -344,15 +334,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
         } else if (xContentType.get() == null) {
             throwValidationException("unknown content type");
         }
-    }
-
-    /**
-     * @return copy of the request body or throw an exception if the body or content type is missing.
-     * See {@link #content()}. Please use {@link #requiredReleasableContent()} to avoid content copy.
-     */
-    public final BytesReference requiredContent() {
-        ensureContent();
-        return content();
     }
 
     /**
@@ -566,7 +547,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
-        BytesReference content = requiredContent(); // will throw exception if body or content type missing
+        BytesReference content = requiredReleasableContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
@@ -596,7 +577,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * if you need to handle the absence request content gracefully.
      */
     public final XContentParser contentOrSourceParamParser() throws IOException {
-        Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+        Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
         return XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1().xContent().type());
     }
 
@@ -607,7 +588,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      */
     public final void withContentOrSourceParamParserOrNull(CheckedConsumer<XContentParser, IOException> withParser) throws IOException {
         if (hasContentOrSourceParam()) {
-            Tuple<XContentType, BytesReference> tuple = contentOrSourceParam();
+            Tuple<XContentType, ReleasableBytesReference> tuple = contentOrSourceParam();
             try (XContentParser parser = XContentHelper.createParserNotCompressed(parserConfig, tuple.v2(), tuple.v1())) {
                 withParser.accept(parser);
             }
@@ -620,11 +601,11 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * Get the content of the request or the contents of the {@code source} param or throw an exception if both are missing.
      * Prefer {@link #contentOrSourceParamParser()} or {@link #withContentOrSourceParamParserOrNull(CheckedConsumer)} if you need a parser.
      */
-    public final Tuple<XContentType, BytesReference> contentOrSourceParam() {
+    public final Tuple<XContentType, ReleasableBytesReference> contentOrSourceParam() {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
-            return new Tuple<>(xContentType.get(), requiredContent());
+            return new Tuple<>(xContentType.get(), requiredReleasableContent());
         }
         String source = param("source");
         String typeParam = param("source_content_type");
@@ -636,7 +617,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (xContentType == null) {
             throwValidationException("Unknown value for source_content_type [" + typeParam + "]");
         }
-        return new Tuple<>(xContentType, bytes);
+        return new Tuple<>(xContentType, ReleasableBytesReference.wrap(bytes));
     }
 
     public ParsedMediaType getParsedAccept() {

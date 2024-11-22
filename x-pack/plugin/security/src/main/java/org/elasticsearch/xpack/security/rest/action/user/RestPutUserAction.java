@@ -56,7 +56,7 @@ public class RestPutUserAction extends NativeUserBaseRestHandler implements Rest
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutUserRequestBuilder requestBuilder = new PutUserRequestBuilder(client).source(
             request.param("username"),
-            request.requiredContent(),
+            request.requiredReleasableContent(),
             request.getXContentType(),
             passwordHasher
         ).setRefreshPolicy(request.param("refresh"));

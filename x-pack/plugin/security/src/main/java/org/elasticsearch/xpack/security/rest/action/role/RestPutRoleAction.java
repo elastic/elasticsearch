@@ -52,7 +52,7 @@ public class RestPutRoleAction extends NativeRoleBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final PutRoleRequestBuilder requestBuilder = builderFactory.create(client)
-            .source(request.param("name"), request.requiredContent(), request.getXContentType())
+            .source(request.param("name"), request.requiredReleasableContent(), request.getXContentType())
             .setRefreshPolicy(request.param("refresh"));
         return channel -> requestBuilder.execute(new RestBuilderListener<>(channel) {
             @Override

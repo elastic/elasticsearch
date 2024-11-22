@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.rest.action.admin.cluster;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.storedscripts.PutStoredScriptRequest;
 import org.elasticsearch.action.admin.cluster.storedscripts.TransportPutStoredScriptAction;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -46,7 +47,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final var content = request.requiredContent();
+        final var content = request.requiredReleasableContent();
         final var xContentType = request.getXContentType();
         final var putRequest = new PutStoredScriptRequest(
             getMasterNodeTimeout(request),
@@ -57,6 +58,13 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             request.getXContentType(),
             StoredScriptSource.parse(content, xContentType)
         );
-        return channel -> client.execute(TransportPutStoredScriptAction.TYPE, putRequest, new RestToXContentListener<>(channel));
+        return channel -> {
+            content.mustIncRef();
+            client.execute(
+                TransportPutStoredScriptAction.TYPE,
+                putRequest,
+                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
+            );
+        };
     }
 }

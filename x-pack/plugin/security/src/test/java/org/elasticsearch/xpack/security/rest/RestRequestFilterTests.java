@@ -33,10 +33,14 @@ public class RestRequestFilterTests extends ESTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        assertNotEquals(content, filtered.content());
+        assertNotEquals(content, filtered.releasableContent());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                filtered.releasableContent().streamInput()
+            )
             .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
@@ -55,10 +59,14 @@ public class RestRequestFilterTests extends ESTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        assertNotEquals(content, filtered.content());
+        assertNotEquals(content, filtered.releasableContent());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                filtered.releasableContent().streamInput()
+            )
             .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
@@ -77,10 +85,14 @@ public class RestRequestFilterTests extends ESTestCase {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withContent(content, XContentType.JSON)
             .build();
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        assertNotEquals(content, filtered.content());
+        assertNotEquals(content, filtered.releasableContent());
 
         Map<String, Object> map = XContentType.JSON.xContent()
-            .createParser(NamedXContentRegistry.EMPTY, DeprecationHandler.THROW_UNSUPPORTED_OPERATION, filtered.content().streamInput())
+            .createParser(
+                NamedXContentRegistry.EMPTY,
+                DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
+                filtered.releasableContent().streamInput()
+            )
             .map();
         @SuppressWarnings("unchecked")
         Map<String, Object> root = (Map<String, Object>) map.get("root");
@@ -115,7 +127,7 @@ public class RestRequestFilterTests extends ESTestCase {
         }
         RestRequestFilter filter = () -> Collections.singleton("root.second.third");
         RestRequest filtered = filter.getFilteredRequest(restRequest);
-        Exception e = expectThrows(IllegalArgumentException.class, () -> filtered.content());
+        Exception e = expectThrows(IllegalArgumentException.class, () -> filtered.releasableContent());
         assertThat(e.getMessage(), containsString("unknown content type"));
     }
 

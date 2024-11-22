@@ -10,6 +10,7 @@
 
 package org.elasticsearch.system.indices;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.index.IndexRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
@@ -51,6 +52,26 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
     private static final String INTERNAL_UNMANAGED_INDEX_NAME = ".internal-unmanaged-index*";
     private static final String INTERNAL_MANAGED_INDEX_NAME = ".internal-managed-index*";
+
+    private static XContentBuilder mappings() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for net new system index", e);
+        }
+    }
 
     @Override
     public String getFeatureName() {
@@ -102,26 +123,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setAliasName(".internal-managed-alias")
                 .build()
         );
-    }
-
-    private static XContentBuilder mappings() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for net new system index", e);
-        }
     }
 
     @Override
@@ -177,12 +178,16 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
+            var content = request.requiredReleasableContent();
             IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
-            indexRequest.source(request.requiredContent(), request.getXContentType());
+            indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
 
-            return channel -> client.index(indexRequest, new RestToXContentListener<>(channel));
+            return channel -> {
+                content.mustIncRef();
+                client.index(indexRequest, ActionListener.releaseAfter(new RestToXContentListener<>(channel), content));
+            };
         }
 
         @Override

@@ -54,7 +54,7 @@ public class RestPutPrivilegesAction extends SecurityBaseRestHandler {
     @Override
     public RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutPrivilegesRequestBuilder requestBuilder = new PutPrivilegesRequestBuilder(client).source(
-            request.requiredContent(),
+            request.requiredReleasableContent(),
             request.getXContentType()
         ).setRefreshPolicy(request.param("refresh"));
 

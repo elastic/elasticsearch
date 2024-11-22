@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -48,12 +49,15 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY; // task type must be defined in the body
         }
 
-        var request = new PutInferenceModelAction.Request(
-            taskType,
-            inferenceEntityId,
-            restRequest.requiredContent(),
-            restRequest.getXContentType()
-        );
-        return channel -> client.execute(PutInferenceModelAction.INSTANCE, request, new RestToXContentListener<>(channel));
+        var content = restRequest.requiredReleasableContent();
+        var request = new PutInferenceModelAction.Request(taskType, inferenceEntityId, content, restRequest.getXContentType());
+        return channel -> {
+            content.mustIncRef();
+            client.execute(
+                PutInferenceModelAction.INSTANCE,
+                request,
+                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
+            );
+        };
     }
 }

@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.plugin.noop.action.bulk;
 
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.DocWriteResponse;
 import org.elasticsearch.action.bulk.BulkItemResponse;
@@ -64,8 +65,9 @@ public class RestNoopBulkAction extends BaseRestHandler {
         }
         bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
         bulkRequest.setRefreshPolicy(request.param("refresh"));
+        var data = request.requiredReleasableContent();
         bulkRequest.add(
-            request.requiredContent(),
+            data,
             defaultIndex,
             defaultRouting,
             null,
@@ -80,7 +82,9 @@ public class RestNoopBulkAction extends BaseRestHandler {
 
         // short circuit the call to the transport layer
         return channel -> {
+            data.mustIncRef();
             BulkRestBuilderListener listener = new BulkRestBuilderListener(channel, request);
+            ActionListener.releaseAfter(listener, data);
             listener.onResponse(bulkRequest);
         };
     }

@@ -58,7 +58,8 @@ public class RestPutMappingAction extends BaseRestHandler {
         String[] indices = Strings.splitStringByCommaToArray(request.param("index"));
         PutMappingRequest putMappingRequest = new PutMappingRequest(indices);
 
-        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredContent(), false, request.getXContentType()).v2();
+        Map<String, Object> sourceAsMap = XContentHelper.convertToMap(request.requiredReleasableContent(), false, request.getXContentType())
+            .v2();
         if (isMappingSourceTyped(SINGLE_MAPPING_NAME, sourceAsMap)) {
             throw new IllegalArgumentException("Types cannot be provided in put mapping requests");
         }

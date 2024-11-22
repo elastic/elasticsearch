@@ -514,6 +514,11 @@ public class EsqlCapabilities {
         JOIN_LOOKUP(Build.current().isSnapshot()),
 
         /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
          * Term function
          */
         TERM_FUNCTION;

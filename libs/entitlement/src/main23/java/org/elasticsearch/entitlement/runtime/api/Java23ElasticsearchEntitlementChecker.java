@@ -10,6 +10,7 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
 public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
 
@@ -20,6 +21,6 @@ public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlem
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
         // TODO: this is just an example, we shouldn't really override a method implemented in the superclass
-        super.checkSystemExit(callerClass, status);
+        super.check$java_lang_System$exit(callerClass, status);
     }
 }

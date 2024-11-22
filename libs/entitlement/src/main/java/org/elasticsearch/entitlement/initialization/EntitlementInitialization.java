@@ -139,7 +139,7 @@ public class EntitlementInitialization {
         return Set.of(ALL_UNNAMED);
     }
 
-    private static ElasticsearchEntitlementChecker initChecker() throws IOException{
+    private static ElasticsearchEntitlementChecker initChecker() throws IOException {
         final PolicyManager policyManager = createPolicyManager();
 
         int javaVersion = Runtime.version().feature();

@@ -42,7 +42,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
         protected long docCount;
         protected InternalAggregations aggregations;
-        protected final boolean showDocCountError;
         protected long docCountError;
         protected final List<DocValueFormat> formats;
         protected List<Object> terms;
@@ -60,8 +59,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             this.terms = terms;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.showDocCountError = showDocCountError;
-            this.docCountError = docCountError;
+            this.docCountError = showDocCountError ? docCountError : -1;
             this.formats = formats;
             this.keyConverters = keyConverters;
         }
@@ -71,7 +69,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             terms = in.readCollectionAsList(StreamInput::readGenericValue);
             docCount = in.readVLong();
             aggregations = InternalAggregations.readFrom(in);
-            this.showDocCountError = showDocCountError;
             docCountError = -1;
             if (showDocCountError) {
                 docCountError = in.readLong();
@@ -80,8 +77,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
             this.keyConverters = keyConverters;
         }
 
-        @Override
-        public void writeTo(StreamOutput out) throws IOException {
+        private void writeTo(StreamOutput out, boolean showDocCountError) throws IOException {
             out.writeCollection(terms, StreamOutput::writeGenericValue);
             out.writeVLong(docCount);
             aggregations.writeTo(out);
@@ -136,9 +132,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
         @Override
         public long getDocCountError() {
-            if (showDocCountError == false) {
-                throw new IllegalStateException("show_terms_doc_count_error is false");
-            }
             return docCountError;
         }
 
@@ -153,11 +146,6 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
 
         @Override
-        protected boolean getShowDocCountError() {
-            return showDocCountError;
-        }
-
-        @Override
         public int compareKey(Bucket other) {
             return TERMS_COMPARATOR.compare(terms, other.terms);
         }
@@ -168,19 +156,16 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                 return false;
             }
             Bucket other = (Bucket) obj;
-            if (showDocCountError && docCountError != other.docCountError) {
-                return false;
-            }
             return docCount == other.docCount
                 && aggregations.equals(other.aggregations)
-                && showDocCountError == other.showDocCountError
+                && docCountError == other.docCountError
                 && terms.equals(other.terms)
                 && keyConverters.equals(other.keyConverters);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(docCount, aggregations, showDocCountError, showDocCountError ? docCountError : -1, terms, keyConverters);
+            return Objects.hash(docCount, aggregations, docCountError, terms, keyConverters);
         }
     }
 
@@ -343,7 +328,10 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         out.writeVLong(otherDocCount);
         out.writeNamedWriteableCollection(formats);
         out.writeCollection(keyConverters, StreamOutput::writeEnum);
-        out.writeCollection(buckets);
+        out.writeVInt(buckets.size());
+        for (var bucket : buckets) {
+            bucket.writeTo(out, showTermDocCountError);
+        }
     }
 
     @Override
@@ -413,9 +401,14 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
     }
 
     @Override
+    protected boolean getShowDocCountError() {
+        return showTermDocCountError;
+    }
+
+    @Override
     @SuppressWarnings("HiddenField")
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, Bucket prototype) {
-        return new Bucket(prototype.terms, docCount, aggs, prototype.showDocCountError, docCountError, formats, keyConverters);
+        return new Bucket(prototype.terms, docCount, aggs, showTermDocCountError, docCountError, formats, keyConverters);
     }
 
     @Override
@@ -471,7 +464,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
                     newKeys.get(i),
                     oldBucket.docCount,
                     oldBucket.aggregations,
-                    oldBucket.showDocCountError,
+                    showTermDocCountError,
                     oldBucket.docCountError,
                     formats,
                     newKeyConverters

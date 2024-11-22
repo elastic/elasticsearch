@@ -41,9 +41,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         long bucketOrd;
 
         protected long docCount;
-        protected long docCountError;
+        private long docCountError;
         protected InternalAggregations aggregations;
-        protected final boolean showDocCountError;
         protected final DocValueFormat format;
 
         protected Bucket(
@@ -53,29 +52,23 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
             long docCountError,
             DocValueFormat formatter
         ) {
-            this.showDocCountError = showDocCountError;
             this.format = formatter;
             this.docCount = docCount;
             this.aggregations = aggregations;
-            this.docCountError = docCountError;
+            this.docCountError = showDocCountError ? docCountError : -1;
         }
 
         /**
          * Read from a stream.
          */
         protected Bucket(StreamInput in, DocValueFormat formatter, boolean showDocCountError) throws IOException {
-            this.showDocCountError = showDocCountError;
             this.format = formatter;
             docCount = in.readVLong();
-            docCountError = -1;
-            if (showDocCountError) {
-                docCountError = in.readLong();
-            }
+            docCountError = showDocCountError ? in.readLong() : -1;
             aggregations = InternalAggregations.readFrom(in);
         }
 
-        @Override
-        public final void writeTo(StreamOutput out) throws IOException {
+        final void writeTo(StreamOutput out, boolean showDocCountError) throws IOException {
             out.writeVLong(getDocCount());
             if (showDocCountError) {
                 out.writeLong(docCountError);
@@ -105,9 +98,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
 
         @Override
         public long getDocCountError() {
-            if (showDocCountError == false) {
-                throw new IllegalStateException("show_terms_doc_count_error is false");
-            }
             return docCountError;
         }
 
@@ -119,11 +109,6 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
         @Override
         protected void updateDocCountError(long docCountErrorDiff) {
             this.docCountError += docCountErrorDiff;
-        }
-
-        @Override
-        protected boolean getShowDocCountError() {
-            return showDocCountError;
         }
 
         @Override
@@ -155,23 +140,17 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            if (showDocCountError && docCountError != that.docCountError) {
-                /*
-                 * docCountError doesn't matter if not showing it and
-                 * serialization sets it to -1 no matter what it was
-                 * before.
-                 */
+            if (docCountError != that.docCountError) {
                 return false;
             }
             return Objects.equals(docCount, that.docCount)
-                && Objects.equals(showDocCountError, that.showDocCountError)
                 && Objects.equals(format, that.format)
                 && Objects.equals(aggregations, that.aggregations);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(getClass(), docCount, format, showDocCountError, showDocCountError ? docCountError : -1, aggregations);
+            return Objects.hash(getClass(), docCount, format, docCountError, aggregations);
         }
     }
 

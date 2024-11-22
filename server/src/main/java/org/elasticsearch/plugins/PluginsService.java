@@ -62,7 +62,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
      * @param descriptor Metadata about the plugin, usually loaded from plugin properties
      * @param instance The constructed instance of the plugin's main class
      */
-    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance) {
+    record LoadedPlugin(PluginDescriptor descriptor, Plugin instance, ClassLoader classLoader) {
 
         LoadedPlugin {
             Objects.requireNonNull(descriptor);
@@ -426,7 +426,7 @@ public class PluginsService implements ReportingService<PluginsAndModules> {
                 }
                 plugin = loadPlugin(pluginClass, settings, configPath);
             }
-            loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin));
+            loadedPlugins.put(name, new LoadedPlugin(pluginBundle.plugin, plugin, pluginLayer.pluginClassLoader()));
         } finally {
             privilegedSetContextClassLoader(cl);
         }

@@ -162,9 +162,6 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/116249
@@ -211,21 +208,9 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/116851
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeWithinAggregations
-  issue: https://github.com/elastic/elasticsearch/issues/116856
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeSingleGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/116857
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeNestedGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/116858
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/114824
-- class: org.elasticsearch.compute.lucene.LuceneQueryExpressionEvaluatorTests
-  method: testTermQuery
-  issue: https://github.com/elastic/elasticsearch/issues/116879
 - class: org.elasticsearch.xpack.restart.QueryBuilderBWCIT
   method: testQueryBuilderBWC {p0=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116989
@@ -247,6 +232,18 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
+- class: org.elasticsearch.versioning.ConcurrentSeqNoVersioningIT
+  method: testSeqNoCASLinearizability
+  issue: https://github.com/elastic/elasticsearch/issues/117249
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
+  issue: https://github.com/elastic/elasticsearch/issues/117295
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  method: testRetryPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/117116
 
 # Examples:
 #

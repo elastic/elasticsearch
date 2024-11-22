@@ -122,17 +122,16 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
         }
 
         @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        public void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException {
             builder.startObject();
             builder.field(CommonFields.KEY.getPreferredName(), getKey());
             builder.field(CommonFields.KEY_AS_STRING.getPreferredName(), getKeyAsString());
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
-            if (getShowDocCountError()) {
+            if (showDocCountError) {
                 builder.field(DOC_COUNT_ERROR_UPPER_BOUND_FIELD_NAME.getPreferredName(), getDocCountError());
             }
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -589,7 +588,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
     @Override
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 
     @Override

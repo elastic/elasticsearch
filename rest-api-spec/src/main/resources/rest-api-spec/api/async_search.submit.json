@@ -69,7 +69,7 @@
         "type":"boolean",
         "default":false,
         "description":"When doing a cross-cluster search, setting it to true may improve overall search latency, particularly when searching clusters with a large number of shards. However, when set to true, the progress of searches on the remote clusters will not be received until the search finishes on all clusters."
-      }
+      },
       "default_operator":{
         "type":"enum",
         "options":[

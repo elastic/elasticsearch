@@ -418,7 +418,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
             return formats;
         }
 
-        public int compareKey(InternalBucket other, int[] reverseMuls, MissingOrder[] missingOrders) {
+        int compareKey(InternalBucket other, int[] reverseMuls, MissingOrder[] missingOrders) {
             for (int i = 0; i < key.size(); i++) {
                 if (key.get(i) == null) {
                     if (other.key.get(i) == null) {

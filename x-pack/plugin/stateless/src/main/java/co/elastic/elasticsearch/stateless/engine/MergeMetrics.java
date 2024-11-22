@@ -86,4 +86,12 @@ public class MergeMetrics {
         mergeNumDocs.incrementBy(currentMerge.totalNumDocs());
         mergeTimeInSeconds.record(tookMillis / 1000);
     }
+
+    public long getQueuedMergeSizeInBytes() {
+        return queuedMergeSizeInBytes.get();
+    }
+
+    public long getRunningMergeSizeInBytes() {
+        return runningMergeSizeInBytes.get();
+    }
 }

@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.commits.StatelessCompoundCommit;
 import co.elastic.elasticsearch.stateless.commits.VirtualBatchedCompoundCommit;
 import co.elastic.elasticsearch.stateless.engine.IndexEngine;
+import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.PrimaryTermAndGeneration;
 import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 import co.elastic.elasticsearch.stateless.engine.translog.TranslogReplicator;
@@ -82,9 +83,11 @@ import org.elasticsearch.snapshots.SnapshotInfo;
 import org.elasticsearch.snapshots.SnapshotState;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.logsdb.LogsDBPlugin;
+import org.junit.After;
 import org.junit.Before;
 import org.junit.BeforeClass;
 
@@ -99,6 +102,7 @@ import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.function.UnaryOperator;
 import java.util.stream.Collectors;
+import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.IMMEDIATE;
 import static org.elasticsearch.action.support.WriteRequest.RefreshPolicy.WAIT_UNTIL;
@@ -122,6 +126,27 @@ public abstract class AbstractStatelessIntegTestCase extends ESIntegTestCase {
         uploadMaxCommits = randomBoolean()
             ? between(1, 10)
             : StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getDefault(Settings.EMPTY);
+    }
+
+    @After
+    public void tearDown() throws Exception {
+        // This works for stateless as we build a new cluster for each TEST. However, if we move to SUITE this might need to be in
+        // AfterClass depending on the test's needs.
+        waitForMergesToFinish();
+        super.tearDown();
+    }
+
+    private static void waitForMergesToFinish() throws Exception {
+        InternalTestCluster internalTestCluster = internalCluster();
+        Iterable<MergeMetrics> mergeMetrics = internalTestCluster.getInstances(MergeMetrics.class);
+        assertBusy(
+            () -> assertThat(
+                StreamSupport.stream(mergeMetrics.spliterator(), false)
+                    .mapToLong(m -> m.getQueuedMergeSizeInBytes() + m.getRunningMergeSizeInBytes())
+                    .sum(),
+                equalTo(0L)
+            )
+        );
     }
 
     public int getUploadMaxCommits() {

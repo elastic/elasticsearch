@@ -98,9 +98,8 @@ public class IndexResolver {
         // TODO flattened is simpler - could we get away with that?
         String[] names = fieldsCaps.keySet().toArray(new String[0]);
         Arrays.sort(names);
-        Set<String> forbiddenFields = new HashSet<>();
         Map<String, EsField> rootFields = new HashMap<>();
-        name: for (String name : names) {
+        for (String name : names) {
             Map<String, EsField> fields = rootFields;
             String fullName = name;
             boolean isAlias = false;
@@ -111,9 +110,6 @@ public class IndexResolver {
                     break;
                 }
                 String parent = name.substring(0, nextDot);
-                if (forbiddenFields.contains(parent)) {
-                    continue name;
-                }
                 EsField obj = fields.get(parent);
                 if (obj == null) {
                     obj = new EsField(parent, OBJECT, new HashMap<>(), false, true);
@@ -125,16 +121,10 @@ public class IndexResolver {
                 fields = obj.getProperties();
                 name = name.substring(nextDot + 1);
             }
-
-            List<IndexFieldCapabilities> caps = fieldsCaps.get(fullName);
-            if (allNested(caps)) {
-                forbiddenFields.add(name);
-                continue;
-            }
             // TODO we're careful to make isAlias match IndexResolver - but do we use it?
 
             EsField field = firstUnsupportedParent == null
-                ? createField(fieldCapsResponse, name, fullName, caps, isAlias)
+                ? createField(fieldCapsResponse, name, fullName, fieldsCaps.get(fullName), isAlias)
                 : new UnsupportedEsField(
                     fullName,
                     firstUnsupportedParent.getOriginalType(),
@@ -162,15 +152,6 @@ public class IndexResolver {
             return IndexResolution.valid(new EsIndex(indexPattern, rootFields, Map.of()), concreteIndices.keySet(), unavailableRemotes);
         }
         return IndexResolution.valid(new EsIndex(indexPattern, rootFields, concreteIndices), concreteIndices.keySet(), unavailableRemotes);
-    }
-
-    private boolean allNested(List<IndexFieldCapabilities> caps) {
-        for (IndexFieldCapabilities cap : caps) {
-            if (false == cap.type().equalsIgnoreCase("nested")) {
-                return false;
-            }
-        }
-        return true;
     }
 
     private static Map<String, List<IndexFieldCapabilities>> collectFieldCaps(FieldCapabilitiesResponse fieldCapsResponse) {
@@ -278,6 +259,8 @@ public class IndexResolver {
         // lenient because we throw our own errors looking at the response e.g. if something was not resolved
         // also because this way security doesn't throw authorization exceptions but rather honors ignore_unavailable
         req.indicesOptions(FIELD_CAPS_INDICES_OPTIONS);
+        // we ignore the nested data type fields starting with https://github.com/elastic/elasticsearch/pull/111495
+        req.filters("-nested");
         req.setMergeResults(false);
         return req;
     }

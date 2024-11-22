@@ -27,4 +27,26 @@ public class HttpHeaderParserTests extends ESTestCase {
         assertNull(HttpHeaderParser.parseRangeHeader("bytes=123-" + longOverflow));
         assertNull(HttpHeaderParser.parseRangeHeader("bytes=" + longOverflow + "-123"));
     }
+
+    public void testParseRangeHeaderMultipleRangesNotMatched() {
+        assertNull(
+            HttpHeaderParser.parseRangeHeader(
+                String.format(
+                    "bytes=%d-%d,%d-%d",
+                    randomIntBetween(0, 99),
+                    randomIntBetween(100, 199),
+                    randomIntBetween(200, 299),
+                    randomIntBetween(300, 399)
+                )
+            )
+        );
+    }
+
+    public void testParseRangeHeaderEndlessRangeNotMatched() {
+        assertNull(HttpHeaderParser.parseRangeHeader(String.format("bytes=%d-", randomLongBetween(0, Long.MAX_VALUE))));
+    }
+
+    public void testParseRangeHeaderSuffixLengthNotMatched() {
+        assertNull(HttpHeaderParser.parseRangeHeader(String.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
+    }
 }

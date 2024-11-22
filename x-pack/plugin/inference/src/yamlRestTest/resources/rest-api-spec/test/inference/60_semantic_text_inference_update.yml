@@ -565,7 +565,83 @@ setup:
   - match: { _source.object.dense_field.inference.chunks.1.text: "dense data 3" }
   - exists: _source.object.dense_field.inference.chunks.1.embeddings
 
-# TODO: Tests to add: handling lists of lists
+  - do:
+      update:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          doc: { "object.sparse_field": null, "object.dense_field": null,
+                 "object": { "sparse_field": "sparse data 5", "dense_field": "dense data 5"} }
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.object.sparse_field.text: "sparse data 5" }
+  - length: { _source.object.sparse_field.inference.chunks: 3 }
+  - match: { _source.object.sparse_field.inference.chunks.1.text: "sparse data 2" }
+  - exists: _source.object.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.object.sparse_field.inference.chunks.2.text: "sparse data 3" }
+  - exists: _source.object.sparse_field.inference.chunks.2.embeddings
+  - match: { _source.object.dense_field.text: "dense data 5" }
+  - length: { _source.object.dense_field.inference.chunks: 3 }
+  - match: { _source.object.dense_field.inference.chunks.1.text: "dense data 2" }
+  - exists: _source.object.dense_field.inference.chunks.1.embeddings
+  - match: { _source.object.dense_field.inference.chunks.2.text: "dense data 3" }
+  - exists: _source.object.dense_field.inference.chunks.2.embeddings
+
+  - do:
+      update:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          doc: { "object.sparse_field": null, "object.dense_field": null,
+                 "object": { "sparse_field": null, "dense_field": null} }
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.object.sparse_field.text: null }
+  - length: { _source.object.sparse_field.inference.chunks: 2 }
+  - match: { _source.object.sparse_field.inference.chunks.0.text: "sparse data 2" }
+  - exists: _source.object.sparse_field.inference.chunks.0.embeddings
+  - match: { _source.object.sparse_field.inference.chunks.1.text: "sparse data 3" }
+  - exists: _source.object.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.object.dense_field.text: null }
+  - length: { _source.object.dense_field.inference.chunks: 2 }
+  - match: { _source.object.dense_field.inference.chunks.0.text: "dense data 2" }
+  - exists: _source.object.dense_field.inference.chunks.0.embeddings
+  - match: { _source.object.dense_field.inference.chunks.1.text: "dense data 3" }
+  - exists: _source.object.dense_field.inference.chunks.1.embeddings
+
+  - do:
+      update:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          doc: { "object.sparse_field": "sparse data 6", "object.dense_field": "dense data 6",
+                 "object": { "sparse_field": "sparse data 7", "dense_field": "dense data 7" } }
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.object.sparse_field.text: ["sparse data 7", "sparse data 6"] }
+  - length: { _source.object.sparse_field.inference.chunks: 4 }
+  - match: { _source.object.sparse_field.inference.chunks.2.text: "sparse data 2" }
+  - exists: _source.object.sparse_field.inference.chunks.2.embeddings
+  - match: { _source.object.sparse_field.inference.chunks.3.text: "sparse data 3" }
+  - exists: _source.object.sparse_field.inference.chunks.3.embeddings
+  - match: { _source.object.dense_field.text: ["dense data 7", "dense data 6"] }
+  - length: { _source.object.dense_field.inference.chunks: 4 }
+  - match: { _source.object.dense_field.inference.chunks.2.text: "dense data 2" }
+  - exists: _source.object.dense_field.inference.chunks.2.embeddings
+  - match: { _source.object.dense_field.inference.chunks.3.text: "dense data 3" }
+  - exists: _source.object.dense_field.inference.chunks.3.embeddings
 
 ---
 "Updates with script are not allowed":

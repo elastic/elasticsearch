@@ -41,9 +41,11 @@ import org.elasticsearch.search.lookup.Source;
 import org.elasticsearch.xcontent.XContentType;
 
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.function.LongSupplier;
 
@@ -255,10 +257,7 @@ public class UpdateHelper {
             String inferenceFieldName = inferenceFieldMetadata.getName();
             Object inferenceFieldValue = XContentMapValues.extractValue(inferenceFieldName, changes, new ExplicitNullValue());
             if (inferenceFieldValue != null) {
-                inferenceFieldUpdates.put(
-                    inferenceFieldName,
-                    inferenceFieldValue instanceof ExplicitNullValue ? null : inferenceFieldValue
-                );
+                inferenceFieldUpdates.put(inferenceFieldName, replaceExplicitNullValues(inferenceFieldValue));
             }
         }
 
@@ -270,6 +269,18 @@ public class UpdateHelper {
     }
 
     private static class ExplicitNullValue {}
+
+    private static Object replaceExplicitNullValues(Object inferenceFieldValue) {
+        if (inferenceFieldValue instanceof ExplicitNullValue) {
+            return null;
+        } else if (inferenceFieldValue instanceof List<?> listValue) {
+            List<Object> processedList = new ArrayList<>(listValue.size());
+            listValue.forEach(v -> processedList.add(replaceExplicitNullValues(v)));
+            return processedList;
+        } else {
+            return inferenceFieldValue;
+        }
+    }
 
     /**
      * Prepare the request for updating an existing document using a script. Executes the script and returns a {@code Result} containing

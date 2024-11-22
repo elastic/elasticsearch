@@ -7,15 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.test;
+package org.elasticsearch.entitlement.bridge;
 
-/**
- * Any object that can produce an accompanying stop task, meant to tear down
- * a previously instantiated service.
- */
-public interface Fixture {
-
-    /** A task which will stop this fixture. This should be used as a finalizedBy for any tasks that use the fixture. */
-    Object getStopTask();
-
-}
+public interface Java23EntitlementChecker extends EntitlementChecker {}

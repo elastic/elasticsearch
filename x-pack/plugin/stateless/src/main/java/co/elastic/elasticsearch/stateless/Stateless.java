@@ -503,6 +503,7 @@ public class Stateless extends Plugin
         );
         setAndGet(this.translogReplicatorMetrics, new TranslogRecoveryMetrics(services.telemetryProvider().getMeterRegistry()));
         setAndGet(this.mergeMetrics, new MergeMetrics(services.telemetryProvider().getMeterRegistry()));
+        components.add(this.mergeMetrics.get());
         components.add(new StatelessComponents(translogReplicator, objectStoreService));
 
         var indexShardCacheWarmer = new IndexShardCacheWarmer(

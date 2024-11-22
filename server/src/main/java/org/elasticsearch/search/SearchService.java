@@ -554,7 +554,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
             // check if we can shortcut the query phase entirely.
-            if (orig.canReturnNullResponseIfMatchNoDocs()) {
+            /*if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
                 final CanMatchShardResponse canMatchResp;
                 try {
@@ -568,7 +568,7 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                     l.onResponse(QuerySearchResult.nullInstance());
                     return;
                 }
-            }
+            }*/
             // TODO: i think it makes sense to always do a canMatch here and
             // return an empty response (not null response) in case canMatch is false?
             ensureAfterSeqNoRefreshed(shard, orig, () -> executeQueryPhase(orig, task), l);

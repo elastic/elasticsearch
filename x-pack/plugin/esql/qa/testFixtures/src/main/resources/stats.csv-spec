@@ -2989,12 +2989,13 @@ FROM employees
 , less_than = STD_DEV(salary_change) WHERE languages <= 3
 , salary = STD_DEV(salary * 2)
 , count = COUNT(*) BY gender
+| SORT gender asc
 ;
 
 greater_than:double | less_than:double  | salary:double      | count:long | gender:keyword
-6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
-6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
 6.4543266953142835  | 7.57786788789264  | 29045.770666969744 | 33         | F
+6.975232333891946   | 6.604807075547775 | 26171.331109641273 | 57         | M
+6.949207097931448   | 7.127229475750027 | 27921.220736207077 | 10         | null
 ;
 
 stdDevRow

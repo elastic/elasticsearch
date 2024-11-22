@@ -515,13 +515,32 @@ setup:
   - match: { _source.object.dense_field.inference.chunks.2.text: "dense data 3" }
   - exists: _source.object.dense_field.inference.chunks.2.embeddings
 
-# TODO: Enable case once we decide how to handle it
-#  - do:
-#      update:
-#        index: test-in-object-index
-#        id: doc_1
-#        body:
-#          doc: { "object.sparse_field": "sparse data 3", "object.dense_field": "dense data 3" }
+  - do:
+      update:
+        index: test-in-object-index
+        id: doc_1
+        body:
+          doc: { "object.sparse_field": "sparse data 4", "object.dense_field": "dense data 4" }
+
+  - do:
+      get:
+        index: test-in-object-index
+        id: doc_1
+
+  - match: { _source.object.sparse_field.text: "sparse data 4" }
+  - length: { _source.object.sparse_field.inference.chunks: 3 }
+  - match: { _source.object.sparse_field.inference.chunks.1.text: "sparse data 2" }
+  - exists: _source.object.sparse_field.inference.chunks.1.embeddings
+  - match: { _source.object.sparse_field.inference.chunks.2.text: "sparse data 3" }
+  - exists: _source.object.sparse_field.inference.chunks.2.embeddings
+  - match: { _source.object.dense_field.text: "dense data 4" }
+  - length: { _source.object.dense_field.inference.chunks: 3 }
+  - match: { _source.object.dense_field.inference.chunks.1.text: "dense data 2" }
+  - exists: _source.object.dense_field.inference.chunks.1.embeddings
+  - match: { _source.object.dense_field.inference.chunks.2.text: "dense data 3" }
+  - exists: _source.object.dense_field.inference.chunks.2.embeddings
+
+# TODO: Tests to add: set to null & merging lists of lists
 
 ---
 "Updates with script are not allowed":

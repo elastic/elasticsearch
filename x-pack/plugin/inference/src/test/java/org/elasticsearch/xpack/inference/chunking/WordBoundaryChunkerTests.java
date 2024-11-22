@@ -67,7 +67,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
 
     public void testSingleSplit() {
         var chunker = new WordBoundaryChunker();
-        var chunks = chunker.chunk(TEST_TEXT, 10_000, 0);
+        var chunks = chunker.textChunks(TEST_TEXT, 10_000, 0);
         assertThat(chunks, hasSize(1));
         assertEquals(TEST_TEXT, chunks.get(0));
     }
@@ -168,11 +168,11 @@ public class WordBoundaryChunkerTests extends ESTestCase {
         }
         var whiteSpacedText = input.toString().stripTrailing();
 
-        var chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 20, 10);
+        var chunks = new WordBoundaryChunker().textChunks(whiteSpacedText, 20, 10);
         assertChunkContents(chunks, numWords, 20, 10);
-        chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 10, 4);
+        chunks = new WordBoundaryChunker().textChunks(whiteSpacedText, 10, 4);
         assertChunkContents(chunks, numWords, 10, 4);
-        chunks = new WordBoundaryChunker().chunk(whiteSpacedText, 15, 3);
+        chunks = new WordBoundaryChunker().textChunks(whiteSpacedText, 15, 3);
         assertChunkContents(chunks, numWords, 15, 3);
     }
 
@@ -217,28 +217,28 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testEmptyString() {
-        var chunks = new WordBoundaryChunker().chunk("", 10, 5);
-        assertThat(chunks, contains(""));
+        var chunks = new WordBoundaryChunker().textChunks("", 10, 5);
+        assertThat(chunks.toString(), chunks, contains(""));
     }
 
     public void testWhitespace() {
-        var chunks = new WordBoundaryChunker().chunk(" ", 10, 5);
+        var chunks = new WordBoundaryChunker().textChunks(" ", 10, 5);
         assertThat(chunks, contains(" "));
     }
 
     public void testPunctuation() {
         int chunkSize = 1;
-        var chunks = new WordBoundaryChunker().chunk("Comma, separated", chunkSize, 0);
+        var chunks = new WordBoundaryChunker().textChunks("Comma, separated", chunkSize, 0);
         assertThat(chunks, contains("Comma", ", separated"));
 
-        chunks = new WordBoundaryChunker().chunk("Mme. Thénardier", chunkSize, 0);
+        chunks = new WordBoundaryChunker().textChunks("Mme. Thénardier", chunkSize, 0);
         assertThat(chunks, contains("Mme", ". Thénardier"));
 
-        chunks = new WordBoundaryChunker().chunk("Won't you chunk", chunkSize, 0);
+        chunks = new WordBoundaryChunker().textChunks("Won't you chunk", chunkSize, 0);
         assertThat(chunks, contains("Won't", " you", " chunk"));
 
         chunkSize = 10;
-        chunks = new WordBoundaryChunker().chunk("Won't you chunk", chunkSize, 0);
+        chunks = new WordBoundaryChunker().textChunks("Won't you chunk", chunkSize, 0);
         assertThat(chunks, contains("Won't you chunk"));
     }
 

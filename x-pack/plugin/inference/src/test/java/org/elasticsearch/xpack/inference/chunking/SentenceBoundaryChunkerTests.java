@@ -30,7 +30,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
     public void testChunkSplitLargeChunkSizes() {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+            var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, false);
 
             int numChunks = expectedNumberOfChunks(sentenceSizes(TEST_TEXT), maxWordsPerChunk);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(numChunks));
@@ -48,7 +48,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         boolean overlap = true;
         for (int maxWordsPerChunk : new int[] { 70, 80, 100, 120, 150, 200 }) {
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, overlap);
+            var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, overlap);
 
             int[] overlaps = chunkOverlaps(sentenceSizes(TEST_TEXT), maxWordsPerChunk, overlap);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(overlaps.length));
@@ -107,7 +107,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         }
 
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(sb.toString(), chunkSize, true);
+        var chunks = chunker.textChunks(sb.toString(), chunkSize, true);
         assertThat(chunks, hasSize(numChunks));
         for (int i = 0; i < numChunks; i++) {
             assertThat("num sentences " + numSentences, chunks.get(i), startsWith("SStart" + sentenceStartIndexes[i]));
@@ -128,10 +128,10 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
     public void testChunk_ChunkSizeLargerThanText() {
         int maxWordsPerChunk = 500;
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+        var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, false);
         assertEquals(chunks.get(0), TEST_TEXT);
 
-        chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, true);
+        chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, true);
         assertEquals(chunks.get(0), TEST_TEXT);
     }
 
@@ -142,7 +142,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         for (int i = 0; i < chunkSizes.length; i++) {
             int maxWordsPerChunk = chunkSizes[i];
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, false);
+            var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, false);
 
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(expectedNumberOFChunks[i]));
             for (var chunk : chunks) {
@@ -171,7 +171,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         for (int i = 0; i < chunkSizes.length; i++) {
             int maxWordsPerChunk = chunkSizes[i];
             var chunker = new SentenceBoundaryChunker();
-            var chunks = chunker.chunk(TEST_TEXT, maxWordsPerChunk, true);
+            var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, true);
             assertThat(chunks.get(0), containsString("Word segmentation is the problem of dividing"));
             assertThat(chunks.get(chunks.size() - 1), containsString(", with solidification being a stronger norm."));
         }
@@ -190,7 +190,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         }
 
         var chunker = new SentenceBoundaryChunker();
-        var chunks = chunker.chunk(sb.toString(), maxWordsPerChunk, true);
+        var chunks = chunker.textChunks(sb.toString(), maxWordsPerChunk, true);
         assertThat(chunks, hasSize(5));
         assertTrue(chunks.get(0).trim().startsWith("SStart0"));  // Entire sentence
         assertTrue(chunks.get(0).trim().endsWith("."));  // Entire sentence
@@ -303,7 +303,7 @@ public class SentenceBoundaryChunkerTests extends ESTestCase {
         for (int maxWordsPerChunk : new int[] { 100, 200 }) {
             var chunker = new SentenceBoundaryChunker();
             SentenceBoundaryChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(maxWordsPerChunk, 0);
-            var chunks = chunker.chunk(TEST_TEXT, chunkingSettings);
+            var chunks = chunker.textChunks(TEST_TEXT, maxWordsPerChunk, false);
 
             int numChunks = expectedNumberOfChunks(sentenceSizes(TEST_TEXT), maxWordsPerChunk);
             assertThat("words per chunk " + maxWordsPerChunk, chunks, hasSize(numChunks));

@@ -10,7 +10,6 @@
 import org.apache.tools.ant.filters.ReplaceTokens
 import org.elasticsearch.gradle.LoggedExec
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.redline_rpm.header.Flags
 
 import java.nio.file.Files

@@ -258,14 +258,14 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
             otherDocCount[0] += terms.getSumOfOtherDocCounts();
             final long thisAggDocCountError = getDocCountError(terms);
             setDocCountError(thisAggDocCountError);
-            if (getShowDocCountError()) {
-                if (sumDocCountError != -1) {
-                    if (thisAggDocCountError == -1) {
-                        sumDocCountError = -1;
-                    } else {
-                        sumDocCountError += thisAggDocCountError;
-                    }
+            if (sumDocCountError != -1) {
+                if (thisAggDocCountError == -1) {
+                    sumDocCountError = -1;
+                } else {
+                    sumDocCountError += thisAggDocCountError;
                 }
+            }
+            if (getShowDocCountError()) {
                 for (B bucket : terms.getBuckets()) {
                     // If there is already a doc count error for this bucket
                     // subtract this aggs doc count error from it to make the

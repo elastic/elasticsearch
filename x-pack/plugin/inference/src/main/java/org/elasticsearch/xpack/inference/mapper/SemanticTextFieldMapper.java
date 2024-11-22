@@ -57,7 +57,6 @@ import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 import org.elasticsearch.xpack.core.ml.inference.results.MlTextEmbeddingResults;
 import org.elasticsearch.xpack.core.ml.inference.results.TextExpansionResults;
-import org.elasticsearch.xpack.inference.DefaultElserFeatureFlag;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -70,6 +69,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -90,8 +90,12 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SEARCH_INFERENCE_ID = new NodeFeature("semantic_text.search_inference_id");
     public static final NodeFeature SEMANTIC_TEXT_DEFAULT_ELSER_2 = new NodeFeature("semantic_text.default_elser_2");
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
-
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
+    public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
+        "semantic_text.always_emit_inference_id_fix"
+    );
 
     public static final String CONTENT_TYPE = "semantic_text";
     public static final String DEFAULT_ELSER_2_INFERENCE_ID = DEFAULT_ELSER_ID;
@@ -111,18 +115,14 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             INFERENCE_ID_FIELD,
             false,
             mapper -> ((SemanticTextFieldType) mapper.fieldType()).inferenceId,
-            DefaultElserFeatureFlag.isEnabled() ? DEFAULT_ELSER_2_INFERENCE_ID : null
+            DEFAULT_ELSER_2_INFERENCE_ID
         ).addValidator(v -> {
             if (Strings.isEmpty(v)) {
-                // If the default ELSER feature flag is enabled, the only way we get here is if the user explicitly sets the param to an
-                // empty value. However, if the feature flag is disabled, we can get here if the user didn't set the param.
-                // Adjust the error message appropriately.
-                String message = DefaultElserFeatureFlag.isEnabled()
-                    ? "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
-                    : "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must be specified";
-                throw new IllegalArgumentException(message);
+                throw new IllegalArgumentException(
+                    "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
+                );
             }
-        });
+        }).alwaysSerialize();
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,
@@ -512,7 +512,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             return fieldInfos.fieldInfo(getEmbeddingsFieldName(name())) != null;
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
@@ -556,7 +556,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
+                        Integer k = requestSize;
+                        if (k != null) {
+                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
+                            k = Math.max(k, DEFAULT_SIZE);
+                        }
+
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

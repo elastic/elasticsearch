@@ -107,7 +107,7 @@ public class SslClientAuthenticationTests extends SecurityIntegTestCase {
             if (inFipsJvm()) {
                 Throwable t = ExceptionsHelper.unwrap(e, CertificateException.class);
                 assertThat(t, instanceOf(CertificateException.class));
-                assertThat(t.getMessage(), containsString("Unable to find certificate chain"));
+                assertThat(t.getMessage(), containsString("Unable to construct a valid chain"));
             } else {
                 Throwable t = ExceptionsHelper.unwrap(e, CertPathBuilderException.class);
                 assertThat(t, instanceOf(CertPathBuilderException.class));

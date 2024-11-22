@@ -58,15 +58,16 @@ subprojects {
       project.gradle.sharedServices,
       TestClustersPlugin.REGISTRY_SERVICE_NAME
     )
-    project.getProviders().of(TestClusterValueSource.class) {
+
+    def clusterInfo = project.getProviders().of(TestClusterValueSource.class) {
       it.parameters.path.set(clusterPath)
       it.parameters.clusterName.set("javaRestTest")
       it.parameters.service = serviceProvider
     }
 
     nonInputProperties.systemProperty 'tests.audit.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog()}"
+      "${-> clusterInfo.map { it.auditLogs.get(0) } }"
     nonInputProperties.systemProperty 'tests.audit.yesterday.logfile',
-      "${-> testClusters.javaRestTest.singleNode().getAuditLog().getParentFile()}/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
+      "${-> clusterInfo.map { it.auditLogs.get(0).getParentFile()} }/javaRestTest_audit-${new Date().format('yyyy-MM-dd')}.json"
   }
 }

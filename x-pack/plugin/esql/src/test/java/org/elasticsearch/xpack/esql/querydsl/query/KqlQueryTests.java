@@ -7,7 +7,6 @@
 package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.tree.SourceTests;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
@@ -111,25 +110,24 @@ public class KqlQueryTests extends ESTestCase {
     }
 
     public void testQueryBuilding() {
-        KqlQueryBuilder qb = getBuilder("case_insensitive=false");
+        KqlQueryBuilder qb = getBuilder(Map.of("case_insensitive", "false"));
         assertThat(qb.caseInsensitive(), equalTo(false));
 
-        qb = getBuilder("case_insensitive=false;time_zone=UTC;default_field=foo");
+        qb = getBuilder(Map.of("case_insensitive", "false", "time_zone", "UTC", "default_field", "foo"));
         assertThat(qb.caseInsensitive(), equalTo(false));
         assertThat(qb.timeZone(), equalTo(ZoneId.of("UTC")));
         assertThat(qb.defaultField(), equalTo("foo"));
 
-        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder("pizza=yummy"));
+        Exception e = expectThrows(IllegalArgumentException.class, () -> getBuilder(Map.of("pizza", "yummy")));
         assertThat(e.getMessage(), equalTo("illegal kql query option [pizza]"));
 
-        e = expectThrows(ZoneRulesException.class, () -> getBuilder("time_zone=aoeu"));
+        e = expectThrows(ZoneRulesException.class, () -> getBuilder(Map.of("time_zone", "aoeu")));
         assertThat(e.getMessage(), equalTo("Unknown time-zone ID: aoeu"));
     }
 
-    private static KqlQueryBuilder getBuilder(String options) {
+    private static KqlQueryBuilder getBuilder(Map<String, String>  options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
-        final StringQueryPredicate predicate = new StringQueryPredicate(source, "eggplant", options);
-        final KqlQuery kqlQuery = new KqlQuery(source, "eggplant", predicate.optionMap());
+        final KqlQuery kqlQuery = new KqlQuery(source, "eggplant", options);
         return (KqlQueryBuilder) kqlQuery.asBuilder();
     }
 

@@ -257,7 +257,10 @@ public class UpdateHelper {
             List<Object> inferenceFieldValues = XContentMapValues.extractRawValues(inferenceFieldName, changes);
             if (inferenceFieldValues.isEmpty() == false) {
                 // TODO: Merge lists of lists
-                inferenceFieldUpdates.put(inferenceFieldName, inferenceFieldValues.size() > 1 ? inferenceFieldValues : inferenceFieldValues.get(0));
+                inferenceFieldUpdates.put(
+                    inferenceFieldName,
+                    inferenceFieldValues.size() > 1 ? inferenceFieldValues : inferenceFieldValues.get(0)
+                );
             }
         }
 

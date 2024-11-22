@@ -106,7 +106,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             // rarely leave some holes to be filled up with empty buckets in case minDocCount is set to 0
             if (frequently()) {
                 long key = startingDate + intervalMillis * i;
-                buckets.add(new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), keyed, format, aggregations));
+                buckets.add(new InternalDateHistogram.Bucket(key, randomIntBetween(1, 100), format, aggregations));
             }
         }
         BucketOrder order = BucketOrder.key(randomBoolean());
@@ -181,13 +181,7 @@ public class InternalDateHistogramTests extends InternalMultiBucketAggregationTe
             case 1 -> {
                 buckets = new ArrayList<>(buckets);
                 buckets.add(
-                    new InternalDateHistogram.Bucket(
-                        randomNonNegativeLong(),
-                        randomIntBetween(1, 100),
-                        keyed,
-                        format,
-                        InternalAggregations.EMPTY
-                    )
+                    new InternalDateHistogram.Bucket(randomNonNegativeLong(), randomIntBetween(1, 100), format, InternalAggregations.EMPTY)
                 );
             }
             case 2 -> order = BucketOrder.count(randomBoolean());

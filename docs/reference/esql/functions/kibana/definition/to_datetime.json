@@ -21,6 +21,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."

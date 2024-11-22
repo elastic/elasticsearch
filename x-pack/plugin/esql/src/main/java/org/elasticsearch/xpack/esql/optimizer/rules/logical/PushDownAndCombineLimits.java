@@ -18,7 +18,7 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
 import org.elasticsearch.xpack.esql.plan.logical.join.Join;
-import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 
 public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule<Limit> {
@@ -63,7 +63,7 @@ public final class PushDownAndCombineLimits extends OptimizerRules.OptimizerRule
                 }
             }
         } else if (limit.child() instanceof Join join) {
-            if (join.config().type() == JoinType.LEFT && join.right() instanceof LocalRelation) {
+            if (join.config().type() == JoinTypes.LEFT && join.right() instanceof LocalRelation) {
                 // This is a hash join from something like a lookup.
                 return join.replaceChildren(limit.replaceChild(join.left()), join.right());
             }

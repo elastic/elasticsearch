@@ -45,6 +45,7 @@ public class ValuesTests extends AbstractAggregationTestCase {
             MultiRowTestCaseSupplier.longCases(1, 1000, Long.MIN_VALUE, Long.MAX_VALUE, true),
             MultiRowTestCaseSupplier.doubleCases(1, 1000, -Double.MAX_VALUE, Double.MAX_VALUE, true),
             MultiRowTestCaseSupplier.dateCases(1, 1000),
+            MultiRowTestCaseSupplier.dateNanosCases(1, 1000),
             MultiRowTestCaseSupplier.booleanCases(1, 1000),
             MultiRowTestCaseSupplier.ipCases(1, 1000),
             MultiRowTestCaseSupplier.versionCases(1, 1000),

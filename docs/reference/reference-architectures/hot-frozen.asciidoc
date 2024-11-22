@@ -1,7 +1,7 @@
 [[hot-frozen-architecture]]
 == Hot / Frozen - High Availability
 
-The Hot / Frozen – High Availability architecture is cost optimized for large time-series datasets. All data is fully indexed and searchable in each tier as well as object storage for high speed retrieval. In this architecture, the hot tier is primarily used for indexing and immediate searching (<1 day), https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[searchable snapshots] are taken from Hot to the Object Store using Index and Snapshot lifecycle management. Any amount of the snapshot data can be automatically cached in the frozen tier for high speed search. Since the hot tier data is moved to an object store, the cost of keeping all of the data searchable is dramatically reduced.
+The Hot / Frozen – High Availability architecture is cost optimized for large time-series datasets. In this architecture, the hot tier is primarily used for indexing and immediate searching (<1 day), https://www.elastic.co/guide/en/elasticsearch/reference/current/searchable-snapshots.html[searchable snapshots] are taken from hot to the object store using Index and Snapshot lifecycle management. Any amount of the snapshot data can be automatically cached in the frozen tier for high speed search. Data in the object store is accessible through the nodes in the frozen tier.
 
 This architecture is ideal for time-series use cases, such as Observability or Security, that do not require updating. All the necessary components of the Elastic Stack are included and this is not intended for sizing workloads, but rather as a basis to ensure your cluster is ready to handle any desired workload with resiliency. A very high level representation of data flow is included, and for more detail around ingest architecture see our https://www.elastic.co/guide/en/ingest/current/use-case-arch.html[ingest architectures] documentation. 
 
@@ -18,8 +18,10 @@ This Hot / Frozen – High Availability architecture is intended for organizatio
 
 [IMPORTANT]
 ====
-* Security use cases with many event rules that have lookback requirements may require an additional cold tier. 
-* This architecture is intended for ingest streams that are mostly immutable (not changing or updated). Other architectures allow for data that needs to be mutable (data needs to be changed after indexing) after indexing.
+**Operations that frequently read large data volumes require both high availability (replicas) and predictable low latency (hot, warm or cold tier).**
+
+* Common examples of these tasks include look-back windows on security detection/alert rules, transforms, machine learning jobs, or watches; and long running scroll queries or external extract processes.
+* These operations should be completed before moving the data into a frozen tier.
 ====
 
 [discrete]
@@ -30,7 +32,7 @@ image::images/hot-frozen.png["A Hot/Frozen Highly available architecture"]
 
 TIP: We use an Availability Zone (AZ) concept in the architecture above.  When running in your own Data Center (DC) you can equate AZs to failure zones within a datacenter, racks, or even separate physical machines depending on your constraints.
 
-The diagram illustrates an Elasticsearch cluster deployed across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. Even if the cluster is deployed across only two AZs, a third master node is still required for quorum voting and will be created automatically in the third AZ. True real-time high availability cannot be achieved without three zones.
+The diagram illustrates an Elasticsearch cluster deployed across 3 availability zones (AZ). For production we recommend a minimum of 2 availability zones and 3 availability zones for mission critical applications. See https://www.elastic.co/guide/en/cloud/current/ec-planning.html[Plan for Production] for more details. A cluster that is running in Elastic Cloud that has data nodes in only two AZs will create a third master-eligible node in a third AZ. True real-time high availability cannot be achieved without three zones.
 
 The number of data nodes shown for each tier (hot and frozen) is illustrative and would be scaled up depending on ingest volume and retention period. Hot nodes contain both primary and replica shards. By default, primary and replica shards are always guaranteed to be in different availability zones in Elasticsearch Service, but when self-deploying https://www.elastic.co/guide/en/elasticsearch/reference/master/modules-cluster.html#shard-allocation-awareness[shard allocation awareness] would need to be configured. Frozen nodes act as a large high-speed cache and retrieve data from the snapshot store as needed.
 
@@ -42,11 +44,10 @@ Machine learning nodes are optional but highly recommended for large scale time 
 
 Elastic Cloud allows you to deploy clusters in AWS, Azure and Google Cloud.  Available hardware types and configurations vary across all three cloud providers but each provides instance types that meet our recommendations for the node types used in this architecture. For more details on these instance types, see our documentation on Elastic Cloud hardware for https://www.elastic.co/guide/en/cloud/current/ec-default-aws-configurations.html[AWS], https://www.elastic.co/guide/en/cloud/current/ec-default-azure-configurations.html[Azure], and https://www.elastic.co/guide/en/cloud/current/ec-default-gcp-configurations.html[GCP]. The **Physical** column below is guidance, based on the cloud node types, when self-deploying Elasticsearch in your own data center.
 
-In the links provided above, elastic has performance tested hardware for each of the cloud providers to find the optimal hardware for each node type. We use ratios to represent the best mix of CPU, Ram, and Disk for each type.   In some cases the CPU to RAM ratio is key, in others the disk to memory ratio and type of disk is critical.   Significantly deviating from these ratios may look like a way to save on hardware costs, but almost always results in an Elasticsearch cluster that does not scale and perform well.
+In the links provided above, elastic has performance tested hardware for each of the cloud providers to find the optimal hardware for each node type. We use ratios to represent the best mix of CPU, Ram, and Disk for each type.   In some cases the CPU to RAM ratio is key, in others the disk to memory ratio and type of disk is critical.   Significantly deviating from these ratios may look like a way to save on hardware costs, but may result in an Elasticsearch cluster that does not scale and perform well.
 
 The following table shows our specific recommendations for nodes in Hot / Frozen architecture. 
 
-[cols="2, 5, 5, 5, 5"]
 |===
 | **Type** | **AWS** | **Azure** | **GCP** | **Physical**
 |image:images/hot.png["Hot data node"] | 

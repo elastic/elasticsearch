@@ -15,5 +15,5 @@ dependencies {
   api("junit:junit:${versions.junit}") {
     transitive = false
   }
-  api project(':test:framework')
+  implementation project(':test:framework')
 }

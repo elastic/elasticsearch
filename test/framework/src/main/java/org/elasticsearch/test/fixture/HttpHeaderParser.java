@@ -7,7 +7,7 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.http;
+package org.elasticsearch.test.fixture;
 
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;

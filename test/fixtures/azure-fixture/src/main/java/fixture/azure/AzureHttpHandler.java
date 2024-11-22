@@ -21,9 +21,9 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
-import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 

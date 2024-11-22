@@ -23,9 +23,9 @@ import org.elasticsearch.common.util.concurrent.CountDown;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
-import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.mocksocket.MockHttpServer;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.After;
 import org.junit.Before;
 

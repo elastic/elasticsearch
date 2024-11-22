@@ -8,9 +8,9 @@
  */
 package fixture.url;
 
-import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.fixture.AbstractHttpFixture;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 

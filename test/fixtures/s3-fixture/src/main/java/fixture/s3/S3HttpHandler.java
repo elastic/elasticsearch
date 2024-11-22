@@ -24,11 +24,11 @@ import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.IOException;
 import java.io.InputStreamReader;

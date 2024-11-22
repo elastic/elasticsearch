@@ -22,9 +22,9 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.io.BufferedReader;
 import java.io.IOException;

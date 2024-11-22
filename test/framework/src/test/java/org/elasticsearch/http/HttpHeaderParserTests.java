@@ -10,6 +10,7 @@
 package org.elasticsearch.http;
 
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.fixture.HttpHeaderParser;
 
 import java.math.BigInteger;
 

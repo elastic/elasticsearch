@@ -1,5 +1,6 @@
 pr: 117272
 summary: Handle semantic text partial updates when the field is in an object
-area: Relevance
+area: Ingest
 type: bug
-issues: []
+issues:
+  - 117258

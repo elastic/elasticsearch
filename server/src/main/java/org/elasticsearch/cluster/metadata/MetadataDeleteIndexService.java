@@ -142,9 +142,18 @@ public class MetadataDeleteIndexService {
         }
     }
 
-    @Deprecated
-    public static ClusterState deleteIndices(ClusterState currentState, Set<Index> indices, Settings settings) {
-        return deleteIndices(currentState.projectState(), indices, settings);
+    public static ClusterState deleteIndices(ClusterState clusterState, Set<Index> indices, Settings settings) {
+        final Map<ProjectId, Set<Index>> byProject = new HashMap<>();
+        for (Index index : indices) {
+            final ProjectMetadata project = clusterState.metadata().projectFor(index);
+            byProject.computeIfAbsent(project.id(), ignore -> new HashSet<>()).add(index);
+        }
+
+        for (final Map.Entry<ProjectId, Set<Index>> entry : byProject.entrySet()) {
+            // TODO Avoid creating the state multiple times if there are batched updates for multiple projects
+            clusterState = deleteIndices(clusterState.projectState(entry.getKey()), entry.getValue(), settings);
+        }
+        return clusterState;
     }
 
     /**

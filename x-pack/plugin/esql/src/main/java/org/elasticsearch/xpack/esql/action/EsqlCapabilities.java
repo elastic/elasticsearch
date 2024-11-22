@@ -348,7 +348,7 @@ public class EsqlCapabilities {
         /**
          * Support add and subtract on date nanos
          */
-        DATE_NANOS_ADD_SUBTRACT(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_ADD_SUBTRACT(),
         /**
          * Support for date_trunc function on date nanos type
          */

@@ -7,7 +7,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:plugin:security')
 }
 
-boolean literalUsername = BuildParams.random.nextBoolean()
+boolean literalUsername = buildParams.random.nextBoolean()
 
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()

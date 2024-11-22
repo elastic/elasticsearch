@@ -22,10 +22,10 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.index.query.RangeQueryBuilder;
 import org.elasticsearch.index.query.SearchExecutionContext;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestSearchStats;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.junit.Before;
 
@@ -144,7 +145,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
 
         return new Analyzer(
             new AnalyzerContext(config, new EsqlFunctionRegistry(), getIndexResult, enrichResolution),
-            new Verifier(new Metrics(new EsqlFunctionRegistry()))
+            new Verifier(new Metrics(new EsqlFunctionRegistry()), new XPackLicenseState(() -> 0L))
         );
     }
 
@@ -330,7 +331,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
         }, directoryReader -> {
             IndexSearcher searcher = newSearcher(directoryReader);
             SearchExecutionContext ctx = createSearchExecutionContext(mapperService, searcher);
-            plan.set(plannerOptimizer.plan(query, new SearchStats(List.of(ctx))));
+            plan.set(plannerOptimizer.plan(query, SearchContextStats.from(List.of(ctx))));
         });
 
         return plan.get();
@@ -1091,8 +1092,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         var plan = plannerOptimizer.plan("""
             from test
             | where first_name:"Anna"
@@ -1123,8 +1122,6 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *         [_doc{f}#22], limit[1000], sort[[FieldSort[field=emp_no{f}#12, direction=ASC, nulls=LAST]]] estimatedRowSize[336]
      */
     public void testMultipleMatchFilterPushdown() {
-        assumeTrue("skipping because MATCH operator is not enabled", EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.isEnabled());
-
         String query = """
             from test
             | where first_name:"Anna" and first_name:"Anneke"

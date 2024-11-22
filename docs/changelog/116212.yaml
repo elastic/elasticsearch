@@ -1,6 +1,0 @@
-pr: 116212
-summary: Handle status code 0 in S3 CMU response
-area: Snapshot/Restore
-type: bug
-issues:
- - 102294

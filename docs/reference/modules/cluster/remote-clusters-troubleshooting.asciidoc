@@ -399,7 +399,7 @@ This does not show up in any logs.
 
 ====== Resolution
 
-. Check that the local user has the necessary `remote_indices` privileges. Grant sufficient `remote_indices` privileges if necessary.
+. Check that the local user has the necessary `remote_indices` or `remote_cluster` privileges. Grant sufficient `remote_indices` or `remote_cluster` privileges if necessary.
 . If permission is not an issue locally, ask the remote cluster administrator to
 create and distribute a
 <<security-api-create-cross-cluster-api-key,cross-cluster API key>>. Replace the

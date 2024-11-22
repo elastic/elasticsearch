@@ -146,7 +146,6 @@ public class IndexLifecycle extends Plugin implements ActionPlugin, HealthPlugin
         ILMHistoryTemplateRegistry ilmTemplateRegistry = new ILMHistoryTemplateRegistry(
             settings,
             services.clusterService(),
-            services.featureService(),
             services.threadPool(),
             services.client(),
             services.xContentRegistry()

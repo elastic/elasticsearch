@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateTaskListener;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.allocation.AllocationService.RerouteStrategy;
+import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.RoutingExplanations;
 import org.elasticsearch.cluster.routing.allocation.ShardAllocationDecision;
@@ -85,7 +86,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ThreadPool threadPool,
         ClusterService clusterService,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this(
             delegateAllocator,
@@ -93,7 +95,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
             clusterService,
             new DesiredBalanceComputer(clusterSettings, threadPool, delegateAllocator),
             reconciler,
-            telemetryProvider
+            telemetryProvider,
+            nodeAllocationStatsProvider
         );
     }
 
@@ -103,7 +106,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         ClusterService clusterService,
         DesiredBalanceComputer desiredBalanceComputer,
         DesiredBalanceReconcilerAction reconciler,
-        TelemetryProvider telemetryProvider
+        TelemetryProvider telemetryProvider,
+        NodeAllocationStatsProvider nodeAllocationStatsProvider
     ) {
         this.desiredBalanceMetrics = new DesiredBalanceMetrics(telemetryProvider.getMeterRegistry());
         this.delegateAllocator = delegateAllocator;
@@ -113,7 +117,8 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         this.desiredBalanceReconciler = new DesiredBalanceReconciler(
             clusterService.getClusterSettings(),
             threadPool,
-            desiredBalanceMetrics
+            desiredBalanceMetrics,
+            nodeAllocationStatsProvider
         );
         this.desiredBalanceComputation = new ContinuousComputation<>(threadPool.generic()) {
 
@@ -126,6 +131,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
 
                 recordTime(
                     cumulativeComputationTime,
+                    // We set currentDesiredBalance back to INITIAL when the node stands down as master in onNoLongerMaster.
+                    // However, it is possible that we revert the effect here by setting it again since the computation is async
+                    // and does not check whether the node is master. This should have little to no practical impact. But it may
+                    // lead to unexpected behaviours for tests. See also https://github.com/elastic/elasticsearch/pull/116904
                     () -> setCurrentDesiredBalance(
                         desiredBalanceComputer.compute(
                             getInitialDesiredBalance(),
@@ -208,6 +217,10 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         queue.add(index, listener);
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
+        if (allocation.routingTable().indicesRouting().isEmpty()) {
+            logger.debug("No eager reconciliation needed for empty routing table");
+            return;
+        }
         // Starts reconciliation towards desired balance that might have not been updated with a recent calculation yet.
         // This is fine as balance should have incremental rather than radical changes.
         // This should speed up achieving the desired balance in cases current state is still different from it (due to THROTTLING).

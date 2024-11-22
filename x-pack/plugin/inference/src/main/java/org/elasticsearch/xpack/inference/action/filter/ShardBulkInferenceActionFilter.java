@@ -413,8 +413,8 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
          */
         private Map<String, List<FieldInferenceRequest>> createFieldInferenceRequests(BulkShardRequest bulkShardRequest) {
             Map<String, List<FieldInferenceRequest>> fieldRequestsMap = new LinkedHashMap<>();
-            int itemIndex = 0;
-            for (var item : bulkShardRequest.items()) {
+            for (int itemIndex = 0; itemIndex < bulkShardRequest.items().length; itemIndex++) {
+                var item = bulkShardRequest.items()[itemIndex];
                 if (item.getPrimaryResponse() != null) {
                     // item was already aborted/processed by a filter in the chain upstream (e.g. security)
                     continue;
@@ -441,12 +441,14 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     // ignore delete request
                     continue;
                 }
+
                 final Map<String, Object> docMap = indexRequest.sourceAsMap();
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
                     var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map) {
+                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                        // Inference has already been computed, or there is no inference required.
                         continue;
                     }
                     int order = 0;
@@ -482,7 +484,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                         }
                     }
                 }
-                itemIndex++;
             }
             return fieldRequestsMap;
         }

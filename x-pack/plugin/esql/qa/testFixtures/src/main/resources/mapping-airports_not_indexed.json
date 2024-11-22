@@ -1,0 +1,30 @@
+{
+  "properties": {
+    "abbrev": {
+      "type": "keyword"
+    },
+    "name": {
+      "type": "text"
+    },
+    "scalerank": {
+      "type": "integer"
+    },
+    "type": {
+      "type": "keyword"
+    },
+    "location": {
+      "type": "geo_point",
+      "index": false,
+      "doc_values": true
+    },
+    "country": {
+      "type": "keyword"
+    },
+    "city": {
+      "type": "keyword"
+    },
+    "city_location": {
+      "type": "geo_point"
+    }
+  }
+}

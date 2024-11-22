@@ -1,6 +1,0 @@
-pr: 112348
-summary: Introduce repository integrity verification API
-area: Snapshot/Restore
-type: enhancement
-issues:
- - 52622

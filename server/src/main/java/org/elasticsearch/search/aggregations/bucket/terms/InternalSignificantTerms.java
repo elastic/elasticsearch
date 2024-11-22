@@ -62,7 +62,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long supersetSize;
         /**
          * Ordinal of the bucket while it is being built. Not used after it is
-         * returned from {@link Aggregator#buildAggregations(long[])} and not
+         * returned from {@link Aggregator#buildAggregations(org.elasticsearch.common.util.LongArray)} and not
          * serialized.
          */
         transient long bucketOrd;

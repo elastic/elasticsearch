@@ -1142,10 +1142,11 @@ public abstract class ESRestTestCase extends ESTestCase {
                     if (warning.startsWith("this request accesses system indices:")) {
                         SUITE_LOGGER.warn("Ignoring system index access warning during test cleanup: {}", warning);
                     } else {
-                        return false;
+                        return true;
                     }
                 }
-                return true;
+
+                return false;
             }));
 
             final Response response = adminClient().performRequest(deleteRequest);

@@ -582,9 +582,9 @@ public class ShardRoutingRoleIT extends ESIntegTestCase {
             case SHARDS -> preference.type()
                 + ":"
                 + String.join(
-                ",",
-                randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
-            );
+                    ",",
+                    randomSubsetOf(between(1, numShards), IntStream.range(0, numShards).mapToObj(Integer::toString).toList())
+                );
         };
     }
 

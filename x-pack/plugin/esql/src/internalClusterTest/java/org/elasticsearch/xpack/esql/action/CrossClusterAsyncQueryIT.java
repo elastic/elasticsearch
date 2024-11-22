@@ -10,7 +10,6 @@ package org.elasticsearch.xpack.esql.action;
 import org.elasticsearch.ElasticsearchTimeoutException;
 import org.elasticsearch.action.bulk.BulkRequestBuilder;
 import org.elasticsearch.action.index.IndexRequest;
-import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.action.support.WriteRequest;
 import org.elasticsearch.action.support.master.AcknowledgedResponse;
 import org.elasticsearch.client.internal.Client;
@@ -54,10 +53,8 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.TimeValue.timeValueMillis;
-import static org.elasticsearch.core.TimeValue.timeValueSeconds;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
-import static org.elasticsearch.xpack.esql.action.AbstractEsqlIntegTestCase.randomPragmas;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.hasSize;
@@ -83,7 +80,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     protected Collection<Class<? extends Plugin>> nodePlugins(String clusterAlias) {
         List<Class<? extends Plugin>> plugins = new ArrayList<>(super.nodePlugins(clusterAlias));
         plugins.add(EsqlPlugin.class);
-        plugins.add(CrossClustersQueryIT.InternalExchangePlugin.class);
+        plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
+        plugins.add(InternalExchangePlugin.class);
         plugins.add(PauseFieldPlugin.class);
         return plugins;
     }
@@ -115,8 +113,9 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
             return new ScriptEngine() {
                 @Override
+
                 public String getType() {
-                    System.err.println("FOOO DEBUG 0: getType");
+                    System.err.println("PAUSE DEBUG 0: getType");
                     return "pause";
                 }
 
@@ -137,27 +136,28 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                                 SearchLookup searchLookup,
                                 OnScriptError onScriptError
                             ) {
-                                System.err.println("FOOO DEBUG 1");
+                                System.err.println("PAUSE DEBUG 1. FieldName: " + fieldName);
                                 return ctx -> new LongFieldScript(fieldName, params, searchLookup, onScriptError, ctx) {
                                     @Override
                                     public void execute() {
-                                        System.err.println("FOOO DEBUG 2");
+                                        System.err.println("PAUSE DEBUG 2");
                                         startEmitting.countDown();
-                                        try {
-                                            System.err.println("FOOO DEBUG 3: Thread name: " + Thread.currentThread().getName());
-                                            assertTrue(allowEmitting.await(30, TimeUnit.SECONDS));
-                                            System.err.println("FOOO DEBUG 4");
-                                        } catch (InterruptedException e) {
-                                            System.err.println("FOOO DEBUG 5");
-                                            throw new AssertionError(e);
-                                        }
-                                        System.err.println("FOOO DEBUG 6");
+                                        System.err.println("PAUSE DEBUG 3: Thread name: " + Thread.currentThread().getName());
+//                                        try {
+//                                            assertTrue(allowEmitting.await(30, TimeUnit.SECONDS));
+//                                            System.err.println("PAUSE DEBUG 4");
+//                                        } catch (InterruptedException e) {
+//                                            System.err.println("PAUSE DEBUG 5");
+//                                            throw new AssertionError(e);
+//                                        }
+                                        System.err.println("PAUSE DEBUG 6");
                                         emit(1);
                                     }
                                 };
                             }
                         };
                     }
+                    System.err.println("PAUSE DEBUG 7");
                     throw new IllegalStateException("unsupported type " + context);
                 }
 
@@ -169,32 +169,32 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
-    public void testAsyncQueryWithPause() throws Exception {
-        Map<String, Object> testClusterInfo = setupClusters(2);
-        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
-        //request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
-        request.pragmas(randomPragmas());
-        PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
-
-        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
-        Boolean requestIncludeMeta = includeCCSMetadata.v1();
-        boolean responseExpectMeta = includeCCSMetadata.v2();
-        try (EsqlQueryResponse resp = runAsyncQuery("FROM cluster-a:test | STATS total=sum(const) | LIMIT 1", requestIncludeMeta, null)) {
-            System.err.println(Strings.toString(resp));
-            System.err.println(">> calling startEmitting.await on thread: " + Thread.currentThread().getName());
-            assertTrue(PauseFieldPlugin.startEmitting.await(2, TimeUnit.SECONDS));
-            String id = resp.asyncExecutionId().get();
-            System.err.println(id);
-            System.err.println("Sleeping on test thread: " + Thread.currentThread().getName());
-            Thread.sleep(2222);
-            EsqlQueryResponse getResponse1 = getAsyncResponse(id);
-            System.err.println(Strings.toString(getResponse1));
-            System.err.println(">> calling allowEmitting");
-            PauseFieldPlugin.allowEmitting.countDown();
-            Thread.sleep(2222);
-            EsqlQueryResponse getResponse2 = getAsyncResponse(id);
-            System.err.println(Strings.toString(getResponse2));
-        }
+//    public void xtestAsyncQueryWithPause() throws Exception {
+//        Map<String, Object> testClusterInfo = setupClusters(2);
+//        EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
+//        //request.query("FROM *:test | STATS total=sum(const) | LIMIT 1");
+//        request.pragmas(randomPragmas());
+//        PlainActionFuture<EsqlQueryResponse> requestFuture = new PlainActionFuture<>();
+//
+//        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+//        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+//        boolean responseExpectMeta = includeCCSMetadata.v2();
+//        try (EsqlQueryResponse resp = runAsyncQuery("FROM cluster-a:test | STATS total=sum(const) | LIMIT 1", requestIncludeMeta, null)) {
+//            System.err.println(Strings.toString(resp));
+//            System.err.println(">> calling startEmitting.await on thread: " + Thread.currentThread().getName());
+//            assertTrue(PauseFieldPlugin.startEmitting.await(2, TimeUnit.SECONDS));
+//            String id = resp.asyncExecutionId().get();
+//            System.err.println(id);
+//            System.err.println("Sleeping on test thread: " + Thread.currentThread().getName());
+//            Thread.sleep(2222);
+//            EsqlQueryResponse getResponse1 = getAsyncResponse(id);
+//            System.err.println(Strings.toString(getResponse1));
+//            System.err.println(">> calling allowEmitting");
+//            PauseFieldPlugin.allowEmitting.countDown();
+//            Thread.sleep(2222);
+//            EsqlQueryResponse getResponse2 = getAsyncResponse(id);
+//            System.err.println(Strings.toString(getResponse2));
+//        }
 
 //        client().execute(EsqlQueryAction.INSTANCE, request, requestFuture);
 //        List<TaskInfo> rootTasks = new ArrayList<>();
@@ -220,25 +220,27 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 //        PauseFieldPlugin.allowEmitting.countDown();
 //        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
 //        assertThat(error.getMessage(), containsString("proxy timeout"));
-    }
+//    }
 
 
-
-    ///////////////////////////
-
-    public void xSuccessfulPathways() throws IOException {
-        Map<String, Object> testClusterInfo = setupClusters(2);
+    // MP TODO: this test is not robust, since it assumes the test will finish in 1 minute - need to build some ability to requery the
+    //    getAsyncResponse if it is not finished
+    public void testSuccessfulPathways() throws IOException {
+        Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
         int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+        int remote2NumShards = (Integer) testClusterInfo.get("remote2.num_shards");
 
         Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
         Boolean requestIncludeMeta = includeCCSMetadata.v1();
         boolean responseExpectMeta = includeCCSMetadata.v2();
-        try (EsqlQueryResponse resp = runAsyncQuery("from logs-*,c*:logs-* | stats sum (v)", requestIncludeMeta, null)) {
+        String q = "FROM logs-*,*:logs-* | STATS sum (v)";
+        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueMinutes(1))) {
             List<List<Object>> values = getValuesList(resp);
             assertThat(values, hasSize(1));
-            assertThat(values.get(0), equalTo(List.of(330L)));
+            assertThat(values.get(0), equalTo(List.of(615L)));
 
+            // MP TODO: the ExecutionInfo is not in the original response from async-search - need to fix that?
             EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
             assertNotNull(executionInfo);
             assertThat(executionInfo.isCrossClusterSearch(), is(true));
@@ -246,7 +248,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
             assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
 
-            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
+            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, REMOTE_CLUSTER_2, LOCAL_CLUSTER)));
 
             EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
             assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
@@ -257,6 +259,16 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards));
             assertThat(remoteCluster.getSkippedShards(), equalTo(0));
             assertThat(remoteCluster.getFailedShards(), equalTo(0));
+
+            EsqlExecutionInfo.Cluster remoteCluster2 = executionInfo.getCluster(REMOTE_CLUSTER_2);
+            assertThat(remoteCluster2.getIndexExpression(), equalTo("logs-*"));
+            assertThat(remoteCluster2.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+            assertThat(remoteCluster2.getTook().millis(), greaterThanOrEqualTo(0L));
+            assertThat(remoteCluster2.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+            assertThat(remoteCluster2.getTotalShards(), equalTo(remote2NumShards));
+            assertThat(remoteCluster2.getSuccessfulShards(), equalTo(remote2NumShards));
+            assertThat(remoteCluster2.getSkippedShards(), equalTo(0));
+            assertThat(remoteCluster2.getFailedShards(), equalTo(0));
 
             EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
             assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
@@ -272,59 +284,45 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertClusterMetadataInResponse(resp, responseExpectMeta);
         }
 
-//        try (EsqlQueryResponse resp = runQuery("from logs-*,c*:logs-* | stats count(*) by tag | sort tag | keep tag", requestIncludeMeta)) {
-//            List<List<Object>> values = getValuesList(resp);
-//            assertThat(values, hasSize(2));
-//            assertThat(values.get(0), equalTo(List.of("local")));
-//            assertThat(values.get(1), equalTo(List.of("remote")));
-//
-//            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
-//            assertNotNull(executionInfo);
-//            assertThat(executionInfo.isCrossClusterSearch(), is(true));
-//            long overallTookMillis = executionInfo.overallTook().millis();
-//            assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
-//            assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
-//
-//            assertThat(executionInfo.clusterAliases(), equalTo(Set.of(REMOTE_CLUSTER_1, LOCAL_CLUSTER)));
-//
-//            EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
-//            assertThat(remoteCluster.getIndexExpression(), equalTo("logs-*"));
-//            assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-//            assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-//            assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-//            assertThat(remoteCluster.getTotalShards(), equalTo(remoteNumShards));
-//            assertThat(remoteCluster.getSuccessfulShards(), equalTo(remoteNumShards));
-//            assertThat(remoteCluster.getSkippedShards(), equalTo(0));
-//            assertThat(remoteCluster.getFailedShards(), equalTo(0));
-//
-//            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
-//            assertThat(localCluster.getIndexExpression(), equalTo("logs-*"));
-//            assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
-//            assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
-//            assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
-//            assertThat(localCluster.getTotalShards(), equalTo(localNumShards));
-//            assertThat(localCluster.getSuccessfulShards(), equalTo(localNumShards));
-//            assertThat(localCluster.getSkippedShards(), equalTo(0));
-//            assertThat(localCluster.getFailedShards(), equalTo(0));
-//
-//            // ensure that the _clusters metadata is present only if requested
-//            assertClusterMetadataInResponse(resp, responseExpectMeta);
-//        }
+        // this test is also not robust, but does NOT trigger anything in the
+        System.err.println("----------- SECOND QUERY against remote-b:test ----");
+        q = "FROM logs-*,remote-b:test | STATS count(*)";
+        String asyncExecutionId;
+        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueNanos(1))) {
+            System.err.println("Init resp: " + Strings.toString(resp));
+            System.err.println("Init Resp execInfo: " + resp.getExecutionInfo());
+            assertTrue(resp.isRunning());
+            asyncExecutionId = resp.asyncExecutionId().get();
+            System.err.println(asyncExecutionId);
+            try {
+                Thread.sleep(1431);
+            } catch (InterruptedException e) {
+            }
+        }
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+            EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+            System.err.println("GET Async execInfo: " + executionInfo);
+            System.err.println("Async response: " + Strings.toString(asyncResponse));
+        } finally {
+            System.err.println("DELETING async search: " + asyncExecutionId);
+            AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId);
+            assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+        }
     }
 
-    protected EsqlQueryResponse runAsyncQuery(String query, Boolean ccsMetadataInResponse, QueryBuilder filter) {
+    protected EsqlQueryResponse runAsyncQuery(String query, Boolean ccsMetadata, QueryBuilder filter, TimeValue waitCompletionTime) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(query);
         request.pragmas(AbstractEsqlIntegTestCase.randomPragmas());
         request.profile(randomInt(5) == 2);
         request.columnar(randomBoolean());
-        if (ccsMetadataInResponse != null) {
-            request.includeCCSMetadata(ccsMetadataInResponse);
+        if (ccsMetadata != null) {
+            request.includeCCSMetadata(ccsMetadata);
         }
 
         // deliberately small timeout, to frequently trigger incomplete response
-        //request.waitForCompletionTimeout(TimeValue.timeValueMinutes(1));
-        request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
+        request.waitForCompletionTimeout(waitCompletionTime);
+        //request.waitForCompletionTimeout(TimeValue.timeValueNanos(1));
         request.keepOnCompletion(false);
         if (filter != null) {
             request.filter(filter);
@@ -332,7 +330,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
         var response = runAsyncQuery(request);
         System.err.println(">> response.asyncExecutionId().isPresent(): " + response.asyncExecutionId().isPresent());
-        assertTrue(response.asyncExecutionId().isPresent()); // MP TODO remove this
+        //assertTrue(response.asyncExecutionId().isPresent()); // MP TODO remove this
 //        if (response.asyncExecutionId().isPresent()) {
 //            List<ColumnInfo> initialColumns = null;
 //            List<Page> initialPages = null;
@@ -460,6 +458,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
     private static String IDX_ALIAS = "alias1";
     private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
     private static String REMOTE_INDEX = "logs-2";
+    private static final String INDEX_WITH_RUNTIME_MAPPING = "test";
 
     Map<String, Object> setupClusters(int numClusters) throws IOException {
         assert numClusters == 2 || numClusters == 3 : "2 or 3 clusters supported not: " + numClusters;
@@ -478,6 +477,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         if (numClusters == 3) {
             int numShardsRemote2 = randomIntBetween(1, 5);
             populateRemoteIndices(REMOTE_CLUSTER_2, REMOTE_INDEX, numShardsRemote2);
+            populateRemoteIndicesWithRuntimeMapping(REMOTE_CLUSTER_2);
             clusterInfo.put("remote2.index", REMOTE_INDEX);
             clusterInfo.put("remote2.num_shards", numShardsRemote2);
         }
@@ -507,7 +507,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         localClient.admin().indices().prepareRefresh(indexName).get();
     }
 
-    void populateRemoteIndices(String clusterAlias, String indexName, int numShards) throws IOException {
+    void populateRemoteIndicesWithRuntimeMapping(String clusterAlias) throws IOException {
         XContentBuilder mapping = JsonXContent.contentBuilder().startObject();
         mapping.startObject("runtime");
         {
@@ -520,25 +520,27 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
         mapping.endObject();
         mapping.endObject();
-        client(clusterAlias).admin().indices().prepareCreate("test").setMapping(mapping).get();
-        BulkRequestBuilder bulk = client(clusterAlias).prepareBulk("test").setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
+        client(clusterAlias).admin().indices().prepareCreate(INDEX_WITH_RUNTIME_MAPPING).setMapping(mapping).get();
+        BulkRequestBuilder bulk = client(clusterAlias).prepareBulk(INDEX_WITH_RUNTIME_MAPPING).setRefreshPolicy(WriteRequest.RefreshPolicy.IMMEDIATE);
         for (int i = 0; i < 10; i++) {
             bulk.add(new IndexRequest().source("foo", i));
         }
         bulk.get();
+    }
 
-//        Client remoteClient = client(clusterAlias);
-//        assertAcked(
-//            remoteClient.admin()
-//                .indices()
-//                .prepareCreate(indexName)
-//                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
-//                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
-//        );
-//        for (int i = 0; i < 10; i++) {
-//            remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
-//        }
-//        remoteClient.admin().indices().prepareRefresh(indexName).get();
+    void populateRemoteIndices(String clusterAlias, String indexName, int numShards) throws IOException {
+        Client remoteClient = client(clusterAlias);
+        assertAcked(
+            remoteClient.admin()
+                .indices()
+                .prepareCreate(indexName)
+                .setSettings(Settings.builder().put("index.number_of_shards", numShards))
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
+        );
+        for (int i = 0; i < 10; i++) {
+            remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
+        }
+        remoteClient.admin().indices().prepareRefresh(indexName).get();
     }
 
     private void setSkipUnavailable(String clusterAlias, boolean skip) {

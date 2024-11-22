@@ -30,6 +30,7 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
 import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
@@ -41,7 +42,9 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
 import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -51,8 +54,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -201,11 +206,23 @@ class Elasticsearch {
         );
 
         // load the plugin Java modules and layers now for use in entitlements
-        bootstrap.setPluginsLoader(new PluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile()));
+        var pluginsLoader = new PluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
+        bootstrap.setPluginsLoader(pluginsLoader);
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
             logger.info("Bootstrapping Entitlements");
-            EntitlementBootstrap.bootstrap();
+
+            List<Tuple<Path, Boolean>> pluginData = new ArrayList<>();
+            Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
+            for (PluginBundle moduleBundle : moduleBundles) {
+                pluginData.add(Tuple.tuple(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular()));
+            }
+            Set<PluginBundle> pluginBundles = PluginsUtils.getPluginBundles(nodeEnv.pluginsFile());
+            for (PluginBundle pluginBundle : pluginBundles) {
+                pluginData.add(Tuple.tuple(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular()));
+            }
+            // TODO: add a functor to map module to plugin name
+            EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
         } else {
             // install SM after natives, shutdown hooks, etc.
             logger.info("Bootstrapping java SecurityManager");

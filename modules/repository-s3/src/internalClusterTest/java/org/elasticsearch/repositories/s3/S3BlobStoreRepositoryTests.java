@@ -300,7 +300,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
                 )
             );
             metrics.forEach(metric -> {
-                assertThat(metric.attributes(), allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("operation"), hasKey("purpose")));
+                assertThat(
+                    metric.attributes(),
+                    allOf(hasEntry("repo_type", S3Repository.TYPE), hasKey("repo_name"), hasKey("operation"), hasKey("purpose"))
+                );
                 final S3BlobStore.Operation operation = S3BlobStore.Operation.parse((String) metric.attributes().get("operation"));
                 final S3BlobStore.StatsKey statsKey = new S3BlobStore.StatsKey(
                     operation,

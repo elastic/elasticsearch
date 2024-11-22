@@ -71,7 +71,7 @@ public class IndexPrivilegeTests extends ESTestCase {
 
     public void testPrivilegesForRollupFieldCapsAction() {
         final Collection<String> privileges = findPrivilegesThatGrant(GetRollupIndexCapsAction.NAME);
-        assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "view_index_metadata", "manage", "all")));
+        assertThat(Set.copyOf(privileges), equalTo(Set.of("read", "read_failures", "view_index_metadata", "manage", "all")));
     }
 
     public void testPrivilegesForGetCheckPointAction() {

@@ -149,8 +149,8 @@ A successful call returns an object with "cluster", "index", and "remote_cluster
     "none",
     "read",
     "read_cross_cluster",
-    "view_index_metadata",
     "read_failures",
+    "view_index_metadata",
     "write"
   ],
   "remote_cluster" : [

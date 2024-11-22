@@ -331,7 +331,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         Dependency dependency = iterator.next();
                         // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = project.project(((ProjectDependencyInternal) projectDependency).getPath());
+                            Project dependencyProject = project.project(projectDependency.getPath());
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();
@@ -341,8 +341,8 @@ public class RestTestBasePlugin implements Plugin<Project> {
                                 iterator.remove();
                                 additionalDependencies.add(
                                     useExploded
-                                        ? getExplodedBundleDependency(project, dependencyProject.getPath())
-                                        : getBundleZipTaskDependency(project, dependencyProject.getPath())
+                                        ? getExplodedBundleDependency(project, projectDependency.getPath())
+                                        : getBundleZipTaskDependency(project, projectDependency.getPath())
                                 );
                             }
 

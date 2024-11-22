@@ -68,8 +68,7 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
                 project.getObjects().named(LibraryElements.class, LibraryElements.RESOURCES)
             );
         DependencyHandler dependencyHandler = project.getDependencies();
-        String path = projectDependency.getPath();
-        Dependency pluginMetadataDependency = dependencyHandler.project(Map.of("path", path));
+        Dependency pluginMetadataDependency = dependencyHandler.project(Map.of("path", projectDependency.getPath()));
         dependencyHandler.add(metadataConfiguration, pluginMetadataDependency);
         project.getTasks().register(taskName, Copy.class, copy -> {
             copy.into(outputDir);

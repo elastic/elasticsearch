@@ -12,7 +12,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.And;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
@@ -26,7 +25,6 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.ExistsQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.MultiMatchQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.NotQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
-import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.RegexQuery;
 import org.elasticsearch.xpack.esql.core.querydsl.query.WildcardQuery;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -70,18 +68,6 @@ public final class ExpressionTranslators {
                 return new RegexQuery(e.source(), targetFieldName, rl.pattern().asJavaRegex(), rl.caseInsensitive());
             }
             return null;
-        }
-    }
-
-    public static class StringQueries extends ExpressionTranslator<StringQueryPredicate> {
-
-        @Override
-        protected Query asQuery(StringQueryPredicate q, TranslatorHandler handler) {
-            return doTranslate(q, handler);
-        }
-
-        public static Query doTranslate(StringQueryPredicate q, TranslatorHandler handler) {
-            return new QueryStringQuery(q.source(), q.query(), q.fields(), q);
         }
     }
 

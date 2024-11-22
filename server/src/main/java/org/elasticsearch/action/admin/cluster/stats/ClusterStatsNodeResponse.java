@@ -115,6 +115,7 @@ public class ClusterStatsNodeResponse extends BaseNodeResponse {
     public CCSTelemetrySnapshot getCcsMetrics() {
         return ccsMetrics;
     }
+
     public CCSTelemetrySnapshot getEsqlMetrics() {
         return esqlMetrics;
     }

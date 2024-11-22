@@ -114,6 +114,14 @@ public class Verifier {
 
             if (p instanceof Unresolvable u) {
                 failures.add(fail(p, u.unresolvedMessage()));
+            } else if (p instanceof OrderBy ob) {
+                ob.order().forEach(o -> {
+                    o.forEachDown(Function.class, f -> {
+                        if (f instanceof AggregateFunction) {
+                            failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                        }
+                    });
+                });
             }
             // p is resolved, skip
             else if (p.resolved()) {

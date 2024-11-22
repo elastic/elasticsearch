@@ -1109,38 +1109,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     /**
-     * https://github.com/elastic/elasticsearch/issues/117054
-     * One index with (Responses.process is nested; process.parent.command_line is supported):
-     * <pre>
-     *         "Responses": {
-     *           "properties": {
-     *             "process": {
-     *               "type": "nested",
-     *               "properties": {
-     *                 "pid": {
-     *                   "type": "long"
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         },
-     *         "process": {
-     *           "properties": {
-     *             "parent": {
-     *               "properties": {
-     *                 "command_line": {
-     *                   "type": "wildcard",
-     *                   "fields": {
-     *                     "text": {
-     *                       "type": "text"
-     *                     }
-     *                   }
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         }
-     * </pre>.
+     * Test for https://github.com/elastic/elasticsearch/issues/117054 fix
      */
     public void testOneNestedSubField_AndSameNameSupportedField() throws IOException {
         ESRestTestCase.createIndex("test", Settings.EMPTY, """
@@ -1175,10 +1144,20 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
               }
             }
             """);
+
+        Map<String, Object> result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", Collections.EMPTY_LIST)
+        );
+
         index("test", """
             {"Responses.process.pid": 123,"process.parent.command_line":"run.bat"}""");
 
-        Map<String, Object> result = runEsql("FROM test");
+        result = runEsql("FROM test");
         assertMap(
             result,
             matchesMapWithOptionalTook(result.get("took")).entry(
@@ -1211,45 +1190,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
     }
 
-    /**
-     * One index with "Responses.process" as "nested", a second index with "process.parent.command_line" as supported data type.
-     * Here is about the name "process" which is common to the two fields' hierarchies.
-     *
-     * test1
-     * <pre>
-     *         "Responses": {
-     *           "properties": {
-     *             "process": {
-     *               "type": "nested",
-     *               "properties": {
-     *                 "pid": {
-     *                   "type": "long"
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         }
-     *</pre>
-     * test2
-     * <pre>
-     *         "process": {
-     *           "properties": {
-     *             "parent": {
-     *               "properties": {
-     *                 "command_line": {
-     *                   "type": "wildcard",
-     *                   "fields": {
-     *                     "text": {
-     *                       "type": "text"
-     *                     }
-     *                   }
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         }
-     * </pre>.
-     */
     public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
         assumeTrue(
             "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
@@ -1329,77 +1269,6 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
     }
 
-    /**
-     * One index with "Responses.process" as "nested", a second index with "Responses.process" as "int". The rest of the mapping is the
-     * same.
-     *
-     * test1
-     * <pre>
-     *       "properties": {
-     *         "Responses": {
-     *           "properties": {
-     *             "process": {
-     *               "type": "nested",
-     *               "properties": {
-     *                 "pid": {
-     *                   "type": "long"
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         },
-     *         "process": {
-     *           "properties": {
-     *             "parent": {
-     *               "properties": {
-     *                 "command_line": {
-     *                   "type": "wildcard",
-     *                   "fields": {
-     *                     "text": {
-     *                       "type": "text"
-     *                     }
-     *                   }
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         }
-     *       }
-     *</pre>
-     * test2
-     * <pre>
-     *       "properties": {
-     *         "Responses": {
-     *           "properties": {
-     *             "process": {
-     *               "type": "integer",
-     *               "fields": {
-     *                 "pid": {
-     *                   "type": "long"
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         },
-     *         "process": {
-     *           "properties": {
-     *             "parent": {
-     *               "properties": {
-     *                 "command_line": {
-     *                   "type": "wildcard",
-     *                   "fields": {
-     *                     "text": {
-     *                       "type": "text"
-     *                     }
-     *                   }
-     *                 }
-     *               }
-     *             }
-     *           }
-     *         }
-     *       }
-     * </pre>.
-     */
     public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
         ESRestTestCase.createIndex("test1", Settings.EMPTY, """
             "properties": {

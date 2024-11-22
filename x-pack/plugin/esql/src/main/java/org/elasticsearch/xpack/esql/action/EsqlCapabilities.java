@@ -511,7 +511,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot());
+        JOIN_LOOKUP(Build.current().isSnapshot()),
+
+        /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean enabled;
 

@@ -77,6 +77,9 @@ tests:
 - class: org.elasticsearch.xpack.ml.integration.ClassificationHousePricingIT
   method: testFeatureImportanceValues
   issue: https://github.com/elastic/elasticsearch/issues/116564
+- class: org.elasticsearch.packaging.test.DockerTests
+  method: test021InstallPlugin
+  issue: https://github.com/elastic/elasticsearch/issues/116147
 
 # Examples:
 #

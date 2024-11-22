@@ -144,6 +144,7 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
                     LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
                     while (ordsEnum.next()) {
                         if (spare == null) {
+                            checkRealMemoryCBForInternalBucket();
                             spare = newEmptyBucket();
                         }
 
@@ -162,11 +163,10 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
                 }
             }
             buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-            InternalAggregation[] results = new InternalAggregation[Math.toIntExact(topBucketsPerOrd.size())];
-            for (int ordIdx = 0; ordIdx < results.length; ordIdx++) {
-                results[ordIdx] = buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata());
-            }
-            return results;
+            return buildAggregations(
+                Math.toIntExact(owningBucketOrds.size()),
+                ordIdx -> buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata())
+            );
         }
     }
 

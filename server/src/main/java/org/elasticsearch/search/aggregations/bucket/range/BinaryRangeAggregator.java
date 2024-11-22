@@ -365,7 +365,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
             ranges.length,
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 Range range = ranges[offsetInOwningOrd];
-                return new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, docCount, subAggregationResults);
+                return new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, docCount, subAggregationResults);
             },
             buckets -> new InternalBinaryRange(name, format, keyed, buckets, metadata())
         );
@@ -377,7 +377,7 @@ public final class BinaryRangeAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalBinaryRange.Bucket> buckets = new ArrayList<>(ranges.length);
         for (Range range : ranges) {
-            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, keyed, range.key, range.from, range.to, 0, subAggs);
+            InternalBinaryRange.Bucket bucket = new InternalBinaryRange.Bucket(format, range.key, range.from, range.to, 0, subAggs);
             buckets.add(bucket);
         }
         return new InternalBinaryRange(name, format, keyed, buckets, metadata());

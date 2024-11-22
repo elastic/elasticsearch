@@ -31,7 +31,6 @@ import org.elasticsearch.compute.operator.Operator;
 import org.elasticsearch.compute.operator.Operator.OperatorFactory;
 import org.elasticsearch.compute.operator.OutputOperator.OutputOperatorFactory;
 import org.elasticsearch.compute.operator.RowInTableLookupOperator;
-import org.elasticsearch.compute.operator.RowOperator.RowOperatorFactory;
 import org.elasticsearch.compute.operator.ShowOperator;
 import org.elasticsearch.compute.operator.SinkOperator;
 import org.elasticsearch.compute.operator.SinkOperator.SinkOperatorFactory;
@@ -89,7 +88,6 @@ import org.elasticsearch.xpack.esql.plan.physical.MvExpandExec;
 import org.elasticsearch.xpack.esql.plan.physical.OutputExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.ProjectExec;
-import org.elasticsearch.xpack.esql.plan.physical.RowExec;
 import org.elasticsearch.xpack.esql.plan.physical.ShowExec;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
@@ -220,8 +218,6 @@ public class LocalExecutionPlanner {
             return planEsQueryNode(esQuery, context);
         } else if (node instanceof EsStatsQueryExec statsQuery) {
             return planEsStats(statsQuery, context);
-        } else if (node instanceof RowExec row) {
-            return planRow(row, context);
         } else if (node instanceof LocalSourceExec localSource) {
             return planLocal(localSource, context);
         } else if (node instanceof ShowExec show) {
@@ -618,13 +614,6 @@ public class LocalExecutionPlanner {
 
     private ExpressionEvaluator.Factory toEvaluator(Expression exp, Layout layout) {
         return EvalMapper.toEvaluator(exp, layout);
-    }
-
-    private PhysicalOperation planRow(RowExec row, LocalExecutionPlannerContext context) {
-        List<Object> obj = row.fields().stream().map(f -> f.child().fold()).toList();
-        Layout.Builder layout = new Layout.Builder();
-        layout.append(row.output());
-        return PhysicalOperation.fromSource(new RowOperatorFactory(obj), layout.build());
     }
 
     private PhysicalOperation planLocal(LocalSourceExec localSourceExec, LocalExecutionPlannerContext context) {

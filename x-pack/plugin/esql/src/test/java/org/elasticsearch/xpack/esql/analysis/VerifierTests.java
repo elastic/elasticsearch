@@ -405,6 +405,11 @@ public class VerifierTests extends ESTestCase {
 
         // but fails if it's different
         assertEquals(
+            "1:32: can only use grouping function [bucket(a, 3)] part of the BY clause",
+            error("row a = 1 | stats sum(a) where bucket(a, 3) > -1 by bucket(a,2)")
+        );
+
+        assertEquals(
             "1:40: can only use grouping function [bucket(salary, 10)] part of the BY clause",
             error("from test | stats max(languages) WHERE bucket(salary, 10) > 1 by emp_no")
         );
@@ -771,40 +776,40 @@ public class VerifierTests extends ESTestCase {
 
     public void testPeriodAndDurationInRowAssignment() {
         for (var unit : TIME_DURATIONS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::time_duration] directly in a row assignment",
                 error("row a = 1 " + unit + "::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::time_duration] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::time_duration")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_timeduration(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_timeduration(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_timeduration(\"1 " + unit + "\")")
             );
         }
         for (var unit : DATE_PERIODS) {
-            assertEquals("1:5: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
+            assertEquals("1:9: cannot use [1 " + unit + "] directly in a row assignment", error("row a = 1 " + unit));
             assertEquals(
-                "1:5: cannot use [1 " + unit + "::date_period] directly in a row assignment",
+                "1:9: cannot use [1 " + unit + "::date_period] directly in a row assignment",
                 error("row a = 1 " + unit + "::date_period")
             );
             assertEquals(
-                "1:5: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
+                "1:9: cannot use [\"1 " + unit + "\"::date_period] directly in a row assignment",
                 error("row a = \"1 " + unit + "\"::date_period")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(1 " + unit + ")] directly in a row assignment",
                 error("row a = to_dateperiod(1 " + unit + ")")
             );
             assertEquals(
-                "1:5: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
+                "1:9: cannot use [to_dateperiod(\"1 " + unit + "\")] directly in a row assignment",
                 error("row a = to_dateperiod(\"1 " + unit + "\")")
             );
         }
@@ -1727,7 +1732,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeSingleGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE.isEnabled());
+
         query("from test | STATS COUNT(*) BY CATEGORIZE(first_name)");
         query("from test | STATS COUNT(*) BY cat = CATEGORIZE(first_name)");
 
@@ -1755,7 +1761,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeNestedGrouping() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE.isEnabled());
+
         query("from test | STATS COUNT(*) BY CATEGORIZE(LENGTH(first_name)::string)");
 
         assertEquals(
@@ -1769,7 +1776,8 @@ public class VerifierTests extends ESTestCase {
     }
 
     public void testCategorizeWithinAggregations() {
-        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+        assumeTrue("requires Categorize capability", EsqlCapabilities.Cap.CATEGORIZE.isEnabled());
+
         query("from test | STATS MV_COUNT(cat), COUNT(*) BY cat = CATEGORIZE(first_name)");
 
         assertEquals(
@@ -1789,6 +1797,13 @@ public class VerifierTests extends ESTestCase {
             "1:25: cannot reference CATEGORIZE grouping function [`CATEGORIZE(first_name)`] within the aggregations",
             error("FROM test | STATS COUNT(`CATEGORIZE(first_name)`) BY CATEGORIZE(first_name)")
         );
+    }
+
+    public void testSortByAggregate() {
+        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT count(*)"));
+        assertEquals("1:28: Aggregate functions are not allowed in SORT [COUNT]", error("ROW a = 1 | SORT to_string(count(*))"));
+        assertEquals("1:22: Aggregate functions are not allowed in SORT [MAX]", error("ROW a = 1 | SORT 1 + max(a)"));
+        assertEquals("1:18: Aggregate functions are not allowed in SORT [COUNT]", error("FROM test | SORT count(*)"));
     }
 
     private void query(String query) {

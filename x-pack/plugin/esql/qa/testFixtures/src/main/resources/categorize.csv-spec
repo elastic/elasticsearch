@@ -198,6 +198,17 @@ FROM sample_data
 COUNT():long | category:keyword
 ;
 
+filtering out all data with constant
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | WHERE false
+;
+
+COUNT():long | category:keyword
+;
+
 drop output columns
 required_capability: categorize
 
@@ -273,7 +284,7 @@ COUNT():long | y:keyword
            1 | .*?connected.+?to.+?a.*?
 ;
 
-from aliases
+from aliases with keep
 required_capability: categorize
 
 FROM sample_data
@@ -289,4 +300,62 @@ COUNT():long | y:keyword
            3 | .*?Connected.+?to.*?
            3 | .*?Connection.+?error.*?
            1 | .*?Disconnected.*?
+;
+
+row rename
+required_capability: categorize
+
+ROW message = "connected to a"
+  | RENAME message as x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | RENAME category as y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           1 | .*?connected.+?to.+?a.*?
+;
+
+from rename
+required_capability: categorize
+
+FROM sample_data
+  | RENAME message as x
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | RENAME category as y
+  | SORT y
+;
+
+COUNT():long | y:keyword
+           3 | .*?Connected.+?to.*?
+           3 | .*?Connection.+?error.*?
+           1 | .*?Disconnected.*?
+;
+
+row drop
+required_capability: categorize
+
+ROW message = "connected to a"
+  | STATS c = COUNT() BY category=CATEGORIZE(message)
+  | DROP category
+  | SORT c
+;
+
+c:long
+1
+;
+
+from drop
+required_capability: categorize
+
+FROM sample_data
+  | STATS c = COUNT() BY category=CATEGORIZE(message)
+  | DROP category
+  | SORT c
+;
+
+c:long
+1
+3
+3
 ;

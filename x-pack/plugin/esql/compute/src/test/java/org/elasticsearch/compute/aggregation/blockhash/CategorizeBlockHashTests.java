@@ -403,9 +403,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
         return new BlockHash.GroupSpec(
             0,
             ElementType.BYTES_REF,
-            (blockFactory, channel, aggregatorMode) -> aggregatorMode.isInputPartial()
-                ? new CategorizedIntermediateBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
-                : new CategorizeRawBlockHash(channel, blockFactory, aggregatorMode.isOutputPartial())
+            true
         );
     }
 }

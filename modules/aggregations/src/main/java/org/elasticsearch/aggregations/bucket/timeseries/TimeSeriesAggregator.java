@@ -79,6 +79,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
                 while (ordsEnum.next()) {
                     long docCount = bucketDocCount(ordsEnum.ord());
                     ordsEnum.readValue(spare);
+                    checkRealMemoryCBForInternalBucket();
                     InternalTimeSeries.InternalBucket bucket = new InternalTimeSeries.InternalBucket(
                         BytesRef.deepCopyOf(spare), // Closing bucketOrds will corrupt the bytes ref, so need to make a deep copy here.
                         docCount,
@@ -101,11 +102,7 @@ public class TimeSeriesAggregator extends BucketsAggregator {
             }
             buildSubAggsForAllBuckets(allBucketsPerOrd, b -> b.bucketOrd, (b, a) -> b.aggregations = a);
 
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(allBucketsPerOrd.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
-                result[ordIdx] = buildResult(allBucketsPerOrd.get(ordIdx));
-            }
-            return result;
+            return buildAggregations(Math.toIntExact(allBucketsPerOrd.size()), ordIdx -> buildResult(allBucketsPerOrd.get(ordIdx)));
         }
     }
 

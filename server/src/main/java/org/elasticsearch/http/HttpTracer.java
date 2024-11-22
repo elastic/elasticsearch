@@ -94,7 +94,7 @@ class HttpTracer {
 
     private void logFullContent(RestRequest restRequest) {
         try (var stream = HttpBodyTracer.getBodyOutputStream(restRequest.getRequestId(), HttpBodyTracer.Type.REQUEST)) {
-            restRequest.content().writeTo(stream);
+            restRequest.releasableContent().writeTo(stream);
         } catch (Exception e2) {
             assert false : e2; // no real IO here
         }

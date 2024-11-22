@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.esql.plugin;
 
 import org.elasticsearch.Build;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
@@ -16,7 +15,6 @@ import org.elasticsearch.rest.action.admin.cluster.RestNodesCapabilitiesAction;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 
 import java.util.Collections;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -49,32 +47,9 @@ public class EsqlFeatures implements FeatureSpecification {
     private static final NodeFeature ST_X_Y = new NodeFeature("esql.st_x_y");
 
     /**
-     * When we added the warnings for multivalued fields emitting {@code null}
-     * when they touched multivalued fields. Added in #102417.
-     */
-    private static final NodeFeature MV_WARN = new NodeFeature("esql.mv_warn");
-
-    /**
-     * Support for loading {@code geo_point} and {@code cartesian_point} fields. Added in #102177.
-     */
-    private static final NodeFeature SPATIAL_POINTS = new NodeFeature("esql.spatial_points");
-
-    /**
      * Changed precision of {@code geo_point} and {@code cartesian_point} fields, by loading from source into WKB. Done in #103691.
      */
     private static final NodeFeature SPATIAL_POINTS_FROM_SOURCE = new NodeFeature("esql.spatial_points_from_source");
-
-    /**
-     * When we added the warnings when conversion functions fail. Like {@code TO_INT('foo')}.
-     * Added in ESQL-1183.
-     */
-    private static final NodeFeature CONVERT_WARN = new NodeFeature("esql.convert_warn");
-
-    /**
-     * When we flipped the return type of {@code POW} to always return a double. Changed
-     * in #102183.
-     */
-    private static final NodeFeature POW_DOUBLE = new NodeFeature("esql.pow_double");
 
     /**
      * Support for loading {@code geo_shape} and {@code cartesian_shape} fields. Done in #104269.
@@ -153,12 +128,6 @@ public class EsqlFeatures implements FeatureSpecification {
     public static final NodeFeature METADATA_FIELDS = new NodeFeature("esql.metadata_fields");
 
     /**
-     * Support for loading values over enrich. This is supported by all versions of ESQL but not
-     * the unit test CsvTests.
-     */
-    public static final NodeFeature ENRICH_LOAD = new NodeFeature("esql.enrich_load");
-
-    /**
      * Support for timespan units abbreviations
      */
     public static final NodeFeature TIMESPAN_ABBREVIATIONS = new NodeFeature("esql.timespan_abbreviations");
@@ -214,17 +183,5 @@ public class EsqlFeatures implements FeatureSpecification {
         } else {
             return features;
         }
-    }
-
-    @Override
-    public Map<NodeFeature, Version> getHistoricalFeatures() {
-        return Map.ofEntries(
-            Map.entry(TransportEsqlStatsAction.ESQL_STATS_FEATURE, Version.V_8_11_0),
-            Map.entry(MV_WARN, Version.V_8_12_0),
-            Map.entry(SPATIAL_POINTS, Version.V_8_12_0),
-            Map.entry(CONVERT_WARN, Version.V_8_12_0),
-            Map.entry(POW_DOUBLE, Version.V_8_12_0),
-            Map.entry(ENRICH_LOAD, Version.V_8_12_0)
-        );
     }
 }

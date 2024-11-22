@@ -18,6 +18,8 @@ public record AnalyzerContext(
     IndexResolution lookupResolution,
     EnrichResolution enrichResolution
 ) {
+    // Currently for tests only, since most do not test lookups
+    // TODO: make this even simpler, remove the enrichResolution for tests that do not require it (most tests)
     public AnalyzerContext(
         Configuration configuration,
         EsqlFunctionRegistry functionRegistry,

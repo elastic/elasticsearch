@@ -18,6 +18,10 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.LibraryElements;
+<<<<<<< HEAD
+=======
+import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
+>>>>>>> 74e679facec ([Build] Update Gradle wrapper to 8.11.1 (#115886))
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;

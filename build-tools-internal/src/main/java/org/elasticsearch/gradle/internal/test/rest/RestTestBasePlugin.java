@@ -327,7 +327,13 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         Dependency dependency = iterator.next();
                         // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
+<<<<<<< HEAD
                             Project dependencyProject = project.project(projectDependency.getPath());
+=======
+                            Project dependencyProject = project.project(
+                                ((ProjectDependencyInternal) projectDependency).getIdentityPath().getPath()
+                            );
+>>>>>>> 74e679facec ([Build] Update Gradle wrapper to 8.11.1 (#115886))
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();

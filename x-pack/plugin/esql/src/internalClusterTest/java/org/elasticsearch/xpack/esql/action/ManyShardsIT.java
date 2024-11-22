@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
@@ -154,23 +155,33 @@ public class ManyShardsIT extends AbstractEsqlIntegTestCase {
         });
 
         ts.addRequestHandlingBehavior(ExchangeService.EXCHANGE_ACTION_NAME, (handler, request, channel, task) -> {
-            assertTrue(dataNodeRequestLatch.await(30, TimeUnit.SECONDS));
-            handler.messageReceived(request, new TransportChannel() {
+            ts.getThreadPool().generic().execute(new AbstractRunnable() {
                 @Override
-                public String getProfileName() {
-                    return channel.getProfileName();
+                public void onFailure(Exception e) {
+                    channel.sendResponse(e);
                 }
 
                 @Override
-                public void sendResponse(TransportResponse response) {
-                    channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
-                }
+                protected void doRun() throws Exception {
+                    assertTrue(dataNodeRequestLatch.await(30, TimeUnit.SECONDS));
+                    handler.messageReceived(request, new TransportChannel() {
+                        @Override
+                        public String getProfileName() {
+                            return channel.getProfileName();
+                        }
 
-                @Override
-                public void sendResponse(Exception exception) {
-                    channel.sendResponse(exception);
+                        @Override
+                        public void sendResponse(TransportResponse response) {
+                            channel.sendResponse(new RemoteTransportException("simulated", new EsRejectedExecutionException("test queue")));
+                        }
+
+                        @Override
+                        public void sendResponse(Exception exception) {
+                            channel.sendResponse(exception);
+                        }
+                    }, task);
                 }
-            }, task);
+            });
         });
 
         try {

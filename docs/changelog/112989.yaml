@@ -1,0 +1,5 @@
+pr: 112989
+summary: Upgrade Bouncy Castle FIPS dependencies
+area: Security
+type: upgrade
+issues: []

@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.lang.instrument.Instrumentation;
 import java.lang.module.ModuleFinder;
 import java.lang.module.ModuleReference;
+import java.lang.reflect.Constructor;
+import java.lang.reflect.InvocationTargetException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardOpenOption;
@@ -59,7 +61,7 @@ public class EntitlementInitialization {
 
     // Note: referenced by agent reflectively
     public static void initialize(Instrumentation inst) throws Exception {
-        manager = new ElasticsearchEntitlementChecker(createPolicyManager());
+        manager = initChecker();
 
         Map<MethodKey, CheckerMethod> methodMap = INSTRUMENTER_FACTORY.lookupMethodsToInstrument(
             "org.elasticsearch.entitlement.bridge.EntitlementChecker"
@@ -135,6 +137,36 @@ public class EntitlementInitialization {
         }
         // When isModular == false we use the same "ALL-UNNAMED" constant as the JDK to indicate (any) unnamed module for this plugin
         return Set.of(ALL_UNNAMED);
+    }
+
+    private static ElasticsearchEntitlementChecker initChecker() throws IOException {
+        final PolicyManager policyManager = createPolicyManager();
+
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        final String className = "org.elasticsearch.entitlement.runtime.api." + classNamePrefix + "ElasticsearchEntitlementChecker";
+        Class<?> clazz;
+        try {
+            clazz = Class.forName(className);
+        } catch (ClassNotFoundException e) {
+            throw new AssertionError("entitlement lib cannot find entitlement impl", e);
+        }
+        Constructor<?> constructor;
+        try {
+            constructor = clazz.getConstructor(PolicyManager.class);
+        } catch (NoSuchMethodException e) {
+            throw new AssertionError("entitlement impl is missing no arg constructor", e);
+        }
+        try {
+            return (ElasticsearchEntitlementChecker) constructor.newInstance(policyManager);
+        } catch (IllegalAccessException | InvocationTargetException | InstantiationException e) {
+            throw new AssertionError(e);
+        }
     }
 
     private static String internalName(Class<?> c) {

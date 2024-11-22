@@ -11,6 +11,10 @@
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
+import org.elasticsearch.gradle.testclusters.TestClusterValueSource
+import org.elasticsearch.gradle.testclusters.TestClustersRegistry
+import org.elasticsearch.gradle.util.GradleUtils
+import org.elasticsearch.gradle.testclusters.TestClustersPlugin
 
 apply plugin: 'elasticsearch.internal-testclusters'
 apply plugin: 'elasticsearch.standalone-rest-test'
@@ -63,6 +67,8 @@ excludeList.add('indices.resolve_index/20_resolve_system_index/*')
 // Excluded because the error has changed
 excludeList.add('aggregations/percentiles_hdr_metric/Negative values test')
 
+def clusterPath = getPath()
+
 buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
   if (bwcVersion != VersionProperties.getElasticsearchVersion()) {
     /* This project runs the core REST tests against a 4 node cluster where two of
@@ -84,18 +90,42 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
     tasks.register("${baseName}#mixedClusterTest", StandaloneRestIntegTestTask) {
       useCluster baseCluster
       mustRunAfter("precommit")
+      Provider<TestClustersRegistry> serviceProvider = GradleUtils.getBuildService(
+        project.gradle.sharedServices,
+        TestClustersPlugin.REGISTRY_SERVICE_NAME
+      )
+
+      def baseInfo = project.getProviders().of(TestClusterValueSource.class) {
+        it.parameters.path.set(clusterPath)
+        it.parameters.clusterName.set(baseName)
+        it.parameters.service = serviceProvider
+      }.map { it.getAllHttpSocketURI() }
+
+      def baseInfoAfterOneNodeUpdate = project.getProviders().of(TestClusterValueSource.class) {
+        it.parameters.path.set(clusterPath)
+        it.parameters.clusterName.set(baseName)
+        it.parameters.service = serviceProvider
+      }.map { it.getAllHttpSocketURI() }
+
+      def baseInfoAfterTwoNodesUpdate = project.getProviders().of(TestClusterValueSource.class) {
+        it.parameters.path.set(clusterPath)
+        it.parameters.clusterName.set(baseName)
+        it.parameters.service = serviceProvider
+      }.map { it.getAllHttpSocketURI() }
+      def nonInputProps = nonInputProperties
+      def sharedRepoFolder = new File(buildDir, "cluster/shared/repo/${baseName}")
       doFirst {
-        delete("${buildDir}/cluster/shared/repo/${baseName}")
+        delete(sharedRepoFolder)
         // Getting the endpoints causes a wait for the cluster
-        println "Test cluster endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
+        println "Test cluster endpoints are: ${-> baseInfo.get().join(",")}"
         println "Upgrading one node to create a mixed cluster"
         baseCluster.get().nextNodeToNextVersion()
         // Getting the endpoints causes a wait for the cluster
-        println "Upgrade complete, endpoints are: ${-> baseCluster.get().allHttpSocketURI.join(",")}"
+        println "Upgrade complete, endpoints are: ${-> baseInfoAfterOneNodeUpdate.get().join(",")}"
         println "Upgrading another node to create a mixed cluster"
         baseCluster.get().nextNodeToNextVersion()
-        nonInputProperties.systemProperty('tests.rest.cluster', baseCluster.map(c -> c.allHttpSocketURI.join(",")))
-        nonInputProperties.systemProperty('tests.clustername', baseName)
+        nonInputProps.systemProperty('tests.rest.cluster', baseInfoAfterTwoNodesUpdate.map(c -> c.join(",")))
+        nonInputProps.systemProperty('tests.clustername', baseName)
         if (excludeList.isEmpty() == false) {
           systemProperty 'tests.rest.blacklist', excludeList.join(',')
         }
@@ -103,7 +133,7 @@ buildParams.bwcVersions.withWireCompatible { bwcVersion, baseName ->
       systemProperty 'tests.path.repo', "${buildDir}/cluster/shared/repo/${baseName}"
       systemProperty 'tests.bwc_nodes_version', bwcVersion.toString().replace('-SNAPSHOT', '')
       systemProperty 'tests.new_nodes_version', project.version.toString().replace('-SNAPSHOT', '')
-      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
+//      onlyIf("BWC tests disabled") { project.bwc_tests_enabled }
     }
 
     tasks.register(bwcTaskName(bwcVersion)) {

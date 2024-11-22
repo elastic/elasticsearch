@@ -156,6 +156,8 @@ public abstract class BaseElasticsearchInternalService implements InferenceServi
             putBuiltInModel(e5Model.getServiceSettings().modelId(), listener);
         } else if (model instanceof ElserInternalModel elserModel) {
             putBuiltInModel(elserModel.getServiceSettings().modelId(), listener);
+        } else if (model instanceof ElasticRerankerModel elasticRerankerModel) {
+            putBuiltInModel(elasticRerankerModel.getServiceSettings().modelId(), listener);
         } else if (model instanceof CustomElandModel) {
             logger.info("Custom eland model detected, model must have been already loaded into the cluster with eland.");
             listener.onResponse(Boolean.TRUE);

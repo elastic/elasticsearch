@@ -75,6 +75,7 @@ tasks.register("writeTestJavaPolicy") {
           "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
+          "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
           "};"
         ].join("\n")
       )

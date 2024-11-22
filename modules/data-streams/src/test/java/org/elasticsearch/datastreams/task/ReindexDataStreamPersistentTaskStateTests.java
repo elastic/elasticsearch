@@ -28,7 +28,7 @@ public class ReindexDataStreamPersistentTaskStateTests extends AbstractXContentS
 
     @Override
     protected ReindexDataStreamPersistentTaskState createTestInstance() {
-        return new ReindexDataStreamPersistentTaskState(randomNegativeLong());
+        return new ReindexDataStreamPersistentTaskState(randomNonNegativeLong());
     }
 
     @Override

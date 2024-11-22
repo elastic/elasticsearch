@@ -112,7 +112,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.blobExists(purpose, blobName);
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES).expectMetrics()
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).expectMetrics()
             .withRequests(numThrottles + 1)
             .withThrottles(numThrottles)
             .withExceptions(numThrottles)
@@ -137,7 +137,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assertThrows(RequestedRangeNotSatisfiedException.class, () -> blobContainer.readBlob(purpose, blobName));
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB).expectMetrics()
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB, repository).expectMetrics()
             .withRequests(1)
             .withThrottles(0)
             .withExceptions(1)
@@ -170,7 +170,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         blobContainer.blobExists(purpose, blobName);
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES).expectMetrics()
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.GET_BLOB_PROPERTIES, repository).expectMetrics()
             .withRequests(numErrors + 1)
             .withThrottles(throttles.get())
             .withExceptions(numErrors)
@@ -191,7 +191,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
         assertThrows(IOException.class, () -> blobContainer.listBlobs(purpose));
 
         // Correct metrics are recorded
-        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.LIST_BLOBS).expectMetrics()
+        metricsAsserter(dataNodeName, purpose, AzureBlobStore.Operation.LIST_BLOBS, repository).expectMetrics()
             .withRequests(4)
             .withThrottles(0)
             .withExceptions(4)
@@ -322,14 +322,20 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             .forEach(TestTelemetryPlugin::resetMeter);
     }
 
-    private MetricsAsserter metricsAsserter(String dataNodeName, OperationPurpose operationPurpose, AzureBlobStore.Operation operation) {
-        return new MetricsAsserter(dataNodeName, operationPurpose, operation);
+    private MetricsAsserter metricsAsserter(
+        String dataNodeName,
+        OperationPurpose operationPurpose,
+        AzureBlobStore.Operation operation,
+        String repository
+    ) {
+        return new MetricsAsserter(dataNodeName, operationPurpose, operation, repository);
     }
 
     private class MetricsAsserter {
         private final String dataNodeName;
         private final OperationPurpose purpose;
         private final AzureBlobStore.Operation operation;
+        private final String repository;
 
         enum Result {
             Success,
@@ -355,10 +361,11 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
             abstract List<Measurement> getMeasurements(TestTelemetryPlugin testTelemetryPlugin, String name);
         }
 
-        private MetricsAsserter(String dataNodeName, OperationPurpose purpose, AzureBlobStore.Operation operation) {
+        private MetricsAsserter(String dataNodeName, OperationPurpose purpose, AzureBlobStore.Operation operation, String repository) {
             this.dataNodeName = dataNodeName;
             this.purpose = purpose;
             this.operation = operation;
+            this.repository = repository;
         }
 
         private class Expectations {
@@ -451,6 +458,7 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                 .filter(
                     m -> m.attributes().get("operation").equals(operation.getKey())
                         && m.attributes().get("purpose").equals(purpose.getKey())
+                        && m.attributes().get("repo_name").equals(repository)
                         && m.attributes().get("repo_type").equals("azure")
                 )
                 .findFirst()
@@ -462,6 +470,8 @@ public class AzureBlobStoreRepositoryMetricsTests extends AzureBlobStoreReposito
                             + operation.getKey()
                             + " and purpose="
                             + purpose.getKey()
+                            + " and repo_name="
+                            + repository
                             + " in "
                             + measurements
                     )

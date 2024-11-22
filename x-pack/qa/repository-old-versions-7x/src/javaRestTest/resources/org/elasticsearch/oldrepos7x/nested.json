@@ -1,0 +1,5 @@
+"properties": {
+  "user": {
+    "type": "nested"
+  }
+}

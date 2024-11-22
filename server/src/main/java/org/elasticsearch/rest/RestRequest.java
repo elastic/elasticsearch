@@ -16,17 +16,21 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.ValidationException;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.http.HttpBody;
 import org.elasticsearch.http.HttpChannel;
 import org.elasticsearch.http.HttpRequest;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.telemetry.tracing.Traceable;
 import org.elasticsearch.xcontent.ParsedMediaType;
 import org.elasticsearch.xcontent.ToXContent;
@@ -50,6 +54,8 @@ import static org.elasticsearch.common.unit.ByteSizeValue.parseBytesSizeValue;
 import static org.elasticsearch.core.TimeValue.parseTimeValue;
 
 public class RestRequest implements ToXContent.Params, Traceable {
+
+    private static final Logger logger = LogManager.getLogger(RestRequest.class);
 
     /**
      * Internal marker request parameter to indicate that a request was made in serverless mode. Use this parameter, together with
@@ -188,15 +194,6 @@ public class RestRequest implements ToXContent.Params, Traceable {
     }
 
     /**
-     * Invoke {@link HttpRequest#releaseAndCopy()} on the http request in this instance and replace a pooled http request
-     * with an unpooled copy. This is supposed to be used before passing requests to {@link RestHandler} instances that can not safely
-     * handle http requests that use pooled buffers as determined by {@link RestHandler#allowsUnsafeBuffers()}.
-     */
-    void ensureSafeBuffers() {
-        httpRequest = httpRequest.releaseAndCopy();
-    }
-
-    /**
      * Creates a new REST request.
      *
      * @throws BadParameterException if the parameters can not be decoded
@@ -306,9 +303,31 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return httpRequest.body().isFull();
     }
 
+    /**
+     * Returns a copy of HTTP content. The copy is GC-managed and does not require reference counting.
+     * Please use {@link #releasableContent()} to avoid content copy.
+     */
+    @SuppressForbidden(reason = "temporarily support content copy while migrating RestHandlers to ref counted pooled buffers")
     public BytesReference content() {
+        return BytesReference.copyBytes(releasableContent());
+    }
+
+    /**
+     * Returns a direct reference to the network buffer containing the request body. The HTTP layers will release their references to this
+     * buffer as soon as they have finished the synchronous steps of processing the request on the network thread, which will by default
+     * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
+     * these synchronous steps, acquire your own reference to this buffer and release it once it's no longer needed.
+     */
+    public ReleasableBytesReference releasableContent() {
         this.contentConsumed = true;
-        return httpRequest.body().asFull().bytes();
+        var bytes = httpRequest.body().asFull().bytes();
+        if (bytes.hasReferences() == false) {
+            var e = new IllegalStateException("http releasable content accessed after release");
+            logger.error(e.getMessage(), e);
+            assert false : e;
+            throw e;
+        }
+        return bytes;
     }
 
     public boolean isStreamedContent() {
@@ -319,16 +338,30 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return httpRequest.body().asStream();
     }
 
-    /**
-     * @return content of the request body or throw an exception if the body or content type is missing
-     */
-    public final BytesReference requiredContent() {
+    private void ensureContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throwValidationException("unknown content type");
         }
+    }
+
+    /**
+     * @return copy of the request body or throw an exception if the body or content type is missing.
+     * See {@link #content()}. Please use {@link #requiredReleasableContent()} to avoid content copy.
+     */
+    public final BytesReference requiredContent() {
+        ensureContent();
         return content();
+    }
+
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #releasableContent()}. It's a recommended method to handle HTTP content without copying it.
+     */
+    public ReleasableBytesReference requiredReleasableContent() {
+        ensureContent();
+        return releasableContent();
     }
 
     private static void throwValidationException(String msg) {

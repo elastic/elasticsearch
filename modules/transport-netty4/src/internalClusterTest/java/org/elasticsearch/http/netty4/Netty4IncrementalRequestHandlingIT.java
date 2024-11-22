@@ -700,11 +700,6 @@ public class Netty4IncrementalRequestHandlingIT extends ESNetty4IntegTestCase {
         ) {
             return List.of(new BaseRestHandler() {
                 @Override
-                public boolean allowsUnsafeBuffers() {
-                    return true;
-                }
-
-                @Override
                 public String getName() {
                     return ROUTE;
                 }

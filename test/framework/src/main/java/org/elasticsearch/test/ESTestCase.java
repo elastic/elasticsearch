@@ -2336,10 +2336,18 @@ public abstract class ESTestCase extends LuceneTestCase {
      * flag and asserting that the latch is indeed completed before the timeout.
      */
     public static void safeAwait(CountDownLatch countDownLatch) {
+        safeAwait(countDownLatch, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
+    public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {
             assertTrue(
                 "safeAwait: CountDownLatch did not reach zero within the timeout",
-                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                countDownLatch.await(timeout.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

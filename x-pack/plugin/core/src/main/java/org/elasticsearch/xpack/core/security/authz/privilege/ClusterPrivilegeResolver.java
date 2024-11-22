@@ -234,10 +234,6 @@ public class ClusterPrivilegeResolver {
         MONITOR_INFERENCE_PATTERN
     );
     public static final NamedClusterPrivilege MONITOR_ML = new ActionClusterPrivilege("monitor_ml", MONITOR_ML_PATTERN);
-    public static final NamedClusterPrivilege MONITOR_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
-        "monitor_data_frame_transforms",
-        MONITOR_TRANSFORM_PATTERN
-    );
     public static final NamedClusterPrivilege MONITOR_TEXT_STRUCTURE = new ActionClusterPrivilege(
         "monitor_text_structure",
         MONITOR_TEXT_STRUCTURE_PATTERN
@@ -253,10 +249,6 @@ public class ClusterPrivilegeResolver {
     public static final NamedClusterPrivilege MANAGE = new ActionClusterPrivilege("manage", ALL_CLUSTER_PATTERN, ALL_SECURITY_PATTERN);
     public static final NamedClusterPrivilege MANAGE_INFERENCE = new ActionClusterPrivilege("manage_inference", MANAGE_INFERENCE_PATTERN);
     public static final NamedClusterPrivilege MANAGE_ML = new ActionClusterPrivilege("manage_ml", MANAGE_ML_PATTERN);
-    public static final NamedClusterPrivilege MANAGE_TRANSFORM_DEPRECATED = new ActionClusterPrivilege(
-        "manage_data_frame_transforms",
-        MANAGE_TRANSFORM_PATTERN
-    );
     public static final NamedClusterPrivilege MANAGE_TRANSFORM = new ActionClusterPrivilege("manage_transform", MANAGE_TRANSFORM_PATTERN);
     public static final NamedClusterPrivilege MANAGE_TOKEN = new ActionClusterPrivilege("manage_token", MANAGE_TOKEN_PATTERN);
     public static final NamedClusterPrivilege MANAGE_WATCHER = new ActionClusterPrivilege("manage_watcher", MANAGE_WATCHER_PATTERN);
@@ -426,7 +418,6 @@ public class ClusterPrivilegeResolver {
             MONITOR_INFERENCE,
             MONITOR_ML,
             MONITOR_TEXT_STRUCTURE,
-            MONITOR_TRANSFORM_DEPRECATED,
             MONITOR_TRANSFORM,
             MONITOR_WATCHER,
             MONITOR_ROLLUP,
@@ -436,7 +427,6 @@ public class ClusterPrivilegeResolver {
             MANAGE_CONNECTOR,
             MANAGE_INFERENCE,
             MANAGE_ML,
-            MANAGE_TRANSFORM_DEPRECATED,
             MANAGE_TRANSFORM,
             MANAGE_TOKEN,
             MANAGE_WATCHER,

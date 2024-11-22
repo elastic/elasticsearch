@@ -444,7 +444,7 @@ setup:
 "Partial updates work when using the update API and the semantic text field is in an object field":
   - requires:
       cluster_features: semantic_text.partial_update_in_object_fix
-      reason: Partial update when semantic text field is in an object fixed in 8.15.5, 8.16.2, and 8.17.0
+      reason: Partial update when semantic text field is in an object bug fix
 
   - do:
       indices.create:

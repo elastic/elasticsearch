@@ -151,6 +151,7 @@ fetch _source via fields:
 
   - match: { status: 400 }
   - match: { error.root_cause.0.type: illegal_argument_exception }
+  - match: { error.caused_by.reason: "[max_analyzed_offset] must be a positive integer" }
 
 ---
 fetch _feature via fields:

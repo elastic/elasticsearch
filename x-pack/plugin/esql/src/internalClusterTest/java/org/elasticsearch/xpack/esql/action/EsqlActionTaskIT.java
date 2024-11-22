@@ -228,7 +228,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
      */
     private ActionFuture<EsqlQueryResponse> startEsql(String query) {
         scriptPermits.drainPermits();
-        prereleasedDocs = between(1, 5);
+        // Allow a few docs to calculate os the query gets "started"
+        prereleasedDocs = between(1, pageSize() / 2);
         scriptPermits.release(prereleasedDocs);
         var settingsBuilder = Settings.builder()
             // Force shard partitioning because that's all the tests know how to match. It is easier to reason about too.

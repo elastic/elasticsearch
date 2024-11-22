@@ -30,6 +30,8 @@ import static org.elasticsearch.xpack.inference.external.response.XContentUtils.
 public class GoogleVertexAiRerankResponseEntity {
 
     private static final String FAILED_TO_FIND_FIELD_TEMPLATE = "Failed to find required field [%s] in Google Vertex AI rerank response";
+    private static final String INVALID_ID_FIELD_FORMAT_TEMPLATE = "Expected numeric value for record ID field in Google Vertex AI rerank "
+        + "response but received [%s]";
 
     /**
      * Parses the Google Vertex AI rerank response.
@@ -113,7 +115,15 @@ public class GoogleVertexAiRerankResponseEntity {
                 throw new IllegalStateException(format(FAILED_TO_FIND_FIELD_TEMPLATE, RankedDoc.ID.getPreferredName()));
             }
 
-            return new RankedDocsResults.RankedDoc(Integer.parseInt(parsedRankedDoc.id), parsedRankedDoc.score, parsedRankedDoc.content);
+            try {
+                return new RankedDocsResults.RankedDoc(
+                    Integer.parseInt(parsedRankedDoc.id),
+                    parsedRankedDoc.score,
+                    parsedRankedDoc.content
+                );
+            } catch (NumberFormatException e) {
+                throw new IllegalStateException(format(INVALID_ID_FIELD_FORMAT_TEMPLATE, parsedRankedDoc.id));
+            }
         });
     }
 

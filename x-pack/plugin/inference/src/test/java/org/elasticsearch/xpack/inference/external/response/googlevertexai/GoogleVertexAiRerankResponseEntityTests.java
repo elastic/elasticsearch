@@ -161,4 +161,37 @@ public class GoogleVertexAiRerankResponseEntityTests extends ESTestCase {
 
         assertThat(thrownException.getMessage(), is("Failed to find required field [score] in Google Vertex AI rerank response"));
     }
+
+    public void testFromResponse_FailsWhenIDFieldIsNotInteger() {
+        String responseJson = """
+            {
+                 "records": [
+                     {
+                         "id": "abcd",
+                         "title": "title 2",
+                         "content": "content 2",
+                         "score": 0.97
+                     },
+                     {
+                        "id": "1",
+                        "title": "title 1",
+                        "content": "content 1",
+                        "score": 0.96
+                     }
+                ]
+            }
+            """;
+
+        var thrownException = expectThrows(
+            IllegalStateException.class,
+            () -> GoogleVertexAiRerankResponseEntity.fromResponse(
+                new HttpResult(mock(HttpResponse.class), responseJson.getBytes(StandardCharsets.UTF_8))
+            )
+        );
+
+        assertThat(
+            thrownException.getMessage(),
+            is("Expected numeric value for record ID field in Google Vertex AI rerank response but received [abcd]")
+        );
+    }
 }

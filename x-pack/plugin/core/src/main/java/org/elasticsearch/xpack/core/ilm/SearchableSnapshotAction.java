@@ -113,6 +113,7 @@ public class SearchableSnapshotAction implements LifecycleAction {
         return snapshotRepository;
     }
 
+    @Nullable
     public Integer getTotalShardsPerNode() {
         return totalShardsPerNode;
     }

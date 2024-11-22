@@ -254,12 +254,11 @@ public class UpdateHelper {
         Map<String, Object> filteredChanges = changes;
         for (InferenceFieldMetadata inferenceFieldMetadata : inferenceFields) {
             String inferenceFieldName = inferenceFieldMetadata.getName();
-            List<Object> inferenceFieldValues = XContentMapValues.extractRawValues(inferenceFieldName, changes);
-            if (inferenceFieldValues.isEmpty() == false) {
-                // TODO: Merge lists of lists
+            Object inferenceFieldValue = XContentMapValues.extractValue(inferenceFieldName, changes, new ExplicitNullValue());
+            if (inferenceFieldValue != null) {
                 inferenceFieldUpdates.put(
                     inferenceFieldName,
-                    inferenceFieldValues.size() > 1 ? inferenceFieldValues : inferenceFieldValues.get(0)
+                    inferenceFieldValue instanceof ExplicitNullValue ? null : inferenceFieldValue
                 );
             }
         }
@@ -270,6 +269,8 @@ public class UpdateHelper {
 
         return filteredChanges;
     }
+
+    private static class ExplicitNullValue {}
 
     /**
      * Prepare the request for updating an existing document using a script. Executes the script and returns a {@code Result} containing

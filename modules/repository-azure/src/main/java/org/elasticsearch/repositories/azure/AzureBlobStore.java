@@ -1024,6 +1024,7 @@ public class AzureBlobStore implements BlobStore {
     /**
      * Release the lease, ignoring conflicts due to expiry
      *
+     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/lease-blob?outcomes-of-lease-operations-on-blobs-by-lease-state">Outcomes of lease operations by lease state</a>
      * @param leaseClient The client for the lease
      */
     private static void bestEffortRelease(BlobLeaseClient leaseClient) {

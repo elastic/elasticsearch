@@ -286,13 +286,7 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
     }
 
     private static void performOldClustertOperations(String templateName, String dataStreamName) throws IOException {
-        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
-        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
-        bulkRequest.addParameter("refresh", "true");
-        var response = client().performRequest(bulkRequest);
-        assertOK(response);
-        var responseBody = entityAsMap(response);
-        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+        bulkLoadData(dataStreamName);
 
         var dataStreams = getDataStream(dataStreamName);
         assertThat(ObjectPath.evaluate(dataStreams, "data_streams"), hasSize(1));
@@ -303,6 +297,28 @@ public class DataStreamsUpgradeIT extends AbstractUpgradeTestCase {
         String firstBackingIndex = ObjectPath.evaluate(dataStreams, "data_streams.0.indices.0.index_name");
         assertThat(firstBackingIndex, backingIndexEqualTo(dataStreamName, 1));
         assertSearch(dataStreamName, 8);
+
+        for (int i = 0; i < 10; i++) {
+            rollover(dataStreamName);
+            bulkLoadData(dataStreamName);
+        }
+
+    }
+
+    private static void bulkLoadData(String dataStreamName) throws IOException {
+        var bulkRequest = new Request("POST", "/" + dataStreamName + "/_bulk");
+        bulkRequest.setJsonEntity(BULK.replace("$now", formatInstant(Instant.now())));
+        bulkRequest.addParameter("refresh", "true");
+        var response = client().performRequest(bulkRequest);
+        assertOK(response);
+        var responseBody = entityAsMap(response);
+        assertThat("errors in response:\n " + responseBody, responseBody.get("errors"), equalTo(false));
+    }
+
+    private static void rollover(String dataStreamName) throws IOException {
+        Request rolloverRequest = new Request("POST", "/" + dataStreamName + "/_rollover");
+        Response rolloverResponse = client().performRequest(rolloverRequest);
+        assertOK(rolloverResponse);
     }
 
     private static Map<String, Object> getDataStream(String dataStreamName) throws IOException {

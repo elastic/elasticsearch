@@ -261,7 +261,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         }
         inferenceServiceRegistry.set(registry);
 
-        var actionFilter = new ShardBulkInferenceActionFilter(registry, modelRegistry);
+        var actionFilter = new ShardBulkInferenceActionFilter(services.clusterService(), registry, modelRegistry);
         shardBulkInferenceActionFilter.set(actionFilter);
 
         var meterRegistry = services.telemetryProvider().getMeterRegistry();

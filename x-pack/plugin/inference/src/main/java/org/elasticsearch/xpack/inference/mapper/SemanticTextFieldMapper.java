@@ -21,6 +21,7 @@ import org.elasticsearch.core.Tuple;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
 import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -289,6 +290,11 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
+        if (context.isWithinInferenceMetadata() == false) {
+            assert indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
+            // ignore original text value
+            return;
+        }
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
@@ -498,8 +504,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
-            // Redirect the fetcher to load the original values of the field
-            return SourceValueFetcher.toString(getOriginalTextFieldName(name()), context, format);
+            String fieldName = context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                ? name()
+                : getOriginalTextFieldName(name());
+            return SourceValueFetcher.toString(fieldName, context, format);
         }
 
         @Override

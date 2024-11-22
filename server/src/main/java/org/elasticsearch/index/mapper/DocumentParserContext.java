@@ -42,10 +42,10 @@ public abstract class DocumentParserContext {
     /**
      * Wraps a given context while allowing to override some of its behaviour by re-implementing some of the non final methods
      */
-    private static class Wrapper extends DocumentParserContext {
+    static class Wrapper extends DocumentParserContext {
         private final DocumentParserContext in;
 
-        private Wrapper(ObjectMapper parent, DocumentParserContext in) {
+        Wrapper(ObjectMapper parent, DocumentParserContext in) {
             super(parent, parent.dynamic == null ? in.dynamic : parent.dynamic, in);
             this.in = in;
         }
@@ -58,6 +58,11 @@ public abstract class DocumentParserContext {
         @Override
         public boolean isWithinCopyTo() {
             return in.isWithinCopyTo();
+        }
+
+        @Override
+        public boolean isWithinInferenceMetadata() {
+            return in.isWithinInferenceMetadata();
         }
 
         @Override
@@ -645,6 +650,10 @@ public abstract class DocumentParserContext {
     }
 
     public boolean isWithinCopyTo() {
+        return false;
+    }
+
+    public boolean isWithinInferenceMetadata() {
         return false;
     }
 

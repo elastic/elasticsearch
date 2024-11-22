@@ -16,6 +16,7 @@ public class AggregateWritables {
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
         return List.of(
             Avg.ENTRY,
+            ChangePoint.ENTRY,
             Count.ENTRY,
             CountDistinct.ENTRY,
             Max.ENTRY,

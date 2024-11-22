@@ -18,6 +18,7 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.Check;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Avg;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.ChangePoint;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Count;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.CountDistinct;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Max;
@@ -427,6 +428,7 @@ public class EsqlFunctionRegistry {
             new FunctionDefinition[] {
                 // The delay() function is for debug/snapshot environments only and should never be enabled in a non-snapshot build.
                 // This is an experimental function and can be removed without notice.
+                def(ChangePoint.class, bi(ChangePoint::new), "change_point"),
                 def(Delay.class, Delay::new, "delay"),
                 def(Kql.class, uni(Kql::new), "kql"),
                 def(Rate.class, Rate::withUnresolvedTimestamp, "rate"),

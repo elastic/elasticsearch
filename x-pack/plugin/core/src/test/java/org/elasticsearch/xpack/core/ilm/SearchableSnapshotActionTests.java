@@ -172,8 +172,16 @@ public class SearchableSnapshotActionTests extends AbstractActionTestCase<Search
     @Override
     protected SearchableSnapshotAction mutateInstance(SearchableSnapshotAction instance) {
         return switch (randomIntBetween(0, 2)) {
-            case 0 -> new SearchableSnapshotAction(randomAlphaOfLengthBetween(5, 10), instance.isForceMergeIndex());
-            case 1 -> new SearchableSnapshotAction(instance.getSnapshotRepository(), instance.isForceMergeIndex() == false);
+            case 0 -> new SearchableSnapshotAction(
+                randomAlphaOfLengthBetween(5, 10),
+                instance.isForceMergeIndex(),
+                instance.getTotalShardsPerNode()
+            );
+            case 1 -> new SearchableSnapshotAction(
+                instance.getSnapshotRepository(),
+                instance.isForceMergeIndex() == false,
+                instance.getTotalShardsPerNode()
+            );
             case 2 -> new SearchableSnapshotAction(
                 instance.getSnapshotRepository(),
                 instance.isForceMergeIndex(),

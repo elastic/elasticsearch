@@ -49,18 +49,21 @@ public class RestPutWatchAction extends BaseRestHandler implements RestRequestFi
         putWatchRequest.setIfSeqNo(request.paramAsLong("if_seq_no", putWatchRequest.getIfSeqNo()));
         putWatchRequest.setIfPrimaryTerm(request.paramAsLong("if_primary_term", putWatchRequest.getIfPrimaryTerm()));
         putWatchRequest.setActive(request.paramAsBoolean("active", putWatchRequest.isActive()));
-        return channel -> client.execute(
-            PutWatchAction.INSTANCE,
-            putWatchRequest,
-            ActionListener.releaseAfter(new RestBuilderListener<>(channel) {
-                @Override
-                public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
-                    response.toXContent(builder, request);
-                    RestStatus status = response.isCreated() ? CREATED : OK;
-                    return new RestResponse(status, builder);
-                }
-            }, content)
-        );
+        return channel -> {
+            content.mustIncRef();
+            client.execute(
+                PutWatchAction.INSTANCE,
+                putWatchRequest,
+                ActionListener.releaseAfter(new RestBuilderListener<>(channel) {
+                    @Override
+                    public RestResponse buildResponse(PutWatchResponse response, XContentBuilder builder) throws Exception {
+                        response.toXContent(builder, request);
+                        RestStatus status = response.isCreated() ? CREATED : OK;
+                        return new RestResponse(status, builder);
+                    }
+                }, content)
+            );
+        };
     }
 
     private static final Set<String> FILTERED_FIELDS = Set.of(

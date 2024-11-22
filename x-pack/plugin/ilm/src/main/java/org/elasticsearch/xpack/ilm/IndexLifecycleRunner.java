@@ -188,7 +188,8 @@ class IndexLifecycleRunner {
             return false;
         }
         final LifecycleExecutionState executionState = indexMetadata.getLifecycleExecutionState();
-        if (executionState.phase().equals(TimeseriesLifecycleType.HOT_PHASE) && nonLeapFrogSteps.contains(executionState.action()) == true) {
+        if (executionState.phase().equals(TimeseriesLifecycleType.HOT_PHASE)
+            && nonLeapFrogSteps.contains(executionState.action()) == true) {
             // Don't leap-frog these steps, because the index hasn't rolled over yet.
             return false;
         }
@@ -463,7 +464,8 @@ class IndexLifecycleRunner {
             }
         }
 
-        if (TimeseriesLifecycleType.DELETE_PHASE.equals(currentStep.getKey().phase()) == false && couldBeMovedToDeletePhase(policy, indexMetadata)) {
+        if (TimeseriesLifecycleType.DELETE_PHASE.equals(currentStep.getKey().phase()) == false
+            && couldBeMovedToDeletePhase(policy, indexMetadata)) {
             logger.info("--> {} could be deleted! moving to delete...", indexMetadata.getIndex().getName());
             moveToStep(
                 indexMetadata.getIndex(),

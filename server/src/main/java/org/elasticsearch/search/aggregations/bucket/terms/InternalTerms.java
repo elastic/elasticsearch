@@ -140,10 +140,8 @@ public abstract class InternalTerms<A extends InternalTerms<A, B>, B extends Int
                 return false;
             }
             Bucket<?> that = (Bucket<?>) obj;
-            if (docCountError != that.docCountError) {
-                return false;
-            }
-            return Objects.equals(docCount, that.docCount)
+            return Objects.equals(docCountError, that.docCountError)
+                && Objects.equals(docCount, that.docCount)
                 && Objects.equals(format, that.format)
                 && Objects.equals(aggregations, that.aggregations);
         }

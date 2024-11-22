@@ -10,7 +10,6 @@
 package fixture.azure;
 
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.bytes.CompositeBytesReference;
 import org.elasticsearch.common.util.Maps;
@@ -28,7 +27,6 @@ import java.util.stream.Collectors;
 public class MockAzureBlobStore {
 
     private static final Logger logger = LogManager.getLogger(MockAzureBlobStore.class);
-    private static final BytesReference UNCOMMITTED = new BytesArray(new byte[] {});
     private static final String BLOCK_BLOB_TYPE = "BlockBlob";
     private static final String PAGE_BLOB_TYPE = "PageBlob";
     private static final String APPEND_BLOB_TYPE = "AppendBlob";
@@ -97,7 +95,7 @@ public class MockAzureBlobStore {
         final AzureBlockBlob blob = getExistingBlob(path);
         // This is the public implementation of "get blob" which will 404 for uncommitted block blobs
         if (blob.isCommitted() == false) {
-            throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
+            throw new BlobNotFoundException();
         }
         blob.checkLeaseForRead(leaseId);
         return blob;
@@ -138,7 +136,7 @@ public class MockAzureBlobStore {
     private AzureBlockBlob getExistingBlob(String path) {
         final AzureBlockBlob blob = blobs.get(path);
         if (blob == null) {
-            throw new NotFoundException("BlobNotFound", "The specified blob does not exist.");
+            throw new BlobNotFoundException();
         }
         return blob;
     }
@@ -151,7 +149,7 @@ public class MockAzureBlobStore {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();
         private final Map<String, BytesReference> blocks;
-        private volatile BytesReference contents = UNCOMMITTED;
+        private volatile BytesReference contents;
 
         private AzureBlockBlob() {
             this.blocks = new ConcurrentHashMap<>();
@@ -214,6 +212,12 @@ public class MockAzureBlobStore {
             }
         }
 
+        /**
+         * Get the committed contents of the blob
+         *
+         * @return The last committed contents of the blob, or null if the blob is uncommitted
+         */
+        @Nullable
         public BytesReference getContents() {
             return contents;
         }
@@ -223,7 +227,7 @@ public class MockAzureBlobStore {
         }
 
         public boolean isCommitted() {
-            return contents != UNCOMMITTED;
+            return contents != null;
         }
 
         @Override
@@ -405,9 +409,9 @@ public class MockAzureBlobStore {
         }
     }
 
-    public static class NotFoundException extends AzureBlobStoreError {
-        public NotFoundException(String errorCode, String message) {
-            super(RestStatus.NOT_FOUND, errorCode, message);
+    public static class BlobNotFoundException extends AzureBlobStoreError {
+        public BlobNotFoundException() {
+            super(RestStatus.NOT_FOUND, "BlobNotFound", "The specified blob does not exist.");
         }
     }
 

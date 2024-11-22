@@ -162,9 +162,6 @@ tests:
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
   method: testBottomFieldSort
   issue: https://github.com/elastic/elasticsearch/issues/116249
@@ -250,6 +247,12 @@ tests:
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=snapshot/10_basic/Create a source only snapshot and then restore it}
+  issue: https://github.com/elastic/elasticsearch/issues/117295
+- class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
+  method: testRetryPointInTime
+  issue: https://github.com/elastic/elasticsearch/issues/117116
 
 # Examples:
 #

@@ -161,7 +161,8 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
         return buildSort(sortBuilders, context, true);
     }
 
-    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context, boolean optimize) throws IOException {
+    public static Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sortBuilders, SearchExecutionContext context, boolean optimize)
+        throws IOException {
         List<SortField> sortFields = new ArrayList<>(sortBuilders.size());
         List<DocValueFormat> sortFormats = new ArrayList<>(sortBuilders.size());
         for (SortBuilder<?> builder : sortBuilders) {

@@ -287,7 +287,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
             SortField[] sortFields = sortAndFormats.get().sort.getSort();
             if (sortFields != null && sortFields.length == 1 && sortFields[0].needsScores() && sortFields[0].getReverse() == false) {
                 // SORT _score DESC
-                return new ScoringPerShardCollector(shardContext, new TopScoreDocCollectorManager(limit, null, limit, false).newCollector());
+                return new ScoringPerShardCollector(
+                    shardContext,
+                    new TopScoreDocCollectorManager(limit, null, limit, false).newCollector()
+                );
             } else {
                 // SORT ..., _score, ...
                 var sort = new Sort();
@@ -297,7 +300,10 @@ public final class LuceneTopNSourceOperator extends LuceneOperator {
                     l.add(SortField.FIELD_SCORE);
                     sort = new Sort(l.toArray(SortField[]::new));
                 }
-                return new ScoringPerShardCollector(shardContext, new TopFieldCollectorManager(sort, limit, null, limit, false).newCollector());
+                return new ScoringPerShardCollector(
+                    shardContext,
+                    new TopFieldCollectorManager(sort, limit, null, limit, false).newCollector()
+                );
             }
         }
     }

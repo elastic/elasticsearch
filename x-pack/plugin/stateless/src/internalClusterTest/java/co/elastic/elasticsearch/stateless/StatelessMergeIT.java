@@ -17,6 +17,7 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 
@@ -70,7 +71,10 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true);
+        return super.nodeSettings().put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            // Occasionally the abstract stateless test will set this low causing many flushes in these test. We want to control the flushes
+            // in these tests.
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 30);
     }
 
     public void testMergesUseTheMergeThreadPool() {
@@ -145,7 +149,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             private void await() {
                 pauseHandoff.countDown();
                 logger.info("--> start relocation paused");
-                safeAwait(resumeHandoff);
+                safeAwait(resumeHandoff, TimeValue.timeValueSeconds(20));
                 logger.info("--> start relocation resumed");
             }
 

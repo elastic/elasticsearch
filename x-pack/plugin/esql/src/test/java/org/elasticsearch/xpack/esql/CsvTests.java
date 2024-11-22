@@ -236,7 +236,10 @@ public class CsvTests extends ESTestCase {
              * are tested in integration tests.
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
-            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse(
+                "enrich can't load fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+            );
             assumeFalse(
                 "can't use match in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())

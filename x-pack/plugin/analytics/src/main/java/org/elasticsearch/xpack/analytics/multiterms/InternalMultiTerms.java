@@ -42,7 +42,7 @@ public class InternalMultiTerms extends AbstractInternalTerms<InternalMultiTerms
 
         protected long docCount;
         protected InternalAggregations aggregations;
-        protected long docCountError;
+        private long docCountError;
         protected final List<DocValueFormat> formats;
         protected List<Object> terms;
         protected List<KeyConverter> keyConverters;

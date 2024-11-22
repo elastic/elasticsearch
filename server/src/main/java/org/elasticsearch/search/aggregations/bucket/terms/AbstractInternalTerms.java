@@ -256,8 +256,9 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                 thisReduceOrder = getOrder();
             }
             otherDocCount[0] += terms.getSumOfOtherDocCounts();
+            final long thisAggDocCountError = getDocCountError(terms);
+            setDocCountError(thisAggDocCountError);
             if (getShowDocCountError()) {
-                final long thisAggDocCountError = getDocCountError(terms);
                 if (sumDocCountError != -1) {
                     if (thisAggDocCountError == -1) {
                         sumDocCountError = -1;
@@ -265,8 +266,6 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                         sumDocCountError += thisAggDocCountError;
                     }
                 }
-                setDocCountError(thisAggDocCountError);
-
                 for (B bucket : terms.getBuckets()) {
                     // If there is already a doc count error for this bucket
                     // subtract this aggs doc count error from it to make the
@@ -322,7 +321,6 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                     result.add(bucket.reduced(AbstractInternalTerms.this::reduceBucket, reduceContext));
                 });
             }
-            long docCountError = -1;
             if (getShowDocCountError()) {
                 for (B r : result) {
                     if (sumDocCountError == -1) {
@@ -331,10 +329,10 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
                         r.updateDocCountError(sumDocCountError);
                     }
                 }
-
-                if (sumDocCountError != -1) {
-                    docCountError = size == 1 ? 0 : sumDocCountError;
-                }
+            }
+            long docCountError = -1;
+            if (sumDocCountError != -1) {
+                docCountError = size == 1 ? 0 : sumDocCountError;
             }
             return create(name, result, reduceContext.isFinalReduce() ? getOrder() : thisReduceOrder, docCountError, otherDocCount[0]);
         }

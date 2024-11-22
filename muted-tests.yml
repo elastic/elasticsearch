@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-async-query-api/line_17}
-  issue: https://github.com/elastic/elasticsearch/issues/109260
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
@@ -14,12 +11,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
-- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
-  method: testRejection
-  issue: https://github.com/elastic/elasticsearch/issues/112406
-- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
-  method: testConcurrentQueries
-  issue: https://github.com/elastic/elasticsearch/issues/112424
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
@@ -241,6 +232,9 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
+  method: testCancelRequestWhenFailingFetchingPages
+  issue: https://github.com/elastic/elasticsearch/issues/117397
 
 # Examples:
 #

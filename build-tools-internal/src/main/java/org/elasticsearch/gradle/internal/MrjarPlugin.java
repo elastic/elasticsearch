@@ -20,9 +20,12 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
+import org.gradle.api.tasks.javadoc.Javadoc;
 import org.gradle.api.tasks.testing.Test;
+import org.gradle.external.javadoc.CoreJavadocOptions;
 import org.gradle.jvm.tasks.Jar;
 import org.gradle.jvm.toolchain.JavaLanguageVersion;
 import org.gradle.jvm.toolchain.JavaToolchainService;
@@ -41,7 +44,6 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Stream;
-
 import javax.inject.Inject;
 
 import static de.thetaphi.forbiddenapis.gradle.ForbiddenApisPlugin.FORBIDDEN_APIS_TASK_NAME;
@@ -79,6 +81,7 @@ public class MrjarPlugin implements Plugin<Project> {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
                 configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                addJar(project, mainSourceSet, javaVersion);
                 mainSourceSets.add(mainSourceSetName);
                 testSourceSets.add(mainSourceSetName);
 
@@ -140,6 +143,29 @@ public class MrjarPlugin implements Plugin<Project> {
         });
 
         return sourceSet;
+    }
+
+    private void addJar(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getConfigurations().register("java" + javaVersion);
+        TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
+            task.from(sourceSet.getOutput());
+        });
+        project.getArtifacts().add("java" + javaVersion, jarTask);
+    }
+
+    private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getTasks().withType(JavaCompile.class).named(sourceSet.getCompileJavaTaskName()).configure(compileTask -> {
+            CompileOptions compileOptions = compileTask.getOptions();
+            compileOptions.getCompilerArgs().add("--enable-preview");
+            compileOptions.getCompilerArgs().add("-Xlint:-preview");
+
+            compileTask.doLast(t -> { stripPreviewFromFiles(compileTask.getDestinationDirectory().getAsFile().get().toPath()); });
+        });
+        project.getTasks().withType(Javadoc.class).named(name -> name.equals(sourceSet.getJavadocTaskName())).configureEach(javadocTask -> {
+            CoreJavadocOptions options = (CoreJavadocOptions) javadocTask.getOptions();
+            options.addBooleanOption("-enable-preview", true);
+            options.addStringOption("-release", String.valueOf(javaVersion));
+        });
     }
 
     private void configureSourceSetInJar(Project project, SourceSet sourceSet, int javaVersion) {

@@ -121,9 +121,6 @@ tests:
 - class: org.elasticsearch.search.SearchServiceTests
   method: testParseSourceValidation
   issue: https://github.com/elastic/elasticsearch/issues/115936
-- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
-  method: testReindexWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/115996
 - class: org.elasticsearch.search.query.SearchQueryIT
   method: testAllDocsQueryString
   issue: https://github.com/elastic/elasticsearch/issues/115728
@@ -202,15 +199,6 @@ tests:
   issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/116851
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeWithinAggregations
-  issue: https://github.com/elastic/elasticsearch/issues/116856
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeSingleGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/116857
-- class: org.elasticsearch.xpack.esql.analysis.VerifierTests
-  method: testCategorizeNestedGrouping
-  issue: https://github.com/elastic/elasticsearch/issues/116858
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
   method: testRandomDirectoryIOExceptions
   issue: https://github.com/elastic/elasticsearch/issues/114824
@@ -220,9 +208,6 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_197}
-  issue: https://github.com/elastic/elasticsearch/issues/117099
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
@@ -247,6 +232,9 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/117116
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
 
 # Examples:
 #

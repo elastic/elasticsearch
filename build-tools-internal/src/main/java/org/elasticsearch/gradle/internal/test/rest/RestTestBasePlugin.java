@@ -252,7 +252,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configuration.getDependencies()
             .stream()
             .filter(d -> d instanceof ProjectDependency)
-            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependencyInternal) d).getIdentityPath().getPath())))
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependencyInternal) d).getPath())))
             .forEach(dependencies::add);
     }
 
@@ -331,9 +331,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
                         Dependency dependency = iterator.next();
                         // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = project.project(
-                                ((ProjectDependencyInternal) projectDependency).getIdentityPath().getPath()
-                            );
+                            Project dependencyProject = project.project(((ProjectDependencyInternal) projectDependency).getPath());
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();

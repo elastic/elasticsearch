@@ -18,7 +18,6 @@ import org.gradle.api.artifacts.ProjectDependency;
 import org.gradle.api.artifacts.dsl.DependencyHandler;
 import org.gradle.api.attributes.Attribute;
 import org.gradle.api.attributes.LibraryElements;
-import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.plugins.ExtraPropertiesExtension;
 import org.gradle.api.tasks.Copy;
 import org.gradle.api.tasks.SourceSetContainer;
@@ -69,9 +68,7 @@ public class TestWithDependenciesPlugin implements Plugin<Project> {
                 project.getObjects().named(LibraryElements.class, LibraryElements.RESOURCES)
             );
         DependencyHandler dependencyHandler = project.getDependencies();
-        ProjectDependencyInternal pluginProject = (ProjectDependencyInternal) projectDependency;
-
-        String path = pluginProject.getIdentityPath().getPath();
+        String path = projectDependency.getPath();
         Dependency pluginMetadataDependency = dependencyHandler.project(Map.of("path", path));
         dependencyHandler.add(metadataConfiguration, pluginMetadataDependency);
         project.getTasks().register(taskName, Copy.class, copy -> {

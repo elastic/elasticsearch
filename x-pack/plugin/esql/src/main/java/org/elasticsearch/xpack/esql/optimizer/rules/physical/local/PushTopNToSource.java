@@ -14,8 +14,11 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.MetadataAttribute;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.Order;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils;
@@ -30,6 +33,7 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * We handle two main scenarios here:
@@ -57,6 +61,9 @@ import java.util.List;
  * </ol>
  */
 public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimizerRule<TopNExec, LocalPhysicalOptimizerContext> {
+
+    private static final EsField SCORE_FIELD = new EsField(MetadataAttribute.SCORE, DataType.DOUBLE, Map.of(), false);
+
     @Override
     protected PhysicalPlan rule(TopNExec topNExec, LocalPhysicalOptimizerContext ctx) {
         Pushable pushable = evaluatePushable(topNExec, LucenePushdownPredicates.from(ctx.searchStats()));
@@ -147,7 +154,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
             List<EsQueryExec.Sort> pushableSorts = new ArrayList<>();
             for (Order order : orders) {
-                if (lucenePushdownPredicates.isPushableFieldAttribute(order.child())) {
+                if (lucenePushdownPredicates.isPushableFieldAttribute(order.child())
+                    || lucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
                     pushableSorts.add(
                         new EsQueryExec.FieldSort(
                             ((FieldAttribute) order.child()).exactAttribute(),
@@ -192,13 +200,19 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
 
     private static boolean canPushDownOrders(List<Order> orders, LucenePushdownPredicates lucenePushdownPredicates) {
         // allow only exact FieldAttributes (no expressions) for sorting
-        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child()));
+        return orders.stream().allMatch(o -> lucenePushdownPredicates.isPushableFieldAttribute(o.child())
+            || lucenePushdownPredicates.isPushableMetadataAttribute(o.child()));
     }
 
     private static List<EsQueryExec.Sort> buildFieldSorts(List<Order> orders) {
         List<EsQueryExec.Sort> sorts = new ArrayList<>(orders.size());
         for (Order o : orders) {
-            sorts.add(new EsQueryExec.FieldSort(((FieldAttribute) o.child()).exactAttribute(), o.direction(), o.nullsPosition()));
+            if (o.child() instanceof FieldAttribute fa) {
+                sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
+            }
+            if (o.child() instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name())) {
+                sorts.add(new EsQueryExec.ScoreSort(o.direction()));
+            }
         }
         return sorts;
     }

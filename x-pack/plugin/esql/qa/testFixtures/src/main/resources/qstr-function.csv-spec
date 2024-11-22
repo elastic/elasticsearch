@@ -124,13 +124,11 @@ from books metadata _score
 | where qstr("author:William Faulkner") 
 | keep book_no, author, _score 
 | sort book_no 
-| LIMIT 4;
+| LIMIT 2;
 
 book_no:keyword | author:text        | _score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
 2713            | William Faulkner   | 5.9556169509887695
-5119            | William Faulkner   | 6.877357482910156
-5404            | William Faulkner   | 6.0922040939331055
-9896            | William Faulkner   | 6.857903003692627
 ;
 
 singleQstrScoringManipulated
@@ -142,13 +140,11 @@ from books metadata _score
 | eval add_score = ceil(_score) + 1 
 | keep book_no, author, add_score 
 | sort book_no 
-| LIMIT 4;
+| LIMIT 2;
 
 book_no:keyword | author:text | add_score:double
+2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 2.0
 2713            | William Faulkner                                   | 7.0
-5119            | William Faulkner                                   | 8.0
-5404            | William Faulkner                                   | 8.0
-9896            | William Faulkner                                   | 8.0
 ;
 
 singleQstrBoostScoringSorted
@@ -180,8 +176,8 @@ from books metadata _score
 
 book_no:keyword | c_score:double
 8875            | 3.0
-4023            | 3.0
-2675            | 3.0
+7350            | 2.0
+7140            | 3.0
 ;
 
 singleQstrScoringGrok

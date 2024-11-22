@@ -279,7 +279,7 @@ public class EsPhysicalOperationProviders extends AbstractPhysicalOperationProvi
 
         @Override
         public Optional<SortAndFormats> buildSort(List<SortBuilder<?>> sorts) throws IOException {
-            return SortBuilder.buildSort(sorts, ctx);
+            return SortBuilder.buildSort(sorts, ctx, false);
         }
 
         @Override

@@ -137,7 +137,24 @@ public class MatchFunctionIT extends AbstractEsqlIntegTestCase {
             METADATA _score
             | WHERE match(content, "fox")
             | KEEP id, _score
-            | SORT id
+            | SORT id DESC
+            """;
+
+        try (var resp = run(query)) {
+            assertColumnNames(resp.columns(), List.of("id", "_score"));
+            assertColumnTypes(resp.columns(), List.of("integer", "double"));
+            assertValues(resp.values(), List.of(List.of(6, 0.9114001989364624), List.of(1, 1.156558871269226)));
+        }
+    }
+
+    public void testWhereMatchWithScoringSortScore() {
+        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
+        var query = """
+            FROM test
+            METADATA _score
+            | WHERE match(content, "fox")
+            | KEEP id, _score
+            | SORT _score DESC
             """;
 
         try (var resp = run(query)) {

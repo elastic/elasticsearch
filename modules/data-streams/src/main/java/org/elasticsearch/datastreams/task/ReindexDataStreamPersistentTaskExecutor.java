@@ -72,7 +72,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         client.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
-                List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
+                List<Index> indices = dataStreamInfos.get(0).getDataStream().getIndices();
                 List<Index> indicesToBeReindexed = indices.stream()
                     .filter(index -> clusterService.state().getMetadata().index(index).getCreationVersion().isLegacyIndexVersion())
                     .toList();

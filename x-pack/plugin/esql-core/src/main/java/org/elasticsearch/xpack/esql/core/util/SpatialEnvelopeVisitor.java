@@ -24,13 +24,28 @@ import java.util.Optional;
 
 public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeException> {
 
-    private double minX = Double.POSITIVE_INFINITY;
-    private double minY = Double.POSITIVE_INFINITY;
-    private double maxX = Double.NEGATIVE_INFINITY;
-    private double maxY = Double.NEGATIVE_INFINITY;
+    private final PointVisitor pointVisitor;
 
+    public SpatialEnvelopeVisitor(PointVisitor pointVisitor) {
+        this.pointVisitor = pointVisitor;
+    }
+
+    /**
+     * Determine the BBOX without considering the CRS or wrapping of the longitude.
+     */
     public static Optional<Rectangle> visit(Geometry geometry) {
-        var visitor = new SpatialEnvelopeVisitor();
+        var visitor = new SpatialEnvelopeVisitor(new CartesianPointVisitor());
+        if (geometry.visit(visitor)) {
+            return Optional.of(visitor.getResult());
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Determine the BBOX assuming the CRS is geographic (eg WGS84) and optionally wrapping the longitude around the dateline.
+     */
+    public static Optional<Rectangle> visit(Geometry geometry, boolean wrapLongitude) {
+        var visitor = new SpatialEnvelopeVisitor(new GeoPointVisitor(wrapLongitude));
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
         }
@@ -38,11 +53,120 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     }
 
     public Rectangle getResult() {
-        return new Rectangle(minX, maxX, maxY, minY);
+        return pointVisitor.getResult();
+    }
+
+    private interface PointVisitor {
+        void visitPoint(double x, double y);
+
+        void visitRectangle(double minX, double maxX, double maxY, double minY);
+
+        boolean isValid();
+
+        Rectangle getResult();
+    }
+
+    private static class CartesianPointVisitor implements PointVisitor {
+        private double minX = Double.POSITIVE_INFINITY;
+        private double minY = Double.POSITIVE_INFINITY;
+        private double maxX = Double.NEGATIVE_INFINITY;
+        private double maxY = Double.NEGATIVE_INFINITY;
+
+        @Override
+        public void visitPoint(double x, double y) {
+            minX = Math.min(minX, x);
+            minY = Math.min(minY, y);
+            maxX = Math.max(maxX, x);
+            maxY = Math.max(maxY, y);
+        }
+
+        @Override
+        public void visitRectangle(double minX, double maxX, double maxY, double minY) {
+            this.minX = Math.min(this.minX, minX);
+            this.minY = Math.min(this.minY, minY);
+            this.maxX = Math.max(this.maxX, maxX);
+            this.maxY = Math.max(this.maxY, maxY);
+        }
+
+        @Override
+        public boolean isValid() {
+            return minY != Double.POSITIVE_INFINITY;
+        }
+
+        @Override
+        public Rectangle getResult() {
+            return new Rectangle(minX, maxX, maxY, minY);
+        }
+    }
+
+    private static class GeoPointVisitor implements PointVisitor {
+        private double minY = Double.POSITIVE_INFINITY;
+        private double maxY = Double.NEGATIVE_INFINITY;
+        private double minNegX = Double.POSITIVE_INFINITY;
+        private double maxNegX = Double.NEGATIVE_INFINITY;
+        private double minPosX = Double.POSITIVE_INFINITY;
+        private double maxPosX = Double.NEGATIVE_INFINITY;
+
+        private final boolean wrapLongitude;
+
+        private GeoPointVisitor(boolean wrapLongitude) {
+            this.wrapLongitude = wrapLongitude;
+        }
+
+        @Override
+        public void visitPoint(double x, double y) {
+            minY = Math.min(minY, y);
+            maxY = Math.max(maxY, y);
+            visitLongitude(x);
+        }
+
+        @Override
+        public void visitRectangle(double minX, double maxX, double maxY, double minY) {
+            this.minY = Math.min(this.minY, minY);
+            this.maxY = Math.max(this.maxY, maxY);
+            visitLongitude(minX);
+            visitLongitude(maxX);
+        }
+
+        private void visitLongitude(double x) {
+            if (x >= 0) {
+                minPosX = Math.min(minPosX, x);
+                maxPosX = Math.max(maxPosX, x);
+            } else {
+                minNegX = Math.min(minNegX, x);
+                maxNegX = Math.max(maxNegX, x);
+            }
+        }
+
+        @Override
+        public boolean isValid() {
+            return minY != Double.POSITIVE_INFINITY;
+        }
+
+        @Override
+        public Rectangle getResult() {
+            if (Double.isInfinite(maxY)) {
+                return null;
+            } else if (Double.isInfinite(minPosX)) {
+                return new Rectangle(minNegX, maxNegX, maxY, minY);
+            } else if (Double.isInfinite(minNegX)) {
+                return new Rectangle(minPosX, maxPosX, maxY, minY);
+            } else if (wrapLongitude) {
+                double unwrappedWidth = maxPosX - minNegX;
+                double wrappedWidth = (180 - minPosX) - (-180 - maxNegX);
+                if (unwrappedWidth <= wrappedWidth) {
+                    return new Rectangle(minNegX, maxPosX, maxY, minY);
+                } else {
+                    return new Rectangle(minPosX, maxNegX, maxY, minY);
+                }
+            } else {
+                return new Rectangle(minNegX, maxPosX, maxY, minY);
+            }
+        }
     }
 
     private boolean isValid() {
-        return minX != Double.POSITIVE_INFINITY;
+        return pointVisitor.isValid();
     }
 
     @Override
@@ -60,12 +184,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     @Override
     public Boolean visit(Line line) throws RuntimeException {
         for (int i = 0; i < line.length(); i++) {
-            double x = line.getX(i);
-            double y = line.getY(i);
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
+            pointVisitor.visitPoint(line.getX(i), line.getY(i));
         }
         return isValid();
     }
@@ -73,12 +192,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     @Override
     public Boolean visit(LinearRing ring) throws RuntimeException {
         for (int i = 0; i < ring.length(); i++) {
-            double x = ring.getX(i);
-            double y = ring.getY(i);
-            minX = Math.min(minX, x);
-            minY = Math.min(minY, y);
-            maxX = Math.max(maxX, x);
-            maxY = Math.max(maxY, y);
+            pointVisitor.visitPoint(ring.getX(i), ring.getY(i));
         }
         return isValid();
     }
@@ -92,11 +206,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     @Override
     public Boolean visit(MultiPoint multiPoint) throws RuntimeException {
         for (int i = 0; i < multiPoint.size(); i++) {
-            Point point = multiPoint.get(i);
-            minX = Math.min(minX, point.getX());
-            minY = Math.min(minY, point.getY());
-            maxX = Math.max(maxX, point.getX());
-            maxY = Math.max(maxY, point.getY());
+            visit(multiPoint.get(i));
         }
         return isValid();
     }
@@ -109,10 +219,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
     @Override
     public Boolean visit(Point point) throws RuntimeException {
-        minX = Math.min(minX, point.getX());
-        minY = Math.min(minY, point.getY());
-        maxX = Math.max(maxX, point.getX());
-        maxY = Math.max(maxY, point.getY());
+        pointVisitor.visitPoint(point.getX(), point.getY());
         return isValid();
     }
 
@@ -127,10 +234,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
     @Override
     public Boolean visit(Rectangle rectangle) throws RuntimeException {
-        minX = Math.min(minX, rectangle.getMinX());
-        minY = Math.min(minY, rectangle.getMinY());
-        maxX = Math.max(maxX, rectangle.getMaxX());
-        maxY = Math.max(maxY, rectangle.getMaxY());
+        pointVisitor.visitRectangle(rectangle.getMinX(), rectangle.getMaxX(), rectangle.getMaxY(), rectangle.getMinY());
         return isValid();
     }
 }

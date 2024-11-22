@@ -204,6 +204,7 @@ public class TransportVersions {
     public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
     public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_00_0);
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,
@@ -268,7 +269,7 @@ public class TransportVersions {
      * Reference to the minimum transport version that can be used with CCS.
      * This should be the transport version used by the previous minor release.
      */
-    public static final TransportVersion MINIMUM_CCS_VERSION = INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16;
+    public static final TransportVersion MINIMUM_CCS_VERSION = QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16;
 
     static final NavigableMap<Integer, TransportVersion> VERSION_IDS = getAllVersionIds(TransportVersions.class);
 

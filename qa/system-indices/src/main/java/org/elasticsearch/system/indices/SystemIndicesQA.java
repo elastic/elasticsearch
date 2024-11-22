@@ -53,26 +53,6 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
     private static final String INTERNAL_UNMANAGED_INDEX_NAME = ".internal-unmanaged-index*";
     private static final String INTERNAL_MANAGED_INDEX_NAME = ".internal-managed-index*";
 
-    private static XContentBuilder mappings() {
-        try {
-            return jsonBuilder().startObject()
-                .startObject(SINGLE_MAPPING_NAME)
-                .startObject("_meta")
-                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
-                .endObject()
-                .field("dynamic", "strict")
-                .startObject("properties")
-                .startObject("name")
-                .field("type", "keyword")
-                .endObject()
-                .endObject()
-                .endObject()
-                .endObject();
-        } catch (IOException e) {
-            throw new UncheckedIOException("Failed to build mappings for net new system index", e);
-        }
-    }
-
     @Override
     public String getFeatureName() {
         return "system indices qa";
@@ -123,6 +103,26 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
                 .setAliasName(".internal-managed-alias")
                 .build()
         );
+    }
+
+    private static XContentBuilder mappings() {
+        try {
+            return jsonBuilder().startObject()
+                .startObject(SINGLE_MAPPING_NAME)
+                .startObject("_meta")
+                .field(SystemIndexDescriptor.VERSION_META_KEY, 1)
+                .endObject()
+                .field("dynamic", "strict")
+                .startObject("properties")
+                .startObject("name")
+                .field("type", "keyword")
+                .endObject()
+                .endObject()
+                .endObject()
+                .endObject();
+        } catch (IOException e) {
+            throw new UncheckedIOException("Failed to build mappings for net new system index", e);
+        }
     }
 
     @Override
@@ -178,7 +178,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
 
         @Override
         protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-            var content = request.requiredReleasableContent();
+            var content = request.requiredContent();
             IndexRequest indexRequest = new IndexRequest(".net-new-system-index-primary");
             indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));

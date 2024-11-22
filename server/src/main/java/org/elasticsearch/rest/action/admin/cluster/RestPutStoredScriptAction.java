@@ -47,7 +47,7 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-        final var content = request.requiredReleasableContent();
+        final var content = request.requiredContent();
         final var xContentType = request.getXContentType();
         final var putRequest = new PutStoredScriptRequest(
             getMasterNodeTimeout(request),

@@ -222,7 +222,7 @@ public class SecurityRestFilterTests extends ESTestCase {
         assertThat(future.get(), is(Boolean.TRUE));
 
         assertNotEquals(restRequest, auditTrailRequest.get());
-        assertNotEquals(restRequest.releasableContent(), auditTrailRequest.get().releasableContent());
+        assertNotEquals(restRequest.content(), auditTrailRequest.get().content());
 
         Map<String, Object> map;
         try (
@@ -230,7 +230,7 @@ public class SecurityRestFilterTests extends ESTestCase {
                 .createParser(
                     NamedXContentRegistry.EMPTY,
                     DeprecationHandler.THROW_UNSUPPORTED_OPERATION,
-                    auditTrailRequest.get().releasableContent().streamInput()
+                    auditTrailRequest.get().content().streamInput()
                 )
         ) {
             map = parser.map();

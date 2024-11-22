@@ -49,7 +49,7 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
             taskType = TaskType.ANY; // task type must be defined in the body
         }
 
-        var content = restRequest.requiredReleasableContent();
+        var content = restRequest.requiredContent();
         var request = new PutInferenceModelAction.Request(taskType, inferenceEntityId, content, restRequest.getXContentType());
         return channel -> {
             content.mustIncRef();

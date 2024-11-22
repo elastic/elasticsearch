@@ -46,11 +46,11 @@ import static org.mockito.Mockito.when;
 public class RestRequestTests extends ESTestCase {
 
     public void testContentConsumesContent() {
-        runConsumesContentTest(RestRequest::releasableContent, true);
+        runConsumesContentTest(RestRequest::content, true);
     }
 
     public void testRequiredContentConsumesContent() {
-        runConsumesContentTest(RestRequest::requiredReleasableContent, true);
+        runConsumesContentTest(RestRequest::requiredContent, true);
     }
 
     public void testContentParserConsumesContent() {
@@ -237,23 +237,20 @@ public class RestRequestTests extends ESTestCase {
     }
 
     public void testRequiredContent() {
-        Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).requiredReleasableContent());
+        Exception e = expectThrows(ElasticsearchParseException.class, () -> contentRestRequest("", emptyMap()).requiredContent());
         assertEquals("request body is required", e.getMessage());
-        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredReleasableContent());
+        assertEquals(new BytesArray("stuff"), contentRestRequest("stuff", emptyMap()).requiredContent());
         assertEquals(
             new BytesArray("stuff"),
-            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredReleasableContent()
+            contentRestRequest("stuff", Map.of("source", "stuff2", "source_content_type", "application/json")).requiredContent()
         );
         e = expectThrows(
             ElasticsearchParseException.class,
             () -> contentRestRequest("", Map.of("source", "{\"foo\": \"stuff\"}", "source_content_type", "application/json"))
-                .requiredReleasableContent()
+                .requiredContent()
         );
         assertEquals("request body is required", e.getMessage());
-        e = expectThrows(
-            ValidationException.class,
-            () -> contentRestRequest("test", null, Collections.emptyMap()).requiredReleasableContent()
-        );
+        e = expectThrows(ValidationException.class, () -> contentRestRequest("test", null, Collections.emptyMap()).requiredContent());
         assertThat(e.getMessage(), containsString("unknown content type"));
     }
 
@@ -324,8 +321,8 @@ public class RestRequestTests extends ESTestCase {
         }
 
         @Override
-        public ReleasableBytesReference releasableContent() {
-            return restRequest.releasableContent();
+        public ReleasableBytesReference content() {
+            return restRequest.content();
         }
     }
 

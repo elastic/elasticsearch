@@ -308,7 +308,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * release the buffer back to the pool where it may be re-used for another request. If you need to keep the buffer alive past the end of
      * these synchronous steps, acquire your own reference to this buffer and release it once it's no longer needed.
      */
-    public ReleasableBytesReference releasableContent() {
+    public ReleasableBytesReference content() {
         this.contentConsumed = true;
         var bytes = httpRequest.body().asFull().bytes();
         if (bytes.hasReferences() == false) {
@@ -328,21 +328,17 @@ public class RestRequest implements ToXContent.Params, Traceable {
         return httpRequest.body().asStream();
     }
 
-    private void ensureContent() {
+    /**
+     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
+     * See {@link #content()}.
+     */
+    public ReleasableBytesReference requiredContent() {
         if (hasContent() == false) {
             throw new ElasticsearchParseException("request body is required");
         } else if (xContentType.get() == null) {
             throwValidationException("unknown content type");
         }
-    }
-
-    /**
-     * Returns reference to the network buffer of HTTP content or throw an exception if the body or content type is missing.
-     * See {@link #releasableContent()}. It's a recommended method to handle HTTP content without copying it.
-     */
-    public ReleasableBytesReference requiredReleasableContent() {
-        ensureContent();
-        return releasableContent();
+        return content();
     }
 
     private static void throwValidationException(String msg) {
@@ -547,7 +543,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
      * {@link #contentOrSourceParamParser()} for requests that support specifying the request body in the {@code source} param.
      */
     public final XContentParser contentParser() throws IOException {
-        BytesReference content = requiredReleasableContent(); // will throw exception if body or content type missing
+        BytesReference content = requiredContent(); // will throw exception if body or content type missing
         return XContentHelper.createParserNotCompressed(parserConfig, content, xContentType.get());
 
     }
@@ -605,7 +601,7 @@ public class RestRequest implements ToXContent.Params, Traceable {
         if (hasContentOrSourceParam() == false) {
             throw new ElasticsearchParseException("request body or source parameter is required");
         } else if (hasContent()) {
-            return new Tuple<>(xContentType.get(), requiredReleasableContent());
+            return new Tuple<>(xContentType.get(), requiredContent());
         }
         String source = param("source");
         String typeParam = param("source_content_type");

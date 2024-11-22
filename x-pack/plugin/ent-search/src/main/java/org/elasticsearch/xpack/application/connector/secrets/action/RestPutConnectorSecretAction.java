@@ -34,7 +34,7 @@ public class RestPutConnectorSecretAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
         PutConnectorSecretRequest putSecretRequest = PutConnectorSecretRequest.fromXContentBytes(
             request.param("id"),
-            request.releasableContent(),
+            request.content(),
             request.getXContentType()
         );
         return restChannel -> client.execute(

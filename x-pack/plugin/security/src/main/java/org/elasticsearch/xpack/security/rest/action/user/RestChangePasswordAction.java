@@ -70,7 +70,7 @@ public class RestChangePasswordAction extends NativeUserBaseRestHandler implemen
         }
 
         final String refresh = request.param("refresh");
-        final BytesReference content = request.requiredReleasableContent();
+        final BytesReference content = request.requiredContent();
         return channel -> new ChangePasswordRequestBuilder(client).username(username)
             .source(content, request.getXContentType(), passwordHasher)
             .setRefreshPolicy(refresh)

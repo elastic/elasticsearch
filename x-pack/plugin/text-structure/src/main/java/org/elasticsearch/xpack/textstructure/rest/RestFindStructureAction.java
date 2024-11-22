@@ -50,7 +50,7 @@ public class RestFindStructureAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) {
         FindStructureAction.Request request = new FindStructureAction.Request();
         RestFindStructureArgumentsParser.parse(restRequest, request);
-        var content = restRequest.requiredReleasableContent();
+        var content = restRequest.requiredContent();
         request.setSample(content);
 
         return channel -> {

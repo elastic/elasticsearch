@@ -40,7 +40,7 @@ public class RestPutSynonymsAction extends BaseRestHandler {
     protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
         PutSynonymsAction.Request request = new PutSynonymsAction.Request(
             restRequest.param("synonymsSet"),
-            restRequest.releasableContent(),
+            restRequest.content(),
             restRequest.getXContentType()
         );
         return channel -> client.execute(

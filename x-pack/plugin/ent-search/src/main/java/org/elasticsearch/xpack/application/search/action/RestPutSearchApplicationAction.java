@@ -43,7 +43,7 @@ public class RestPutSearchApplicationAction extends EnterpriseSearchBaseRestHand
         PutSearchApplicationAction.Request request = new PutSearchApplicationAction.Request(
             restRequest.param("name"),
             restRequest.paramAsBoolean("create", false),
-            restRequest.releasableContent(),
+            restRequest.content(),
             restRequest.getXContentType()
         );
         return channel -> client.execute(

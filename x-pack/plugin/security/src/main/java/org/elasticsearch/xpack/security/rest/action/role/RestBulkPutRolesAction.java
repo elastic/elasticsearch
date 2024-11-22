@@ -45,7 +45,7 @@ public class RestBulkPutRolesAction extends NativeRoleBaseRestHandler {
     @Override
     protected RestChannelConsumer innerPrepareRequest(RestRequest request, NodeClient client) throws IOException {
         final BulkPutRoleRequestBuilder requestBuilder = builderFactory.create(client)
-            .content(request.requiredReleasableContent(), request.getXContentType());
+            .content(request.requiredContent(), request.getXContentType());
 
         if (request.param("refresh") != null) {
             requestBuilder.setRefreshPolicy(WriteRequest.RefreshPolicy.parse(request.param("refresh")));

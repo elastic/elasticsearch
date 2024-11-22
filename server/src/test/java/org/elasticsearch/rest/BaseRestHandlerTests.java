@@ -294,7 +294,7 @@ public class BaseRestHandlerTests extends ESTestCase {
         final BaseRestHandler handler = new BaseRestHandler() {
             @Override
             protected RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-                request.releasableContent();
+                request.content();
                 return restChannelConsumer;
             }
 

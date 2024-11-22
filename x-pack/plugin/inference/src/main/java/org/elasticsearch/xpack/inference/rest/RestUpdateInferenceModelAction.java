@@ -51,7 +51,7 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             throw new ElasticsearchStatusException("Inference ID must be provided in the path", RestStatus.BAD_REQUEST);
         }
 
-        var content = restRequest.requiredReleasableContent();
+        var content = restRequest.requiredContent();
         var request = new UpdateInferenceModelAction.Request(
             inferenceEntityId,
             content,

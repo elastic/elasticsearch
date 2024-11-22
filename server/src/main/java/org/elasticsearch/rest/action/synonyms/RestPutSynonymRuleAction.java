@@ -41,7 +41,7 @@ public class RestPutSynonymRuleAction extends BaseRestHandler {
         PutSynonymRuleAction.Request request = new PutSynonymRuleAction.Request(
             restRequest.param("synonymsSet"),
             restRequest.param("synonymRuleId"),
-            restRequest.releasableContent(),
+            restRequest.content(),
             restRequest.getXContentType()
         );
         return channel -> client.execute(

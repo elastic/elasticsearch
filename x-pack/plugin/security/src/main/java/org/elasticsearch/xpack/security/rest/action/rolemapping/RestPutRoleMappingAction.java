@@ -58,7 +58,7 @@ public class RestPutRoleMappingAction extends NativeRoleMappingBaseRestHandler {
         try (
             XContentParser parser = XContentHelper.createParserNotCompressed(
                 LoggingDeprecationHandler.XCONTENT_PARSER_CONFIG,
-                request.requiredReleasableContent(),
+                request.requiredContent(),
                 request.getXContentType()
             )
         ) {

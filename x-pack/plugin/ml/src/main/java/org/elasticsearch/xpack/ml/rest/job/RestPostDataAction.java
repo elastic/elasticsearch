@@ -52,7 +52,7 @@ public class RestPostDataAction extends BaseRestHandler {
         PostDataAction.Request request = new PostDataAction.Request(restRequest.param(Job.ID.getPreferredName()));
         request.setResetStart(restRequest.param(PostDataAction.Request.RESET_START.getPreferredName(), DEFAULT_RESET_START));
         request.setResetEnd(restRequest.param(PostDataAction.Request.RESET_END.getPreferredName(), DEFAULT_RESET_END));
-        var content = restRequest.releasableContent();
+        var content = restRequest.content();
         request.setContent(content, restRequest.getXContentType());
 
         return channel -> {

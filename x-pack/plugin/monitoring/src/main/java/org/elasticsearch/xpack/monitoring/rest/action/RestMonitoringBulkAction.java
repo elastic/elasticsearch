@@ -94,7 +94,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         final long intervalMillis = parseTimeValue(intervalAsString, INTERVAL).getMillis();
 
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
-        var content = request.releasableContent();
+        var content = request.content();
         requestBuilder.add(system, content, request.getXContentType(), timestamp, intervalMillis);
         return channel -> {
             content.mustIncRef();

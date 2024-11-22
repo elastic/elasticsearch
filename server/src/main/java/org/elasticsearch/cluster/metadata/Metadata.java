@@ -1589,7 +1589,9 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
     public ProjectMetadata projectFor(Index index) {
-        return lookupProject(index).orElseThrow(() -> new IndexNotFoundException("Index [ " + index + "] does not exist in any project"));
+        return lookupProject(index).orElseThrow(
+            () -> new IndexNotFoundException("index [" + index + "] does not exist in any project", index)
+        );
     }
 
     /**
@@ -1597,8 +1599,7 @@ public class Metadata implements Diffable<Metadata>, ChunkedToXContent {
      * @throws org.elasticsearch.index.IndexNotFoundException if the index does not exist in any project
      */
     public IndexMetadata indexMetadata(Index index) {
-        return lookupProject(index).orElseThrow(() -> new IndexNotFoundException("Index [ " + index + "] does not exist in any project"))
-            .getIndexSafe(index);
+        return projectFor(index).getIndexSafe(index);
     }
 
     /**

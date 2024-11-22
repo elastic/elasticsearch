@@ -20,6 +20,12 @@ public final class IndexNotFoundException extends ResourceNotFoundException {
     public IndexNotFoundException(String message, String index) {
         super("no such index [" + index + "] and " + message);
         setIndex(index);
+
+    }
+
+    public IndexNotFoundException(String message, Index index) {
+        super("no such index [" + index + "] and " + message);
+        setIndex(index);
     }
 
     public IndexNotFoundException(String index) {

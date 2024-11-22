@@ -93,6 +93,9 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
     public static final NodeFeature SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX = new NodeFeature("semantic_text.single_field_update_fix");
     public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
     public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX = new NodeFeature(
+        "semantic_text.always_emit_inference_id_fix"
+    );
     public static final NodeFeature SEMANTIC_TEXT_PARTIAL_UPDATE_IN_OBJECT_FIX = new NodeFeature(
         "semantic_text.partial_update_in_object_fix"
     );
@@ -122,7 +125,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                     "[" + INFERENCE_ID_FIELD + "] on mapper [" + leafName() + "] of type [" + CONTENT_TYPE + "] must not be empty"
                 );
             }
-        });
+        }).alwaysSerialize();
 
         private final Parameter<String> searchInferenceId = Parameter.stringParam(
             SEARCH_INFERENCE_ID_FIELD,

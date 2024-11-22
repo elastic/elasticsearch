@@ -91,7 +91,7 @@ public class HashJoinExec extends BinaryExec implements EstimatesRowSize {
 
     public Set<Attribute> addedFields() {
         if (lazyAddedFields == null) {
-            lazyAddedFields = outputSet();
+            lazyAddedFields = new AttributeSet(output());
             lazyAddedFields.removeAll(left().output());
         }
         return lazyAddedFields;

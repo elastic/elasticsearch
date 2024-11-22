@@ -105,6 +105,12 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     }
 
     @Override
+    protected void metaMapping(XContentBuilder b) throws IOException {
+        super.metaMapping(b);
+        b.field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID);
+    }
+
+    @Override
     protected Object getSampleValueForDocument() {
         return null;
     }
@@ -161,10 +167,11 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     public void testDefaults() throws Exception {
         final String fieldName = "field";
         final XContentBuilder fieldMapping = fieldMapping(this::minimalMapping);
+        final XContentBuilder expectedMapping = fieldMapping(this::metaMapping);
 
         MapperService mapperService = createMapperService(fieldMapping);
         DocumentMapper mapper = mapperService.documentMapper();
-        assertEquals(Strings.toString(fieldMapping), mapper.mappingSource().toString());
+        assertEquals(Strings.toString(expectedMapping), mapper.mappingSource().toString());
         assertSemanticTextField(mapperService, fieldName, false);
         assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, DEFAULT_ELSER_2_INFERENCE_ID);
 
@@ -203,10 +210,15 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
             final XContentBuilder fieldMapping = fieldMapping(
                 b -> b.field("type", "semantic_text").field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
             );
+            final XContentBuilder expectedMapping = fieldMapping(
+                b -> b.field("type", "semantic_text")
+                    .field(INFERENCE_ID_FIELD, DEFAULT_ELSER_2_INFERENCE_ID)
+                    .field(SEARCH_INFERENCE_ID_FIELD, searchInferenceId)
+            );
             final MapperService mapperService = createMapperService(fieldMapping);
             assertSemanticTextField(mapperService, fieldName, false);
             assertInferenceEndpoints(mapperService, fieldName, DEFAULT_ELSER_2_INFERENCE_ID, searchInferenceId);
-            assertSerialization.accept(fieldMapping, mapperService);
+            assertSerialization.accept(expectedMapping, mapperService);
         }
         {
             final XContentBuilder fieldMapping = fieldMapping(

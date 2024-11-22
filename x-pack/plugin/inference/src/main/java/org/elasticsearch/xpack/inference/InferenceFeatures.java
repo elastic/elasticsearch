@@ -40,6 +40,7 @@ public class InferenceFeatures implements FeatureSpecification {
             SemanticTextFieldMapper.SEMANTIC_TEXT_SINGLE_FIELD_UPDATE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_DELETE_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_ZERO_SIZE_FIX,
+            SemanticTextFieldMapper.SEMANTIC_TEXT_ALWAYS_EMIT_INFERENCE_ID_FIX,
             SemanticTextFieldMapper.SEMANTIC_TEXT_PARTIAL_UPDATE_IN_OBJECT_FIX
         );
     }

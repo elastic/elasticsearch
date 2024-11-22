@@ -50,7 +50,7 @@ public class LintianResultParser {
         return new Result(issues.stream().noneMatch(it -> it.severity == Severity.ERROR || it.severity == Severity.WARNING), issues);
     }
 
-    public static final class Result{
+    public static final class Result {
         private final boolean isSuccess;
         private final List<Issue> issues;
 
@@ -69,10 +69,7 @@ public class LintianResultParser {
 
         @Override
         public String toString() {
-            return "Result{" +
-                "isSuccess=" + isSuccess +
-                ", issues=" + issues +
-                '}';
+            return "Result{" + "isSuccess=" + isSuccess + ", issues=" + issues + '}';
         }
     }
 
@@ -101,11 +98,7 @@ public class LintianResultParser {
 
         @Override
         public String toString() {
-            return "Issue{" +
-                "severity=" + severity +
-                ", tag='" + tag + '\'' +
-                ", message='" + message + '\'' +
-                '}';
+            return "Issue{" + "severity=" + severity + ", tag='" + tag + '\'' + ", message='" + message + '\'' + '}';
         }
     }
 

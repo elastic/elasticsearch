@@ -10,19 +10,12 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MultiMatchQueryPredicate;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.StringQueryPredicate;
 
 import java.util.List;
 
 public class FullTextWritables {
 
     public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(
-            MatchQueryPredicate.ENTRY,
-            MultiMatchQueryPredicate.ENTRY,
-            StringQueryPredicate.ENTRY,
-            QueryString.ENTRY,
-            Match.ENTRY
-        );
+        return List.of(MatchQueryPredicate.ENTRY, MultiMatchQueryPredicate.ENTRY, QueryString.ENTRY, Match.ENTRY);
     }
 }

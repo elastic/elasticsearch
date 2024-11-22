@@ -66,6 +66,8 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         protected abstract boolean getShowDocCountError();
 
         protected abstract long getDocCountError();
+
+        protected abstract void bucketToXContent(XContentBuilder builder, Params params, boolean showDocCountError) throws IOException;
     }
 
     /**
@@ -361,6 +363,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
     protected static XContentBuilder doXContentCommon(
         XContentBuilder builder,
         Params params,
+        boolean showDocCountError,
         Long docCountError,
         long otherDocCount,
         List<? extends AbstractTermsBucket<?>> buckets
@@ -369,7 +372,7 @@ public abstract class AbstractInternalTerms<A extends AbstractInternalTerms<A, B
         builder.field(SUM_OF_OTHER_DOC_COUNTS.getPreferredName(), otherDocCount);
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (AbstractTermsBucket<?> bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, showDocCountError);
         }
         builder.endArray();
         return builder;

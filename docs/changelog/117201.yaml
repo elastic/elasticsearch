@@ -1,5 +1,5 @@
 pr: 117201
-summary: "ESQL: use `field_caps` native nested fields filtering"
+summary: "Use `field_caps` native nested fields filtering"
 area: ES|QL
 type: bug
 issues:

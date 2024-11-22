@@ -1,0 +1,49 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+apply plugin: 'elasticsearch.build'
+
+dependencies {
+  compileOnly project(':server')
+  compileOnly project(':x-pack:plugin:esql:compute')
+  compileOnly project(':x-pack:plugin:esql-core')
+  compileOnly project(':x-pack:plugin:mapper-version')
+
+  implementation project(":libs:arrow")
+  testImplementation project(':test:framework')
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /slf4j-.*/, to: 'slf4j'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    // uses sun.misc.Unsafe. Only used in tests.
+    'org.apache.arrow.memory.util.hash.SimpleHasher',
+    'org.apache.arrow.memory.util.hash.MurmurHasher',
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    'org.apache.arrow.vector.DecimalVector',
+    'org.apache.arrow.vector.BaseFixedWidthVector',
+    'org.apache.arrow.vector.util.DecimalUtility',
+    'org.apache.arrow.vector.Decimal256Vector',
+    'org.apache.arrow.vector.util.VectorAppender',
+    'org.apache.arrow.memory.ArrowBuf',
+    'org.apache.arrow.vector.BitVectorHelper',
+    'org.apache.arrow.memory.util.ByteFunctionHelpers',
+  )
+  ignoreMissingClasses(
+    'org.apache.commons.codec.binary.Hex'
+  )
+}
+
+tasks.named("test").configure {
+  jvmArgs('--add-opens=java.base/java.nio=ALL-UNNAMED')
+}

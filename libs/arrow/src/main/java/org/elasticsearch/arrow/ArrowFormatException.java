@@ -7,13 +7,11 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-module org.elasticsearch.xcontent.impl {
-    requires transitive com.fasterxml.jackson.core;
-    requires com.fasterxml.jackson.dataformat.cbor;
-    requires com.fasterxml.jackson.dataformat.smile;
-    requires com.fasterxml.jackson.dataformat.yaml;
-    requires org.elasticsearch.base;
-    requires org.elasticsearch.xcontent;
+package org.elasticsearch.arrow;
 
-    provides org.elasticsearch.xcontent.spi.XContentProvider with org.elasticsearch.xcontent.provider.XContentProviderImpl;
+public class ArrowFormatException extends RuntimeException {
+
+    public ArrowFormatException(String msg) {
+        super(msg);
+    }
 }

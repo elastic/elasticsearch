@@ -270,6 +270,18 @@ public class EntitlementInitialization {
             );
         }
 
+        // In s3-repository, aws-java-sdk-core reads its default configuration from a json file in its jar.
+        // Its URL is opened by Jackson, causing an entitlement failure in `(server)`.
+        Collections.addAll(
+            serverScopes,
+            new Scope(
+                "com.fasterxml.jackson.core",
+                List.of(
+                    new FilesEntitlement(List.of(FileData.ofPath(bootstrapArgs.modulesDir(), READ)))
+                )
+            )
+        );
+
         var serverPolicy = new Policy(
             "server",
             bootstrapArgs.serverPolicyPatch() == null

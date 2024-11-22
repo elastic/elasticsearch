@@ -13,15 +13,13 @@ base {
   archivesName = "x-content-impl"
 }
 
-String jacksonVersion = "2.17.2"
-
 dependencies {
   compileOnly project(':libs:core')
   compileOnly project(':libs:x-content')
-  implementation "com.fasterxml.jackson.core:jackson-core:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${jacksonVersion}"
-  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${jacksonVersion}"
+  api "com.fasterxml.jackson.core:jackson-core:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-smile:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-yaml:${versions.jackson}"
+  implementation "com.fasterxml.jackson.dataformat:jackson-dataformat-cbor:${versions.jackson}"
   implementation "org.yaml:snakeyaml:${versions.snakeyaml}"
 
   testImplementation(project(":test:framework")) {

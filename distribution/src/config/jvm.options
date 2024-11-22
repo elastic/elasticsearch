@@ -84,3 +84,10 @@
 
 ## GC logging
 -Xlog:gc*,gc+age=trace,safepoint:file=@loggc@:utctime,level,pid,tags:filecount=32,filesize=64m
+
+## Arrow
+# Allow accessing a private field of java.nio.Buffer for direct memory access.
+# See org.apache.arrow.memory.MemoryUtil and https://arrow.apache.org/docs/java/install.html
+--add-opens=java.base/java.nio=org.apache.arrow.memory.core
+# Define the allocation manager type to avoid classpath scanning to locate one.
+-Darrow.allocation.manager.type=Unsafe

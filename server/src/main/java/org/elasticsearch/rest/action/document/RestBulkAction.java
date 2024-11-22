@@ -12,10 +12,12 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
+import org.elasticsearch.action.bulk.AbstractBulkRequestParser;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
 import org.elasticsearch.action.bulk.BulkShardRequest;
 import org.elasticsearch.action.bulk.IncrementalBulkService;
+import org.elasticsearch.action.bulk.arrow.ArrowBulkRequestParser;
 import org.elasticsearch.action.support.ActiveShardCount;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.DataStream;
@@ -80,6 +82,11 @@ public class RestBulkAction extends BaseRestHandler {
             new Route(POST, "/{index}/_bulk"),
             new Route(PUT, "/{index}/_bulk")
         );
+    }
+
+    @Override
+    public boolean mediaTypesValid(RestRequest request) {
+        return super.mediaTypesValid(request) || ArrowBulkRequestParser.isArrowRequest(request);
     }
 
     @Override
@@ -161,8 +168,14 @@ public class RestBulkAction extends BaseRestHandler {
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
             this.request = request;
             this.handlerSupplier = handlerSupplier;
-            this.parser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
-                .incrementalParser(
+            AbstractBulkRequestParser requestParser;
+            if (ArrowBulkRequestParser.isArrowRequest(request)) {
+                requestParser = new ArrowBulkRequestParser(request);
+            } else {
+                requestParser = new BulkRequestParser(true, RestUtils.getIncludeSourceOnError(request), request.getRestApiVersion())
+                ;
+            }
+            this.parser = requestParser.incrementalParser(
                     request.param("index"),
                     request.param("routing"),
                     FetchSourceContext.parseFromRestRequest(request),
@@ -252,7 +265,7 @@ public class RestBulkAction extends BaseRestHandler {
 
         private void shortCircuit() {
             shortCircuited = true;
-            Releasables.close(handler);
+            Releasables.close(parser, handler);
             Releasables.close(unParsedChunks);
             unParsedChunks.clear();
         }

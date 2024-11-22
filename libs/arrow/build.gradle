@@ -1,0 +1,91 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
+ */
+
+// Notes:
+// - additional JVM arguments are added to distribution/src/config/jvm.options and ElasticsearchTestBasePlugin
+// - additional permissions are added to server/src/main/resources/org/elasticsearch/bootstrap/security.policy
+
+apply plugin: 'elasticsearch.build'
+apply plugin: 'elasticsearch.publish'
+
+var arrowVersion = "18.2.0"
+
+dependencies {
+  implementation(project(":libs:x-content"))
+
+  // jackson-core is provided by :libs:x-content:impl. If declared here, there's a module issue that prevents ES from starting:
+  //
+  // fatal exception while booting Elasticsearch java.lang.IllegalAccessError: class org.elasticsearch.xcontent.provider.json.JsonXContentImpl (in module org.elasticsearch.xcontent.impl) cannot access class com.fasterxml.jackson.core.JsonFactoryBuilder (in unnamed module @0x4727e5fc) because module org.elasticsearch.xcontent.impl does not read unnamed module @0x4727e5fc
+  //	at org.elasticsearch.xcontent.impl@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.provider.json.JsonXContentImpl.<clinit>(JsonXContentImpl.java:50)
+  //	at org.elasticsearch.xcontent.impl@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.provider.XContentProviderImpl$2.XContent(XContentProviderImpl.java:54)
+  //	at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.json.JsonXContent.<clinit>(JsonXContent.java:37)
+  //	at org.elasticsearch.xcontent@9.0.0-SNAPSHOT/org.elasticsearch.xcontent.XContentType.<clinit>(XContentType.java:28)
+  //	at org.elasticsearch.server@9.0.0-SNAPSHOT/org.elasticsearch.common.settings.Setting.arrayToParsableString(Setting.java:1883)
+  implementation(project(":libs:x-content:impl"))
+
+  // arrow-vector
+  api("org.apache.arrow:arrow-vector:${arrowVersion}")
+  //api("com.fasterxml.jackson.core:jackson-core:${versions.jackson}")
+  api("com.fasterxml.jackson.core:jackson-annotations:${versions.jackson}")
+  api("com.fasterxml.jackson.core:jackson-databind:${versions.jackson}")
+  api("com.fasterxml.jackson.datatype:jackson-datatype-jsr310:${versions.jackson}")
+
+  api("com.google.flatbuffers:flatbuffers-java:24.3.25")
+  api("commons-codec:commons-codec:${versions.commonscodec}") // Arrow 18 -> commons-codec 1.17.1
+  api("org.slf4j:slf4j-api:${versions.slf4j}")
+  api("org.immutables:value-annotations:2.10.1") // provided dependency
+
+  // arrow-format
+  api("org.apache.arrow:arrow-format:${arrowVersion}")
+  // also depends on flatbuffers
+
+  // arrow-memory-core
+  api("org.apache.arrow:arrow-memory-core:${arrowVersion}")
+  api("com.google.errorprone:error_prone_annotations:2.31.0") // provided dependency
+  api('org.checkerframework:checker-qual:3.48.1') // provided dependency
+  // also depends on value-annotations (provided dependency)
+
+  // arrow-memory-unsafe
+  implementation("org.apache.arrow:arrow-memory-unsafe:${arrowVersion}")
+  // also depends on value-annotations (provided dependency)
+
+  testImplementation(project(":test:framework")) {
+    exclude group: 'org.elasticsearch', module: 'arrow'
+  }
+}
+
+tasks.named("dependencyLicenses").configure {
+  mapping from: /jackson-.*/, to: 'jackson'
+  mapping from: /arrow-.*/, to: 'arrow'
+  mapping from: /slf4j-.*/, to: 'slf4j'
+  mapping from: /value-annotations.*/, to: 'org-immutables'
+
+  // FIXME: need dependency above, but build complains about duplicated license files.
+  mapping from: /commons-codec/, to: 'commons-codec-arrow'
+}
+
+tasks.named("thirdPartyAudit").configure {
+  ignoreViolations(
+    'org.apache.arrow.memory.util.hash.SimpleHasher',
+    'org.apache.arrow.memory.util.hash.MurmurHasher',
+    'org.apache.arrow.memory.util.MemoryUtil',
+    'org.apache.arrow.memory.util.MemoryUtil$1',
+    'org.apache.arrow.vector.DecimalVector',
+    'org.apache.arrow.vector.BaseFixedWidthVector',
+    'org.apache.arrow.vector.util.DecimalUtility',
+    'org.apache.arrow.vector.Decimal256Vector',
+    'org.apache.arrow.vector.util.VectorAppender',
+    'org.apache.arrow.memory.ArrowBuf',
+    'org.apache.arrow.vector.BitVectorHelper',
+    'org.apache.arrow.memory.util.ByteFunctionHelpers',
+  )
+  ignoreMissingClasses(
+    'org.apache.commons.codec.binary.Hex'
+  )
+}

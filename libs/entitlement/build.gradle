@@ -27,7 +27,10 @@ dependencies {
     exclude group: 'org.elasticsearch', module: 'entitlement'
   }
 
-  main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
+  // guarding for idea integration
+  if (sourceSets.findByName("main23")) {
+    main23CompileOnly project(path: ':libs:entitlement:bridge', configuration: 'java23')
+  }
 }
 
 tasks.withType(CheckForbiddenApisTask).configureEach {

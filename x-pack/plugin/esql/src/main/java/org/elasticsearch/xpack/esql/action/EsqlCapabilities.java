@@ -511,7 +511,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot());
+        JOIN_LOOKUP(Build.current().isSnapshot()),
+
+        /**
+         * Term function
+         */
+        TERM_FUNCTION;
 
         private final boolean enabled;
 

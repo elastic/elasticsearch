@@ -19,7 +19,7 @@ import org.elasticsearch.test.ESTestCase;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
-public class BlockHashTestCase extends ESTestCase {
+public abstract class BlockHashTestCase extends ESTestCase {
 
     final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));

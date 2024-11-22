@@ -226,7 +226,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                         oc.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        oc.canBuildEvaluator()
                     );
                 }));
 
@@ -257,7 +258,8 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                                 oc.getExpectedTypeError(),
                                 null,
                                 null,
-                                null
+                                null,
+                                oc.canBuildEvaluator()
                             );
                         }));
                     }
@@ -645,18 +647,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 return typedData.withData(tryRandomizeBytesRefOffset(typedData.data()));
             }).toList();
 
-            return new TestCaseSupplier.TestCase(
-                newData,
-                testCase.evaluatorToString(),
-                testCase.expectedType(),
-                testCase.getMatcher(),
-                testCase.getExpectedWarnings(),
-                testCase.getExpectedBuildEvaluatorWarnings(),
-                testCase.getExpectedTypeError(),
-                testCase.foldingExceptionClass(),
-                testCase.foldingExceptionMessage(),
-                testCase.extra()
-            );
+            return testCase.withData(newData);
         })).toList();
     }
 

@@ -48,7 +48,7 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     private final Expression field;
 
-    @FunctionInfo(returnType = { "category" }, description = "Categorizes text messages.")
+    @FunctionInfo(returnType = "keyword", description = "Categorizes text messages.")
     public Categorize(
         Source source,
         @Param(name = "field", type = { "text", "keyword" }, description = "Expression to categorize") Expression field

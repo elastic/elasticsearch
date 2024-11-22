@@ -5,6 +5,6 @@
 [%header.monospaced.styled,format=dsv,separator=|]
 |===
 field | result
-keyword | category
-text | category
+keyword | keyword
+text | keyword
 |===

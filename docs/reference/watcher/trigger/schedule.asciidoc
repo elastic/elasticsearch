@@ -13,6 +13,10 @@ in the schedule.
 are triggered when expected, you should synchronize the clocks of all nodes in the
 cluster using a time service such as http://www.ntp.org/[NTP].
 
+NOTE: {watcher} can't correct for manual adjustments the system clock. Be aware when making
+such changes that watch execution may be affected with watches being skipped or repeated if the
+adjustment covers their target execution time. This applies to changes made via NTP as well.
+
 When specifying a timezone for a watch, keep in mind the effect daylight savings time
 transitions may have on the schedule, especially if the watch is scheduled to run
 during the transition. Here's how {watcher} handles watches scheduled during discontinuities:

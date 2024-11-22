@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.kql.query;
 
 import org.apache.lucene.search.Query;
+import org.elasticsearch.Build;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.index.query.MultiMatchQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -21,6 +22,7 @@ import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.AbstractQueryTestCase;
 import org.elasticsearch.xpack.kql.KqlPlugin;
 import org.hamcrest.Matchers;
+import org.junit.BeforeClass;
 
 import java.io.IOException;
 import java.util.Collection;
@@ -34,6 +36,10 @@ import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.nullValue;
 
 public class KqlQueryBuilderTests extends AbstractQueryTestCase<KqlQueryBuilder> {
+    @BeforeClass
+    protected static void ensureSnapshotBuild() {
+        assumeTrue("requires snapshot builds", Build.current().isSnapshot());
+    }
 
     @Override
     protected Collection<Class<? extends Plugin>> getPlugins() {

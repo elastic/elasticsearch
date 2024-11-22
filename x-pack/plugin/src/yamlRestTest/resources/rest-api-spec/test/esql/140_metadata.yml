@@ -170,4 +170,43 @@ setup:
       catch: /cannot sort on _source/
       esql.query:
         body:
-          query: 'FROM test metadata _source | sort _source'
+          query: 'FROM test metadata _source | SORT _source'
+
+---
+"sort returning _source is allowed":
+  - requires:
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: []
+          capabilities: [sort_returning_source_ok]
+      reason: "Sorts returning _source should be ok, but weren't in older versions"
+  - do:
+      esql.query:
+        body:
+          query: 'FROM test METADATA _source | SORT case ASC | KEEP case, _source | LIMIT 5'
+  - length: { columns: 2 }
+  - length: { values: 3 }
+  - match: {columns.0.name: "case"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "_source"}
+  - match: {columns.1.type: "_source"}
+  - match: {values.0.0: "all_ignored"}
+  - match: {values.0.1: {
+    "integer" : "not-an-integer",
+    "keyword" : "long-keyword",
+    "case" : "all_ignored"
+  }}
+  - match: {values.1.0: "integer_ignored"}
+  - match: {values.1.1: {
+    "integer" : "not-an-integer",
+    "keyword" : "ok",
+    "case" : "integer_ignored"
+  }}
+  - match: {values.2.0: "ok"}
+  - match: {values.2.1: {
+    "integer" : 10,
+    "keyword" : "ok",
+    "case" : "ok"
+  }}

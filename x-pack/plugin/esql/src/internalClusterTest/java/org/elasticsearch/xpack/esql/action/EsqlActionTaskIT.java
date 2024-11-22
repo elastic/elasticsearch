@@ -401,7 +401,8 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 });
                 sessionId = foundTasks.get(0).taskId().toString();
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
-                ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(sessionId);
+                String exchangeId = exchangeService.sinkKeys().stream().filter(s -> s.startsWith(sessionId)).findFirst().get();
+                ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(exchangeId);
                 waitedForPages = randomBoolean();
                 if (waitedForPages) {
                     // do not fail exchange requests until we have some pages

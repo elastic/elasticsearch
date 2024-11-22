@@ -1170,6 +1170,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1180,6 +1181,30 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    // Make warnings handler that ignores the .async-search warning since .async-search may randomly appear when async requests are slow
+    // See: https://github.com/elastic/elasticsearch/issues/117099
+    protected static WarningsHandler ignoreAsyncSearchWarning() {
+        return new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                if (warnings.isEmpty()) {
+                    return false;
+                }
+                return warnings.equals(
+                    List.of(
+                        "this request accesses system indices: [.async-search], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                ) == false;
+            }
+
+            @Override
+            public String toString() {
+                return "ignore .async-search warning";
+            }
+        };
     }
 
     protected static void wipeDataStreams() throws IOException {

@@ -400,10 +400,6 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     }
 
     private BlockHash.GroupSpec makeGroupSpec() {
-        return new BlockHash.GroupSpec(
-            0,
-            ElementType.BYTES_REF,
-            true
-        );
+        return new BlockHash.GroupSpec(0, ElementType.BYTES_REF, true);
     }
 }

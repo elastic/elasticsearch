@@ -10,7 +10,6 @@
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.AntFixture
 import org.elasticsearch.gradle.transform.UnzipTransform
 

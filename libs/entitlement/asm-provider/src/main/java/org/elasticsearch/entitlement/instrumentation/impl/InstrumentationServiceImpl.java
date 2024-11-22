@@ -98,7 +98,7 @@ public class InstrumentationServiceImpl implements InstrumentationService {
             );
         }
 
-        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
+        // No "className" (check$$methodName) -> method is instance, and we'll get the class from the actual typed argument
         final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
         // No "methodName" (check$package_ClassName$) -> method is ctor
         final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();

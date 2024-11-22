@@ -7,8 +7,8 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.entitlement.bridge;
+package org.elasticsearch.entitlement.runtime.policy;
 
-public interface EntitlementChecker {
-    void check$java_lang_System$exit(Class<?> callerClass, int status);
+public enum FlagEntitlementType {
+    SYSTEM_EXIT;
 }

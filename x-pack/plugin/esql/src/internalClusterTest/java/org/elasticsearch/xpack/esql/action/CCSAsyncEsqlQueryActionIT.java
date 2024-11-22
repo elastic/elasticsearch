@@ -58,7 +58,7 @@ import static org.hamcrest.Matchers.notNullValue;
  * TODO: DOCUMENT ME
  */
 // MP TODO: copied from AsyncEsqlQueryActionIT
-public class CCSAsyncEsqlQueryActionIT extends ESTestCase /*AbstractPausableIntegTestCase*/ {
+public class CCSAsyncEsqlQueryActionIT extends AbstractPausableIntegTestCase {
 
     private static final Logger logger = LogManager.getLogger(CCSAsyncEsqlQueryActionIT.class);
 
@@ -76,7 +76,7 @@ public class CCSAsyncEsqlQueryActionIT extends ESTestCase /*AbstractPausableInte
         return Collections.unmodifiableList(actions);
     }
 
-    @Override
+    //@Override
     protected Settings nodeSettings(int nodeOrdinal, Settings otherSettings) {
         return Settings.builder()
             .put(ExchangeService.INACTIVE_SINKS_INTERVAL_SETTING, TimeValue.timeValueMillis(between(3000, 4000)))

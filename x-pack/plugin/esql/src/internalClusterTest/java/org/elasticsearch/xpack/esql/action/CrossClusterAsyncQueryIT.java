@@ -82,7 +82,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         plugins.add(EsqlPlugin.class);
         plugins.add(EsqlAsyncActionIT.LocalStateEsqlAsync.class); // allows the async_search DELETE action
         plugins.add(InternalExchangePlugin.class);
-        plugins.add(PauseFieldPlugin.class);
+        plugins.add(PauseFieldPluginx.class);
         return plugins;
     }
 
@@ -101,13 +101,13 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     @Before
     public void resetPlugin() {
-        PauseFieldPlugin.allowEmitting = new CountDownLatch(1);
-        PauseFieldPlugin.startEmitting = new CountDownLatch(1);
+        PauseFieldPluginx.allowEmittingx = new CountDownLatch(1);
+        PauseFieldPluginx.startEmittingx = new CountDownLatch(1);
     }
 
-    public static class PauseFieldPlugin extends Plugin implements ScriptPlugin {
-        public static CountDownLatch startEmitting = new CountDownLatch(1);
-        public static CountDownLatch allowEmitting = new CountDownLatch(1);
+    public static class PauseFieldPluginx extends Plugin implements ScriptPlugin {
+        public static CountDownLatch startEmittingx = new CountDownLatch(1);
+        public static CountDownLatch allowEmittingx = new CountDownLatch(1);
 
         @Override
         public ScriptEngine getScriptEngine(Settings settings, Collection<ScriptContext<?>> contexts) {
@@ -141,15 +141,15 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                                     @Override
                                     public void execute() {
                                         System.err.println("PAUSE DEBUG 2");
-                                        startEmitting.countDown();
-                                        System.err.println("PAUSE DEBUG 3: Thread name: " + Thread.currentThread().getName());
-//                                        try {
-//                                            assertTrue(allowEmitting.await(30, TimeUnit.SECONDS));
-//                                            System.err.println("PAUSE DEBUG 4");
-//                                        } catch (InterruptedException e) {
-//                                            System.err.println("PAUSE DEBUG 5");
-//                                            throw new AssertionError(e);
-//                                        }
+                                        startEmittingx.countDown();
+                                        System.err.println("PAUSE DEBUG 3: allowEmitting count: " + allowEmittingx.getCount());
+                                        try {
+                                            assertTrue(allowEmittingx.await(30, TimeUnit.SECONDS));
+                                            System.err.println("PAUSE DEBUG 4");
+                                        } catch (InterruptedException e) {
+                                            System.err.println("PAUSE DEBUG 5");
+                                            throw new AssertionError(e);
+                                        }
                                         System.err.println("PAUSE DEBUG 6");
                                         emit(1);
                                     }
@@ -182,7 +182,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 //        try (EsqlQueryResponse resp = runAsyncQuery("FROM cluster-a:test | STATS total=sum(const) | LIMIT 1", requestIncludeMeta, null)) {
 //            System.err.println(Strings.toString(resp));
 //            System.err.println(">> calling startEmitting.await on thread: " + Thread.currentThread().getName());
-//            assertTrue(PauseFieldPlugin.startEmitting.await(2, TimeUnit.SECONDS));
+//            assertTrue(PauseFieldPluginx.startEmitting.await(2, TimeUnit.SECONDS));
 //            String id = resp.asyncExecutionId().get();
 //            System.err.println(id);
 //            System.err.println("Sleeping on test thread: " + Thread.currentThread().getName());
@@ -190,7 +190,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 //            EsqlQueryResponse getResponse1 = getAsyncResponse(id);
 //            System.err.println(Strings.toString(getResponse1));
 //            System.err.println(">> calling allowEmitting");
-//            PauseFieldPlugin.allowEmitting.countDown();
+//            PauseFieldPluginx.allowEmitting.countDown();
 //            Thread.sleep(2222);
 //            EsqlQueryResponse getResponse2 = getAsyncResponse(id);
 //            System.err.println(Strings.toString(getResponse2));
@@ -217,7 +217,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 //                assertTrue(driver.cancellable());
 //            }
 //        });
-//        PauseFieldPlugin.allowEmitting.countDown();
+//        PauseFieldPluginx.allowEmitting.countDown();
 //        Exception error = expectThrows(Exception.class, requestFuture::actionGet);
 //        assertThat(error.getMessage(), containsString("proxy timeout"));
 //    }
@@ -284,7 +284,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertClusterMetadataInResponse(resp, responseExpectMeta);
         }
 
-        // this test is also not robust, but does NOT trigger anything in the
+        // this test is also not robust, but does NOT trigger anything in the PausePlugin
         System.err.println("----------- SECOND QUERY against remote-b:test ----");
         q = "FROM logs-*,remote-b:test | STATS count(*)";
         String asyncExecutionId;
@@ -298,6 +298,41 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 Thread.sleep(1431);
             } catch (InterruptedException e) {
             }
+        }
+        try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
+            EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
+            System.err.println("GET Async execInfo: " + executionInfo);
+            System.err.println("Async response: " + Strings.toString(asyncResponse));
+        } finally {
+            System.err.println("DELETING async search: " + asyncExecutionId);
+            AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId);
+            assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+        }
+
+        q = "FROM logs-*,remote-b:test | STATS total=sum(const) | LIMIT 10";
+        System.err.println("----- pause-based query: " + q);
+        try (EsqlQueryResponse resp = runAsyncQuery(q, requestIncludeMeta, null, TimeValue.timeValueNanos(1))) {
+            System.err.println("Init resp: " + Strings.toString(resp));
+            System.err.println("Init Resp execInfo: " + resp.getExecutionInfo());
+            assertTrue(resp.isRunning());
+            asyncExecutionId = resp.asyncExecutionId().get();
+            System.err.println(asyncExecutionId);
+            System.err.println(">> BEFORE SLEEP PauseFieldPluginx.startEmittingx.getCount(): " + PauseFieldPluginx.startEmittingx.getCount());
+            try {
+                Thread.sleep(1431);
+            } catch (InterruptedException e) {
+            }
+            System.err.println(">> AFTER SLEEP PauseFieldPluginx.startEmittingx.getCount(): " + PauseFieldPluginx.startEmittingx.getCount());
+            PauseFieldPluginx.startEmittingx.await(4, TimeUnit.SECONDS);
+            System.err.println("PauseFieldPluginx.startEmittingx.await finished <<< <<<");
+            System.err.println(" -- now calling allowEmittingX.countDown; count before: " + PauseFieldPluginx.allowEmittingx.getCount());
+            PauseFieldPluginx.allowEmittingx.countDown();
+        } catch (InterruptedException e) {
+            throw new RuntimeException("BOO BOO" + e);
+        }
+        try {
+            Thread.sleep(2345);
+        } catch (InterruptedException e) {
         }
         try (EsqlQueryResponse asyncResponse = getAsyncResponse(asyncExecutionId)) {
             EsqlExecutionInfo executionInfo = asyncResponse.getExecutionInfo();
@@ -499,7 +534,7 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
                 .indices()
                 .prepareCreate(indexName)
                 .setSettings(Settings.builder().put("index.number_of_shards", numShards))
-                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long")
+                .setMapping("id", "type=keyword", "tag", "type=keyword", "v", "type=long", "const", "type=long")
         );
         for (int i = 0; i < 10; i++) {
             localClient.prepareIndex(indexName).setSource("id", "local-" + i, "tag", "local", "v", i).get();

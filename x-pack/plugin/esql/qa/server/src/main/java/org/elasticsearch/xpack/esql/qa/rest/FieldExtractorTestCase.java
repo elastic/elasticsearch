@@ -1112,10 +1112,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
      * Test for https://github.com/elastic/elasticsearch/issues/117054 fix
      */
     public void testOneNestedSubField_AndSameNameSupportedField() throws IOException {
-        assumeTrue(
-            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
-            EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.isEnabled()
-        );
+        assumeIndexResolverNestedFieldsNameClashFixed();
         ESRestTestCase.createIndex("test", Settings.EMPTY, """
             "properties": {
               "Responses": {
@@ -1195,10 +1192,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
-        assumeTrue(
-            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
-            EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.isEnabled()
-        );
+        assumeIndexResolverNestedFieldsNameClashFixed();
         ESRestTestCase.createIndex("test1", Settings.EMPTY, """
                   "properties": {
                     "Responses": {
@@ -1274,10 +1268,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
-        assumeTrue(
-            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
-            EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.isEnabled()
-        );
+        assumeIndexResolverNestedFieldsNameClashFixed();
         ESRestTestCase.createIndex("test1", Settings.EMPTY, """
             "properties": {
               "Responses": {
@@ -1421,6 +1412,16 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                     columnInfo("process.parent.command_line.text", "text")
                 )
             ).entry("values", List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat")))
+        );
+    }
+
+    private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {
+        // especially for BWC tests but also for regular tests
+        var capsName = EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
+            requiredClusterCapability
         );
     }
 

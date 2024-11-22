@@ -14,7 +14,7 @@ Data streams::
 * Update data stream lifecycle telemetry to track global retention {es-pull}112451[#112451]
 
 ES|QL::
-* ESQL: Entirely remove META FUNCTIONS {es-pull}113967[#113967]
+* Entirely remove META FUNCTIONS {es-pull}113967[#113967]
 
 Mapping::
 * JDK locale database change {es-pull}113975[#113975]
@@ -61,37 +61,37 @@ EQL::
 * Fix validation of TEXT fields with case insensitive comparison {es-pull}111238[#111238] (issue: {es-issue}111235[#111235])
 
 ES|QL::
-* ESQL: Add Values aggregation tests, fix `ConstantBytesRefBlock` memory handling {es-pull}111367[#111367]
-* ESQL: Align year diffing to the rest of the units in DATE_DIFF: chronological {es-pull}113103[#113103] (issue: {es-issue}112482[#112482])
-* ESQL: Disable pushdown of WHERE past STATS {es-pull}115308[#115308] (issue: {es-issue}115281[#115281])
-* ESQL: Fix CASE when conditions are multivalued {es-pull}112401[#112401] (issue: {es-issue}112359[#112359])
-* ESQL: Fix DEBUG log of filter {es-pull}116086[#116086] (issue: {es-issue}116055[#116055])
-* ESQL: Fix Double operations returning infinite {es-pull}111064[#111064] (issue: {es-issue}111026[#111026])
-* ESQL: Fix `REVERSE` with backspace character {es-pull}115245[#115245] (issues: {es-issue}114372[#114372], {es-issue}115227[#115227], {es-issue}115228[#115228])
-* ESQL: Fix a bug in VALUES agg {es-pull}115952[#115952]
-* ESQL: Fix a bug in `MV_PERCENTILE` {es-pull}112218[#112218] (issues: {es-issue}112193[#112193], {es-issue}112180[#112180], {es-issue}112187[#112187], {es-issue}112188[#112188])
-* ESQL: Fix filtered grouping on ords {es-pull}115312[#115312] (issue: {es-issue}114897[#114897])
-* ESQL: Fix grammar changes around per agg filtering {es-pull}114848[#114848]
-* ESQL: Fix serialization during `can_match` {es-pull}111779[#111779] (issues: {es-issue}111701[#111701], {es-issue}111726[#111726])
-* ESQL: Fix synthetic attribute pruning {es-pull}111413[#111413] (issue: {es-issue}105821[#105821])
-* ESQL: don't lose the original casting error message {es-pull}111968[#111968] (issue: {es-issue}111967[#111967])
-* ESQL: fix for missing indices error message {es-pull}111797[#111797] (issue: {es-issue}111712[#111712])
-* ES|QL: Restrict sorting for `_source` and counter field types {es-pull}114638[#114638] (issues: {es-issue}114423[#114423], {es-issue}111976[#111976])
-* ES|QL: better validation for GROK patterns {es-pull}110574[#110574] (issue: {es-issue}110533[#110533])
-* ES|QL: better validation for RLIKE patterns {es-pull}112489[#112489] (issue: {es-issue}112485[#112485])
-* ES|QL: better validation of GROK patterns {es-pull}112200[#112200] (issue: {es-issue}112111[#112111])
-* ES|QL: fix LIMIT pushdown past MV_EXPAND {es-pull}115624[#115624] (issues: {es-issue}102084[#102084], {es-issue}102061[#102061])
+* Add Values aggregation tests, fix `ConstantBytesRefBlock` memory handling {es-pull}111367[#111367]
+* Align year diffing to the rest of the units in DATE_DIFF: chronological {es-pull}113103[#113103] (issue: {es-issue}112482[#112482])
+* Disable pushdown of WHERE past STATS {es-pull}115308[#115308] (issue: {es-issue}115281[#115281])
+* Fix CASE when conditions are multivalued {es-pull}112401[#112401] (issue: {es-issue}112359[#112359])
+* Fix DEBUG log of filter {es-pull}116086[#116086] (issue: {es-issue}116055[#116055])
+* Fix Double operations returning infinite {es-pull}111064[#111064] (issue: {es-issue}111026[#111026])
+* Fix `REVERSE` with backspace character {es-pull}115245[#115245] (issues: {es-issue}114372[#114372], {es-issue}115227[#115227], {es-issue}115228[#115228])
+* Fix a bug in VALUES agg {es-pull}115952[#115952]
+* Fix a bug in `MV_PERCENTILE` {es-pull}112218[#112218] (issues: {es-issue}112193[#112193], {es-issue}112180[#112180], {es-issue}112187[#112187], {es-issue}112188[#112188])
+* Fix filtered grouping on ords {es-pull}115312[#115312] (issue: {es-issue}114897[#114897])
+* Fix grammar changes around per agg filtering {es-pull}114848[#114848]
+* Fix serialization during `can_match` {es-pull}111779[#111779] (issues: {es-issue}111701[#111701], {es-issue}111726[#111726])
+* Fix synthetic attribute pruning {es-pull}111413[#111413] (issue: {es-issue}105821[#105821])
+* Don't lose the original casting error message {es-pull}111968[#111968] (issue: {es-issue}111967[#111967])
+* Fix for missing indices error message {es-pull}111797[#111797] (issue: {es-issue}111712[#111712])
+* Restrict sorting for `_source` and counter field types {es-pull}114638[#114638] (issues: {es-issue}114423[#114423], {es-issue}111976[#111976])
+* Better validation for GROK patterns {es-pull}110574[#110574] (issue: {es-issue}110533[#110533])
+* Better validation for RLIKE patterns {es-pull}112489[#112489] (issue: {es-issue}112485[#112485])
+* Better validation of GROK patterns {es-pull}112200[#112200] (issue: {es-issue}112111[#112111])
+* Fix LIMIT pushdown past MV_EXPAND {es-pull}115624[#115624] (issues: {es-issue}102084[#102084], {es-issue}102061[#102061])
 * Fix ST_CENTROID_AGG when no records are aggregated {es-pull}114888[#114888] (issue: {es-issue}106025[#106025])
 * Spatial search functions support multi-valued fields in compute engine {es-pull}112063[#112063] (issues: {es-issue}112102[#112102], {es-issue}112505[#112505], {es-issue}110830[#110830])
-* [ES|QL] Check expression resolved before checking its data type in `ImplicitCasting` {es-pull}113314[#113314] (issue: {es-issue}113242[#113242])
-* [ES|QL] Simplify patterns for subfields {es-pull}111118[#111118]
-* [ES|QL] Simplify syntax of named parameter for identifier and pattern {es-pull}115061[#115061]
-* [ES|QL] Skip validating remote cluster index names in parser {es-pull}114271[#114271]
-* [ES|QL] Use `RangeQuery` and String in `BinaryComparison` on datetime fields {es-pull}110669[#110669] (issue: {es-issue}107900[#107900])
-* [ES|QL] Verify aggregation filter's type is boolean to avoid `class_cast_exception` {es-pull}116274[#116274]
-* [ES|QL] add tests for stats by constant {es-pull}110593[#110593] (issue: {es-issue}105383[#105383])
-* [ES|QL] make named parameter for identifier and pattern snapshot {es-pull}114784[#114784]
-* [ES|QL] validate `mv_sort` order {es-pull}110021[#110021] (issue: {es-issue}109910[#109910])
+* Check expression resolved before checking its data type in `ImplicitCasting` {es-pull}113314[#113314] (issue: {es-issue}113242[#113242])
+* Simplify patterns for subfields {es-pull}111118[#111118]
+* Simplify syntax of named parameter for identifier and pattern {es-pull}115061[#115061]
+* Skip validating remote cluster index names in parser {es-pull}114271[#114271]
+* Use `RangeQuery` and String in `BinaryComparison` on datetime fields {es-pull}110669[#110669] (issue: {es-issue}107900[#107900])
+* Verify aggregation filter's type is boolean to avoid `class_cast_exception` {es-pull}116274[#116274]
+* Add tests for stats by constant {es-pull}110593[#110593] (issue: {es-issue}105383[#105383])
+* Make named parameter for identifier and pattern snapshot {es-pull}114784[#114784]
+* Validate `mv_sort` order {es-pull}110021[#110021] (issue: {es-issue}109910[#109910])
 
 Geo::
 * Fix cases of collections with one point {es-pull}111193[#111193] (issue: {es-issue}110982[#110982])
@@ -257,40 +257,38 @@ Data streams::
 Distributed::
 * Add link to Max Shards Per Node exception message {es-pull}110993[#110993]
 
-EQL::
-* ESQL: Delay construction of warnings {es-pull}114368[#114368]
-
 ES|QL::
 * Add EXP ES|QL function {es-pull}110879[#110879]
+* Delay construction of warnings {es-pull}114368[#114368]
 * Add `CircuitBreaker` to TDigest, Step 3: Connect with ESQL CB {es-pull}113387[#113387]
 * Add `CircuitBreaker` to TDigest, Step 4: Take into account shallow classes size {es-pull}113613[#113613] (issue: {es-issue}113916[#113916])
 * Collect and display execution metadata for ES|QL cross cluster searches {es-pull}112595[#112595] (issue: {es-issue}112402[#112402])
-* ESQL: Add support for multivalue fields in Arrow output {es-pull}114774[#114774]
-* ESQL: BUCKET: allow numerical spans as whole numbers {es-pull}111874[#111874] (issues: {es-issue}104646[#104646], {es-issue}109340[#109340], {es-issue}105375[#105375])
-* ESQL: Have BUCKET generate friendlier intervals {es-pull}111879[#111879] (issue: {es-issue}110916[#110916])
-* ESQL: Profile more timing information {es-pull}111855[#111855]
-* ESQL: Push down filters even in case of renames in Evals {es-pull}114411[#114411]
-* ESQL: Speed up CASE for some parameters {es-pull}112295[#112295]
-* ESQL: Speed up grouping by bytes {es-pull}114021[#114021]
-* ESQL: Support INLINESTATS grouped on expressions {es-pull}111690[#111690]
-* ESQL: Use less memory in listener {es-pull}114358[#114358]
-* ES|QL: Add support for cached strings in plan serialization {es-pull}112929[#112929]
-* ES|QL: add Telemetry API and track top functions {es-pull}111226[#111226]
+* Add support for multivalue fields in Arrow output {es-pull}114774[#114774]
+* BUCKET: allow numerical spans as whole numbers {es-pull}111874[#111874] (issues: {es-issue}104646[#104646], {es-issue}109340[#109340], {es-issue}105375[#105375])
+* Have BUCKET generate friendlier intervals {es-pull}111879[#111879] (issue: {es-issue}110916[#110916])
+* Profile more timing information {es-pull}111855[#111855]
+* Push down filters even in case of renames in Evals {es-pull}114411[#114411]
+* Speed up CASE for some parameters {es-pull}112295[#112295]
+* Speed up grouping by bytes {es-pull}114021[#114021]
+* Support INLINESTATS grouped on expressions {es-pull}111690[#111690]
+* Use less memory in listener {es-pull}114358[#114358]
+* Add support for cached strings in plan serialization {es-pull}112929[#112929]
+* Add Telemetry API and track top functions {es-pull}111226[#111226]
 * Enhance SORT push-down to Lucene to cover references to fields and ST_DISTANCE function {es-pull}112938[#112938] (issue: {es-issue}109973[#109973])
 * Siem ea 9521 improve test {es-pull}111552[#111552]
 * Support multi-valued fields in compute engine for ST_DISTANCE {es-pull}114836[#114836] (issue: {es-issue}112910[#112910])
-* [ESQL] Add `SPACE` function {es-pull}112350[#112350]
-* [ESQL] Add finish() elapsed time to aggregation profiling times {es-pull}113172[#113172] (issue: {es-issue}112950[#112950])
-* [ESQL] Make query wrapped by `SingleValueQuery` cacheable {es-pull}110116[#110116]
-* [ES|QL] Add hypot function {es-pull}114382[#114382]
-* [ES|QL] Cast mixed numeric types to a common numeric type for Coalesce and In at Analyzer {es-pull}111917[#111917] (issue: {es-issue}111486[#111486])
-* [ES|QL] Combine Disjunctive CIDRMatch {es-pull}111501[#111501] (issue: {es-issue}105143[#105143])
-* [ES|QL] Create `Range` in `PushFiltersToSource` for qualified pushable filters on the same field {es-pull}111437[#111437]
-* [ES|QL] Name parameter with leading underscore {es-pull}111950[#111950] (issue: {es-issue}111821[#111821])
-* [ES|QL] Named parameter for field names and field name patterns {es-pull}112905[#112905]
-* [ES|QL] Validate index name in parser {es-pull}112081[#112081]
-* [ES|QL] add reverse function {es-pull}113297[#113297]
-* [ES|QL] explicit cast a string literal to `date_period` and `time_duration` in arithmetic operations {es-pull}109193[#109193]
+* Add `SPACE` function {es-pull}112350[#112350]
+* Add finish() elapsed time to aggregation profiling times {es-pull}113172[#113172] (issue: {es-issue}112950[#112950])
+* Make query wrapped by `SingleValueQuery` cacheable {es-pull}110116[#110116]
+* Add hypot function {es-pull}114382[#114382]
+* Cast mixed numeric types to a common numeric type for Coalesce and In at Analyzer {es-pull}111917[#111917] (issue: {es-issue}111486[#111486])
+* Combine Disjunctive CIDRMatch {es-pull}111501[#111501] (issue: {es-issue}105143[#105143])
+* Create `Range` in `PushFiltersToSource` for qualified pushable filters on the same field {es-pull}111437[#111437]
+* Name parameter with leading underscore {es-pull}111950[#111950] (issue: {es-issue}111821[#111821])
+* Named parameter for field names and field name patterns {es-pull}112905[#112905]
+* Validate index name in parser {es-pull}112081[#112081]
+* Add reverse function {es-pull}113297[#113297]
+* Explicit cast a string literal to `date_period` and `time_duration` in arithmetic operations {es-pull}109193[#109193]
 
 Experiences::
 * Integrate IBM watsonx to Inference API for text embeddings {es-pull}111770[#111770]
@@ -458,20 +456,20 @@ Data streams::
 * X-pack/plugin/otel: introduce x-pack-otel plugin {es-pull}111091[#111091]
 
 ES|QL::
-* Add ESQL match function {es-pull}113374[#113374]
-* ESQL: Add `MV_PSERIES_WEIGHTED_SUM` for score calculations used by security solution {es-pull}109017[#109017]
-* ESQL: Add async ID and `is_running` headers to ESQL async query {es-pull}111840[#111840]
-* ESQL: Add boolean support to Max and Min aggs {es-pull}110527[#110527]
-* ESQL: Add boolean support to TOP aggregation {es-pull}110718[#110718]
-* ESQL: Added `mv_percentile` function {es-pull}111749[#111749] (issue: {es-issue}111591[#111591])
-* ESQL: INLINESTATS {es-pull}109583[#109583] (issue: {es-issue}107589[#107589])
-* ESQL: Introduce per agg filter {es-pull}113735[#113735]
-* ESQL: Strings support for MAX and MIN aggregations {es-pull}111544[#111544]
-* ESQL: Support IP fields in MAX and MIN aggregations {es-pull}110921[#110921]
-* ESQL: TOP aggregation IP support {es-pull}111105[#111105]
-* ESQL: TOP support for strings {es-pull}113183[#113183] (issue: {es-issue}109849[#109849])
-* ESQL: `mv_median_absolute_deviation` function {es-pull}112055[#112055] (issue: {es-issue}111590[#111590])
-* Search in ES|QL: Add MATCH operator {es-pull}110971[#110971]
+* Add match function {es-pull}113374[#113374]
+* Add `MV_PSERIES_WEIGHTED_SUM` for score calculations used by security solution {es-pull}109017[#109017]
+* Add async ID and `is_running` headers to ESQL async query {es-pull}111840[#111840]
+* Add boolean support to Max and Min aggs {es-pull}110527[#110527]
+* Add boolean support to TOP aggregation {es-pull}110718[#110718]
+* Added `mv_percentile` function {es-pull}111749[#111749] (issue: {es-issue}111591[#111591])
+* INLINESTATS {es-pull}109583[#109583] (issue: {es-issue}107589[#107589])
+* Introduce per agg filter {es-pull}113735[#113735]
+* Strings support for MAX and MIN aggregations {es-pull}111544[#111544]
+* Support IP fields in MAX and MIN aggregations {es-pull}110921[#110921]
+* TOP aggregation IP support {es-pull}111105[#111105]
+* TOP support for strings {es-pull}113183[#113183] (issue: {es-issue}109849[#109849])
+* `mv_median_absolute_deviation` function {es-pull}112055[#112055] (issue: {es-issue}111590[#111590])
+* Add MATCH operator {es-pull}110971[#110971]
 
 ILM+SLM::
 * SLM Interval based scheduling {es-pull}110847[#110847]

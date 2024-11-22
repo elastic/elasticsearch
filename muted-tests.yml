@@ -275,9 +275,6 @@ tests:
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.xpack.deprecation.DeprecationHttpIT
   method: testDeprecatedSettingsReturnWarnings
   issue: https://github.com/elastic/elasticsearch/issues/108628

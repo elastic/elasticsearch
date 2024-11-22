@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.TestUtil
 import org.jetbrains.gradle.ext.JUnit
 
@@ -145,7 +144,7 @@ if (providers.systemProperty('idea.active').getOrNull() == 'true') {
 
     doLast {
       ['main', 'test'].each { sourceSet ->
-        modifyXml(".idea/modules/libs/native/elasticsearch.libs.${project.project(':libs:native').name}.${sourceSet}.iml") { xml ->
+        modifyXml(".idea/modules/libs/native/elasticsearch.libs.native.${sourceSet}.iml") { xml ->
           xml.component.find { it.'@name' == 'NewModuleRootManager' }?.'@LANGUAGE_LEVEL' = 'JDK_21_PREVIEW'
         }
       }

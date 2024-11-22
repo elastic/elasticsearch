@@ -511,7 +511,9 @@ public class EsqlFunctionRegistry {
                 types.add(type);
             }
         }
+
         return types.stream()
+            .filter(DATA_TYPE_CASTING_PRIORITY::containsKey)
             .min((dt1, dt2) -> DATA_TYPE_CASTING_PRIORITY.get(dt1).compareTo(DATA_TYPE_CASTING_PRIORITY.get(dt2)))
             .orElse(UNSUPPORTED);
     }

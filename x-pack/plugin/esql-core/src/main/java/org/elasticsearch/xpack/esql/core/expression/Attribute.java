@@ -6,7 +6,6 @@
  */
 package org.elasticsearch.xpack.esql.core.expression;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -33,11 +32,6 @@ public abstract class Attribute extends NamedExpression {
      * Changing this will break bwc with 8.15, see {@link FieldAttribute#fieldName()}.
      */
     protected static final String SYNTHETIC_ATTRIBUTE_NAME_PREFIX = "$$";
-
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        // TODO add UnsupportedAttribute when these are moved to the same project
-        return List.of(FieldAttribute.ENTRY, MetadataAttribute.ENTRY, ReferenceAttribute.ENTRY);
-    }
 
     // can the attr be null - typically used in JOINs
     private final Nullability nullability;

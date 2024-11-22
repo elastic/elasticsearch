@@ -30,13 +30,14 @@ import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isStr
  * Categorizes text messages.
  * <p>
  *     This function has no evaluators, as it works like an aggregation (Accumulates values, stores intermediate states, etc).
- *     For the implementation, see:
- *     <ul>
- *         <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizedIntermediateBlockHash}</li>
- *         <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizeRawBlockHash}</li>
- *     </ul>
  * </p>
- *
+ * <p>
+ *     For the implementation, see:
+ * </p>
+ * <ul>
+ *     <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizedIntermediateBlockHash}</li>
+ *     <li>{@link org.elasticsearch.compute.aggregation.blockhash.CategorizeRawBlockHash}</li>
+ * </ul>
  */
 public class Categorize extends GroupingFunction implements Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(

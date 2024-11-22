@@ -20,6 +20,7 @@ esplugin {
 dependencies {
   compileOnly project(':modules:lang-painless:spi')
   testImplementation project(':modules:lang-painless')
+  clusterModules project(':modules:lang-painless')
 }
 
 if (buildParams.isSnapshotBuild() == false) {

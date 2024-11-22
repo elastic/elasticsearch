@@ -29,7 +29,7 @@ public class MapperMurmur3ClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-murmur3").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("lang-painless").plugin("mapper-murmur3").build();
 
     @Override
     protected String getTestRestCluster() {

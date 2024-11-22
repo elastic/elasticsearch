@@ -28,7 +28,7 @@ public class VersionClientYamlTestSuiteIT extends ESClientYamlSuiteTestCase {
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("version").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-version").build();
 
     @Override
     protected String getTestRestCluster() {

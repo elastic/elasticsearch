@@ -29,7 +29,7 @@ public class AnnotatedTextClientYamlTestSuiteIT extends ESClientYamlSuiteTestCas
     }
 
     @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().module("mapper-annotated-text").build();
+    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().plugin("mapper-annotated-text").build();
 
     @Override
     protected String getTestRestCluster() {

@@ -84,7 +84,7 @@ public abstract class AbstractHistogramAggregator extends BucketsAggregator {
         return buildAggregationsForVariableBuckets(owningBucketOrds, bucketOrds, (bucketValue, docCount, subAggregationResults) -> {
             double roundKey = Double.longBitsToDouble(bucketValue);
             double key = roundKey * interval + offset;
-            return new InternalHistogram.Bucket(key, docCount, keyed, formatter, subAggregationResults);
+            return new InternalHistogram.Bucket(key, docCount, formatter, subAggregationResults);
         }, (owningBucketOrd, buckets) -> {
             // the contract of the histogram aggregation is that shards must return buckets ordered by key in ascending order
             CollectionUtil.introSort(buckets, BucketOrder.key(true).comparator());

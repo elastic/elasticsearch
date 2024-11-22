@@ -9,6 +9,4 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-public interface EntitlementChecker {
-    void check$java_lang_System$exit(Class<?> callerClass, int status);
-}
+public interface Java23EntitlementChecker extends EntitlementChecker {}

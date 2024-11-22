@@ -9,24 +9,18 @@
 
 package org.elasticsearch.entitlement.runtime.api;
 
-import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
+import org.elasticsearch.entitlement.bridge.Java23EntitlementChecker;
 import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-/**
- * Implementation of the {@link EntitlementChecker} interface, providing additional
- * API methods for managing the checks.
- * The trampoline module loads this object via SPI.
- */
-public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    private final PolicyManager policyManager;
+public class Java23ElasticsearchEntitlementChecker extends ElasticsearchEntitlementChecker implements Java23EntitlementChecker {
 
-    public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
-        this.policyManager = policyManager;
+    public Java23ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+        super(policyManager);
     }
 
     @Override
     public void check$java_lang_System$exit(Class<?> callerClass, int status) {
-        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
+        // TODO: this is just an example, we shouldn't really override a method implemented in the superclass
+        super.check$java_lang_System$exit(callerClass, status);
     }
 }

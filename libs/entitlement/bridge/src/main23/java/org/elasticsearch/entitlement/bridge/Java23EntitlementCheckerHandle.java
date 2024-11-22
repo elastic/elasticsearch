@@ -9,6 +9,19 @@
 
 package org.elasticsearch.entitlement.bridge;
 
-public interface EntitlementChecker {
-    void check$java_lang_System$exit(Class<?> callerClass, int status);
+/**
+ * Java23 variant of {@link EntitlementChecker} handle holder.
+ */
+public class Java23EntitlementCheckerHandle {
+
+    public static Java23EntitlementChecker instance() {
+        return Holder.instance;
+    }
+
+    private static class Holder {
+        private static final Java23EntitlementChecker instance = HandleLoader.load(Java23EntitlementChecker.class);
+    }
+
+    // no construction
+    private Java23EntitlementCheckerHandle() {}
 }

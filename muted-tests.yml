@@ -244,6 +244,9 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/117116
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
 
 # Examples:
 #

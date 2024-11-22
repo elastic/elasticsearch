@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.http.HttpHeaderParser;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.rest.RestUtils;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -45,8 +46,6 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.function.Predicate;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.azure.AzureFixtureHelper.assertValidBlockId;
 
@@ -190,22 +189,22 @@ public class AzureHttpHandler implements HttpHandler {
                 }
 
                 // see Constants.HeaderConstants.STORAGE_RANGE_HEADER
-                final String range = exchange.getRequestHeaders().getFirst("x-ms-range");
-                final Matcher matcher = Pattern.compile("^bytes=([0-9]+)-([0-9]+)$").matcher(range);
-                if (matcher.matches() == false) {
-                    throw new AssertionError("Range header does not match expected format: " + range);
+                final String rangeHeader = exchange.getRequestHeaders().getFirst("x-ms-range");
+                final HttpHeaderParser.Range range = HttpHeaderParser.parseRangeHeader(rangeHeader);
+                if (range == null) {
+                    throw new AssertionError("Range header does not match expected format: " + rangeHeader);
                 }
 
-                final long start = Long.parseLong(matcher.group(1));
-                final long end = Long.parseLong(matcher.group(2));
-
-                if (blob.length() <= start) {
+                if (blob.length() <= range.start()) {
                     exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                     exchange.sendResponseHeaders(RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus(), -1);
                     return;
                 }
 
-                var responseBlob = blob.slice(Math.toIntExact(start), Math.toIntExact(Math.min(end - start + 1, blob.length() - start)));
+                var responseBlob = blob.slice(
+                    Math.toIntExact(range.start()),
+                    Math.toIntExact(Math.min(range.end() - range.start() + 1, blob.length() - range.start()))
+                );
 
                 exchange.getResponseHeaders().add("Content-Type", "application/octet-stream");
                 exchange.getResponseHeaders().add("x-ms-blob-content-length", String.valueOf(responseBlob.length()));

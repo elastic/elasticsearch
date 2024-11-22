@@ -59,16 +59,6 @@ public class MountSnapshotStep extends AsyncRetryDuringSnapshotActionStep {
         this.totalShardsPerNode = totalShardsPerNode;
     }
 
-    public MountSnapshotStep(
-        StepKey key,
-        StepKey nextStepKey,
-        Client client,
-        String restoredIndexPrefix,
-        MountSearchableSnapshotRequest.Storage storageType
-    ) {
-        this(key, nextStepKey, client, restoredIndexPrefix, storageType, null);
-    }
-
     @Override
     public boolean isRetryable() {
         return true;

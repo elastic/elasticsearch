@@ -204,7 +204,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 randomStepKey(),
                 client,
                 RESTORED_INDEX_PREFIX,
-                randomStorageType()
+                randomStorageType(),
+                null
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }
@@ -239,7 +240,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     randomStepKey(),
                     clientPropagatingOKResponse,
                     RESTORED_INDEX_PREFIX,
-                    randomStorageType()
+                    randomStorageType(),
+                    null
                 );
                 performActionAndWait(step, indexMetadata, clusterState, null);
             }
@@ -254,7 +256,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                     randomStepKey(),
                     clientPropagatingACCEPTEDResponse,
                     RESTORED_INDEX_PREFIX,
-                    randomStorageType()
+                    randomStorageType(),
+                    null
                 );
                 performActionAndWait(step, indexMetadata, clusterState, null);
             }
@@ -328,7 +331,8 @@ public class MountSnapshotStepTests extends AbstractStepTestCase<MountSnapshotSt
                 randomStepKey(),
                 client,
                 RESTORED_INDEX_PREFIX,
-                randomStorageType()
+                randomStorageType(),
+                null
             );
             performActionAndWait(step, indexMetadata, clusterState, null);
         }

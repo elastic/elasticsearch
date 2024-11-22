@@ -12,15 +12,18 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.datastreams.CancelReindexDataStreamAction;
 import org.elasticsearch.action.datastreams.CreateDataStreamAction;
 import org.elasticsearch.action.datastreams.DataStreamsStatsAction;
 import org.elasticsearch.action.datastreams.DeleteDataStreamAction;
 import org.elasticsearch.action.datastreams.GetDataStreamAction;
+import org.elasticsearch.action.datastreams.GetReindexDataStreamStatusAction;
 import org.elasticsearch.action.datastreams.MigrateToDataStreamAction;
 import org.elasticsearch.action.datastreams.ModifyDataStreamsAction;
 import org.elasticsearch.action.datastreams.PromoteDataStreamAction;
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction;
 import org.elasticsearch.action.datastreams.ReindexDataStreamIndexAction;
+import org.elasticsearch.action.datastreams.SwapDataStreamIndexAction;
 import org.elasticsearch.action.datastreams.lifecycle.ExplainDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.GetDataStreamLifecycleAction;
 import org.elasticsearch.action.datastreams.lifecycle.PutDataStreamLifecycleAction;
@@ -39,13 +42,16 @@ import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.settings.SettingsModule;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.datastreams.action.CancelReindexDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.CreateDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.DataStreamsStatsTransportAction;
 import org.elasticsearch.datastreams.action.DeleteDataStreamTransportAction;
+import org.elasticsearch.datastreams.action.GetReindexDataStreamStatusTransportAction;
 import org.elasticsearch.datastreams.action.MigrateToDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ModifyDataStreamsTransportAction;
 import org.elasticsearch.datastreams.action.PromoteDataStreamTransportAction;
 import org.elasticsearch.datastreams.action.ReindexDataStreamTransportAction;
+import org.elasticsearch.datastreams.action.SwapDataStreamIndexTransportAction;
 import org.elasticsearch.datastreams.action.TransportGetDataStreamsAction;
 import org.elasticsearch.datastreams.action.TransportReindexDataStreamIndexAction;
 import org.elasticsearch.datastreams.lifecycle.DataStreamLifecycleErrorStore;
@@ -73,13 +79,16 @@ import org.elasticsearch.datastreams.options.action.TransportPutDataStreamOption
 import org.elasticsearch.datastreams.options.rest.RestDeleteDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestGetDataStreamOptionsAction;
 import org.elasticsearch.datastreams.options.rest.RestPutDataStreamOptionsAction;
+import org.elasticsearch.datastreams.rest.RestCancelReindexDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestCreateDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestDataStreamsStatsAction;
 import org.elasticsearch.datastreams.rest.RestDeleteDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestGetDataStreamsAction;
+import org.elasticsearch.datastreams.rest.RestGetReindexDataStreamStatusAction;
 import org.elasticsearch.datastreams.rest.RestMigrateToDataStreamAction;
 import org.elasticsearch.datastreams.rest.RestModifyDataStreamsAction;
 import org.elasticsearch.datastreams.rest.RestPromoteDataStreamAction;
+import org.elasticsearch.datastreams.rest.RestReindexDataStreamAction;
 import org.elasticsearch.datastreams.task.ReindexDataStreamPersistentTaskExecutor;
 import org.elasticsearch.datastreams.task.ReindexDataStreamPersistentTaskState;
 import org.elasticsearch.datastreams.task.ReindexDataStreamStatus;
@@ -111,6 +120,7 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
+import static org.elasticsearch.action.datastreams.ReindexDataStreamAction.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin, PersistentTaskPlugin {
@@ -264,8 +274,11 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             actions.add(new ActionHandler<>(PutDataStreamOptionsAction.INSTANCE, TransportPutDataStreamOptionsAction.class));
             actions.add(new ActionHandler<>(DeleteDataStreamOptionsAction.INSTANCE, TransportDeleteDataStreamOptionsAction.class));
         }
-        actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, TransportReindexDataStreamIndexAction.class));
         actions.add(new ActionHandler<>(ReindexDataStreamAction.INSTANCE, ReindexDataStreamTransportAction.class));
+        actions.add(new ActionHandler<>(GetReindexDataStreamStatusAction.INSTANCE, GetReindexDataStreamStatusTransportAction.class));
+        actions.add(new ActionHandler<>(CancelReindexDataStreamAction.INSTANCE, CancelReindexDataStreamTransportAction.class));
+        actions.add(new ActionHandler<>(ReindexDataStreamIndexAction.INSTANCE, TransportReindexDataStreamIndexAction.class));
+        actions.add(new ActionHandler<>(SwapDataStreamIndexAction.INSTANCE, SwapDataStreamIndexTransportAction.class));
         return actions;
     }
 
@@ -303,6 +316,9 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
             handlers.add(new RestPutDataStreamOptionsAction());
             handlers.add(new RestDeleteDataStreamOptionsAction());
         }
+        handlers.add(new RestReindexDataStreamAction());
+        handlers.add(new RestGetReindexDataStreamStatusAction());
+        handlers.add(new RestCancelReindexDataStreamAction());
         return handlers;
     }
 
@@ -366,6 +382,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new ReindexDataStreamPersistentTaskExecutor(client, clusterService, ReindexDataStreamTask.TASK_NAME, threadPool));
+        return List.of(
+            new ReindexDataStreamPersistentTaskExecutor(
+                new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN),
+                clusterService,
+                ReindexDataStreamTask.TASK_NAME,
+                threadPool
+            )
+        );
     }
 }

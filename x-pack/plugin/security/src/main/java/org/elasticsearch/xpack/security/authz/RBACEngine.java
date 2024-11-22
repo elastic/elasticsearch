@@ -372,7 +372,10 @@ public class RBACEngine implements AuthorizationEngine {
             } else {
                 assert false
                     : "only scroll and async-search related requests are known indices api that don't "
-                        + "support retrieving the indices they relate to";
+                        + "support retrieving the indices they relate to: "
+                        + action
+                        + ", for request "
+                        + request.getClass();
                 listener.onFailure(
                     new IllegalStateException(
                         "only scroll and async-search related requests are known indices "

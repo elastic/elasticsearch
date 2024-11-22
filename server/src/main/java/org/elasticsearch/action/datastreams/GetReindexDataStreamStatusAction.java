@@ -15,84 +15,91 @@ import org.elasticsearch.action.ActionResponse;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.IndicesRequest;
 import org.elasticsearch.action.support.IndicesOptions;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.tasks.TaskResult;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
 
-public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.ReindexDataStreamResponse> {
+import static java.util.Objects.requireNonNull;
 
-    public static final ReindexDataStreamAction INSTANCE = new ReindexDataStreamAction();
-    public static final String NAME = "indices:admin/data_stream/reindex";
-    public static final String REINDEX_DATA_STREAM_ORIGIN = "reindex_data_stream";
+public class GetReindexDataStreamStatusAction extends ActionType<GetReindexDataStreamStatusAction.Response> {
 
-    public ReindexDataStreamAction() {
+    public static final GetReindexDataStreamStatusAction INSTANCE = new GetReindexDataStreamStatusAction();
+    public static final String NAME = "indices:admin/data_stream/reindex_status";
+
+    public GetReindexDataStreamStatusAction() {
         super(NAME);
     }
 
-    public static class ReindexDataStreamResponse extends ActionResponse implements ToXContentObject {
-        private final String taskId;
+    public static class Response extends ActionResponse implements ToXContentObject {
+        private final TaskResult task;
 
-        public ReindexDataStreamResponse(String taskId) {
-            super();
-            this.taskId = taskId;
+        public Response(TaskResult task) {
+            this.task = requireNonNull(task, "task is required");
         }
 
-        public ReindexDataStreamResponse(StreamInput in) throws IOException {
+        public Response(StreamInput in) throws IOException {
             super(in);
-            this.taskId = in.readString();
+            task = in.readOptionalWriteable(TaskResult::new);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            out.writeString(taskId);
+            out.writeOptionalWriteable(task);
+        }
+
+        /**
+         * Get the actual result of the fetch.
+         */
+        public TaskResult getTask() {
+            return task;
         }
 
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            builder.startObject();
-            builder.field("task", getTaskId());
-            builder.endObject();
+            task.getTask().status().toXContent(builder, params);
             return builder;
-        }
-
-        public String getTaskId() {
-            return taskId;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(taskId);
+            return Objects.hashCode(task);
         }
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof ReindexDataStreamResponse && taskId.equals(((ReindexDataStreamResponse) other).taskId);
+            return other instanceof Response && task.equals(((Response) other).task);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this);
         }
 
     }
 
-    public static class ReindexDataStreamRequest extends ActionRequest implements IndicesRequest {
+    public static class Request extends ActionRequest implements IndicesRequest {
+        private final String persistentTaskId;
 
-        private final String sourceDataStream;
-
-        public ReindexDataStreamRequest(String sourceDataStream) {
+        public Request(String persistentTaskId) {
             super();
-            this.sourceDataStream = sourceDataStream;
+            this.persistentTaskId = persistentTaskId;
         }
 
-        public ReindexDataStreamRequest(StreamInput in) throws IOException {
+        public Request(StreamInput in) throws IOException {
             super(in);
-            this.sourceDataStream = in.readString();
+            this.persistentTaskId = in.readString();
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            out.writeString(sourceDataStream);
+            out.writeString(persistentTaskId);
         }
 
         @Override
@@ -105,24 +112,29 @@ public class ReindexDataStreamAction extends ActionType<ReindexDataStreamAction.
             return true; // do not wait_for_completion
         }
 
-        public String getSourceDataStream() {
-            return sourceDataStream;
+        public String getPersistentTaskId() {
+            return persistentTaskId;
         }
 
         @Override
         public int hashCode() {
-            return Objects.hashCode(sourceDataStream);
+            return Objects.hashCode(persistentTaskId);
         }
 
         @Override
         public boolean equals(Object other) {
-            return other instanceof ReindexDataStreamRequest
-                && sourceDataStream.equals(((ReindexDataStreamRequest) other).sourceDataStream);
+            return other instanceof Request && persistentTaskId.equals(((Request) other).persistentTaskId);
+        }
+
+        public Request nodeRequest(String thisNodeId, long thisTaskId) {
+            Request copy = new Request(persistentTaskId);
+            copy.setParentTask(thisNodeId, thisTaskId);
+            return copy;
         }
 
         @Override
         public String[] indices() {
-            return new String[] { sourceDataStream };
+            return new String[] { persistentTaskId.substring("reindex-data-stream-".length()) };
         }
 
         @Override

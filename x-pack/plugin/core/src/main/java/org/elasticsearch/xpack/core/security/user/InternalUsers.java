@@ -180,6 +180,56 @@ public class InternalUsers {
         )
     );
 
+    public static final InternalUser REINDEX_DATA_STREAM_USER = new InternalUser(
+        UsernamesField.REINDEX_DATA_STREAM_NAME,
+        new RoleDescriptor(
+            UsernamesField.REINDEX_DATA_STREAM_ROLE,
+            new String[] {},
+            new RoleDescriptor.IndicesPrivileges[] {
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices("*")
+                    .privileges(
+                        "delete_index",
+                        "view_index_metadata",
+                        "manage",
+                        "all",
+                        RolloverAction.NAME,
+                        ForceMergeAction.NAME + "*",
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        TransportAddIndexBlockAction.TYPE.name()
+                    )
+                    .allowRestrictedIndices(false)
+                    .build(),
+                RoleDescriptor.IndicesPrivileges.builder()
+                    .indices(
+                        // System data stream for result history of fleet actions (see Fleet#fleetActionsResultsDescriptor)
+                        ".fleet-actions-results",
+                        // System data streams for storing uploaded file data for Agent diagnostics and Endpoint response actions
+                        ".fleet-fileds*"
+                    )
+                    .privileges(
+                        "delete_index",
+                        RolloverAction.NAME,
+                        ForceMergeAction.NAME + "*",
+                        // indices stats is used by rollover, so we need to grant it here
+                        IndicesStatsAction.NAME + "*",
+                        TransportUpdateSettingsAction.TYPE.name(),
+                        DownsampleAction.NAME,
+                        TransportAddIndexBlockAction.TYPE.name()
+                    )
+                    .allowRestrictedIndices(true)
+                    .build() },
+            null,
+            null,
+            new String[] {},
+            MetadataUtils.DEFAULT_RESERVED_METADATA,
+            Map.of()
+        )
+    );
+
     /**
      * Internal user that can rollover an index/data stream.
      */
@@ -234,6 +284,7 @@ public class InternalUsers {
             ASYNC_SEARCH_USER,
             STORAGE_USER,
             DATA_STREAM_LIFECYCLE_USER,
+            REINDEX_DATA_STREAM_USER,
             SYNONYMS_USER,
             LAZY_ROLLOVER_USER
         ).collect(Collectors.toUnmodifiableMap(InternalUser::principal, Function.identity()));

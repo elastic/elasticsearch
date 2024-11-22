@@ -17,6 +17,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicInteger;
 
 public class ReindexDataStreamTask extends AllocatedPersistentTask {
     public static final String TASK_NAME = "reindex-data-stream";
@@ -26,8 +27,8 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     private final ThreadPool threadPool;
     private boolean complete = false;
     private Exception exception;
-    private List<String> inProgress = new ArrayList<>();
-    private List<String> pending = List.of();
+    private AtomicInteger inProgress = new AtomicInteger(0);
+    private AtomicInteger pending = new AtomicInteger();
     private List<Tuple<String, Exception>> errors = new ArrayList<>();
 
     public ReindexDataStreamTask(
@@ -57,30 +58,39 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
             totalIndicesToBeUpgraded,
             complete,
             exception,
-            inProgress.size(),
-            pending.size(),
+            inProgress.get(),
+            pending.get(),
             errors
         );
     }
 
-    public void reindexSucceeded() {
+    public void allReindexesCompleted() {
         this.complete = true;
     }
 
-    public void reindexFailed(Exception e) {
+    public void taskFailed(Exception e) {
         this.complete = true;
         this.exception = e;
     }
 
-    public void setInProgressIndices(List<String> inProgressIndices) {
-        this.inProgress = inProgressIndices;
+    public void reindexSucceeded() {
+        inProgress.decrementAndGet();
     }
 
-    public void setPendingIndices(List<String> pendingIndices) {
-        this.pending = pendingIndices;
-    }
-
-    public void addErrorIndex(String index, Exception error) {
+    public void reindexFailed(String index, Exception error) {
+        System.out.println("****************** In ReindexDataStreamTask *************************** ");
+        error.printStackTrace(System.out);
+        new RuntimeException("****************** In ReindexDataStreamTask ***************************").printStackTrace(System.out);
         this.errors.add(Tuple.tuple(index, error));
+        inProgress.decrementAndGet();
+    }
+
+    public void incrementInProgressIndicesCount() {
+        inProgress.incrementAndGet();
+        pending.decrementAndGet();
+    }
+
+    public void setPendingIndicesCount(int size) {
+        pending.set(size);
     }
 }

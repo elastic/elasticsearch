@@ -18,6 +18,8 @@ public final class UsernamesField {
     public static final String XPACK_SECURITY_ROLE = "_xpack_security";
     public static final String DATA_STREAM_LIFECYCLE_NAME = "_data_stream_lifecycle";
     public static final String DATA_STREAM_LIFECYCLE_ROLE = "_data_stream_lifecycle";
+    public static final String REINDEX_DATA_STREAM_NAME = "_reindex_data_stream";
+    public static final String REINDEX_DATA_STREAM_ROLE = "_reindex_data_stream";
     public static final String SECURITY_PROFILE_NAME = "_security_profile";
     public static final String SECURITY_PROFILE_ROLE = "_security_profile";
     public static final String XPACK_NAME = "_xpack";

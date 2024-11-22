@@ -16,7 +16,6 @@ import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -28,8 +27,6 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 public class MultiProjectResolverTests extends ESTestCase {
 
@@ -39,11 +36,7 @@ public class MultiProjectResolverTests extends ESTestCase {
     @Before
     public void initialize() {
         threadPool = new TestThreadPool(getClass().getName());
-        var plugin = new MultiProjectPlugin();
-        var pluginServices = mock(Plugin.PluginServices.class);
-        when(pluginServices.threadPool()).thenReturn(threadPool);
-        plugin.createComponents(pluginServices);
-        this.resolver = new MultiProjectResolver(plugin);
+        this.resolver = new MultiProjectResolver(() -> threadPool);
     }
 
     @After

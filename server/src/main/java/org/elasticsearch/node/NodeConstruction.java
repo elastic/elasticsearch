@@ -55,8 +55,8 @@ import org.elasticsearch.cluster.metadata.SystemIndexMetadataUpgradeService;
 import org.elasticsearch.cluster.metadata.TemplateUpgradeService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
 import org.elasticsearch.cluster.project.ProjectResolver;
+import org.elasticsearch.cluster.project.ProjectResolverFactory;
 import org.elasticsearch.cluster.routing.BatchedRerouteService;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
@@ -692,11 +692,11 @@ class NodeConstruction {
             telemetryProvider.getTracer()
         );
 
-        // serverless deployments plug-in the multi-project resolver
+        // serverless deployments plug-in the multi-project resolver factory
         ProjectResolver projectResolver = pluginsService.loadSingletonServiceProvider(
-            ProjectResolver.class,
-            () -> DefaultProjectResolver.INSTANCE
-        );
+            ProjectResolverFactory.class,
+            () -> ProjectResolverFactory.DEFAULT
+        ).create();
         modules.bindToInstance(ProjectResolver.class, projectResolver);
         ClusterService clusterService = createClusterService(settingsModule, threadPool, taskManager);
         clusterService.addStateApplier(scriptService);

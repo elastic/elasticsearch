@@ -42,7 +42,6 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
-
 import javax.inject.Inject;
 
 public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project> {
@@ -147,12 +146,17 @@ public abstract class ElasticsearchBuildCompletePlugin implements Plugin<Project
         @SuppressWarnings("checkstyle:DescendantToken")
         @Override
         public void execute(BuildFinishedFlowAction.Parameters parameters) throws FileNotFoundException {
+            List<File> filesToArchive = parameters.getFilteredFiles().get();
+            if (filesToArchive.isEmpty()) {
+                return;
+            }
             File uploadFile = parameters.getUploadFile().get();
             if (uploadFile.exists()) {
                 getFileSystemOperations().delete(spec -> spec.delete(uploadFile));
             }
             uploadFile.getParentFile().mkdirs();
-            createBuildArchiveTar(parameters.getFilteredFiles().get(), parameters.getProjectDir().get(), uploadFile);
+
+            createBuildArchiveTar(filesToArchive, parameters.getProjectDir().get(), uploadFile);
             if (uploadFile.exists() && "true".equals(System.getenv("BUILDKITE"))) {
                 String uploadFilePath = uploadFile.getName();
                 File uploadFileDir = uploadFile.getParentFile();

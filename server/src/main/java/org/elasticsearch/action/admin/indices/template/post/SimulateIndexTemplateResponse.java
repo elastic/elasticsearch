@@ -68,7 +68,7 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
 
     public SimulateIndexTemplateResponse(StreamInput in) throws IOException {
         super(in);
-        resolvedTemplate = in.readOptionalWriteable(Template::new);
+        resolvedTemplate = in.readOptionalWriteable(org.elasticsearch.cluster.metadata.Template::new);
         if (in.readBoolean()) {
             int overlappingTemplatesCount = in.readInt();
             overlappingTemplates = Maps.newMapWithExpectedSize(overlappingTemplatesCount);
@@ -115,7 +115,8 @@ public class SimulateIndexTemplateResponse extends ActionResponse implements ToX
         builder.startObject();
         if (this.resolvedTemplate != null) {
             builder.field(TEMPLATE.getPreferredName());
-            this.resolvedTemplate.toXContent(builder, params, rolloverConfiguration);
+            var skipNullsParams = new DelegatingMapParams(Template.ExplicitlyNullable.SKIP_EXPLICIT_NULLS_PARAMS, params);
+            this.resolvedTemplate.toXContent(builder, skipNullsParams, rolloverConfiguration);
         }
         if (this.overlappingTemplates != null) {
             builder.startArray(OVERLAPPING.getPreferredName());

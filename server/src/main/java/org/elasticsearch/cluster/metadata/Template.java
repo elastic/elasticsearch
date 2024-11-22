@@ -35,6 +35,7 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * A template consists of optional settings, mappings, alias or lifecycle configuration for an index or data stream, however,
@@ -47,12 +48,19 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     private static final ParseField MAPPINGS = new ParseField("mappings");
     private static final ParseField ALIASES = new ParseField("aliases");
     private static final ParseField LIFECYCLE = new ParseField("lifecycle");
+    private static final ParseField DATA_STREAM_OPTIONS = new ParseField("data_stream_options");
 
     @SuppressWarnings("unchecked")
     public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
         "template",
         false,
-        a -> new Template((Settings) a[0], (CompressedXContent) a[1], (Map<String, AliasMetadata>) a[2], (DataStreamLifecycle) a[3])
+        a -> new Template(
+            (Settings) a[0],
+            (CompressedXContent) a[1],
+            (Map<String, AliasMetadata>) a[2],
+            (DataStreamLifecycle) a[3],
+            (ExplicitlyNullable<DataStreamOptions.Template>) a[4]
+        )
     );
 
     static {
@@ -82,6 +90,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return aliasMap;
         }, ALIASES);
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
+        PARSER.declareObjectOrNull(
+            ConstructingObjectParser.optionalConstructorArg(),
+            (p, c) -> ExplicitlyNullable.create(DataStreamOptions.Template.fromXContent(p)),
+            ExplicitlyNullable.empty(),
+            DATA_STREAM_OPTIONS
+        );
     }
 
     @Nullable
@@ -93,21 +107,25 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Nullable
     private final DataStreamLifecycle lifecycle;
+    @Nullable
+    private final ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions;
 
     public Template(
         @Nullable Settings settings,
         @Nullable CompressedXContent mappings,
         @Nullable Map<String, AliasMetadata> aliases,
-        @Nullable DataStreamLifecycle lifecycle
+        @Nullable DataStreamLifecycle lifecycle,
+        @Nullable ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions
     ) {
         this.settings = settings;
         this.mappings = mappings;
         this.aliases = aliases;
         this.lifecycle = lifecycle;
+        this.dataStreamOptions = dataStreamOptions;
     }
 
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
-        this(settings, mappings, aliases, null);
+        this(settings, mappings, aliases, null, null);
     }
 
     public Template(StreamInput in) throws IOException {
@@ -138,6 +156,12 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         } else {
             this.lifecycle = null;
         }
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+            dataStreamOptions = ExplicitlyNullable.read(in, DataStreamOptions.Template::read);
+        } else {
+            // We default to no data stream options since failure store is behind a feature flag up to this version
+            this.dataStreamOptions = null;
+        }
     }
 
     @Nullable
@@ -158,6 +182,16 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     @Nullable
     public DataStreamLifecycle lifecycle() {
         return lifecycle;
+    }
+
+    @Nullable
+    public DataStreamOptions.Template dataStreamOptions() {
+        return dataStreamOptions == null ? null : dataStreamOptions.get();
+    }
+
+    @Nullable
+    public ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptionsNullable() {
+        return dataStreamOptions;
     }
 
     @Override
@@ -189,11 +223,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
                 out.writeOptionalWriteable(lifecycle);
             }
         }
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
+            ExplicitlyNullable.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
+        }
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(settings, mappings, aliases, lifecycle);
+        return Objects.hash(settings, mappings, aliases, lifecycle, dataStreamOptions);
     }
 
     @Override
@@ -208,7 +245,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         return Objects.equals(settings, other.settings)
             && mappingsEquals(this.mappings, other.mappings)
             && Objects.equals(aliases, other.aliases)
-            && Objects.equals(lifecycle, other.lifecycle);
+            && Objects.equals(lifecycle, other.lifecycle)
+            && Objects.equals(dataStreamOptions, other.dataStreamOptions);
     }
 
     @Override
@@ -223,6 +261,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
+     * When the parameter {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not
+     * display any explicit nulls
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
@@ -256,6 +296,16 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         if (this.lifecycle != null) {
             builder.field(LIFECYCLE.getPreferredName());
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
+        }
+        if (DataStream.isFailureStoreFeatureFlagEnabled()) {
+            if (this.dataStreamOptions != null) {
+                boolean skipNulls = params.paramAsBoolean(ExplicitlyNullable.SKIP_EXPLICIT_NULLS, false);
+                if (dataStreamOptions.get() != null) {
+                    builder.field(DATA_STREAM_OPTIONS.getPreferredName(), dataStreamOptions.get());
+                } else if (skipNulls == false) {
+                    builder.nullField(DATA_STREAM_OPTIONS.getPreferredName());
+                }
+            }
         }
         builder.endObject();
         return builder;
@@ -305,6 +355,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         private CompressedXContent mappings = null;
         private Map<String, AliasMetadata> aliases = null;
         private DataStreamLifecycle lifecycle = null;
+        private ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions = null;
 
         private Builder() {}
 
@@ -313,6 +364,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             mappings = template.mappings;
             aliases = template.aliases;
             lifecycle = template.lifecycle;
+            dataStreamOptions = template.dataStreamOptions;
         }
 
         public Builder settings(Settings settings) {
@@ -345,8 +397,123 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return this;
         }
 
+        public Builder dataStreamOptions(DataStreamOptions.Template dataStreamOptions) {
+            this.dataStreamOptions = ExplicitlyNullable.create(dataStreamOptions);
+            return this;
+        }
+
+        public Builder dataStreamOptions(ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions) {
+            this.dataStreamOptions = dataStreamOptions;
+            return this;
+        }
+
         public Template build() {
-            return new Template(settings, mappings, aliases, lifecycle);
+            return new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
+        }
+    }
+
+    public static class ExplicitlyNullable<T> {
+        private static final ExplicitlyNullable<?> EMPTY = new ExplicitlyNullable<>(null);
+        public static final String SKIP_EXPLICIT_NULLS = "skip_explicit_nulls";
+        public static final Map<String, String> SKIP_EXPLICIT_NULLS_PARAMS = Map.of(SKIP_EXPLICIT_NULLS, "true");
+
+        private final T value;
+
+        public static <T> ExplicitlyNullable<T> empty() {
+            @SuppressWarnings("unchecked")
+            ExplicitlyNullable<T> t = (ExplicitlyNullable<T>) EMPTY;
+            return t;
+        }
+
+        private ExplicitlyNullable(T value) {
+            this.value = value;
+        }
+
+        public boolean isNull() {
+            return value == null;
+        }
+
+        public T get() {
+            return value;
+        }
+
+        public static <T> ExplicitlyNullable<T> create(T value) {
+            if (value == null) {
+                return empty();
+            }
+            return new ExplicitlyNullable<>(value);
+        }
+
+        /**
+         * Writes a single optional explicitly nullable value. This method is in direct relation with the
+         * {@link #read(StreamInput, Reader)} which reads the respective value. It's the
+         * responsibility of the caller to preserve order of the fields and their backwards compatibility.
+         * @throws IOException
+         */
+        static <T> void write(StreamOutput out, ExplicitlyNullable<T> value, Writer<T> writer) throws IOException {
+            boolean isDefined = value != null;
+            out.writeBoolean(isDefined);
+            if (isDefined) {
+                out.writeBoolean(value.isNull());
+                if (value.isNull() == false) {
+                    writer.write(out, value.get());
+                }
+            }
+        }
+
+        /**
+         * Reads a single optional and explicitly nullable value. This method is in direct relation with the
+         * {@link #write(StreamOutput, ExplicitlyNullable, Writer)} which writes the respective value. It's the
+         * responsibility of the caller to preserve order of the fields and their backwards compatibility.
+         * @throws IOException
+         */
+        @Nullable
+        static <T> ExplicitlyNullable<T> read(StreamInput in, Reader<T> reader) throws IOException {
+            boolean isDefined = in.readBoolean();
+            if (isDefined == false) {
+                return null;
+            }
+            boolean isExplicitNull = in.readBoolean();
+            if (isExplicitNull) {
+                return ExplicitlyNullable.empty();
+            }
+            T value = reader.read(in);
+            return ExplicitlyNullable.create(value);
+        }
+
+        public <U> U applyAndGet(Function<? super T, ? extends U> f) {
+            if (isNull()) {
+                return null;
+            } else {
+                return f.apply(value);
+            }
+        }
+
+        public <U> ExplicitlyNullable<U> map(Function<? super T, ? extends U> mapper) {
+            Objects.requireNonNull(mapper);
+            if (isNull()) {
+                return empty();
+            } else {
+                return ExplicitlyNullable.create(mapper.apply(value));
+            }
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ExplicitlyNullable<?> that = (ExplicitlyNullable<?>) o;
+            return Objects.equals(value, that.value);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(value);
+        }
+
+        @Override
+        public String toString() {
+            return isNull() ? "null" : value.toString();
         }
     }
 }

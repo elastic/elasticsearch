@@ -11,27 +11,34 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
+import org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
+import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
+import java.util.Objects;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
  * supports the following configurations only explicitly enabling or disabling the failure store
  */
 public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
+    public static final String FAILURE_STORE = "failure_store";
+    public static final String ENABLED = "enabled";
 
-    public static final ParseField ENABLED_FIELD = new ParseField("enabled");
+    public static final ParseField ENABLED_FIELD = new ParseField(ENABLED);
 
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
-        "failure_store",
+        FAILURE_STORE,
         false,
         (args, unused) -> new DataStreamFailureStore((Boolean) args[0])
     );
@@ -59,13 +66,6 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
         return SimpleDiffable.readDiffFrom(DataStreamFailureStore::new, in);
     }
 
-    /**
-     * @return iff the user has explicitly enabled the failure store
-     */
-    public boolean isExplicitlyEnabled() {
-        return enabled != null && enabled;
-    }
-
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeOptionalBoolean(enabled);
@@ -88,5 +88,113 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
 
     public static DataStreamFailureStore fromXContent(XContentParser parser) throws IOException {
         return PARSER.parse(parser, null);
+    }
+
+    /**
+     * This class is only used in template configuration. It allows us to represent explicit null values and denotes that the fields
+     * of the failure can be merged.
+     */
+    public static class Template implements Writeable, ToXContentObject {
+
+        private final ExplicitlyNullable<Boolean> enabled;
+
+        @SuppressWarnings("unchecked")
+        public static final ConstructingObjectParser<DataStreamFailureStore.Template, Void> PARSER = new ConstructingObjectParser<>(
+            "failure_store_template",
+            false,
+            (args, unused) -> new DataStreamFailureStore.Template((ExplicitlyNullable<Boolean>) args[0])
+        );
+
+        static {
+            PARSER.declareField(
+                ConstructingObjectParser.optionalConstructorArg(),
+                (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
+                    ? ExplicitlyNullable.empty()
+                    : ExplicitlyNullable.create(p.booleanValue()),
+                ENABLED_FIELD,
+                ObjectParser.ValueType.BOOLEAN_OR_NULL
+            );
+        }
+
+        public Template(ExplicitlyNullable<Boolean> enabled) {
+            if (enabled == null || enabled.isNull()) {
+                throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
+            }
+            this.enabled = enabled;
+        }
+
+        public ExplicitlyNullable<Boolean> enabled() {
+            return enabled;
+        }
+
+        @Override
+        public void writeTo(StreamOutput out) throws IOException {
+            org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.write(out, enabled, StreamOutput::writeBoolean);
+        }
+
+        public static Template read(StreamInput in) throws IOException {
+            ExplicitlyNullable<Boolean> enabled = org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.read(
+                in,
+                StreamInput::readBoolean
+            );
+            return new Template(enabled);
+        }
+
+        /**
+         * Converts the template to XContent, when the parameter {@link ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not
+         * display any explicit nulls
+         */
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            boolean skipExplicitNulls = params.paramAsBoolean(
+                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.SKIP_EXPLICIT_NULLS,
+                false
+            );
+            builder.startObject();
+            if (enabled != null) {
+                if (enabled.isNull() == false) {
+                    builder.field(ENABLED_FIELD.getPreferredName(), enabled.get());
+                } else if (skipExplicitNulls == false) {
+                    builder.nullField(ENABLED_FIELD.getPreferredName());
+                }
+            }
+            builder.endObject();
+            return builder;
+        }
+
+        public static DataStreamFailureStore.Template fromXContent(XContentParser parser) throws IOException {
+            return PARSER.parse(parser, null);
+        }
+
+        /**
+         * Returns a template that has the initial values overridden by the new template
+         * @param template the new template to merge with
+         */
+        public Template mergeWith(Template template) {
+            return template;
+        }
+
+        @Nullable
+        public DataStreamFailureStore toFailureStore() {
+            return new DataStreamFailureStore(enabled == null ? null : enabled.get());
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            Template template = (Template) o;
+            return Objects.equals(enabled, template.enabled);
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hashCode(enabled);
+        }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
     }
 }

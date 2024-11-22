@@ -55,7 +55,6 @@ class ESRestTestFeatureService implements TestFeatureService {
 
     ESRestTestFeatureService(List<FeatureSpecification> featureSpecs, Set<Version> nodeVersions, Collection<Set<String>> nodeFeatures) {
         List<FeatureSpecification> specs = new ArrayList<>(featureSpecs);
-        specs.add(new RestTestLegacyFeatures());
         if (MetadataHolder.HISTORICAL_FEATURES != null) {
             specs.add(MetadataHolder.HISTORICAL_FEATURES);
         }

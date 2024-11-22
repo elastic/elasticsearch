@@ -147,7 +147,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     @Override
     protected void executePhaseOnShard(
         SearchShardIterator shardIt,
-        SearchShardTarget shard,
+        Transport.Connection shard,
         SearchActionListener<SearchPhaseResult> listener
     ) {
         onShardResult(new SearchPhaseResult() {

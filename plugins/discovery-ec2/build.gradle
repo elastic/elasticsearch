@@ -57,7 +57,7 @@ tasks.register("writeTestJavaPolicy") {
       throw new GradleException("failed to create temporary directory [${tmp}]")
     }
     final File javaPolicy = file("${tmp}/java.policy")
-    if (BuildParams.inFipsJvm) {
+    if (buildParams.inFipsJvm) {
       javaPolicy.write(
         [
           "grant {",
@@ -77,6 +77,7 @@ tasks.register("writeTestJavaPolicy") {
           "permission java.security.SecurityPermission \"getProperty.jdk.tls.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.jdk.certpath.disabledAlgorithms\";",
           "permission java.security.SecurityPermission \"getProperty.keystore.type.compat\";",
+          "permission java.security.SecurityPermission \"getProperty.org.bouncycastle.ec.max_f2m_field_size\";",
           "};"
         ].join("\n")
       )
@@ -98,7 +99,7 @@ tasks.named("test").configure {
 
   // this is needed to manipulate com.amazonaws.sdk.ec2MetadataServiceEndpointOverride system property
   // it is better rather disable security manager at all with `systemProperty 'tests.security.manager', 'false'`
-  if (BuildParams.inFipsJvm){
+  if (buildParams.inFipsJvm){
     nonInputProperties.systemProperty 'java.security.policy', "=file://${buildDir}/tmp/java.policy"
   } else {
     nonInputProperties.systemProperty 'java.security.policy', "file://${buildDir}/tmp/java.policy"

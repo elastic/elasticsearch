@@ -72,11 +72,11 @@ subprojects {
 
     // Configure compatibility testing tasks
     // Compatibility testing for JDBC driver started with version 7.9.0
-    BuildParams.bwcVersions.indexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
+    buildParams.bwcVersions.indexCompatible.findAll({ it.onOrAfter(Version.fromString("7.9.0")) && it != VersionProperties.elasticsearchVersion }).each { bwcVersion ->
       def baseName = "v${bwcVersion}"
       def cluster = testClusters.register(baseName)
 
-      UnreleasedVersionInfo unreleasedVersion = BuildParams.bwcVersions.unreleasedInfo(bwcVersion)
+      UnreleasedVersionInfo unreleasedVersion = buildParams.bwcVersions.unreleasedInfo(bwcVersion)
       Configuration driverConfiguration = configurations.create("jdbcDriver${baseName}") {
         // TODO: Temporary workaround for https://github.com/elastic/elasticsearch/issues/73433
         transitive = false

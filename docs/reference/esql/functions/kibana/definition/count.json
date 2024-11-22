@@ -151,7 +151,7 @@
   ],
   "examples" : [
     "FROM employees\n| STATS COUNT(height)",
-    "FROM employees \n| STATS count = COUNT(*) BY languages \n| SORT languages DESC",
+    "FROM employees\n| STATS count = COUNT(*) BY languages\n| SORT languages DESC",
     "ROW words=\"foo;bar;baz;qux;quux;foo\"\n| STATS word_count = COUNT(SPLIT(words, \";\"))",
     "ROW n=1\n| WHERE n < 0\n| STATS COUNT(n)",
     "ROW n=1\n| STATS COUNT(n > 0 OR NULL), COUNT(n < 0 OR NULL)"

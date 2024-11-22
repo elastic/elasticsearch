@@ -782,7 +782,7 @@ public class MetadataIndexTemplateService {
     private void emitWarningIfPipelineIsDeprecated(String name, Map<String, PipelineConfiguration> pipelines, String pipelineName) {
         Optional.ofNullable(pipelineName)
             .map(pipelines::get)
-            .filter(p -> Boolean.TRUE.equals(p.getConfigAsMap().get("deprecated")))
+            .filter(p -> Boolean.TRUE.equals(p.getConfig().get("deprecated")))
             .ifPresent(
                 p -> deprecationLogger.warn(
                     DeprecationCategory.TEMPLATES,

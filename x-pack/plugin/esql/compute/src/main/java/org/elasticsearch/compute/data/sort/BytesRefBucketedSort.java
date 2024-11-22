@@ -147,7 +147,7 @@ public class BytesRefBucketedSort implements Releasable {
             // The value was never collected.
             return;
         }
-        other.checkInvariant(bucket);
+        other.checkInvariant(otherBucket);
         long otherStart = other.startIndex(otherBucket, otherRootIndex);
         long otherEnd = other.common.endIndex(otherRootIndex);
         // TODO: This can be improved for heapified buckets by making use of the heap structures

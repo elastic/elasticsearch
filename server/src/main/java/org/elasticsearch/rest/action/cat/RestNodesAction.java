@@ -367,7 +367,7 @@ public class RestNodesAction extends AbstractCatAction {
                 table.addCell("-");
             }
 
-            table.addCell(node.getVersion().toString());
+            table.addCell(node.getBuildVersion().toString());
             table.addCell(info == null ? null : info.getBuild().type().displayName());
             table.addCell(info == null ? null : info.getBuild().hash());
             table.addCell(jvmInfo == null ? null : jvmInfo.version());

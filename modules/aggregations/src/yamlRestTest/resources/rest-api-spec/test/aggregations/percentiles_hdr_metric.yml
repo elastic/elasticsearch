@@ -446,4 +446,4 @@ setup:
   - match: { aggregations.percentiles_int.values.75\.0: 101.0615234375 }
   - match: { aggregations.percentiles_int.values.95\.0: 151.1240234375 }
   - match: { aggregations.percentiles_int.values.99\.0: 151.1240234375 }
-  - match: { _shards.failures.0.reason.type: array_index_out_of_bounds_exception }
+  - match: { _shards.failures.0.reason.type: illegal_argument_exception }

@@ -18,6 +18,7 @@ import org.elasticsearch.transport.NoSeedNodeLeftException;
 import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.transport.RemoteClusterAware;
 import org.elasticsearch.transport.RemoteTransportException;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -228,7 +229,8 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
+
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -266,7 +268,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                     IndexMode.STANDARD
                 )
             );
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of());
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -293,7 +295,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
             executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
-            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", true));
 
             EsIndex esIndex = new EsIndex(
                 "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
@@ -302,7 +304,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             );
             // remote1 is unavailable
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
 
             EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
 
@@ -341,8 +343,12 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             );
 
             var failure = new FieldCapabilitiesFailure(new String[] { "logs-a" }, new NoSeedNodeLeftException("unable to connect"));
-            IndexResolution indexResolution = IndexResolution.valid(esIndex, Map.of(remote1Alias, failure));
-            EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of(remote1Alias, failure));
+            VerificationException ve = expectThrows(
+                VerificationException.class,
+                () -> EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
+            );
+            assertThat(ve.getDetailedMessage(), containsString("Unknown index [remote2:mylogs1,mylogs2,logs*]"));
         }
     }
 
@@ -578,5 +584,47 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertThat(remoteFailures.size(), equalTo(1));
             assertThat(remoteFailures.get(0).reason(), containsString("unable to connect to remote cluster"));
         }
+    }
+
+    public void testMissingIndicesIsFatal() {
+        String localClusterAlias = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+        String remote1Alias = "remote1";
+        String remote2Alias = "remote2";
+        String remote3Alias = "remote3";
+
+        // scenario 1: cluster is skip_unavailable=true - not fatal
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
+            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(remote1Alias, executionInfo), equalTo(false));
+        }
+
+        // scenario 2: cluster is local cluster and had no concrete indices - not fatal
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
+            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(localClusterAlias, executionInfo), equalTo(false));
+        }
+
+        // scenario 3: cluster is local cluster and user specified a concrete index - fatal
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            String localIndexExpr = randomFrom("foo*,logs", "logs", "logs,metrics", "bar*,x*,logs", "logs-1,*x*");
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, localIndexExpr, false));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "mylogs1,mylogs2,logs*", true));
+            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(localClusterAlias, executionInfo), equalTo(true));
+        }
+
+        // scenario 4: cluster is skip_unavailable=false - always fatal
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "*", false));
+            String indexExpr = randomFrom("foo*,logs", "logs", "bar*,x*,logs", "logs-1,*x*", "*");
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, indexExpr, false));
+            assertThat(EsqlSessionCCSUtils.missingIndicesIsFatal(remote1Alias, executionInfo), equalTo(true));
+        }
+
     }
 }

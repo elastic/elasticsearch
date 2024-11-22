@@ -26,6 +26,7 @@ import org.elasticsearch.index.mapper.SourceFieldMapper;
 import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
+import java.util.function.Supplier;
 
 import static org.elasticsearch.cluster.metadata.IndexMetadata.INDEX_ROUTING_PATH;
 
@@ -39,15 +40,18 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
     private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
+    private final Supplier<IndexVersion> createdIndexVersion;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
         CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
-        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider,
+        Supplier<IndexVersion> createdIndexVersion
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
         this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
+        this.createdIndexVersion = createdIndexVersion;
     }
 
     @Override
@@ -101,6 +105,20 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         try {
             var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
+            var indexMode = tmpIndexMetadata.getIndexMode();
+            if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
+                || indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.TIME_SERIES) {
+                // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
+                // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
+                // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
+                // to disabled, because that isn't allowed with logsdb/tsdb. In other words setting index.mapping.source.mode setting to
+                // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
+                var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
+                return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+            }
+
+            // TODO: remove this when _source.mode attribute has been removed:
             try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
                 // combinedTemplateMappings can be null when creating system indices
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
@@ -112,7 +130,8 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
-            // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.
+            // In that case it is ok to return false here. The index creation will fail anyway later, so no need to fallback to stored
+            // source.
             LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
             return false;
         }
@@ -133,7 +152,7 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         );
         int shardReplicas = indexTemplateAndCreateRequestSettings.getAsInt(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0);
         var finalResolvedSettings = Settings.builder()
-            .put(IndexMetadata.SETTING_VERSION_CREATED, IndexVersion.current())
+            .put(IndexMetadata.SETTING_VERSION_CREATED, createdIndexVersion.get())
             .put(indexTemplateAndCreateRequestSettings)
             .put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, dummyShards)
             .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, shardReplicas)

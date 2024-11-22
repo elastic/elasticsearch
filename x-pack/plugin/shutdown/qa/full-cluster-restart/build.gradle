@@ -13,7 +13,7 @@ dependencies {
   javaRestTestImplementation project(':x-pack:qa')
 }
 
-BuildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
+buildParams.bwcVersions.withIndexCompatible { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

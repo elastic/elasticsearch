@@ -216,8 +216,7 @@ public class CcrRepository extends AbstractLifecycleComponent implements Reposit
                     if (IndexVersion.current().equals(maxIndexVersion)) {
                         for (var node : response.nodes()) {
                             if (node.canContainData() && node.getMaxIndexVersion().equals(maxIndexVersion)) {
-                                // TODO: Revisit when looking into removing release version from DiscoveryNode
-                                BuildVersion remoteVersion = BuildVersion.fromVersionId(node.getVersion().id);
+                                BuildVersion remoteVersion = node.getBuildVersion();
                                 if (remoteVersion.isFutureVersion()) {
                                     throw new SnapshotException(
                                         snapshot,

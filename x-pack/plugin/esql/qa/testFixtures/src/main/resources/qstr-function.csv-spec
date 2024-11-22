@@ -6,11 +6,11 @@ qstrWithField
 required_capability: qstr_function
 
 // tag::qstr-with-field[]
-from books 
-| where qstr("author: Faulkner")
-| keep book_no, author 
-| sort book_no 
-| limit 5;
+FROM books 
+| WHERE QSTR("author: Faulkner")
+| KEEP book_no, author 
+| SORT book_no 
+| LIMIT 5;
 // end::qstr-with-field[]
 
 // tag::qstr-with-field-result[]

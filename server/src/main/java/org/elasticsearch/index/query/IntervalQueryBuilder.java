@@ -47,10 +47,6 @@ public class IntervalQueryBuilder extends AbstractQueryBuilder<IntervalQueryBuil
         this.sourceProvider = in.readNamedWriteable(IntervalsSourceProvider.class);
     }
 
-    public String getField() {
-        return field;
-    }
-
     public IntervalsSourceProvider getSourceProvider() {
         return sourceProvider;
     }

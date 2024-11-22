@@ -13,7 +13,6 @@ import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.allocation.DataTier;
-import org.elasticsearch.cluster.routing.allocation.decider.DiskThresholdDecider;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.Setting;
@@ -208,33 +207,6 @@ public class NodeDeprecationChecksTests extends ESTestCase {
                 + "]. "
                 + "In a future major release, node will fail to start if any realm names start with reserved prefix.",
             deprecationIssue.getDetails()
-        );
-    }
-
-    public void testSingleDataNodeWatermarkSetting() {
-        Settings settings = Settings.builder().put(DiskThresholdDecider.ENABLE_FOR_SINGLE_DATA_NODE.getKey(), true).build();
-
-        List<DeprecationIssue> issues = DeprecationChecks.filterChecks(
-            NODE_SETTINGS_CHECKS,
-            c -> c.apply(settings, null, ClusterState.EMPTY_STATE, new XPackLicenseState(() -> 0))
-        );
-
-        final String expectedUrl = "https://www.elastic.co/guide/en/elasticsearch/reference/7.14/"
-            + "breaking-changes-7.14.html#deprecate-single-data-node-watermark";
-        assertThat(
-            issues,
-            hasItem(
-                new DeprecationIssue(
-                    DeprecationIssue.Level.CRITICAL,
-                    "setting [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] is deprecated and"
-                        + " will not be available in a future version",
-                    expectedUrl,
-                    "found [cluster.routing.allocation.disk.watermark.enable_for_single_data_node] configured."
-                        + " Discontinue use of this setting.",
-                    false,
-                    null
-                )
-            )
         );
     }
 

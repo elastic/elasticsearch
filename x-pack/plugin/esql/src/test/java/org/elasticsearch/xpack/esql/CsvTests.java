@@ -58,6 +58,7 @@ import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
@@ -235,10 +236,13 @@ public class CsvTests extends ESTestCase {
              * are tested in integration tests.
              */
             assumeFalse("metadata fields aren't supported", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METADATA_FIELDS)));
-            assumeFalse("enrich can't load fields in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.ENRICH_LOAD)));
+            assumeFalse(
+                "enrich can't load fields in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.ENRICH_LOAD.capabilityName())
+            );
             assumeFalse(
                 "can't use match in csv tests",
-                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR.capabilityName())
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_OPERATOR_COLON.capabilityName())
             );
             assumeFalse("can't load metrics in csv tests", testCase.requiredCapabilities.contains(cap(EsqlFeatures.METRICS_SYNTAX)));
             assumeFalse(
@@ -253,7 +257,10 @@ public class CsvTests extends ESTestCase {
                 "can't use MATCH function in csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
-
+            assumeFalse(
+                "lookup join disabled for csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP.capabilityName())
+            );
             if (Build.current().isSnapshot()) {
                 assertThat(
                     "Capability is not included in the enabled list capabilities on a snapshot build. Spelling mistake?",
@@ -496,7 +503,7 @@ public class CsvTests extends ESTestCase {
                 normalized.add(normW);
             }
         }
-        EsqlTestUtils.assertWarnings(normalized, testCase.expectedWarnings(), testCase.expectedWarningsRegex());
+        testCase.assertWarnings(false).assertWarnings(normalized);
     }
 
     PlanRunner planRunner(BigArrays bigArrays, TestPhysicalOperationProviders physicalOperationProviders) {
@@ -542,6 +549,7 @@ public class CsvTests extends ESTestCase {
             exchangeSource,
             exchangeSink,
             Mockito.mock(EnrichLookupService.class),
+            Mockito.mock(LookupFromIndexService.class),
             physicalOperationProviders
         );
 

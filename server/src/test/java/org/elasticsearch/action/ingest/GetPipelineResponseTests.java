@@ -79,7 +79,7 @@ public class GetPipelineResponseTests extends AbstractXContentSerializingTestCas
         assertEquals(actualPipelines.size(), parsedPipelines.size());
         for (PipelineConfiguration pipeline : parsedPipelines) {
             assertTrue(pipelinesMap.containsKey(pipeline.getId()));
-            assertEquals(pipelinesMap.get(pipeline.getId()).getConfigAsMap(), pipeline.getConfigAsMap());
+            assertEquals(pipelinesMap.get(pipeline.getId()).getConfig(), pipeline.getConfig());
         }
     }
 

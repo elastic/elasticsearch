@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -52,13 +51,13 @@ import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
 import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
 import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -138,7 +137,7 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
-        return localPlan(configuration, plan, new SearchStats(searchContexts));
+        return localPlan(configuration, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {
@@ -174,17 +173,18 @@ public class PlannerUtils {
     }
 
     /**
-     * Extracts the ES query provided by the filter parameter
-     * @param plan
-     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
-     *                             a synthetic source delegate with the exact same value
-     * @return
+     * Extracts the ES query for the <code>@timestamp</code> field for the passed plan.
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
+    public static QueryBuilder requestTimestampFilter(PhysicalPlan plan) {
+        return detectFilter(plan, "@timestamp");
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    /**
+     * Note that since this filter does not have access to SearchStats, it cannot detect if the field is a text field with a delegate.
+     * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
+     * take care to not use it with TEXT fields.
+     */
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -205,7 +205,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
                             matches.add(exp);
                         }
                     }

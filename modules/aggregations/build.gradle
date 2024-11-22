@@ -20,7 +20,7 @@ esplugin {
 
 restResources {
   restApi {
-    include '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute', 'put_script'
+    include 'capabilities', '_common', 'indices', 'cluster', 'index', 'search', 'nodes', 'bulk', 'scripts_painless_execute', 'put_script'
   }
   restTests {
     // Pulls in all aggregation tests from core AND the forwards v7's core for forwards compatibility
@@ -28,7 +28,7 @@ restResources {
   }
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
   tasks.named("test").configure {
     systemProperty 'es.index_mode_feature_flag_registered', 'true'
   }
@@ -49,4 +49,5 @@ dependencies {
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("aggregations/date_agg_per_day_of_week/Date aggregartion per day of week", "week-date behaviour has changed")
   task.skipTest("aggregations/time_series/Configure with no synthetic source", "temporary until backport")
+  task.skipTest("aggregations/percentiles_hdr_metric/Negative values test", "returned exception has changed")
 })

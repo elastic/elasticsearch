@@ -16,11 +16,9 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.Build;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.client.RestClient;
-import org.elasticsearch.client.WarningsHandler;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.MetadataIndexStateService;
 import org.elasticsearch.common.Strings;
@@ -29,7 +27,6 @@ import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.core.CheckedFunction;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -44,7 +41,6 @@ import org.elasticsearch.test.cluster.local.LocalClusterConfigProvider;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.test.rest.ObjectPath;
-import org.elasticsearch.test.rest.RestTestLegacyFeatures;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
@@ -75,12 +71,12 @@ import static java.util.Collections.singletonMap;
 import static java.util.stream.Collectors.toList;
 import static org.elasticsearch.cluster.metadata.IndexNameExpressionResolver.SYSTEM_INDEX_ENFORCEMENT_INDEX_VERSION;
 import static org.elasticsearch.cluster.routing.UnassignedInfo.INDEX_DELAYED_NODE_LEFT_TIMEOUT_SETTING;
-import static org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllocator.THRESHOLD_SETTING;
 import static org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider.SETTING_ALLOCATION_MAX_RETRY;
 import static org.elasticsearch.test.MapMatcher.assertMap;
 import static org.elasticsearch.test.MapMatcher.matchesMap;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.anyOf;
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
@@ -90,6 +86,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.hamcrest.Matchers.startsWith;
 
 /**
  * Tests to run before and after a full cluster restart. This is run twice,
@@ -264,7 +261,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testSearchTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature("gte_v8.2.0"));
         int numDocs;
         if (isRunningAgainstOldCluster()) {
             numDocs = createTimeSeriesModeIndex(1);
@@ -302,7 +299,7 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
     }
 
     public void testNewReplicasTimeSeriesMode() throws Exception {
-        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature(RestTestLegacyFeatures.TSDB_NEW_INDEX_FORMAT));
+        assumeTrue("indexing time series indices changed in 8.2.0", oldClusterHasFeature("gte_v8.2.0"));
         if (isRunningAgainstOldCluster()) {
             createTimeSeriesModeIndex(0);
         } else {
@@ -1277,12 +1274,16 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertEquals(singletonList(snapshotName), XContentMapValues.extractValue("snapshots.snapshot", snapResponse));
         assertEquals(singletonList("SUCCESS"), XContentMapValues.extractValue("snapshots.state", snapResponse));
         // the format can change depending on the ES node version running & this test code running
+        // and if there's an in-progress release that hasn't been published yet,
+        // which could affect the top range of the index release version
+        String firstReleaseVersion = tookOnIndexVersion.toReleaseVersion().split("-")[0];
         assertThat(
-            XContentMapValues.extractValue("snapshots.version", snapResponse),
+            (Iterable<String>) XContentMapValues.extractValue("snapshots.version", snapResponse),
             anyOf(
-                equalTo(List.of(tookOnVersion)),
-                equalTo(List.of(tookOnIndexVersion.toString())),
-                equalTo(List.of(tookOnIndexVersion.toReleaseVersion()))
+                contains(tookOnVersion),
+                contains(tookOnIndexVersion.toString()),
+                contains(firstReleaseVersion),
+                contains(startsWith(firstReleaseVersion + "-"))
             )
         );
 
@@ -1952,36 +1953,5 @@ public class FullClusterRestartIT extends ParameterizedFullClusterRestartTestCas
         assertThat(XContentMapValues.extractValue("_shards.total", resp), equalTo(totalShards));
         assertThat(XContentMapValues.extractValue("_shards.successful", resp), equalTo(totalShards));
         assertThat(extractTotalHits(resp), equalTo(numHits));
-    }
-
-    @UpdateForV10(owner = UpdateForV10.Owner.DISTRIBUTED_COORDINATION) // this test is just about v8->v9 upgrades, remove it in v10
-    public void testBalancedShardsAllocatorThreshold() throws Exception {
-        assumeTrue("test only applies for v8->v9 upgrades", getOldClusterTestVersion().getMajor() == 8);
-
-        final var chosenValue = randomFrom("0", "0.1", "0.5", "0.999");
-
-        if (isRunningAgainstOldCluster()) {
-            final var request = newXContentRequest(
-                HttpMethod.PUT,
-                "/_cluster/settings",
-                (builder, params) -> builder.startObject("persistent").field(THRESHOLD_SETTING.getKey(), chosenValue).endObject()
-            );
-            request.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-            assertOK(client().performRequest(request));
-        }
-
-        final var clusterSettingsResponse = ObjectPath.createFromResponse(
-            client().performRequest(new Request("GET", "/_cluster/settings"))
-        );
-
-        final var settingsPath = "persistent." + THRESHOLD_SETTING.getKey();
-        final var settingValue = clusterSettingsResponse.evaluate(settingsPath);
-
-        if (isRunningAgainstOldCluster()) {
-            assertEquals(chosenValue, settingValue);
-        } else {
-            assertNull(settingValue);
-            assertNotNull(clusterSettingsResponse.<String>evaluate("persistent.archived." + THRESHOLD_SETTING.getKey()));
-        }
     }
 }

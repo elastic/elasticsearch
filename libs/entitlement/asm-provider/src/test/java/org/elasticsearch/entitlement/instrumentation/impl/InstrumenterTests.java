@@ -24,10 +24,12 @@ import org.objectweb.asm.Type;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.Arrays;
+import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
+import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
@@ -72,6 +74,11 @@ public class InstrumenterTests extends ESTestCase {
      * They must not throw {@link TestException}.
      */
     public static class ClassToInstrument implements Testable {
+
+        public ClassToInstrument() {}
+
+        public ClassToInstrument(int arg) {}
+
         public static void systemExit(int status) {
             assertEquals(123, status);
         }
@@ -99,6 +106,12 @@ public class InstrumenterTests extends ESTestCase {
         void checkSomeInstanceMethod(Class<?> clazz, Testable that, int arg, String anotherArg);
     }
 
+    public interface MockCtorEntitlementChecker extends EntitlementChecker {
+        void checkCtor(Class<?> clazz);
+
+        void checkCtor(Class<?> clazz, int arg);
+    }
+
     /**
      * We're not testing the permission checking logic here;
      * only that the instrumented methods are calling the correct check methods with the correct arguments.
@@ -106,7 +119,7 @@ public class InstrumenterTests extends ESTestCase {
      * just to demonstrate that the injected bytecodes succeed in calling these methods.
      * It also asserts that the arguments are correct.
      */
-    public static class TestEntitlementChecker implements MockEntitlementChecker {
+    public static class TestEntitlementChecker implements MockEntitlementChecker, MockCtorEntitlementChecker {
         /**
          * This allows us to test that the instrumentation is correct in both cases:
          * if the check throws, and if it doesn't.
@@ -117,6 +130,9 @@ public class InstrumenterTests extends ESTestCase {
         int checkSomeStaticMethodIntCallCount = 0;
         int checkSomeStaticMethodIntStringCallCount = 0;
         int checkSomeInstanceMethodCallCount = 0;
+
+        int checkCtorCallCount = 0;
+        int checkCtorIntCallCount = 0;
 
         @Override
         public void check$java_lang_System$exit(Class<?> callerClass, int status) {
@@ -159,6 +175,21 @@ public class InstrumenterTests extends ESTestCase {
             );
             assertEquals(123, arg);
             assertEquals("def", anotherArg);
+            throwIfActive();
+        }
+
+        @Override
+        public void checkCtor(Class<?> callerClass) {
+            checkCtorCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            throwIfActive();
+        }
+
+        @Override
+        public void checkCtor(Class<?> callerClass, int arg) {
+            checkCtorIntCallCount++;
+            assertSame(InstrumenterTests.class, callerClass);
+            assertEquals(123, arg);
             throwIfActive();
         }
     }
@@ -328,6 +359,40 @@ public class InstrumenterTests extends ESTestCase {
         assertThrows(TestException.class, () -> testTargetClass.someMethod(123, "def"));
 
         assertThat(getTestEntitlementChecker().checkSomeInstanceMethodCallCount, is(1));
+    }
+
+    public void testInstrumenterWorksWithConstructors() throws Exception {
+        var classToInstrument = ClassToInstrument.class;
+
+        Map<MethodKey, CheckerMethod> methods = Map.of(
+            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of()),
+            getCheckerMethod(MockCtorEntitlementChecker.class, "checkCtor", Class.class),
+            new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of("I")),
+            getCheckerMethod(MockCtorEntitlementChecker.class, "checkCtor", Class.class, int.class)
+        );
+
+        var instrumenter = createInstrumenter(methods);
+
+        byte[] newBytecode = instrumenter.instrumentClassFile(classToInstrument).bytecodes();
+
+        if (logger.isTraceEnabled()) {
+            logger.trace("Bytecode after instrumentation:\n{}", bytecode2text(newBytecode));
+        }
+
+        Class<?> newClass = new TestLoader(Testable.class.getClassLoader()).defineClassFromBytes(
+            classToInstrument.getName() + "_NEW",
+            newBytecode
+        );
+
+        getTestEntitlementChecker().isActive = true;
+
+        var ex = assertThrows(InvocationTargetException.class, () -> newClass.getConstructor().newInstance());
+        assertThat(ex.getCause(), instanceOf(TestException.class));
+        var ex2 = assertThrows(InvocationTargetException.class, () -> newClass.getConstructor(int.class).newInstance(123));
+        assertThat(ex2.getCause(), instanceOf(TestException.class));
+
+        assertThat(getTestEntitlementChecker().checkCtorCallCount, is(1));
+        assertThat(getTestEntitlementChecker().checkCtorIntCallCount, is(1));
     }
 
     /** This test doesn't replace classToInstrument in-place but instead loads a separate

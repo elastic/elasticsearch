@@ -138,11 +138,12 @@ public class InstrumenterImpl implements Instrumenter {
             var mv = super.visitMethod(access, name, descriptor, signature, exceptions);
             if (isAnnotationPresent == false) {
                 boolean isStatic = (access & ACC_STATIC) != 0;
+                boolean isCtor = "<init>".equals(name);
                 var key = new MethodKey(className, name, Stream.of(Type.getArgumentTypes(descriptor)).map(Type::getInternalName).toList());
                 var instrumentationMethod = instrumentationMethods.get(key);
                 if (instrumentationMethod != null) {
                     // LOGGER.debug("Will instrument method {}", key);
-                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, descriptor, instrumentationMethod);
+                    return new EntitlementMethodVisitor(Opcodes.ASM9, mv, isStatic, isCtor, descriptor, instrumentationMethod);
                 } else {
                     // LOGGER.trace("Will not instrument method {}", key);
                 }
@@ -171,6 +172,7 @@ public class InstrumenterImpl implements Instrumenter {
 
     class EntitlementMethodVisitor extends MethodVisitor {
         private final boolean instrumentedMethodIsStatic;
+        private final boolean instrumentedMethodIsCtor;
         private final String instrumentedMethodDescriptor;
         private final CheckerMethod instrumentationMethod;
         private boolean hasCallerSensitiveAnnotation = false;
@@ -179,11 +181,13 @@ public class InstrumenterImpl implements Instrumenter {
             int api,
             MethodVisitor methodVisitor,
             boolean instrumentedMethodIsStatic,
+            boolean instrumentedMethodIsCtor,
             String instrumentedMethodDescriptor,
             CheckerMethod instrumentationMethod
         ) {
             super(api, methodVisitor);
             this.instrumentedMethodIsStatic = instrumentedMethodIsStatic;
+            this.instrumentedMethodIsCtor = instrumentedMethodIsCtor;
             this.instrumentedMethodDescriptor = instrumentedMethodDescriptor;
             this.instrumentationMethod = instrumentationMethod;
         }
@@ -244,14 +248,15 @@ public class InstrumenterImpl implements Instrumenter {
 
         private void forwardIncomingArguments() {
             int localVarIndex = 0;
-            if (instrumentedMethodIsStatic == false) {
+            if (instrumentedMethodIsCtor) {
+                localVarIndex++;
+            } else if (instrumentedMethodIsStatic == false) {
                 mv.visitVarInsn(Opcodes.ALOAD, localVarIndex++);
             }
             for (Type type : Type.getArgumentTypes(instrumentedMethodDescriptor)) {
                 mv.visitVarInsn(type.getOpcode(Opcodes.ILOAD), localVarIndex);
                 localVarIndex += type.getSize();
             }
-
         }
 
         private void invokeInstrumentationMethod() {

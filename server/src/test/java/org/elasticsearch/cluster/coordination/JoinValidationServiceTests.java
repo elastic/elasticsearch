@@ -22,10 +22,14 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.component.Lifecycle;
+import org.elasticsearch.common.compress.CompressorFactory;
+import org.elasticsearch.common.io.Streams;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistryTests;
+import org.elasticsearch.common.io.stream.OutputStreamStreamOutput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -38,6 +42,7 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.transport.MockTransport;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
+import org.elasticsearch.transport.BytesTransportRequest;
 import org.elasticsearch.transport.CloseableConnection;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TestTransportChannel;
@@ -49,6 +54,7 @@ import org.elasticsearch.transport.TransportResponseHandler;
 import org.elasticsearch.transport.TransportService;
 import org.elasticsearch.xcontent.ToXContent;
 
+import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Iterator;
@@ -155,6 +161,7 @@ public class JoinValidationServiceTests extends ESTestCase {
             final var joinValidationService = new JoinValidationService(
                 settings,
                 transportService,
+                writableRegistry(),
                 () -> usually() ? clusterState : null,
                 clusterState::metadata,
                 List.of()
@@ -286,7 +293,14 @@ public class JoinValidationServiceTests extends ESTestCase {
         );
 
         // registers request handler
-        new JoinValidationService(Settings.EMPTY, joiningNodeTransportService, () -> clusterState, clusterState::metadata, List.of());
+        new JoinValidationService(
+            Settings.EMPTY,
+            joiningNodeTransportService,
+            writableRegistry(),
+            () -> clusterState,
+            clusterState::metadata,
+            List.of()
+        );
 
         joiningNodeTransportService.start();
         joiningNodeTransportService.acceptIncomingRequests();
@@ -325,6 +339,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var joinValidationService = new JoinValidationService(
             Settings.EMPTY,
             masterTransportService,
+            writableRegistry(),
             () -> clusterState,
             clusterState::metadata,
             List.of()
@@ -349,7 +364,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         }
     }
 
-    public void testJoinValidationRejectsMismatchedClusterUUID() {
+    public void testJoinValidationRejectsMismatchedClusterUUID() throws IOException {
         final var deterministicTaskQueue = new DeterministicTaskQueue();
         final var mockTransport = new MockTransport();
         final var localNode = DiscoveryNodeUtils.create("node0");
@@ -371,7 +386,14 @@ public class JoinValidationServiceTests extends ESTestCase {
         final var settings = Settings.builder().put(Environment.PATH_DATA_SETTING.getKey(), dataPath).build();
 
         // registers request handler
-        new JoinValidationService(settings, transportService, () -> localClusterState, localClusterState::metadata, List.of());
+        new JoinValidationService(
+            settings,
+            transportService,
+            writableRegistry(),
+            () -> localClusterState,
+            localClusterState::metadata,
+            List.of()
+        );
 
         transportService.start();
         transportService.acceptIncomingRequests();
@@ -384,7 +406,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(otherClusterState),
+            serializeClusterState(otherClusterState),
             new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
@@ -399,6 +421,22 @@ public class JoinValidationServiceTests extends ESTestCase {
                 containsString("data path [" + dataPath + "]")
             )
         );
+    }
+
+    private static BytesTransportRequest serializeClusterState(ClusterState clusterState) {
+        try (
+            var bytesStream = new BytesStreamOutput();
+            var compressedStream = new OutputStreamStreamOutput(
+                CompressorFactory.COMPRESSOR.threadLocalOutputStream(Streams.flushOnCloseStream(bytesStream))
+            )
+        ) {
+            compressedStream.setTransportVersion(TransportVersion.current());
+            clusterState.writeTo(compressedStream);
+            compressedStream.flush();
+            return new BytesTransportRequest(ReleasableBytesReference.wrap(bytesStream.bytes()), TransportVersion.current());
+        } catch (Exception e) {
+            throw new AssertionError(e);
+        }
     }
 
     public void testJoinValidationRunsJoinValidators() {
@@ -420,11 +458,12 @@ public class JoinValidationServiceTests extends ESTestCase {
         new JoinValidationService(
             Settings.EMPTY,
             transportService,
+            writableRegistry(),
             () -> localClusterState,
             localClusterState::metadata,
             List.of((node, state) -> {
                 assertSame(node, localNode);
-                assertSame(state, stateForValidation);
+                assertEquals(state.stateUUID(), stateForValidation.stateUUID());
                 throw new IllegalStateException("simulated validation failure");
             })
         ); // registers request handler
@@ -435,7 +474,7 @@ public class JoinValidationServiceTests extends ESTestCase {
         transportService.sendRequest(
             localNode,
             JoinValidationService.JOIN_VALIDATE_ACTION_NAME,
-            new ValidateJoinRequest(stateForValidation),
+            serializeClusterState(stateForValidation),
             new ActionListenerResponseHandler<>(future, in -> TransportResponse.Empty.INSTANCE, TransportResponseHandler.TRANSPORT_WORKER)
         );
         deterministicTaskQueue.runAllTasks();
@@ -467,9 +506,16 @@ public class JoinValidationServiceTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        final var joinValidationService = new JoinValidationService(Settings.EMPTY, masterTransportService, () -> null, () -> {
-            throw new AssertionError("should not be called");
-        }, List.of());
+        final var joinValidationService = new JoinValidationService(
+            Settings.EMPTY,
+            masterTransportService,
+            writableRegistry(),
+            () -> null,
+            () -> {
+                throw new AssertionError("should not be called");
+            },
+            List.of()
+        );
         masterTransportService.start();
         masterTransportService.acceptIncomingRequests();
 

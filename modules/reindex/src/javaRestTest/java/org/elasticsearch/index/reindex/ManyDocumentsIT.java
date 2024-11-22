@@ -10,10 +10,8 @@
 package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.Before;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 import java.util.Map;
@@ -27,14 +25,6 @@ import static org.hamcrest.Matchers.hasEntry;
  * documents in the request.
  */
 public class ManyDocumentsIT extends ESRestTestCase {
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
     private final int count = between(150, 2000);
 
     @Before

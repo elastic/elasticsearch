@@ -11,23 +11,13 @@ package org.elasticsearch.index.reindex;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
-import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.rest.ESRestTestCase;
-import org.junit.ClassRule;
 
 import java.io.IOException;
 
 import static org.hamcrest.CoreMatchers.containsString;
 
 public class ReindexWithoutContentIT extends ESRestTestCase {
-    @ClassRule
-    public static ElasticsearchCluster cluster = ElasticsearchCluster.local().build();
-
-    @Override
-    protected String getTestRestCluster() {
-        return cluster.getHttpAddresses();
-    }
-
     public void testReindexMissingBody() throws IOException {
         ResponseException responseException = expectThrows(
             ResponseException.class,

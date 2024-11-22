@@ -115,6 +115,7 @@ required_capability: semantic_text_aggregations
 
 FROM semantic_text METADATA _id
 | STATS result = VALUES(st_version)
+| EVAL result = MV_SORT(result)
 ;
 
 result:keyword

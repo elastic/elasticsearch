@@ -35,6 +35,8 @@ import java.util.stream.Collectors;
 
 public class OldMappingsIT extends ESRestTestCase {
 
+    private static final List<String> indices = Arrays.asList("filebeat", "custom", "nested");
+
     public static TemporaryFolder repoDirectory = new TemporaryFolder();
 
     public static ElasticsearchCluster currentCluster = ElasticsearchCluster.local()
@@ -57,10 +59,11 @@ public class OldMappingsIT extends ESRestTestCase {
 
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(oldCluster).around(currentCluster);
+    private static boolean repoSetup = false;
 
     @Override
     protected String getTestRestCluster() {
-        return oldCluster.getHttpAddresses();
+        return currentCluster.getHttpAddresses();
     }
 
     private Request createIndex(String indexName, String file) throws IOException {
@@ -71,9 +74,10 @@ public class OldMappingsIT extends ESRestTestCase {
             .startObject()
             .startObject("settings")
             .field("index.number_of_shards", numberOfShards)
+            .field("index.number_of_replicas", 0)
             .endObject()
             .startObject("mappings");
-        builder.rawValue(getClass().getResourceAsStream(file), XContentType.JSON);
+        builder.rawValue(OldMappingsIT.class.getResourceAsStream(file), XContentType.JSON);
         builder.endObject().endObject();
 
         createIndex.setJsonEntity(Strings.toString(builder));
@@ -82,106 +86,108 @@ public class OldMappingsIT extends ESRestTestCase {
 
     @Before
     public void setupIndex() throws IOException {
-        // String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
-        // .resolve(RandomizedTest.getContext().getTargetClass().getName())
-        // .toString();
+        if (repoSetup == false) {
+            // String repoLocation = PathUtils.get(System.getProperty("tests.repo.location"))
+            // .resolve(RandomizedTest.getContext().getTargetClass().getName())
+            // .toString();
 
-        String repoLocation = repoDirectory.getRoot().getPath();
+            String repoLocation = repoDirectory.getRoot().getPath();
 
-        String repoName = "old_mappings_repo";
-        String snapshotName = "snap";
-        List<String> indices;
-        indices = Arrays.asList("filebeat", "custom", "nested");
+            String repoName = "old_mappings_repo";
+            String snapshotName = "snap";
 
-        List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses());
-        List<HttpHost> clusterHosts = parseClusterHosts(currentCluster.getHttpAddresses());
-        // try (RestClient oldEsClient = client()) {
-        try (
-            RestClient oldEsClient = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build();
-            RestClient esClient = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()])).build();
-        ) {
-            assertOK(oldEsClient.performRequest(createIndex("filebeat", "filebeat.json")));
+            List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses());
+            List<HttpHost> clusterHosts = parseClusterHosts(currentCluster.getHttpAddresses());
+            // try (RestClient oldEsClient = client()) {
+            try (
+                RestClient oldEsClient = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build();
+                RestClient esClient = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()])).build();
+            ) {
+                assertOK(oldEsClient.performRequest(createIndex("filebeat", "filebeat.json")));
 
-            assertOK(oldEsClient.performRequest(createIndex("custom", "custom.json")));
-            assertOK(oldEsClient.performRequest(createIndex("nested", "nested.json")));
+                assertOK(oldEsClient.performRequest(createIndex("custom", "custom.json")));
+                assertOK(oldEsClient.performRequest(createIndex("nested", "nested.json")));
 
-            Request doc1 = new Request("PUT", "/" + "custom" + "/" + "_doc" + "/" + "1");
-            doc1.addParameter("refresh", "true");
-            XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("apache2")
-                .startObject("access")
-                .field("url", "myurl1")
-                .field("agent", "agent1")
-                .endObject()
-                .endObject()
-                .endObject();
-            doc1.setJsonEntity(Strings.toString(bodyDoc1));
-            assertOK(oldEsClient.performRequest(doc1));
+                Request doc1 = new Request("PUT", "/" + "custom" + "/" + "_doc" + "/" + "1");
+                doc1.addParameter("refresh", "true");
+                XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("apache2")
+                    .startObject("access")
+                    .field("url", "myurl1")
+                    .field("agent", "agent1")
+                    .endObject()
+                    .endObject()
+                    .endObject();
+                doc1.setJsonEntity(Strings.toString(bodyDoc1));
+                assertOK(oldEsClient.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + "custom" + "/" + "_doc" + "/" + "2");
-            doc2.addParameter("refresh", "true");
-            XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
-                .startObject()
-                .startObject("apache2")
-                .startObject("access")
-                .field("url", "myurl2")
-                .field("agent", "agent2 agent2")
-                .endObject()
-                .endObject()
-                .field("completion", "some_value")
-                .endObject();
-            doc2.setJsonEntity(Strings.toString(bodyDoc2));
-            assertOK(oldEsClient.performRequest(doc2));
+                Request doc2 = new Request("PUT", "/" + "custom" + "/" + "_doc" + "/" + "2");
+                doc2.addParameter("refresh", "true");
+                XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .startObject("apache2")
+                    .startObject("access")
+                    .field("url", "myurl2")
+                    .field("agent", "agent2 agent2")
+                    .endObject()
+                    .endObject()
+                    .field("completion", "some_value")
+                    .endObject();
+                doc2.setJsonEntity(Strings.toString(bodyDoc2));
+                assertOK(oldEsClient.performRequest(doc2));
 
-            Request doc3 = new Request("PUT", "/" + "nested" + "/" + "_doc" + "/" + "1");
-            doc3.addParameter("refresh", "true");
-            XContentBuilder bodyDoc3 = XContentFactory.jsonBuilder()
-                .startObject()
-                .field("group", "fans")
-                .startArray("user")
-                .startObject()
-                .field("first", "John")
-                .field("last", "Smith")
-                .endObject()
-                .startObject()
-                .field("first", "Alice")
-                .field("last", "White")
-                .endObject()
-                .endArray()
-                .endObject();
-            doc3.setJsonEntity(Strings.toString(bodyDoc3));
-            assertOK(oldEsClient.performRequest(doc3));
+                Request doc3 = new Request("PUT", "/" + "nested" + "/" + "_doc" + "/" + "1");
+                doc3.addParameter("refresh", "true");
+                XContentBuilder bodyDoc3 = XContentFactory.jsonBuilder()
+                    .startObject()
+                    .field("group", "fans")
+                    .startArray("user")
+                    .startObject()
+                    .field("first", "John")
+                    .field("last", "Smith")
+                    .endObject()
+                    .startObject()
+                    .field("first", "Alice")
+                    .field("last", "White")
+                    .endObject()
+                    .endArray()
+                    .endObject();
+                doc3.setJsonEntity(Strings.toString(bodyDoc3));
+                assertOK(oldEsClient.performRequest(doc3));
 
-            Request getSettingsRequest = new Request("GET", "/_cluster/settings?include_defaults=true");
-            Map<String, Object> response = entityAsMap(oldEsClient.performRequest(getSettingsRequest));
-            assertEquals(repoLocation, ((List<?>) (XContentMapValues.extractValue("defaults.path.repo", response))).get(0));
+                Request getSettingsRequest = new Request("GET", "/_cluster/settings?include_defaults=true");
+                Map<String, Object> response = entityAsMap(oldEsClient.performRequest(getSettingsRequest));
+                assertEquals(repoLocation, ((List<?>) (XContentMapValues.extractValue("defaults.path.repo", response))).get(0));
 
-            // register repo on old ES and take snapshot
-            Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest.setJsonEntity(Strings.format("""
-                {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
-            assertOK(oldEsClient.performRequest(createRepoRequest));
+                // register repo on old ES and take snapshot
+                Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
+                createRepoRequest.setJsonEntity(Strings.format("""
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """, repoLocation));
+                assertOK(oldEsClient.performRequest(createRepoRequest));
 
-            Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
-            createSnapshotRequest.addParameter("wait_for_completion", "true");
-            createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
-            assertOK(oldEsClient.performRequest(createSnapshotRequest));
-            // }
+                Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
+                createSnapshotRequest.addParameter("wait_for_completion", "true");
+                createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
+                assertOK(oldEsClient.performRequest(createSnapshotRequest));
+                // }
 
-            // register repo on new ES and restore snapshot
-            Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
-            createRepoRequest2.setJsonEntity(Strings.format("""
-                {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
-            assertOK(esClient.performRequest(createRepoRequest2));
+                // register repo on new ES and restore snapshot
+                Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
+                createRepoRequest2.setJsonEntity(Strings.format("""
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """, repoLocation));
+                assertOK(esClient.performRequest(createRepoRequest2));
 
-            final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
-            createRestoreRequest.addParameter("wait_for_completion", "true");
-            createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
-            createRestoreRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
-            assertOK(esClient.performRequest(createRestoreRequest));
+                final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");
+                createRestoreRequest.addParameter("wait_for_completion", "true");
+                createRestoreRequest.setJsonEntity("{\"indices\":\"" + indices.stream().collect(Collectors.joining(",")) + "\"}");
+                createRestoreRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(WarningsHandler.PERMISSIVE));
+                assertOK(esClient.performRequest(createRestoreRequest));
+
+                repoSetup = true;
+            }
         }
     }
 
@@ -191,4 +197,33 @@ public class OldMappingsIT extends ESRestTestCase {
         // assertNotNull(XContentMapValues.extractValue(mapping, "filebeat", "mappings", "properties", "apache2"));
     }
 
+    public void testBasicSearchOk() throws IOException {
+        System.out.println("TestBasicSearchOk");
+        List<HttpHost> clusterHosts = parseClusterHosts(currentCluster.getHttpAddresses());
+        try (RestClient esClient = RestClient.builder(clusterHosts.toArray(new HttpHost[clusterHosts.size()])).build();) {
+            for (String index : indices) {
+                ensureGreen(esClient, index);
+            }
+            Request searchRequest = new Request("POST", "/custom/_search");
+            Map<String, Object> searchResponse = entityAsMap(esClient.performRequest(searchRequest));
+            assertEquals(2, XContentMapValues.extractValue(searchResponse, "hits", "total", "value"));
+        }
+    }
+
+    protected boolean resetFeatureStates() {
+        return false;
+    }
+
+    protected boolean preserveIndicesUponCompletion() {
+        return true;
+    }
+
+    protected void wipeSnapshots() throws IOException {
+        // we want to preserve snapshots between individual tests
+    }
+
+    @Override
+    protected String getEnsureGreenTimeout() {
+        return "5s";
+    }
 }

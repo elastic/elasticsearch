@@ -27,6 +27,7 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.ReadinessService;
 import org.elasticsearch.script.ScriptContext;
@@ -51,9 +52,9 @@ import java.util.function.LongSupplier;
  */
 class NodeServiceProvider {
 
-    PluginsService newPluginService(Environment environment, Settings settings) {
+    PluginsService newPluginService(Environment initialEnvironment, PluginsLoader pluginsLoader) {
         // this creates a PluginsService with an empty list of classpath plugins
-        return new PluginsService(settings, environment.configFile(), environment.modulesFile(), environment.pluginsFile());
+        return new PluginsService(initialEnvironment.settings(), initialEnvironment.configFile(), pluginsLoader);
     }
 
     ScriptService newScriptService(

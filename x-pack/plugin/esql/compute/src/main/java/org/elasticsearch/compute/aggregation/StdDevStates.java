@@ -167,9 +167,9 @@ public final class StdDevStates {
                         m2Builder.appendDouble(state.m2());
                         countBuilder.appendLong(state.count());
                     } else {
-                        meanBuilder.appendNull();
-                        m2Builder.appendNull();
-                        countBuilder.appendNull();
+                        meanBuilder.appendDouble(0.0);
+                        m2Builder.appendDouble(0.0);
+                        countBuilder.appendLong(0);
                     }
                 }
                 blocks[offset + 0] = meanBuilder.build();
@@ -185,7 +185,8 @@ public final class StdDevStates {
                     final var st = getOrNull(groupId);
                     if (st != null) {
                         final var m2 = st.m2();
-                        if (Double.isFinite(m2) == false) {
+                        final var count = st.count();
+                        if (count == 0 || Double.isFinite(m2) == false) {
                             builder.appendNull();
                         } else {
                             builder.appendDouble(st.evaluate());

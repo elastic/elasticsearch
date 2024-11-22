@@ -44,6 +44,7 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 import org.elasticsearch.xpack.esql.core.util.StringUtils;
 import org.elasticsearch.xpack.esql.evaluator.EvalMapper;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Greatest;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
@@ -67,6 +68,7 @@ import org.elasticsearch.xpack.esql.planner.Layout;
 import org.elasticsearch.xpack.esql.planner.PlannerUtils;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.hamcrest.Matcher;
+import org.hamcrest.Matchers;
 import org.junit.After;
 import org.junit.AfterClass;
 
@@ -129,7 +131,9 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         entry("mod", Mod.class),
         entry("neg", Neg.class),
         entry("is_null", IsNull.class),
-        entry("is_not_null", IsNotNull.class)
+        entry("is_not_null", IsNotNull.class),
+        // Match operator is both a function and an operator
+        entry("match_operator", Match.class)
     );
 
     private static EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry().snapshotRegistry();
@@ -170,7 +174,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             (nullPosition, nullValueDataType, original) -> entirelyNullPreservesType == false
                 && nullValueDataType == DataType.NULL
                 && original.getData().size() == 1 ? DataType.NULL : original.expectedType(),
-            (nullPosition, nullData, original) -> original
+            (nullPosition, nullData, original) -> nullData.isForceLiteral() ? Matchers.equalTo("LiteralsEvaluator[lit=null]") : original
         );
     }
 
@@ -812,6 +816,10 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
         if (unaryOperator != null) {
             return RailRoadDiagram.unaryOperator(unaryOperator);
         }
+        String searchOperator = searchOperator(name);
+        if (searchOperator != null) {
+            return RailRoadDiagram.searchOperator(searchOperator);
+        }
         FunctionDefinition definition = definition(name);
         if (definition != null) {
             return RailRoadDiagram.functionSignature(definition);
@@ -861,7 +869,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             return;
         }
         String name = functionName();
-        if (binaryOperator(name) != null || unaryOperator(name) != null || likeOrInOperator(name)) {
+        if (binaryOperator(name) != null || unaryOperator(name) != null || searchOperator(name) != null || likeOrInOperator(name)) {
             renderDocsForOperators(name);
             return;
         }
@@ -878,8 +886,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                     "elseValue",
                     trueValue.type(),
                     "The value that's returned when no condition evaluates to `true`.",
-                    true,
-                    EsqlFunctionRegistry.getTargetType(trueValue.type())
+                    true
                 );
                 description = new EsqlFunctionRegistry.FunctionDescription(
                     description.name(),
@@ -1084,8 +1091,7 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
                 String[] type = paramInfo == null ? new String[] { "?" } : paramInfo.type();
                 String desc = paramInfo == null ? "" : paramInfo.description().replace('\n', ' ');
                 boolean optional = paramInfo == null ? false : paramInfo.optional();
-                DataType targetDataType = EsqlFunctionRegistry.getTargetType(type);
-                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional, targetDataType));
+                args.add(new EsqlFunctionRegistry.ArgSignature(paramName, type, desc, optional));
             }
         }
         renderKibanaFunctionDefinition(name, functionInfo, args, likeOrInOperator(name));
@@ -1255,6 +1261,16 @@ public abstract class AbstractFunctionTestCase extends ESTestCase {
             case "mul" -> "*";
             case "not_equals" -> "!=";
             case "sub" -> "-";
+            default -> null;
+        };
+    }
+
+    /**
+     * If this test is a for a search operator return its symbol, otherwise return {@code null}.
+     */
+    private static String searchOperator(String name) {
+        return switch (name) {
+            case "match_operator" -> ":";
             default -> null;
         };
     }

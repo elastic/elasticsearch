@@ -221,8 +221,11 @@ public final class XContentDataHelper {
     private static Tuple<XContentParserConfiguration, XContentBuilder> cloneSubContextParserConfiguration(DocumentParserContext context)
         throws IOException {
         XContentParser parser = context.parser();
+        var oldValue = context.path().isWithinLeafObject();
+        context.path().setWithinLeafObject(true);
         XContentBuilder builder = XContentBuilder.builder(parser.contentType().xContent());
         builder.copyCurrentStructure(parser);
+        context.path().setWithinLeafObject(oldValue);
 
         XContentParserConfiguration configuration = XContentParserConfiguration.EMPTY.withRegistry(parser.getXContentRegistry())
             .withDeprecationHandler(parser.getDeprecationHandler())
@@ -235,9 +238,17 @@ public final class XContentDataHelper {
         XContentParserConfiguration configuration,
         XContentBuilder builder
     ) throws IOException {
-        DocumentParserContext subcontext = context.switchParser(
-            XContentHelper.createParserNotCompressed(configuration, BytesReference.bytes(builder), context.parser().contentType())
+        XContentParser newParser = XContentHelper.createParserNotCompressed(
+            configuration,
+            BytesReference.bytes(builder),
+            context.parser().contentType()
         );
+        if (DotExpandingXContentParser.isInstance(context.parser())) {
+            // If we performed dot expanding originally we need to continue to do so when we replace the parser.
+            newParser = DotExpandingXContentParser.expandDots(newParser, context.path());
+        }
+
+        DocumentParserContext subcontext = context.switchParser(newParser);
         subcontext.setRecordedSource();  // Avoids double-storing parts of the source for the same parser subtree.
         subcontext.parser().nextToken();
         return subcontext;

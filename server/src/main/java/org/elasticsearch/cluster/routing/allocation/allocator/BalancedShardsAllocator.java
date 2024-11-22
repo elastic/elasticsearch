@@ -16,6 +16,7 @@ import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -32,8 +33,6 @@ import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision;
 import org.elasticsearch.cluster.routing.allocation.decider.Decision.Type;
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Setting.Property;
@@ -41,7 +40,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.core.Tuple;
-import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.PriorityComparator;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.injection.guice.Inject;
@@ -109,7 +107,7 @@ public class BalancedShardsAllocator implements ShardsAllocator {
     public static final Setting<Float> THRESHOLD_SETTING = Setting.floatSetting(
         "cluster.routing.allocation.balance.threshold",
         1.0f,
-        0.0f,
+        1.0f,
         Property.Dynamic,
         Property.NodeScope
     );
@@ -140,32 +138,8 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         clusterSettings.initializeAndWatch(INDEX_BALANCE_FACTOR_SETTING, value -> this.indexBalanceFactor = value);
         clusterSettings.initializeAndWatch(WRITE_LOAD_BALANCE_FACTOR_SETTING, value -> this.writeLoadBalanceFactor = value);
         clusterSettings.initializeAndWatch(DISK_USAGE_BALANCE_FACTOR_SETTING, value -> this.diskUsageBalanceFactor = value);
-        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = ensureValidThreshold(value));
+        clusterSettings.initializeAndWatch(THRESHOLD_SETTING, value -> this.threshold = value);
         this.writeLoadForecaster = writeLoadForecaster;
-    }
-
-    /**
-     * Clamp threshold to be at least 1, and log a critical deprecation warning if smaller values are given.
-     *
-     * Once {@link org.elasticsearch.Version#V_7_17_0} goes out of scope, start to properly reject such bad values.
-     */
-    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_COORDINATION)
-    private static float ensureValidThreshold(float threshold) {
-        if (1.0f <= threshold) {
-            return threshold;
-        } else {
-            DeprecationLogger.getLogger(BalancedShardsAllocator.class)
-                .critical(
-                    DeprecationCategory.SETTINGS,
-                    "balance_threshold_too_small",
-                    "ignoring value [{}] for [{}] since it is smaller than 1.0; "
-                        + "setting [{}] to a value smaller than 1.0 will be forbidden in a future release",
-                    threshold,
-                    THRESHOLD_SETTING.getKey(),
-                    THRESHOLD_SETTING.getKey()
-                );
-            return 1.0f;
-        }
     }
 
     @Override
@@ -186,6 +160,25 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
+
+        collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
+    }
+
+    private void collectAndRecordNodeWeightStats(Balancer balancer, WeightFunction weightFunction, RoutingAllocation allocation) {
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
+        for (var entry : balancer.nodes.entrySet()) {
+            var node = entry.getValue();
+            nodeLevelWeights.put(
+                node.routingNode.node(),
+                new DesiredBalanceMetrics.NodeWeightStats(
+                    node.numShards(),
+                    node.diskUsageInBytes(),
+                    node.writeLoad(),
+                    weightFunction.nodeWeight(balancer, node)
+                )
+            );
+        }
+        allocation.routingNodes().setBalanceWeightStatsPerNode(nodeLevelWeights);
     }
 
     @Override
@@ -302,11 +295,15 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         }
 
         float weight(Balancer balancer, ModelNode node, String index) {
-            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float weightIndex = node.numShards(index) - balancer.avgShardsPerNode(index);
+            return nodeWeight(balancer, node) + theta1 * weightIndex;
+        }
+
+        float nodeWeight(Balancer balancer, ModelNode node) {
+            final float weightShard = node.numShards() - balancer.avgShardsPerNode();
             final float ingestLoad = (float) (node.writeLoad() - balancer.avgWriteLoadPerNode());
             final float diskUsage = (float) (node.diskUsageInBytes() - balancer.avgDiskUsageInBytesPerNode());
-            return theta0 * weightShard + theta1 * weightIndex + theta2 * ingestLoad + theta3 * diskUsage;
+            return theta0 * weightShard + theta2 * ingestLoad + theta3 * diskUsage;
         }
 
         float minWeightDelta(Balancer balancer, String index) {

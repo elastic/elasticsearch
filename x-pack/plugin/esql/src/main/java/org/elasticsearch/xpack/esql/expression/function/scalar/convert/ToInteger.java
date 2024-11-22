@@ -25,11 +25,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.COUNTER_INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataTypeConverter.safeToInt;
@@ -49,10 +51,11 @@ public class ToInteger extends AbstractConvertFunction {
         Map.entry(DATETIME, ToIntegerFromLongEvaluator.Factory::new),
         Map.entry(KEYWORD, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(TEXT, ToIntegerFromStringEvaluator.Factory::new),
+        Map.entry(SEMANTIC_TEXT, ToIntegerFromStringEvaluator.Factory::new),
         Map.entry(DOUBLE, ToIntegerFromDoubleEvaluator.Factory::new),
         Map.entry(UNSIGNED_LONG, ToIntegerFromUnsignedLongEvaluator.Factory::new),
         Map.entry(LONG, ToIntegerFromLongEvaluator.Factory::new),
-        Map.entry(DataType.COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
+        Map.entry(COUNTER_INTEGER, (fieldEval, source) -> fieldEval)
     );
 
     @FunctionInfo(

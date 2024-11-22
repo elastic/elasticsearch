@@ -8,10 +8,15 @@
 package org.elasticsearch.xpack.inference.services.googlevertexai.rerank;
 
 import org.apache.http.client.utils.URIBuilder;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.xpack.inference.external.action.ExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.googlevertexai.GoogleVertexAiActionVisitor;
 import org.elasticsearch.xpack.inference.external.request.googlevertexai.GoogleVertexAiUtils;
@@ -21,13 +26,14 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiS
 
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings.TOP_N;
 
 public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
-
-    private URI uri;
 
     public GoogleVertexAiRerankModel(
         String inferenceEntityId,
@@ -115,12 +121,8 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
         return (GoogleDiscoveryEngineRateLimitServiceSettings) super.rateLimitServiceSettings();
     }
 
-    public URI uri() {
-        return uri;
-    }
-
     @Override
-    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings) {
+    public ExecutableAction accept(GoogleVertexAiActionVisitor visitor, Map<String, Object> taskSettings, InputType inputType) {
         return visitor.create(this, taskSettings);
     }
 
@@ -137,5 +139,31 @@ public class GoogleVertexAiRerankModel extends GoogleVertexAiModel {
                 format("%s:%s", GoogleVertexAiUtils.DEFAULT_RANKING_CONFIG, GoogleVertexAiUtils.RANK)
             )
             .build();
+    }
+
+    public static class Configuration {
+        public static Map<String, SettingsConfiguration> get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<Map<String, SettingsConfiguration>, RuntimeException> configuration =
+            new LazyInitializable<>(() -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    TOP_N,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TOGGLE)
+                        .setLabel("Top N")
+                        .setOrder(1)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Specifies the number of the top n documents, which should be returned.")
+                        .setType(SettingsConfigurationFieldType.BOOLEAN)
+                        .setValue(false)
+                        .build()
+                );
+
+                return Collections.unmodifiableMap(configurationMap);
+            });
     }
 }

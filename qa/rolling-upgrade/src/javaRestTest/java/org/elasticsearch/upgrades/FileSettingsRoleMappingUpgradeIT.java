@@ -23,19 +23,20 @@ import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
-import java.io.IOException;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Supplier;
 
+import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgradeTestCase {
 
-    private static final String settingsJSON = """
+    private static final int ROLE_MAPPINGS_CLEANUP_MIGRATION_VERSION = 2;
+    private static final String SETTING_JSON = """
         {
              "metadata": {
                  "version": "1",
@@ -53,7 +54,6 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         }""";
 
     private static final TemporaryFolder repoDirectory = new TemporaryFolder();
-
     private static final ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .version(getOldClusterTestVersion())
@@ -68,7 +68,7 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         .setting("xpack.security.enabled", "true")
         // workaround to avoid having to set up clients and authorization headers
         .setting("xpack.security.authc.anonymous.roles", "superuser")
-        .configFile("operator/settings.json", Resource.fromString(settingsJSON))
+        .configFile("operator/settings.json", Resource.fromString(SETTING_JSON))
         .build();
 
     @ClassRule
@@ -91,7 +91,30 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
         );
     }
 
-    public void testRoleMappingsAppliedOnUpgrade() throws IOException {
+    private static void waitForSecurityMigrationCompletionIfIndexExists() throws Exception {
+        final Request request = new Request("GET", "_cluster/state/metadata/.security-7");
+        assertBusy(() -> {
+            Map<String, Object> indices = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(request))).get(
+                "metadata.indices"
+            );
+            assertNotNull(indices);
+            // If the security index exists, migration needs to happen. There is a bug in pre cluster state role mappings code that tries
+            // to write file based role mappings before security index manager state is recovered, this makes it look like the security
+            // index is outdated (isIndexUpToDate == false). Because we can't rely on the index being there for old versions, this check
+            // is needed.
+            if (indices.containsKey(".security-7")) {
+                // JsonMapView doesn't support . prefixed indices (splits on .)
+                @SuppressWarnings("unchecked")
+                String responseVersion = new XContentTestUtils.JsonMapView((Map<String, Object>) indices.get(".security-7")).get(
+                    "migration_version.version"
+                );
+                assertNotNull(responseVersion);
+                assertTrue(Integer.parseInt(responseVersion) >= ROLE_MAPPINGS_CLEANUP_MIGRATION_VERSION);
+            }
+        });
+    }
+
+    public void testRoleMappingsAppliedOnUpgrade() throws Exception {
         if (isOldCluster()) {
             Request clusterStateRequest = new Request("GET", "/_cluster/state/metadata");
             List<Object> roleMappings = new XContentTestUtils.JsonMapView(entityAsMap(client().performRequest(clusterStateRequest))).get(
@@ -107,11 +130,10 @@ public class FileSettingsRoleMappingUpgradeIT extends ParameterizedRollingUpgrad
             ).get("metadata.role_mappings.role_mappings");
             assertThat(clusterStateRoleMappings, is(not(nullValue())));
             assertThat(clusterStateRoleMappings.size(), equalTo(1));
-
+            waitForSecurityMigrationCompletionIfIndexExists();
             assertThat(
                 entityAsMap(client().performRequest(new Request("GET", "/_security/role_mapping"))).keySet(),
-                // TODO change this to `contains` once the clean-up migration work is merged
-                hasItem("everyone_kibana-read-only-operator-mapping")
+                contains("everyone_kibana-read-only-operator-mapping")
             );
         }
     }

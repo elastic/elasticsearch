@@ -236,7 +236,7 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         return Objects.hash(innerRetrievers);
     }
 
-    protected SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
+    protected final SearchSourceBuilder createSearchSourceBuilder(PointInTimeBuilder pit, RetrieverBuilder retrieverBuilder) {
         var sourceBuilder = new SearchSourceBuilder().pointInTimeBuilder(pit)
             .trackTotalHits(false)
             .storedFields(new StoredFieldsContext(false))
@@ -254,6 +254,11 @@ public abstract class CompoundRetrieverBuilder<T extends CompoundRetrieverBuilde
         }
         sortBuilders.add(new FieldSortBuilder(FieldSortBuilder.SHARD_DOC_FIELD_NAME));
         sourceBuilder.sort(sortBuilders);
+        sourceBuilder.skipInnerHits(true);
+        return finalizeSourceBuilder(sourceBuilder);
+    }
+
+    protected SearchSourceBuilder finalizeSourceBuilder(SearchSourceBuilder sourceBuilder) {
         return sourceBuilder;
     }
 

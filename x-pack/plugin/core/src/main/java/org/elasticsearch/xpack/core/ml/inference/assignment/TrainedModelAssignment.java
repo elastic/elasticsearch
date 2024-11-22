@@ -533,6 +533,9 @@ public final class TrainedModelAssignment implements SimpleDiffable<TrainedModel
             if (assignmentState.equals(AssignmentState.STOPPING)) {
                 return assignmentState;
             }
+            if (taskParams.getNumberOfAllocations() == 0) {
+                return AssignmentState.STARTED;
+            }
             if (nodeRoutingTable.values().stream().anyMatch(r -> r.getState().equals(RoutingState.STARTED))) {
                 return AssignmentState.STARTED;
             }

@@ -38,7 +38,6 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -72,7 +71,6 @@
           settings:
             index:
               number_of_shards: 1
-              number_of_replicas: 0
             analysis:
               filter:
                 my_synonym_filter:
@@ -99,7 +97,6 @@
           - '{"index": {"_index": "my_index2", "_id": "2"}}'
           - '{"my_field": "goodbye"}'
 
-
   # An update of synonyms_set1 must trigger auto-reloading of analyzers only for synonyms_set1
   - do:
       synonyms.put_synonym:
@@ -109,8 +106,9 @@
             - synonyms: "hello, salute"
             - synonyms: "ciao => goodbye"
   - match: { result: "updated" }
-  - match: { reload_analyzers_details._shards.total: 2 } # shard requests are still sent to 2 indices
-  - match: { reload_analyzers_details._shards.successful: 2 }
+  - gt: { reload_analyzers_details._shards.total: 0 }
+  - gt: { reload_analyzers_details._shards.successful: 0 }
+  - match: { reload_analyzers_details._shards.failed: 0 }
   - length: { reload_analyzers_details.reload_details: 1 } # reload details contain only a single index
   - match: { reload_analyzers_details.reload_details.0.index: "my_index1" }
   - match: { reload_analyzers_details.reload_details.0.reloaded_analyzers.0: "my_analyzer1" }

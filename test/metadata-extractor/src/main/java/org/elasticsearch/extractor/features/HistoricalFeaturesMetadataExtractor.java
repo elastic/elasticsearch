@@ -30,6 +30,7 @@ import java.util.HashSet;
 import java.util.Map;
 import java.util.ServiceLoader;
 import java.util.Set;
+import java.util.stream.Stream;
 
 public class HistoricalFeaturesMetadataExtractor {
     private final ClassLoader classLoader;
@@ -93,7 +94,9 @@ public class HistoricalFeaturesMetadataExtractor {
         ServiceLoader<FeatureSpecification> featureSpecLoader = ServiceLoader.load(FeatureSpecification.class, classLoader);
         for (FeatureSpecification featureSpecification : featureSpecLoader) {
             historicalFeatures.putAll(featureSpecification.getHistoricalFeatures());
-            featureSpecification.getFeatures().stream().map(NodeFeature::id).forEach(featureNames::add);
+            Stream.concat(featureSpecification.getFeatures().stream(), featureSpecification.getTestFeatures().stream())
+                .map(NodeFeature::id)
+                .forEach(featureNames::add);
         }
         metadataConsumer.accept(historicalFeatures, featureNames);
     }

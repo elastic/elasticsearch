@@ -1,5 +1,0 @@
-pr: 114128
-summary: Adding `index_template_substitutions` to the simulate ingest API
-area: Ingest Node
-type: enhancement
-issues: []

@@ -4,9 +4,6 @@ import org.elasticsearch.gradle.internal.toolchain.AdoptiumJdkToolchainResolver
 
 pluginManagement {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
     mavenCentral()
     gradlePluginPortal()
   }
@@ -69,8 +66,6 @@ List projects = [
   'distribution:docker:docker-export',
   'distribution:docker:ironbank-docker-aarch64-export',
   'distribution:docker:ironbank-docker-export',
-  'distribution:docker:ubi-docker-aarch64-export',
-  'distribution:docker:ubi-docker-export',
   'distribution:docker:wolfi-docker-aarch64-export',
   'distribution:docker:wolfi-docker-export',
   'distribution:packages:aarch64-deb',
@@ -89,10 +84,6 @@ List projects = [
   'distribution:tools:keystore-cli',
   'distribution:tools:geoip-cli',
   'distribution:tools:ansi-console',
-  'distribution:tools:entitlement-agent',
-  'distribution:tools:entitlement-agent:impl',
-  'distribution:tools:entitlement-bridge',
-  'distribution:tools:entitlement-runtime',
   'server',
   'test:framework',
   'test:fixtures:azure-fixture',
@@ -155,17 +146,7 @@ addSubProjects('', new File(rootProject.projectDir, 'x-pack/libs'))
 
 include projects.toArray(new String[0])
 
-project(":libs").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-  libsProject.children.each { lp ->
-    lp.name = lp.name  // for :libs:elasticsearch-x-content:impl
-  }
-}
-project(":libs:elasticsearch-native:libraries").name = "elasticsearch-native-libraries"
-
-project(":qa:stable-api").children.each { libsProject ->
-  libsProject.name = "elasticsearch-${libsProject.name}"
-}
+project(":libs:native:libraries").name = "native-libraries"
 
 project(":test:external-modules").children.each { testProject ->
   testProject.name = "test-${testProject.name}"

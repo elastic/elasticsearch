@@ -21,6 +21,7 @@ import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.index.mapper.IgnoredFieldMapper;
+import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.lookup.Source;
@@ -247,7 +248,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
 
         for (DocumentField field : metaFields.values()) {
             // TODO: can we avoid having an exception here?
-            if (field.getName().equals(IgnoredFieldMapper.NAME)) {
+            if (field.getName().equals(IgnoredFieldMapper.NAME) || field.getName().equals(IgnoredSourceFieldMapper.NAME)) {
                 builder.field(field.getName(), field.getValues());
             } else {
                 builder.field(field.getName(), field.<Object>getValue());
@@ -341,7 +342,7 @@ public class GetResult implements Writeable, Iterable<DocumentField>, ToXContent
                     parser.skipChildren(); // skip potential inner objects for forward compatibility
                 }
             } else if (token == XContentParser.Token.START_ARRAY) {
-                if (IgnoredFieldMapper.NAME.equals(currentFieldName)) {
+                if (IgnoredFieldMapper.NAME.equals(currentFieldName) || IgnoredSourceFieldMapper.NAME.equals(currentFieldName)) {
                     metaFields.put(currentFieldName, new DocumentField(currentFieldName, parser.list()));
                 } else {
                     parser.skipChildren(); // skip potential inner arrays for forward compatibility

@@ -111,6 +111,10 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, reducer);
     }
 
+    public FragmentExec withFragment(LogicalPlan fragment) {
+        return Objects.equals(fragment, this.fragment) ? this : new FragmentExec(source(), fragment, esFilter, estimatedRowSize, reducer);
+    }
+
     public FragmentExec withFilter(QueryBuilder filter) {
         return Objects.equals(filter, this.esFilter) ? this : new FragmentExec(source(), fragment, filter, estimatedRowSize, reducer);
     }

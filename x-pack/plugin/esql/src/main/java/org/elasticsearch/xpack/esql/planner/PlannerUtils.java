@@ -20,7 +20,6 @@ import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
-import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -49,14 +48,16 @@ import org.elasticsearch.xpack.esql.plan.physical.LimitExec;
 import org.elasticsearch.xpack.esql.plan.physical.OrderExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.TopNExec;
+import org.elasticsearch.xpack.esql.planner.mapper.LocalMapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
+import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.function.Predicate;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference.DOC_VALUES;
@@ -88,7 +89,7 @@ public class PlannerUtils {
         if (pipelineBreakers.isEmpty() == false) {
             UnaryPlan pipelineBreaker = (UnaryPlan) pipelineBreakers.get(0);
             if (pipelineBreaker instanceof TopN) {
-                Mapper mapper = new Mapper(true);
+                LocalMapper mapper = new LocalMapper();
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
                 return physicalPlan.collectFirstChildren(TopNExec.class::isInstance).get(0);
             } else if (pipelineBreaker instanceof Limit limit) {
@@ -96,7 +97,7 @@ public class PlannerUtils {
             } else if (pipelineBreaker instanceof OrderBy order) {
                 return new OrderExec(order.source(), unused, order.order());
             } else if (pipelineBreaker instanceof Aggregate) {
-                Mapper mapper = new Mapper(true);
+                LocalMapper mapper = new LocalMapper();
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
                 var aggregate = (AggregateExec) physicalPlan.collectFirstChildren(AggregateExec.class::isInstance).get(0);
                 return aggregate.withMode(AggregatorMode.INITIAL);
@@ -136,7 +137,7 @@ public class PlannerUtils {
     }
 
     public static PhysicalPlan localPlan(List<SearchExecutionContext> searchContexts, Configuration configuration, PhysicalPlan plan) {
-        return localPlan(configuration, plan, new SearchStats(searchContexts));
+        return localPlan(configuration, plan, SearchContextStats.from(searchContexts));
     }
 
     public static PhysicalPlan localPlan(Configuration configuration, PhysicalPlan plan, SearchStats searchStats) {
@@ -151,13 +152,13 @@ public class PlannerUtils {
         LocalLogicalPlanOptimizer logicalOptimizer,
         LocalPhysicalPlanOptimizer physicalOptimizer
     ) {
-        final Mapper mapper = new Mapper(true);
+        final LocalMapper localMapper = new LocalMapper();
         var isCoordPlan = new Holder<>(Boolean.TRUE);
 
         var localPhysicalPlan = plan.transformUp(FragmentExec.class, f -> {
             isCoordPlan.set(Boolean.FALSE);
             var optimizedFragment = logicalOptimizer.localOptimize(f.fragment());
-            var physicalFragment = mapper.map(optimizedFragment);
+            var physicalFragment = localMapper.map(optimizedFragment);
             var filter = f.esFilter();
             if (filter != null) {
                 physicalFragment = physicalFragment.transformUp(
@@ -172,17 +173,18 @@ public class PlannerUtils {
     }
 
     /**
-     * Extracts the ES query provided by the filter parameter
-     * @param plan
-     * @param hasIdenticalDelegate a lambda that given a field attribute sayis if it has
-     *                             a synthetic source delegate with the exact same value
-     * @return
+     * Extracts the ES query for the <code>@timestamp</code> field for the passed plan.
      */
-    public static QueryBuilder requestFilter(PhysicalPlan plan, Predicate<FieldAttribute> hasIdenticalDelegate) {
-        return detectFilter(plan, "@timestamp", hasIdenticalDelegate);
+    public static QueryBuilder requestTimestampFilter(PhysicalPlan plan) {
+        return detectFilter(plan, "@timestamp");
     }
 
-    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName, Predicate<FieldAttribute> hasIdenticalDelegate) {
+    /**
+     * Note that since this filter does not have access to SearchStats, it cannot detect if the field is a text field with a delegate.
+     * We currently only use this filter for the @timestamp field, which is always a date field. Any tests that wish to use this should
+     * take care to not use it with TEXT fields.
+     */
+    static QueryBuilder detectFilter(PhysicalPlan plan, String fieldName) {
         // first position is the REST filter, the second the query filter
         var requestFilter = new QueryBuilder[] { null, null };
 
@@ -203,7 +205,7 @@ public class PlannerUtils {
                         boolean matchesField = refs.removeIf(e -> fieldName.equals(e.name()));
                         // the expression only contains the target reference
                         // and the expression is pushable (functions can be fully translated)
-                        if (matchesField && refs.isEmpty() && canPushToSource(exp, hasIdenticalDelegate)) {
+                        if (matchesField && refs.isEmpty() && canPushToSource(exp)) {
                             matches.add(exp);
                         }
                     }

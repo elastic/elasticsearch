@@ -152,8 +152,7 @@ tasks.named("yamlRestTest").configure {
     'suggest/*/*',
     'synonyms/*/*',
     'termvectors/*/*',
-    'tsdb/*/*',
-    'update/*/*'
+    'tsdb/*/*'
   ];
   if (buildParams.isSnapshotBuild() == false) {
     blacklist += [];

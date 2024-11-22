@@ -41,8 +41,9 @@ setup:
         repository: test_repo_restore_1
         snapshot: test_snapshot
         wait_for_completion: true
-        body: |
-          { "indices": "test_index" }
+        body:
+          indices: "test_index"
+          feature_states: [ "none" ]
 
   - match: { snapshot.snapshot: test_snapshot }
   - match: { snapshot.state : SUCCESS }

@@ -74,6 +74,7 @@ public class LongMetric {
             try {
                 // TODO: not sure what is the good value for minBarForHighestToLowestValueRatio here?
                 Histogram dh = Histogram.decodeFromCompressedByteBuffer(bb, 1);
+                dh.setAutoResize(true);
                 return new LongMetricValue(dh);
             } catch (DataFormatException e) {
                 throw new IOException(e);

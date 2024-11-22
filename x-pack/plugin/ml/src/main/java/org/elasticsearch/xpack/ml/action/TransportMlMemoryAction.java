@@ -45,6 +45,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import static org.elasticsearch.Version.V_8_2_0;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ml.MachineLearningField.USE_AUTO_MACHINE_MEMORY_PERCENT;
 import static org.elasticsearch.xpack.ml.MachineLearning.MAX_MACHINE_MEMORY_PERCENT;
@@ -106,7 +107,11 @@ public class TransportMlMemoryAction extends TransportMasterNodeAction<MlMemoryA
                 .setTimeout(request.ackTimeout())
                 .execute(delegate.delegateFailureAndWrap((delegate2, nodesStatsResponse) -> {
                     TrainedModelCacheInfoAction.Request trainedModelCacheInfoRequest = new TrainedModelCacheInfoAction.Request(
-                        nodesStatsResponse.getNodes().stream().map(NodeStats::getNode).toArray(DiscoveryNode[]::new)
+                        nodesStatsResponse.getNodes()
+                            .stream()
+                            .map(NodeStats::getNode)
+                            .filter(node -> node.getVersion().onOrAfter(V_8_2_0)) // the cache info action was added in 8.2
+                            .toArray(DiscoveryNode[]::new)
                     ).timeout(request.ackTimeout());
 
                     parentTaskClient.execute(

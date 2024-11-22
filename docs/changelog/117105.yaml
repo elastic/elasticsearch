@@ -1,0 +1,6 @@
+pr: 117105
+summary: Fix long metric deserialize & add - auto-resize needs to be set manually
+area: CCS
+type: bug
+issues:
+ - 116914

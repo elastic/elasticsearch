@@ -195,12 +195,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             executionInfo,
             remoteClusterService,
             planRunner,
-            ActionListener.wrap((result) -> {
+            ActionListener.wrap(result -> {
                 recordCCSTelemetry(task, executionInfo, request, null);
                 listener.onResponse(toResponse(task, request, configuration, result));
-            }, (e) -> {
-                recordCCSTelemetry(task, executionInfo, request, e);
-                listener.onFailure(e);
+            }, ex -> {
+                recordCCSTelemetry(task, executionInfo, request, ex);
+                listener.onFailure(ex);
             })
         );
 
@@ -236,6 +236,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
                 count.getAndIncrement();
             }
         });
+        assert count.get() > 0 : "Got cross-cluster search telemetry without any remote clusters";
         usageBuilder.setRemotesCount(count.get());
         usageService.getEsqlUsageHolder().updateUsage(usageBuilder.build());
     }

@@ -77,7 +77,8 @@ public class PlanExecutor {
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);
-        session.execute(request, executionInfo, planRunner, wrap(x -> {
+
+        ActionListener<Result> executeListener = wrap(x -> {
             planningMetricsManager.publish(planningMetrics, true);
             listener.onResponse(x);
         }, ex -> {
@@ -85,7 +86,8 @@ public class PlanExecutor {
             metrics.failed(clientId);
             planningMetricsManager.publish(planningMetrics, false);
             listener.onFailure(ex);
-        }));
+        });
+        ActionListener.run(executeListener, l -> session.execute(request, executionInfo, planRunner, l));
     }
 
     public IndexResolver indexResolver() {

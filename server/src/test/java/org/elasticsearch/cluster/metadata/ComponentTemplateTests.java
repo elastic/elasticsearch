@@ -78,30 +78,36 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return randomInstance(lifecycleAllowed, randomOptionalBoolean());
     }
 
-    public static ComponentTemplate randomInstance(boolean lifecycleAllowed, Boolean deprecated) {
-        Settings settings = null;
-        CompressedXContent mappings = null;
-        Map<String, AliasMetadata> aliases = null;
-        DataStreamLifecycle lifecycle = null;
+    public static ComponentTemplate randomInstance(boolean supportsDataStreams, Boolean deprecated) {
+        Template.Builder templateBuilder = Template.builder();
         if (randomBoolean()) {
-            settings = randomSettings();
+            templateBuilder.settings(randomSettings());
         }
         if (randomBoolean()) {
-            mappings = randomMappings();
+            templateBuilder.mappings(randomMappings());
         }
         if (randomBoolean()) {
-            aliases = randomAliases();
+            templateBuilder.aliases(randomAliases());
         }
-        if (randomBoolean() && lifecycleAllowed) {
-            lifecycle = DataStreamLifecycleTests.randomLifecycle();
+        if (randomBoolean() && supportsDataStreams) {
+            templateBuilder.lifecycle(DataStreamLifecycleTests.randomLifecycle());
         }
-        Template template = new Template(settings, mappings, aliases, lifecycle);
+        if (randomBoolean() && supportsDataStreams) {
+            templateBuilder.dataStreamOptions(randomDataStreamOptionsTemplate());
+        }
+        Template template = templateBuilder.build();
 
         Map<String, Object> meta = null;
         if (randomBoolean()) {
             meta = randomMeta();
         }
         return new ComponentTemplate(template, randomBoolean() ? null : randomNonNegativeLong(), meta, deprecated);
+    }
+
+    public static Template.ExplicitlyNullable<DataStreamOptions.Template> randomDataStreamOptionsTemplate() {
+        return rarely()
+            ? Template.ExplicitlyNullable.empty()
+            : Template.ExplicitlyNullable.create(DataStreamOptionsTemplateTests.randomDataStreamOptions());
     }
 
     public static Map<String, AliasMetadata> randomAliases() {
@@ -152,28 +158,44 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         return switch (randomIntBetween(0, 3)) {
             case 0 -> {
                 Template ot = orig.template();
-                yield switch (randomIntBetween(0, 3)) {
+                yield switch (randomIntBetween(0, 4)) {
                     case 0 -> new ComponentTemplate(
-                        Template.builder(ot).settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings)).build(),
+                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                            .settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings))
+                            .build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
-                        Template.builder(ot).mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings)).build(),
+                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                            .mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings))
+                            .build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
-                        Template.builder(ot).aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases)).build(),
+                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                            .aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases))
+                            .build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
-                        Template.builder(ot)
+                        org.elasticsearch.cluster.metadata.Template.builder(ot)
                             .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
+                            .build(),
+                        orig.version(),
+                        orig.metadata(),
+                        orig.deprecated()
+                    );
+                    case 4 -> new ComponentTemplate(
+                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                            .dataStreamOptions(
+                                randomValueOtherThan(ot.dataStreamOptions(), DataStreamOptionsTemplateTests::randomDataStreamOptions)
+                            )
                             .build(),
                         orig.version(),
                         orig.metadata(),
@@ -254,6 +276,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         Settings settings = null;
         CompressedXContent mappings = null;
         Map<String, AliasMetadata> aliases = null;
+        Template.ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions = null;
         if (randomBoolean()) {
             settings = randomSettings();
         }
@@ -263,9 +286,12 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
         if (randomBoolean()) {
             aliases = randomAliases();
         }
+        if (randomBoolean()) {
+            dataStreamOptions = randomDataStreamOptionsTemplate();
+        }
         DataStreamLifecycle lifecycle = new DataStreamLifecycle();
         ComponentTemplate template = new ComponentTemplate(
-            new Template(settings, mappings, aliases, lifecycle),
+            new Template(settings, mappings, aliases, lifecycle, dataStreamOptions),
             randomNonNegativeLong(),
             null
         );

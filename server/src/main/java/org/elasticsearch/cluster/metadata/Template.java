@@ -261,8 +261,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     /**
      * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
-     * When the parameter {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not
-     * display any explicit nulls
+     * When the parameter {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true,
+     * it will not display any explicit nulls
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {

@@ -188,8 +188,9 @@ public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToX
         }
 
         /**
-         * Converts the template to XContent, when the parameter {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not
-         * display any explicit nulls
+         * Converts the template to XContent, when the parameter
+         * {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not display
+         * any explicit nulls
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {

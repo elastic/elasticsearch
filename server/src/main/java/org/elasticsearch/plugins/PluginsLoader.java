@@ -267,14 +267,14 @@ public class PluginsLoader {
     ) {
         final PluginDescriptor plugin = bundle.plugin;
         if (plugin.getModuleName().isPresent()) {
-            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", modular");
+            logger.info(() -> "Loading bundle: " + plugin.getName() + ", modular");
             var parentLayers = Stream.concat(
                 Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
                 extendedPlugins.stream().map(LoadedPluginLayer::spiModuleLayer)
             ).toList();
             return createPluginModuleLayer(bundle, pluginParentLoader, parentLayers, qualifiedExports);
         } else if (plugin.isStable()) {
-            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
+            logger.info(() -> "Loading bundle: " + plugin.getName() + ", non-modular as synthetic module");
             return LayerAndLoader.ofLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
@@ -285,7 +285,7 @@ public class PluginsLoader {
                 )
             );
         } else {
-            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
+            logger.info(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
             return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
         }
     }

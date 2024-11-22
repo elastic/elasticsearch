@@ -23,6 +23,8 @@ import org.objectweb.asm.Type;
 
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
@@ -141,6 +143,27 @@ public class InstrumenterTests extends ESTestCase {
             assertEquals(123, status);
             throwIfActive();
         }
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {}
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {}
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {}
+
+        @Override
+        public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {}
+
+        @Override
+        public void check$java_net_URLClassLoader$(
+            Class<?> callerClass,
+            String name,
+            URL[] urls,
+            ClassLoader parent,
+            URLStreamHandlerFactory factory
+        ) {}
 
         private void throwIfActive() {
             if (isActive) {

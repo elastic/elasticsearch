@@ -188,8 +188,7 @@ class IndexLifecycleRunner {
             return false;
         }
         final LifecycleExecutionState executionState = indexMetadata.getLifecycleExecutionState();
-        if (executionState.phase().equals(TimeseriesLifecycleType.HOT_PHASE)
-            && nonLeapFrogSteps.contains(executionState.action()) == true) {
+        if (executionState.phase().equals(TimeseriesLifecycleType.HOT_PHASE) && nonLeapFrogSteps.contains(executionState.action())) {
             // Don't leap-frog these steps, because the index hasn't rolled over yet.
             return false;
         }

@@ -142,6 +142,7 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
                             long docCount = bucketDocCount(collectedBuckets.ord());
                             // if the key is below threshold, reinsert into the new ords
                             if (docCount <= maxDocCount) {
+                                checkRealMemoryCBForInternalBucket();
                                 LongRareTerms.Bucket bucket = new LongRareTerms.Bucket(collectedBuckets.value(), docCount, null, format);
                                 bucket.bucketOrd = offset + bucketsInThisOwningBucketToCollect.add(collectedBuckets.value());
                                 mergeMap.set(collectedBuckets.ord(), bucket.bucketOrd);
@@ -173,21 +174,12 @@ public class LongRareTermsAggregator extends AbstractRareTermsAggregator {
              * Now build the results!
              */
             buildSubAggsForAllBuckets(rarestPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-            InternalAggregation[] result = new InternalAggregation[Math.toIntExact(owningBucketOrds.size())];
-            for (int ordIdx = 0; ordIdx < result.length; ordIdx++) {
+
+            return LongRareTermsAggregator.this.buildAggregations(Math.toIntExact(owningBucketOrds.size()), ordIdx -> {
                 LongRareTerms.Bucket[] buckets = rarestPerOrd.get(ordIdx);
                 Arrays.sort(buckets, ORDER.comparator());
-                result[ordIdx] = new LongRareTerms(
-                    name,
-                    ORDER,
-                    metadata(),
-                    format,
-                    Arrays.asList(buckets),
-                    maxDocCount,
-                    filters.get(ordIdx)
-                );
-            }
-            return result;
+                return new LongRareTerms(name, ORDER, metadata(), format, Arrays.asList(buckets), maxDocCount, filters.get(ordIdx));
+            });
         }
     }
 

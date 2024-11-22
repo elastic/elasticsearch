@@ -17,23 +17,21 @@ import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.tasks.Task;
+import org.elasticsearch.threadpool.ThreadPool;
 
 import java.util.Collection;
 import java.util.Set;
+import java.util.function.Supplier;
 
 /**
  * A {@link ProjectResolver} that resolves a project by looking at the project id in the thread context.
  */
 public class MultiProjectResolver implements ProjectResolver {
 
-    private final MultiProjectPlugin plugin;
+    private final Supplier<ThreadPool> threadPoolSupplier;
 
-    public MultiProjectResolver() {
-        throw new IllegalStateException("Provider must be constructed using PluginsService");
-    }
-
-    public MultiProjectResolver(MultiProjectPlugin plugin) {
-        this.plugin = plugin;
+    public MultiProjectResolver(Supplier<ThreadPool> threadPoolSupplier) {
+        this.threadPoolSupplier = threadPoolSupplier;
     }
 
     @Override
@@ -61,7 +59,7 @@ public class MultiProjectResolver implements ProjectResolver {
     }
 
     private ThreadContext getThreadContext() {
-        var threadPool = plugin.getThreadPool();
+        var threadPool = threadPoolSupplier.get();
         assert threadPool != null : "Thread pool has not yet been set on MultiProjectPlugin";
         return threadPool.getThreadContext();
     }

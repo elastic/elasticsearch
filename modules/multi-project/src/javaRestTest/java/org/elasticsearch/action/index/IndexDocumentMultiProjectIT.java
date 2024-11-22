@@ -46,6 +46,7 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
             .nodes(NODE_NUM)
             .distribution(DistributionType.INTEG_TEST) // TODO multi-project: make this test suite work under the default distrib
             .module("multi-project")
+            .setting("multi_project.enabled", "true")
             .setting("xpack.security.enabled", "false") // TODO multi-project: make this test suite work with Security enabled
             .setting("xpack.ml.enabled", "false"); // TODO multi-project: make this test suite work with ML enabled
         return clusterBuilder.build();

@@ -15,9 +15,10 @@ import org.elasticsearch.core.FixForMultiProject;
     requires org.elasticsearch.server;
     requires org.elasticsearch.xcontent;
     requires org.apache.lucene.core;
+    requires org.elasticsearch.logging;
 
     exports org.elasticsearch.multiproject.action to org.elasticsearch.server;
 
-    provides org.elasticsearch.cluster.project.ProjectResolver with org.elasticsearch.multiproject.MultiProjectResolver;
+    provides org.elasticsearch.cluster.project.ProjectResolverFactory with org.elasticsearch.multiproject.MultiProjectResolverFactory;
     provides org.elasticsearch.features.FeatureSpecification with org.elasticsearch.multiproject.MultiProjectFeatureSpecification;
 }

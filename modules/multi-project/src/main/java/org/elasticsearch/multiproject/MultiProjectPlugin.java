@@ -17,9 +17,12 @@ import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.IndexScopedSettings;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.features.NodeFeature;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.multiproject.action.DeleteProjectAction;
 import org.elasticsearch.multiproject.action.PutProjectAction;
 import org.elasticsearch.multiproject.action.RestDeleteProjectAction;
@@ -40,7 +43,22 @@ import java.util.function.Supplier;
 
 public class MultiProjectPlugin extends Plugin implements ActionPlugin {
 
+    public static final Setting<Boolean> MULTI_PROJECT_ENABLED = Setting.boolSetting(
+        "multi_project.enabled",
+        false,
+        Setting.Property.NodeScope
+    );
+
+    private static final Logger logger = LogManager.getLogger(MultiProjectPlugin.class);
+
     public final SetOnce<ThreadPool> threadPool = new SetOnce<>();
+
+    private final boolean multiProjectEnabled;
+
+    public MultiProjectPlugin(Settings settings) {
+        multiProjectEnabled = MULTI_PROJECT_ENABLED.get(settings);
+        logger.info("multi-project is [{}]", multiProjectEnabled ? "enabled" : "disabled");
+    }
 
     @Override
     public Collection<RestHandler> getRestHandlers(
@@ -54,20 +72,32 @@ public class MultiProjectPlugin extends Plugin implements ActionPlugin {
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(new RestPutProjectAction(), new RestDeleteProjectAction());
+        if (multiProjectEnabled) {
+            return List.of(new RestPutProjectAction(), new RestDeleteProjectAction());
+        } else {
+            return List.of();
+        }
     }
 
     @Override
     public Collection<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(
-            new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
-            new ActionHandler<>(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
-        );
+        if (multiProjectEnabled) {
+            return List.of(
+                new ActionHandler<>(PutProjectAction.INSTANCE, PutProjectAction.TransportPutProjectAction.class),
+                new ActionHandler<>(DeleteProjectAction.INSTANCE, DeleteProjectAction.TransportDeleteProjectAction.class)
+            );
+        } else {
+            return List.of();
+        }
     }
 
     @Override
     public Collection<RestHeaderDefinition> getRestHeaders() {
-        return Set.of(new RestHeaderDefinition(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, false));
+        if (multiProjectEnabled) {
+            return Set.of(new RestHeaderDefinition(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, false));
+        } else {
+            return Set.of();
+        }
     }
 
     @Override
@@ -76,7 +106,16 @@ public class MultiProjectPlugin extends Plugin implements ActionPlugin {
         return List.of();
     }
 
+    @Override
+    public List<Setting<?>> getSettings() {
+        return List.of(MULTI_PROJECT_ENABLED);
+    }
+
     public ThreadPool getThreadPool() {
         return threadPool.get();
+    }
+
+    public boolean multiProjectEnabled() {
+        return multiProjectEnabled;
     }
 }

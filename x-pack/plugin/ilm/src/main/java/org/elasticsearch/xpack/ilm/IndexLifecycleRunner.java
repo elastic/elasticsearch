@@ -31,9 +31,11 @@ import org.elasticsearch.xpack.core.ilm.ClusterStateActionStep;
 import org.elasticsearch.xpack.core.ilm.ClusterStateWaitStep;
 import org.elasticsearch.xpack.core.ilm.ErrorStep;
 import org.elasticsearch.xpack.core.ilm.PhaseCompleteStep;
+import org.elasticsearch.xpack.core.ilm.RolloverAction;
 import org.elasticsearch.xpack.core.ilm.Step;
 import org.elasticsearch.xpack.core.ilm.Step.StepKey;
 import org.elasticsearch.xpack.core.ilm.TerminalPolicyStep;
+import org.elasticsearch.xpack.core.ilm.TimeseriesLifecycleType;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryItem;
 import org.elasticsearch.xpack.ilm.history.ILMHistoryStore;
 
@@ -160,6 +162,53 @@ class IndexLifecycleRunner {
                 indexMetadata.getIndex().getName(),
                 after,
                 phase,
+                new TimeValue(now).seconds(),
+                new TimeValue(lifecycleDate).seconds(),
+                ageMillis < 0 ? "-" : "",
+                age,
+                age.seconds()
+            );
+        }
+        return now >= lifecycleDate + after.getMillis();
+    }
+
+    private static final Set<String> nonLeapFrogSteps = new HashSet<>(
+        TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS.subList(
+            0,
+            TimeseriesLifecycleType.ORDERED_VALID_HOT_ACTIONS.indexOf(RolloverAction.NAME) + 1
+        )
+    );
+
+    /**
+     * Return true or false depending on whether the index is ready to be in {@code phase}
+     */
+    boolean couldBeMovedToDeletePhase(final String policy, final IndexMetadata indexMetadata) {
+        final Long lifecycleDate = calculateOriginationMillis(indexMetadata);
+        if (lifecycleDate == null) {
+            return false;
+        }
+        final LifecycleExecutionState executionState = indexMetadata.getLifecycleExecutionState();
+        if (executionState.phase().equals(TimeseriesLifecycleType.HOT_PHASE) && nonLeapFrogSteps.contains(executionState.action()) == true) {
+            // Don't leap-frog these steps, because the index hasn't rolled over yet.
+            return false;
+        }
+        final TimeValue after = stepRegistry.getIndexAgeForPhase(policy, TimeseriesLifecycleType.DELETE_PHASE);
+        final long now = nowSupplier.getAsLong();
+        if (logger.isTraceEnabled()) {
+            final long ageMillis = now - lifecycleDate;
+            final TimeValue age;
+            if (ageMillis >= 0) {
+                age = new TimeValue(ageMillis);
+            } else if (ageMillis == Long.MIN_VALUE) {
+                age = new TimeValue(Long.MAX_VALUE);
+            } else {
+                age = new TimeValue(-ageMillis);
+            }
+            logger.trace(
+                "[{}] checking for index age to be at least [{}] before performing jumping to "
+                    + "the delete phase. Now: {}, lifecycle date: {}, age: [{}{}/{}s]",
+                indexMetadata.getIndex().getName(),
+                after,
                 new TimeValue(now).seconds(),
                 new TimeValue(lifecycleDate).seconds(),
                 ageMillis < 0 ? "-" : "",
@@ -412,6 +461,16 @@ class IndexLifecycleRunner {
                 logger.error("current step [{}] for index [{}] with policy [{}] is not recognized", currentStepKey, index, policy);
                 return;
             }
+        }
+
+        if (TimeseriesLifecycleType.DELETE_PHASE.equals(currentStep.getKey().phase()) == false && couldBeMovedToDeletePhase(policy, indexMetadata)) {
+            logger.info("--> {} could be deleted! moving to delete...", indexMetadata.getIndex().getName());
+            moveToStep(
+                indexMetadata.getIndex(),
+                policy,
+                currentStep.getKey(),
+                stepRegistry.getFirstStepForPhase(clusterService.state(), indexMetadata.getIndex(), TimeseriesLifecycleType.DELETE_PHASE)
+            );
         }
 
         if (currentStep instanceof TerminalPolicyStep) {

@@ -36,6 +36,22 @@ import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 import static org.objectweb.asm.Opcodes.INVOKEVIRTUAL;
 
 public class InstrumenterImpl implements Instrumenter {
+
+    private static final String checkerClassDescriptor;
+    private static final String handleClass;
+    static {
+        int javaVersion = Runtime.version().feature();
+        final String classNamePrefix;
+        if (javaVersion >= 23) {
+            classNamePrefix = "Java23";
+        } else {
+            classNamePrefix = "";
+        }
+        String checkerClass = "org/elasticsearch/entitlement/bridge/" + classNamePrefix + "EntitlementChecker";
+        handleClass = checkerClass + "Handle";
+        checkerClassDescriptor = Type.getObjectType(checkerClass).getDescriptor();
+    }
+
     /**
      * To avoid class name collisions during testing without an agent to replace classes in-place.
      */
@@ -269,13 +285,7 @@ public class InstrumenterImpl implements Instrumenter {
     }
 
     protected void pushEntitlementChecker(MethodVisitor mv) {
-        mv.visitMethodInsn(
-            INVOKESTATIC,
-            "org/elasticsearch/entitlement/bridge/EntitlementCheckerHandle",
-            "instance",
-            "()Lorg/elasticsearch/entitlement/bridge/EntitlementChecker;",
-            false
-        );
+        mv.visitMethodInsn(INVOKESTATIC, handleClass, "instance", "()" + checkerClassDescriptor, false);
     }
 
     public record ClassFileInfo(String fileName, byte[] bytecodes) {}

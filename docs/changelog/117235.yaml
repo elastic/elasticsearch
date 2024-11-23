@@ -1,1 +1,5 @@
-
+pr: 117235
+summary: "Deprecate `ChunkingOptions` parameter"
+area: ML
+type: enhancement
+issues: []

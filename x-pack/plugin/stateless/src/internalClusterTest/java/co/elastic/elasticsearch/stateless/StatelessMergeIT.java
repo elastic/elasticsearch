@@ -17,17 +17,21 @@
 
 package co.elastic.elasticsearch.stateless;
 
+import co.elastic.elasticsearch.stateless.commits.StatelessCommitService;
 import co.elastic.elasticsearch.stateless.engine.MergeMetrics;
 import co.elastic.elasticsearch.stateless.engine.ThreadPoolMergeScheduler;
 
+import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.stats.NodeStats;
 import org.elasticsearch.action.admin.cluster.node.stats.NodesStatsResponse;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
 import org.elasticsearch.action.admin.indices.stats.IndicesStatsResponse;
+import org.elasticsearch.action.support.broadcast.BroadcastResponse;
 import org.elasticsearch.cluster.routing.allocation.command.MoveAllocationCommand;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.concurrent.AbstractRunnable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.merge.MergeStats;
@@ -38,6 +42,7 @@ import org.elasticsearch.telemetry.Measurement;
 import org.elasticsearch.telemetry.TestTelemetryPlugin;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.test.transport.StubbableTransport;
+import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportRequest;
 import org.elasticsearch.transport.TransportRequestOptions;
@@ -47,7 +52,7 @@ import java.io.IOException;
 import java.util.Collection;
 import java.util.List;
 import java.util.concurrent.CountDownLatch;
-import java.util.function.Function;
+import java.util.concurrent.CyclicBarrier;
 import java.util.function.IntSupplier;
 
 import static co.elastic.elasticsearch.stateless.recovery.TransportStatelessPrimaryRelocationAction.START_RELOCATION_ACTION_NAME;
@@ -55,6 +60,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThan;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
@@ -65,7 +71,10 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
 
     @Override
     protected Settings.Builder nodeSettings() {
-        return super.nodeSettings().put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true);
+        return super.nodeSettings().put(ThreadPoolMergeScheduler.MERGE_THREAD_POOL_SCHEDULER.getKey(), true)
+            // Occasionally the abstract stateless test will set this low causing many flushes in these test. We want to control the flushes
+            // in these tests.
+            .put(StatelessCommitService.STATELESS_UPLOAD_MAX_AMOUNT_COMMITS.getKey(), 30);
     }
 
     public void testMergesUseTheMergeThreadPool() {
@@ -140,7 +149,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             private void await() {
                 pauseHandoff.countDown();
                 logger.info("--> start relocation paused");
-                safeAwait(resumeHandoff);
+                safeAwait(resumeHandoff, TimeValue.timeValueSeconds(20));
                 logger.info("--> start relocation resumed");
             }
 
@@ -258,7 +267,7 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         assertThat("unexpected number of refreshes", actualRefreshes, equalTo(expectedRefreshes));
     }
 
-    public void testMergeMetricsPublication() {
+    public void testMergeMetricsPublication() throws Exception {
         String indexNode = startMasterAndIndexNode();
 
         final String indexName = randomIdentifier();
@@ -274,17 +283,37 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
             .filterPlugins(TestTelemetryPlugin.class)
             .findFirst()
             .orElseThrow();
+        var threadPoolExecutor = internalCluster().getInstance(ThreadPool.class, indexNode);
 
         for (int i = 0; i < 4; ++i) {
             indexDocs(indexName, randomIntBetween(100, 200));
             refresh(indexName);
         }
 
-        forceMerge();
+        CountDownLatch latch = new CountDownLatch(1);
+
+        ActionFuture<BroadcastResponse> mergeFuture;
+        try {
+            blockMergePool(threadPoolExecutor, latch);
+            mergeFuture = indicesAdmin().prepareForceMerge().setMaxNumSegments(1).execute();
+
+            assertBusy(() -> {
+                plugin.collect();
+                List<Measurement> queuedBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_QUEUED_USAGE);
+                List<Measurement> runningBytes = plugin.getLongGaugeMeasurement(MergeMetrics.MERGE_SEGMENTS_RUNNING_USAGE);
+                assertThat(queuedBytes.stream().mapToLong(Measurement::getLong).sum(), greaterThanOrEqualTo(1L));
+                assertThat(runningBytes.stream().mapToLong(Measurement::getLong).sum(), equalTo(0L));
+            });
+        } finally {
+            latch.countDown();
+        }
+
+        assertNoFailures(mergeFuture.actionGet());
 
         List<Measurement> docs = plugin.getLongCounterMeasurement(MergeMetrics.MERGE_DOCS_TOTAL);
         List<Measurement> bytes = plugin.getLongCounterMeasurement(MergeMetrics.MERGE_SEGMENTS_SIZE);
-        List<Measurement> time = plugin.getLongHistogramMeasurement(MergeMetrics.MERGE_TIME_IN_MILLIS);
+        List<Measurement> mergedSegmentBytes = plugin.getLongCounterMeasurement(MergeMetrics.MERGE_SEGMENTS_MERGED_SIZE);
+        List<Measurement> time = plugin.getLongHistogramMeasurement(MergeMetrics.MERGE_TIME_IN_SECONDS);
 
         assertThat(bytes.size(), equalTo(docs.size()));
         assertThat(time.size(), equalTo(docs.size()));
@@ -293,11 +322,13 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         for (int i = 0; i < docs.size(); ++i) {
             var mergeDocs = docs.get(i);
             var mergeBytes = bytes.get(i);
+            var mergeMergedSegmentBytes = mergedSegmentBytes.get(i);
             var mergeTime = time.get(i);
 
             assertThat(mergeDocs.getLong(), greaterThan(0L));
             assertThat(mergeBytes.getLong(), greaterThan(0L));
-            assertThat(mergeTime.getLong(), greaterThan(0L));
+            assertThat(mergeMergedSegmentBytes.getLong(), greaterThan(0L));
+            assertThat(mergeTime.getLong(), greaterThanOrEqualTo(0L));
         }
 
         long totalDocs = docs.stream().mapToLong(Measurement::getLong).sum();
@@ -309,10 +340,29 @@ public class StatelessMergeIT extends AbstractStatelessIntegTestCase {
         assertThat(totalBytes, equalTo(mergeStats.getTotalSize().getBytes()));
     }
 
-    private static Measurement getSingleRecordedMetric(Function<String, List<Measurement>> metricGetter, String name) {
-        final List<Measurement> measurements = metricGetter.apply(name);
-        assertFalse("Metric is not recorded", measurements.isEmpty());
-        assertThat(measurements.size(), equalTo(1));
-        return measurements.get(0);
+    private static void blockMergePool(ThreadPool threadPool, CountDownLatch finishLatch) {
+        final var threadCount = threadPool.info(Stateless.MERGE_THREAD_POOL).getMax();
+        final var startBarrier = new CyclicBarrier(threadCount + 1);
+        final var blockingTask = new AbstractRunnable() {
+            @Override
+            public void onFailure(Exception e) {
+                fail(e);
+            }
+
+            @Override
+            protected void doRun() {
+                safeAwait(startBarrier);
+                safeAwait(finishLatch);
+            }
+
+            @Override
+            public boolean isForceExecution() {
+                return true;
+            }
+        };
+        for (int i = 0; i < threadCount; i++) {
+            threadPool.executor(Stateless.MERGE_THREAD_POOL).execute(blockingTask);
+        }
+        safeAwait(startBarrier);
     }
 }

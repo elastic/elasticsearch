@@ -209,8 +209,13 @@ public abstract class ForkingOperatorTestCase extends OperatorTestCase {
             randomIntBetween(2, 10),
             threadPool.relativeTimeInMillisSupplier()
         );
-        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(randomIntBetween(1, 4), threadPool.executor(ESQL_TEST_EXECUTOR));
-        sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1);
+        ExchangeSourceHandler sourceExchanger = new ExchangeSourceHandler(
+            randomIntBetween(1, 4),
+            threadPool.executor(ESQL_TEST_EXECUTOR),
+            randomBoolean(),
+            ActionListener.noop()
+        );
+        sourceExchanger.addRemoteSink(sinkExchanger::fetchPageAsync, 1, ActionListener.noop());
 
         Iterator<? extends Operator> intermediateOperatorItr;
         int itrSize = (splitInput.size() * 3) + 3; // 3 inter ops per initial source drivers, and 3 per final

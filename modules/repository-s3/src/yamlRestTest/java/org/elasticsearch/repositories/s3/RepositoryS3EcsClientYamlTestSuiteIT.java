@@ -9,7 +9,7 @@
 
 package org.elasticsearch.repositories.s3;
 
-import fixture.s3.Ec2ImdsHttpFixture;
+import fixture.aws.imds.Ec2ImdsHttpFixture;
 import fixture.s3.S3HttpFixtureWithSessionToken;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;

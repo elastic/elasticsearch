@@ -51,13 +51,10 @@ public class RestPutInferenceModelAction extends BaseRestHandler {
 
         var content = restRequest.requiredContent();
         var request = new PutInferenceModelAction.Request(taskType, inferenceEntityId, content, restRequest.getXContentType());
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                PutInferenceModelAction.INSTANCE,
-                request,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
-            );
-        };
+        return channel -> client.execute(
+            PutInferenceModelAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

@@ -183,11 +183,7 @@ public class SystemIndicesQA extends Plugin implements SystemIndexPlugin, Action
             indexRequest.source(content, request.getXContentType());
             indexRequest.id(request.param("id"));
             indexRequest.setRefreshPolicy(request.param("refresh"));
-
-            return channel -> {
-                content.mustIncRef();
-                client.index(indexRequest, ActionListener.releaseAfter(new RestToXContentListener<>(channel), content));
-            };
+            return channel -> client.index(indexRequest, ActionListener.withRef(new RestToXContentListener<>(channel), content));
         }
 
         @Override

@@ -58,13 +58,10 @@ public class RestPutStoredScriptAction extends BaseRestHandler {
             request.getXContentType(),
             StoredScriptSource.parse(content, xContentType)
         );
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                TransportPutStoredScriptAction.TYPE,
-                putRequest,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
-            );
-        };
+        return channel -> client.execute(
+            TransportPutStoredScriptAction.TYPE,
+            putRequest,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

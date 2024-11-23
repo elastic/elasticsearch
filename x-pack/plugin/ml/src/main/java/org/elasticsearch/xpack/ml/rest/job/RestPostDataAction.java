@@ -55,14 +55,11 @@ public class RestPostDataAction extends BaseRestHandler {
         var content = restRequest.content();
         request.setContent(content, restRequest.getXContentType());
 
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                PostDataAction.INSTANCE,
-                request,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
-            );
-        };
+        return channel -> client.execute(
+            PostDataAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
+        );
     }
 
     @Override

@@ -67,13 +67,10 @@ public class RestPutPipelineAction extends BaseRestHandler {
             sourceTuple.v1(),
             ifVersion
         );
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                PutPipelineTransportAction.TYPE,
-                request,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
-            );
-        };
+        return channel -> client.execute(
+            PutPipelineTransportAction.TYPE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

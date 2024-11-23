@@ -96,10 +96,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
         final MonitoringBulkRequestBuilder requestBuilder = new MonitoringBulkRequestBuilder(client);
         var content = request.content();
         requestBuilder.add(system, content, request.getXContentType(), timestamp, intervalMillis);
-        return channel -> {
-            content.mustIncRef();
-            requestBuilder.execute(ActionListener.releaseAfter(getRestBuilderListener(channel), content));
-        };
+        return channel -> requestBuilder.execute(ActionListener.withRef(getRestBuilderListener(channel), content));
     }
 
     @Override

@@ -53,14 +53,11 @@ public class RestFindStructureAction extends BaseRestHandler {
         var content = restRequest.requiredContent();
         request.setSample(content);
 
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                FindStructureAction.INSTANCE,
-                request,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
-            );
-        };
+        return channel -> client.execute(
+            FindStructureAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 
     @Override

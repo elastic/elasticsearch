@@ -65,14 +65,11 @@ public class RestPostAnalyticsEventAction extends EnterpriseSearchBaseRestHandle
         builder.headers(headers);
         builder.clientAddress(getClientAddress(restRequest, headers));
 
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                PostAnalyticsEventAction.INSTANCE,
-                builder.request(),
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
-            );
-        };
+        return channel -> client.execute(
+            PostAnalyticsEventAction.INSTANCE,
+            builder.request(),
+            ActionListener.withRef(new RestToXContentListener<>(channel, r -> RestStatus.ACCEPTED), content)
+        );
     }
 
     private static InetAddress getClientAddress(RestRequest restRequest, Map<String, List<String>> headers) {

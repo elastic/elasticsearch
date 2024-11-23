@@ -52,9 +52,8 @@ public class RestSimulatePipelineAction extends BaseRestHandler {
         SimulatePipelineRequest request = new SimulatePipelineRequest(sourceTuple.v2(), sourceTuple.v1(), restRequest.getRestApiVersion());
         request.setId(restRequest.param("id"));
         request.setVerbose(restRequest.paramAsBoolean("verbose", false));
-        return channel -> {
-            content.mustIncRef();
-            client.admin().cluster().simulatePipeline(request, ActionListener.releaseAfter(new RestToXContentListener<>(channel), content));
-        };
+        return channel -> client.admin()
+            .cluster()
+            .simulatePipeline(request, ActionListener.withRef(new RestToXContentListener<>(channel), content));
     }
 }

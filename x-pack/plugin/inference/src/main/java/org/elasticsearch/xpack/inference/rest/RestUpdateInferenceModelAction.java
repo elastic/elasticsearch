@@ -59,13 +59,10 @@ public class RestUpdateInferenceModelAction extends BaseRestHandler {
             taskType,
             RestUtils.getMasterNodeTimeout(restRequest)
         );
-        return channel -> {
-            content.mustIncRef();
-            client.execute(
-                UpdateInferenceModelAction.INSTANCE,
-                request,
-                ActionListener.releaseAfter(new RestToXContentListener<>(channel), content)
-            );
-        };
+        return channel -> client.execute(
+            UpdateInferenceModelAction.INSTANCE,
+            request,
+            ActionListener.withRef(new RestToXContentListener<>(channel), content)
+        );
     }
 }

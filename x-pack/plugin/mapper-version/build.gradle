@@ -4,8 +4,8 @@ evaluationDependsOn(xpackModule('core'))
 
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 
 esplugin {
@@ -25,8 +25,3 @@ dependencies {
   testImplementation project(path: xpackModule('analytics'))
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
-}

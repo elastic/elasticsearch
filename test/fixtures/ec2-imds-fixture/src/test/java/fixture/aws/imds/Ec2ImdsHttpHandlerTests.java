@@ -14,6 +14,7 @@ import com.sun.net.httpserver.HttpContext;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpPrincipal;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.BytesStreamOutput;
@@ -40,9 +41,10 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
         final var roleResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/");
         assertEquals(RestStatus.OK, roleResponse.status());
-        assertEquals(new BytesArray("ec2Profile"), roleResponse.body());
+        final var profileName = roleResponse.body().utf8ToString();
+        assertTrue(Strings.hasText(profileName));
 
-        final var credentialsResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/ec2Profile");
+        final var credentialsResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/" + profileName);
         assertEquals(RestStatus.OK, credentialsResponse.status());
 
         final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);

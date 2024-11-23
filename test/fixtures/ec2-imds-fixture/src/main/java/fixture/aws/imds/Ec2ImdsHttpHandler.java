@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
@@ -21,7 +22,10 @@ import java.nio.charset.StandardCharsets;
 import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import java.util.Collection;
 import java.util.Set;
+
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 
 /**
  * Minimal HTTP handler that emulates the EC2 IMDS server
@@ -30,18 +34,17 @@ import java.util.Set;
 public class Ec2ImdsHttpHandler implements HttpHandler {
 
     private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/latest/meta-data/iam/security-credentials/";
-    private static final String PROFILE_NAME = "ec2Profile";
 
     private final String accessKey;
     private final String secretKey;
     private final String sessionToken;
-    private final Set<String> alternativeCredentialsEndpoints;
+    private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
 
-    public Ec2ImdsHttpHandler(String accessKey, String secretKey, String sessionToken, Set<String> alternativeCredentialsEndpoints) {
+    public Ec2ImdsHttpHandler(String accessKey, String secretKey, String sessionToken, Collection<String> alternativeCredentialsEndpoints) {
         this.accessKey = accessKey;
         this.secretKey = secretKey;
         this.sessionToken = sessionToken;
-        this.alternativeCredentialsEndpoints = alternativeCredentialsEndpoints;
+        this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
     }
 
     @Override
@@ -60,12 +63,14 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
 
             if ("GET".equals(requestMethod)) {
                 if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH)) {
-                    final byte[] response = PROFILE_NAME.getBytes(StandardCharsets.UTF_8);
+                    final var profileName = randomIdentifier();
+                    validCredentialsEndpoints.add(IMDS_SECURITY_CREDENTIALS_PATH + profileName);
+                    final byte[] response = profileName.getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "text/plain");
                     exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
                     exchange.getResponseBody().write(response);
                     return;
-                } else if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH + PROFILE_NAME) || alternativeCredentialsEndpoints.contains(path)) {
+                } else if (validCredentialsEndpoints.contains(path)) {
                     final byte[] response = Strings.format(
                         """
                             {

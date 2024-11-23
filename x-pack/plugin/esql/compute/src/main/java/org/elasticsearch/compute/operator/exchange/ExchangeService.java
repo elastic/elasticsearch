@@ -40,6 +40,7 @@ import org.elasticsearch.transport.Transports;
 
 import java.io.IOException;
 import java.util.Map;
+import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicLong;
 
@@ -337,6 +338,10 @@ public final class ExchangeService extends AbstractLifecycleComponent {
     // For testing
     public boolean isEmpty() {
         return sinks.isEmpty();
+    }
+
+    public Set<String> sinkKeys() {
+        return sinks.keySet();
     }
 
     @Override

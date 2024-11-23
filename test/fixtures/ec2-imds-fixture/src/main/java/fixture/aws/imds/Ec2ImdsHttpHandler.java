@@ -23,6 +23,7 @@ import java.time.Clock;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
 import java.util.Collection;
+import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
@@ -36,14 +37,12 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
     private static final String IMDS_SECURITY_CREDENTIALS_PATH = "/latest/meta-data/iam/security-credentials/";
 
     private final String accessKey;
-    private final String secretKey;
     private final String sessionToken;
     private final Set<String> validCredentialsEndpoints = ConcurrentCollections.newConcurrentSet();
 
-    public Ec2ImdsHttpHandler(String accessKey, String secretKey, String sessionToken, Collection<String> alternativeCredentialsEndpoints) {
-        this.accessKey = accessKey;
-        this.secretKey = secretKey;
-        this.sessionToken = sessionToken;
+    public Ec2ImdsHttpHandler(String accessKey, String sessionToken, Collection<String> alternativeCredentialsEndpoints) {
+        this.accessKey = Objects.requireNonNull(accessKey);
+        this.sessionToken = Objects.requireNonNull(sessionToken);
         this.validCredentialsEndpoints.addAll(alternativeCredentialsEndpoints);
     }
 
@@ -76,13 +75,14 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                             {
                               "AccessKeyId": "%s",
                               "Expiration": "%s",
-                              "RoleArn": "arn",
+                              "RoleArn": "%s",
                               "SecretAccessKey": "%s",
                               "Token": "%s"
                             }""",
                         accessKey,
                         ZonedDateTime.now(Clock.systemUTC()).plusDays(1L).format(DateTimeFormatter.ISO_DATE_TIME),
-                        secretKey,
+                        randomIdentifier(),
+                        randomIdentifier(),
                         sessionToken
                     ).getBytes(StandardCharsets.UTF_8);
                     exchange.getResponseHeaders().add("Content-Type", "application/json");

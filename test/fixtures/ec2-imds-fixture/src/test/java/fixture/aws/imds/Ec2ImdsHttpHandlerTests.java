@@ -34,10 +34,9 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
     public void testImdsV1() throws IOException {
         final var accessKey = randomIdentifier();
-        final var secretKey = randomIdentifier();
         final var sessionToken = randomIdentifier();
 
-        final var handler = new Ec2ImdsHttpHandler(accessKey, secretKey, sessionToken, Set.of());
+        final var handler = new Ec2ImdsHttpHandler(accessKey, sessionToken, Set.of());
 
         final var roleResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/");
         assertEquals(RestStatus.OK, roleResponse.status());
@@ -50,18 +49,13 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
         final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
         assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
         assertEquals(accessKey, responseMap.get("AccessKeyId"));
-        assertEquals(secretKey, responseMap.get("SecretAccessKey"));
         assertEquals(sessionToken, responseMap.get("Token"));
     }
 
     public void testImdsV2Disabled() {
         assertEquals(
             RestStatus.METHOD_NOT_ALLOWED,
-            handleRequest(
-                new Ec2ImdsHttpHandler(randomIdentifier(), randomIdentifier(), randomIdentifier(), Set.of()),
-                "PUT",
-                "/latest/api/token"
-            ).status()
+            handleRequest(new Ec2ImdsHttpHandler(randomIdentifier(), randomIdentifier(), Set.of()), "PUT", "/latest/api/token").status()
         );
     }
 

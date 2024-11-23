@@ -53,12 +53,7 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
         IMDS_SESSION_TOKEN
     );
 
-    private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
-        IMDS_ACCESS_KEY,
-        "secret-key-" + HASHED_SEED,
-        IMDS_SESSION_TOKEN,
-        Set.of()
-    );
+    private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(IMDS_ACCESS_KEY, IMDS_SESSION_TOKEN, Set.of());
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

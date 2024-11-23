@@ -24,19 +24,17 @@ public class Ec2ImdsHttpFixture extends ExternalResource {
     private HttpServer server;
 
     private final String accessKey;
-    private final String secretKey;
     private final String sessionToken;
     private final Set<String> alternativeCredentialsEndpoints;
 
-    public Ec2ImdsHttpFixture(String accessKey, String secretKey, String sessionToken, Set<String> alternativeCredentialsEndpoints) {
+    public Ec2ImdsHttpFixture(String accessKey, String sessionToken, Set<String> alternativeCredentialsEndpoints) {
         this.accessKey = accessKey;
-        this.secretKey = secretKey;
         this.sessionToken = sessionToken;
         this.alternativeCredentialsEndpoints = alternativeCredentialsEndpoints;
     }
 
     protected HttpHandler createHandler() {
-        return new Ec2ImdsHttpHandler(accessKey, secretKey, sessionToken, alternativeCredentialsEndpoints);
+        return new Ec2ImdsHttpHandler(accessKey, sessionToken, alternativeCredentialsEndpoints);
     }
 
     public String getAddress() {

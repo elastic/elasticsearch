@@ -39,7 +39,6 @@ public class RepositoryS3EcsClientYamlTestSuiteIT extends AbstractRepositoryS3Cl
 
     private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
         ECS_ACCESS_KEY,
-        "secret-key-" + HASHED_SEED,
         ECS_SESSION_TOKEN,
         Set.of("/ecs_credentials_endpoint")
     );

@@ -52,6 +52,12 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
             final var path = exchange.getRequestURI().getPath();
             final var requestMethod = exchange.getRequestMethod();
 
+            if ("PUT".equals(requestMethod) && "/latest/api/token".equals(path)) {
+                // Reject IMDSv2 probe
+                exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
+                return;
+            }
+
             if ("GET".equals(requestMethod)) {
                 if (path.equals(IMDS_SECURITY_CREDENTIALS_PATH)) {
                     final byte[] response = PROFILE_NAME.getBytes(StandardCharsets.UTF_8);
@@ -79,10 +85,6 @@ public class Ec2ImdsHttpHandler implements HttpHandler {
                     exchange.getResponseBody().write(response);
                     return;
                 }
-            } else if ("PUT".equals(requestMethod) && "/latest/api/token".equals(path)) {
-                // Reject IMDSv2 probe
-                exchange.sendResponseHeaders(RestStatus.METHOD_NOT_ALLOWED.getStatus(), -1);
-                return;
             }
 
             ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("not supported: " + requestMethod + " " + path));

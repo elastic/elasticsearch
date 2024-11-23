@@ -75,7 +75,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     );
 
     private final Logger logger;
-    private final ShardId shardId;
     private final boolean prewarm;
     private final ThreadPool threadPool;
     private final Supplier<MergeMetrics> mergeMetrics;
@@ -99,7 +98,6 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
         Consumer<Exception> exceptionHandler
     ) {
         this.logger = Loggers.getLogger(getClass(), shardId);
-        this.shardId = shardId;
         this.prewarm = prewarm;
         this.threadPool = threadPool;
         this.mergeMetrics = mergeMetrics;
@@ -133,12 +131,21 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
     }
 
     private AbstractRunnable mergeRunnable(MergeSource mergeSource, MergePolicy.OneMerge currentMerge) {
+        MergeMetrics mergeMetrics = this.mergeMetrics.get();
         final OnGoingMerge onGoingMerge = new OnGoingMerge(currentMerge);
+        mergeMetrics.incrementQueuedMergeBytes(onGoingMerge.getTotalBytesSize());
         logger.trace("merge [{}] scheduling with thread pool", onGoingMerge.getId());
         return new AbstractRunnable() {
 
+            boolean movedToRunning = false;
+
             @Override
             public void onAfter() {
+                if (movedToRunning == false) {
+                    movedToRunning = true;
+                    mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge.getTotalBytesSize());
+                }
+                mergeMetrics.decrementRunningMergeBytes(onGoingMerge.getTotalBytesSize());
                 MergePolicy.OneMerge nextMerge;
                 try {
                     nextMerge = mergeSource.getNextMerge();
@@ -171,6 +178,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
 
             @Override
             protected void doRun() throws Exception {
+                assert movedToRunning == false;
+                mergeMetrics.moveQueuedMergeBytesToRunning(onGoingMerge.getTotalBytesSize());
+                movedToRunning = true;
                 if (shouldSkipMerges.getAsBoolean()) {
                     logger.trace("skipping merge [{}] because node is shutting down", onGoingMerge.getId());
                     abortMerge();
@@ -193,9 +203,9 @@ public class ThreadPoolMergeScheduler extends MergeScheduler implements Elastics
                 } finally {
                     long tookMS = TimeValue.nsecToMSec(System.nanoTime() - timeNS);
                     if (success) {
-                        mergeMetrics.get().markMergeMetrics(currentMerge, tookMS);
+                        long newSegmentSize = currentMerge.getMergeInfo().sizeInBytes();
+                        mergeMetrics.markMergeMetrics(currentMerge, newSegmentSize, tookMS);
                     }
-                    // TODO: Consider if we should adjust these metrics when a failure happens
                     mergeTracking.mergeFinished(currentMerge, onGoingMerge, tookMS);
                 }
             }

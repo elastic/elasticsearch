@@ -17,10 +17,11 @@ The <<esql-stats-by>> command supports these aggregate functions:
 * <<esql-min>>
 * <<esql-percentile>>
 * experimental:[] <<esql-st_centroid_agg>>
+* <<esql-std_dev>>
 * <<esql-sum>>
 * <<esql-top>>
 * <<esql-values>>
-* experimental:[] <<esql-weighted_avg>>
+* <<esql-weighted_avg>>
 // end::agg_list[]
 
 include::layout/avg.asciidoc[]
@@ -32,6 +33,7 @@ include::layout/median_absolute_deviation.asciidoc[]
 include::layout/min.asciidoc[]
 include::layout/percentile.asciidoc[]
 include::layout/st_centroid_agg.asciidoc[]
+include::layout/std_dev.asciidoc[]
 include::layout/sum.asciidoc[]
 include::layout/top.asciidoc[]
 include::layout/values.asciidoc[]

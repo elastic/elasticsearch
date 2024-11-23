@@ -83,7 +83,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             ReindexDataStreamTask.TASK_NAME,
             params,
             null,
-            ActionListener.wrap(startedTask -> listener.onResponse(new ReindexDataStreamResponse(persistentTaskId)), listener::onFailure)
+            listener.delegateFailureAndWrap((l, startedTask) -> l.onResponse(new ReindexDataStreamResponse(persistentTaskId)))
         );
     }
 

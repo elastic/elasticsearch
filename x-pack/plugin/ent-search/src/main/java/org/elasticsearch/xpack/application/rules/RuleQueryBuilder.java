@@ -11,7 +11,6 @@ import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.ResourceNotFoundException;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.get.GetResponse;
 import org.elasticsearch.action.get.MultiGetItemResponse;
 import org.elasticsearch.action.get.MultiGetRequest;
@@ -237,16 +236,16 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
         for (String rulesetId : rulesetIds) {
             multiGetRequest.add(QueryRulesIndexService.QUERY_RULES_ALIAS_NAME, rulesetId);
         }
-        queryRewriteContext.registerAsyncAction((client, listener) -> {
-            executeAsyncWithOrigin(
+        queryRewriteContext.registerAsyncAction(
+            (client, listener) -> executeAsyncWithOrigin(
                 client,
                 ENT_SEARCH_ORIGIN,
                 TransportMultiGetAction.TYPE,
                 multiGetRequest,
-                ActionListener.wrap(multiGetResponse -> {
+                listener.delegateFailureAndWrap((delegate, multiGetResponse) -> {
 
                     if (multiGetResponse.getResponses() == null || multiGetResponse.getResponses().length == 0) {
-                        listener.onFailure(new ResourceNotFoundException("query rulesets " + String.join(",", rulesetIds) + " not found"));
+                        delegate.onFailure(new ResourceNotFoundException("query rulesets " + String.join(",", rulesetIds) + " not found"));
                         return;
                     }
 
@@ -255,7 +254,7 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
                         GetResponse getResponse = item.getResponse();
 
                         if (getResponse.isExists() == false) {
-                            listener.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
+                            delegate.onFailure(new ResourceNotFoundException("query ruleset " + rulesetId + " not found"));
                             return;
                         }
 
@@ -271,11 +270,10 @@ public class RuleQueryBuilder extends AbstractQueryBuilder<RuleQueryBuilder> {
 
                     pinnedDocsSetOnce.set(appliedRules.pinnedDocs().stream().distinct().toList());
                     excludedDocsSetOnce.set(appliedRules.excludedDocs().stream().distinct().toList());
-                    listener.onResponse(null);
-
-                }, listener::onFailure)
-            );
-        });
+                    delegate.onResponse(null);
+                })
+            )
+        );
 
         return new RuleQueryBuilder(organicQuery, matchCriteria, this.rulesetIds, pinnedDocsSetOnce::get, excludedDocsSetOnce::get).boost(
             this.boost

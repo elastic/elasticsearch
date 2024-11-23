@@ -105,7 +105,7 @@ public class ReplicationOperation<
      * </ul>
      */
     public void execute() throws Exception {
-        try (var pendingActionsListener = new RefCountingListener(ActionListener.wrap((ignored) -> {
+        try (var pendingActionsListener = new RefCountingListener(resultListener.delegateFailureAndWrap((l, ignored) -> {
             primaryResult.setShardInfo(
                 ReplicationResponse.ShardInfo.of(
                     totalShards.get(),
@@ -113,8 +113,8 @@ public class ReplicationOperation<
                     shardReplicaFailures.toArray(ReplicationResponse.NO_FAILURES)
                 )
             );
-            resultListener.onResponse(primaryResult);
-        }, resultListener::onFailure))) {
+            l.onResponse(primaryResult);
+        }))) {
             ActionListener.run(pendingActionsListener.acquire(), (primaryCoordinationListener) -> { // triggered when we finish coordination
                 final String activeShardCountFailure = checkActiveShardCount();
                 final ShardRouting primaryRouting = primary.routingEntry();

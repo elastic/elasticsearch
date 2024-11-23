@@ -43,12 +43,12 @@ public class TransportGetTopNFunctionsAction extends TransportAction<GetStackTra
     protected void doExecute(Task task, GetStackTracesRequest request, ActionListener<GetTopNFunctionsResponse> listener) {
         Client client = new ParentTaskAssigningClient(this.nodeClient, transportService.getLocalNode(), task);
         StopWatch watch = new StopWatch("getTopNFunctionsAction");
-        client.execute(GetStackTracesAction.INSTANCE, request, ActionListener.wrap(searchResponse -> {
+        client.execute(GetStackTracesAction.INSTANCE, request, listener.delegateFailureAndWrap((l, searchResponse) -> {
             StopWatch processingWatch = new StopWatch("Processing response");
             GetTopNFunctionsResponse topNFunctionsResponse = buildTopNFunctions(searchResponse, request.getLimit());
             log.debug(() -> watch.report() + " " + processingWatch.report());
-            listener.onResponse(topNFunctionsResponse);
-        }, listener::onFailure));
+            l.onResponse(topNFunctionsResponse);
+        }));
     }
 
     static GetTopNFunctionsResponse buildTopNFunctions(GetStackTracesResponse response, Integer limit) {

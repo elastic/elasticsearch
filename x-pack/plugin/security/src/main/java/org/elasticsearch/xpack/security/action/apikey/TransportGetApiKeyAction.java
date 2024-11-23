@@ -69,19 +69,16 @@ public final class TransportGetApiKeyAction extends TransportAction<GetApiKeyReq
             apiKeyIds,
             request.withLimitedBy(),
             request.activeOnly(),
-            ActionListener.wrap(apiKeyInfos -> {
-                if (request.withProfileUid()) {
-                    profileService.resolveProfileUidsForApiKeys(
+            listener.delegateFailureAndWrap(
+                request.withProfileUid()
+                    ? (l, apiKeyInfos) -> profileService.resolveProfileUidsForApiKeys(
                         apiKeyInfos,
-                        ActionListener.wrap(
-                            ownerProfileUids -> listener.onResponse(new GetApiKeyResponse(apiKeyInfos, ownerProfileUids)),
-                            listener::onFailure
+                        l.delegateFailureAndWrap(
+                            (ll, ownerProfileUids) -> ll.onResponse(new GetApiKeyResponse(apiKeyInfos, ownerProfileUids))
                         )
-                    );
-                } else {
-                    listener.onResponse(new GetApiKeyResponse(apiKeyInfos, null));
-                }
-            }, listener::onFailure)
+                    )
+                    : (l, apiKeyInfos) -> l.onResponse(new GetApiKeyResponse(apiKeyInfos, null))
+            )
         );
     }
 

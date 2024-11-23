@@ -64,14 +64,14 @@ public class TransportGetRoleMappingsAction extends HandledTransportAction<GetRo
         } else {
             names = new HashSet<>(Arrays.asList(request.getNames()));
         }
-        roleMappingStore.getRoleMappings(names, ActionListener.wrap(nativeRoleMappings -> {
+        roleMappingStore.getRoleMappings(names, listener.delegateFailureAndWrap((l, nativeRoleMappings) -> {
             final Collection<ExpressionRoleMapping> clusterStateRoleMappings = clusterStateRoleMapper.getMappings(
                 // if the API was queried with a reserved suffix for any of the names, we need to remove it because role mappings are
                 // stored without it in cluster-state
                 removeReadOnlySuffixIfPresent(names)
             );
-            listener.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
-        }, listener::onFailure));
+            l.onResponse(buildResponse(clusterStateRoleMappings, nativeRoleMappings));
+        }));
     }
 
     private GetRoleMappingsResponse buildResponse(

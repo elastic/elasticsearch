@@ -95,9 +95,9 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                     originatingAuthentication,
                     tokenMeta,
                     true,
-                    ActionListener.wrap(tokenResult -> {
+                    listener.delegateFailureAndWrap((l, tokenResult) -> {
                         final TimeValue expiresIn = tokenService.getExpirationDelay();
-                        listener.onResponse(
+                        l.onResponse(
                             new SamlAuthenticateResponse(
                                 authentication,
                                 tokenResult.getAccessToken(),
@@ -105,7 +105,7 @@ public final class TransportSamlAuthenticateAction extends HandledTransportActio
                                 expiresIn
                             )
                         );
-                    }, listener::onFailure)
+                    })
                 );
             }, e -> {
                 logger.debug(() -> "SamlToken [" + saml + "] could not be authenticated", e);

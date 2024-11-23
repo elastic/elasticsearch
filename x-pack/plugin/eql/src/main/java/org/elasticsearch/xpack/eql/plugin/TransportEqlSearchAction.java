@@ -239,7 +239,7 @@ public final class TransportEqlSearchAction extends HandledTransportAction<EqlSe
                 cfg,
                 request.query(),
                 params,
-                wrap(r -> listener.onResponse(createResponse(r, task.getExecutionId())), listener::onFailure)
+                listener.delegateFailureAndWrap((l, r) -> l.onResponse(createResponse(r, task.getExecutionId())))
             );
         }
     }

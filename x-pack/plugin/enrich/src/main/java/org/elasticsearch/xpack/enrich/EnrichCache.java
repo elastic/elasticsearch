@@ -109,14 +109,14 @@ public final class EnrichCache {
             listener.onResponse(response);
         } else {
             final long retrieveStart = relativeNanoTimeProvider.getAsLong();
-            searchResponseFetcher.accept(searchRequest, ActionListener.wrap(resp -> {
+            searchResponseFetcher.accept(searchRequest, listener.delegateFailureAndWrap((l, resp) -> {
                 CacheValue value = toCacheValue(resp);
                 put(searchRequest, value);
                 List<Map<?, ?>> copy = deepCopy(value.hits, false);
                 long databaseQueryAndCachePutTime = relativeNanoTimeProvider.getAsLong() - retrieveStart;
                 missesTimeInNanos.addAndGet(cacheRequestTime + databaseQueryAndCachePutTime);
                 listener.onResponse(copy);
-            }, listener::onFailure));
+            }));
         }
     }
 

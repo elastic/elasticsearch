@@ -211,9 +211,8 @@ public class NativeRoleMappingStore extends AbstractRoleMapperClearRealmCache {
                 logger.trace("Modifying role mapping [{}] for [{}]", name, request.getClass().getSimpleName());
                 inner.accept(
                     request,
-                    ActionListener.wrap(
-                        r -> clearRealmCachesOnAllNodes(client, ActionListener.wrap(aVoid -> listener.onResponse(r), listener::onFailure)),
-                        listener::onFailure
+                    listener.delegateFailureAndWrap(
+                        (l, r) -> clearRealmCachesOnAllNodes(client, l.delegateFailureAndWrap((ll, aVoid) -> ll.onResponse(r)))
                     )
                 );
             } catch (Exception e) {

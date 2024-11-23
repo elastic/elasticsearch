@@ -175,7 +175,7 @@ public class UpdateIndexMigrationVersionAction extends ActionType<UpdateIndexMig
             updateIndexMigrationVersionTaskQueue.submitTask(
                 "Updating cluster state with a new index migration version",
                 new UpdateIndexMigrationVersionTask(
-                    ActionListener.wrap(response -> listener.onResponse(new UpdateIndexMigrationVersionResponse()), listener::onFailure),
+                    listener.delegateFailureAndWrap((l, response) -> l.onResponse(new UpdateIndexMigrationVersionResponse())),
                     request.getIndexMigrationVersion(),
                     request.getIndexName()
                 ),

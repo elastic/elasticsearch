@@ -82,17 +82,17 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
 
         final SearchRequest searchRequest = new SearchRequest(new String[] { SECURITY_MAIN_ALIAS }, searchSourceBuilder);
 
-        usersStore.queryUsers(searchRequest, ActionListener.wrap(queryUserResults -> {
+        usersStore.queryUsers(searchRequest, listener.delegateFailureAndWrap((l, queryUserResults) -> {
             if (request.isWithProfileUid()) {
-                resolveProfileUids(queryUserResults, listener);
+                resolveProfileUids(queryUserResults, l);
             } else {
                 List<QueryUserResponse.Item> queryUserResponseResults = queryUserResults.userQueryResult()
                     .stream()
                     .map(queryUserResult -> new QueryUserResponse.Item(queryUserResult.user(), queryUserResult.sortValues(), null))
                     .toList();
-                listener.onResponse(new QueryUserResponse(queryUserResults.total(), queryUserResponseResults));
+                l.onResponse(new QueryUserResponse(queryUserResults.total(), queryUserResponseResults));
             }
-        }, listener::onFailure));
+        }));
     }
 
     private void resolveProfileUids(NativeUsersStore.QueryUserResults queryUserResults, ActionListener<QueryUserResponse> listener) {
@@ -101,7 +101,7 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
             .map(item -> new Subject(item.user(), nativeRealmRef))
             .toList();
 
-        profileService.searchProfilesForSubjects(subjects, ActionListener.wrap(resultsAndErrors -> {
+        profileService.searchProfilesForSubjects(subjects, listener.delegateFailureAndWrap((delegate, resultsAndErrors) -> {
             if (resultsAndErrors == null || resultsAndErrors.errors().isEmpty()) {
                 final Map<String, String> profileUidLookup = resultsAndErrors == null
                     ? Map.of()
@@ -121,15 +121,15 @@ public final class TransportQueryUserAction extends TransportAction<QueryUserReq
                         )
                     )
                     .toList();
-                listener.onResponse(new QueryUserResponse(queryUserResults.total(), queryUserResponseResults));
+                delegate.onResponse(new QueryUserResponse(queryUserResults.total(), queryUserResponseResults));
             } else {
                 final ElasticsearchStatusException exception = new ElasticsearchStatusException(
                     "failed to retrieve profile for users. please retry without fetching profile uid (with_profile_uid=false)",
                     RestStatus.INTERNAL_SERVER_ERROR
                 );
                 resultsAndErrors.errors().values().forEach(exception::addSuppressed);
-                listener.onFailure(exception);
+                delegate.onFailure(exception);
             }
-        }, listener::onFailure));
+        }));
     }
 }

@@ -518,33 +518,27 @@ public final class AsyncTaskIndexService<R extends AsyncResponse<R>> {
                 listener.onResponse(resp);
             }
         });
-        security.currentUserCanSeeStatusOfAllSearches(ActionListener.wrap(canSeeAll -> {
+        security.currentUserCanSeeStatusOfAllSearches(outerListener.delegateFailureAndWrap((outerDelegate, canSeeAll) -> {
             AsyncExecutionId asyncExecutionId = AsyncExecutionId.decode(request.getId());
-            try {
-                T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
-                if (asyncTask != null) { // get status response from task
-                    if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
-                        var response = statusProducerFromTask.apply(asyncTask);
-                        outerListener.onResponse(response);
-                    } else {
-                        outerListener.onFailure(new ResourceNotFoundException(request.getId()));
-                    }
+            T asyncTask = getTask(taskManager, asyncExecutionId, tClass);
+            if (asyncTask != null) { // get status response from task
+                if (canSeeAll || security.currentUserHasAccessToTask(asyncTask)) {
+                    var response = statusProducerFromTask.apply(asyncTask);
+                    outerDelegate.onResponse(response);
                 } else {
-                    // get status response from index
-                    final boolean checkAuthentication = canSeeAll == false;
-                    getResponseFromIndex(
-                        asyncExecutionId,
-                        false,
-                        checkAuthentication,
-                        outerListener.map(
-                            resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded())
-                        )
-                    );
+                    outerDelegate.onFailure(new ResourceNotFoundException(request.getId()));
                 }
-            } catch (Exception exc) {
-                outerListener.onFailure(exc);
+            } else {
+                // get status response from index
+                final boolean checkAuthentication = canSeeAll == false;
+                getResponseFromIndex(
+                    asyncExecutionId,
+                    false,
+                    checkAuthentication,
+                    outerDelegate.map(resp -> statusProducerFromIndex.apply(resp, resp.getExpirationTime(), asyncExecutionId.getEncoded()))
+                );
             }
-        }, outerListener::onFailure));
+        }));
     }
 
     /**

@@ -7,21 +7,6 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.gradle.internal.distribution;
+package org.elasticsearch.entitlement.bridge;
 
-import org.elasticsearch.gradle.ElasticsearchDistributionType;
-
-public class DockerUbiElasticsearchDistributionType implements ElasticsearchDistributionType {
-
-    DockerUbiElasticsearchDistributionType() {}
-
-    @Override
-    public String getName() {
-        return "dockerUbi";
-    }
-
-    @Override
-    public boolean isDocker() {
-        return true;
-    }
-}
+public interface Java23EntitlementChecker extends EntitlementChecker {}

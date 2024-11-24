@@ -20,6 +20,7 @@ import org.gradle.api.provider.MapProperty;
 import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Optional;
@@ -41,6 +42,7 @@ import java.io.UnsupportedEncodingException;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Consumer;
 import java.util.function.Function;
 import java.util.regex.Pattern;
@@ -53,6 +55,7 @@ import javax.inject.Inject;
  * Exec task implementation.
  */
 @SuppressWarnings("unchecked")
+@CacheableTask
 public abstract class LoggedExec extends DefaultTask implements FileSystemOperationsAware {
 
     private static final Logger LOGGER = Logging.getLogger(LoggedExec.class);
@@ -87,6 +90,15 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     abstract public Property<Boolean> getCaptureOutput();
 
     @Input
+    public Provider<String> getWorkingDirPath() {
+        return getWorkingDir().map(file -> {
+            String relativeWorkingDir = projectLayout.getProjectDirectory().getAsFile().toPath().relativize(file.toPath()).toString();
+            System.out.println("relativeWorkingDir = " + relativeWorkingDir);
+            return relativeWorkingDir;
+        });
+    }
+
+    @Internal
     abstract public Property<File> getWorkingDir();
 
     @Internal
@@ -136,6 +148,13 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
+        String executable = getExecutable().get();
+        System.out.println("executable = " + executable);
+        List<Object> args = getArgs().get();
+        System.out.println("args = " + args);
+        Map<String, String> stringStringMap = getEnvironment().get();
+        System.out.println("env = " + stringStringMap);
+
         boolean spoolOutput = getSpoolOutput().get();
         if (spoolOutput && getCaptureOutput().get()) {
             throw new GradleException("Capturing output is not supported when spoolOutput is true.");

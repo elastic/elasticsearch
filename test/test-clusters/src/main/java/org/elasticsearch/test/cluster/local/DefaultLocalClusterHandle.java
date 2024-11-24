@@ -176,8 +176,15 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         return nodes.get(index).getPid();
     }
 
+    @Override
     public void stopNode(int index, boolean forcibly) {
-        nodes.get(index).stop(false);
+        nodes.get(index).stop(forcibly);
+    }
+
+    public void restartNode(int index, boolean forcibly) {
+        Node node = nodes.get(index);
+        node.stop(forcibly);
+        node.start(null);
     }
 
     @Override

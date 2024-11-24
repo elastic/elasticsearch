@@ -1,0 +1,5 @@
+pr: 117316
+summary: Fix validation of SORT by aggregate functions
+area: ES|QL
+type: bug
+issues: []

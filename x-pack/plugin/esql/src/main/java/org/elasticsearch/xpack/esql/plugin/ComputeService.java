@@ -60,6 +60,7 @@ import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
 import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
@@ -306,14 +307,7 @@ public class ComputeService {
         EsqlExecutionInfo executionInfo,
         ComputeListener computeListener
     ) {
-        var planWithReducer = configuration.pragmas().nodeLevelReduction() == false
-            ? dataNodePlan
-            : dataNodePlan.transformUp(FragmentExec.class, f -> {
-                PhysicalPlan reductionNode = PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan);
-                return reductionNode == null ? f : f.withReducer(reductionNode);
-            });
-
-        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(planWithReducer);
+        QueryBuilder requestFilter = PlannerUtils.requestTimestampFilter(dataNodePlan);
         var lookupListener = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         // SearchShards API can_match is done in lookupDataNodes
         lookupDataNodes(parentTask, clusterAlias, requestFilter, concreteIndices, originalIndices, ActionListener.wrap(dataNodeResult -> {
@@ -353,7 +347,7 @@ public class ComputeService {
                                     clusterAlias,
                                     node.shardIds,
                                     node.aliasFilters,
-                                    planWithReducer,
+                                    dataNodePlan,
                                     originalIndices.indices(),
                                     originalIndices.indicesOptions()
                                 ),
@@ -442,6 +436,7 @@ public class ComputeService {
             );
 
             LOGGER.debug("Received physical plan:\n{}", plan);
+
             plan = PlannerUtils.localPlan(context.searchExecutionContexts(), context.configuration, plan);
             // the planner will also set the driver parallelism in LocalExecutionPlanner.LocalExecutionPlan (used down below)
             // it's doing this in the planning of EsQueryExec (the source of the data)
@@ -778,14 +773,23 @@ public class ComputeService {
                     listener.onFailure(new IllegalStateException("expected a fragment plan for a remote compute; got " + request.plan()));
                     return;
                 }
-
                 var localExchangeSource = new ExchangeSourceExec(plan.source(), plan.output(), plan.isIntermediateAgg());
-                FragmentExec fragment = (FragmentExec) fragments.get(0);
+                Holder<PhysicalPlan> reducePlanHolder = new Holder<>();
+                if (request.pragmas().nodeLevelReduction()) {
+                    PhysicalPlan dataNodePlan = request.plan();
+                    request.plan()
+                        .forEachUp(
+                            FragmentExec.class,
+                            f -> { reducePlanHolder.set(PlannerUtils.dataNodeReductionPlan(f.fragment(), dataNodePlan)); }
+                        );
+                }
                 reducePlan = new ExchangeSinkExec(
                     plan.source(),
                     plan.output(),
                     plan.isIntermediateAgg(),
-                    fragment.reducer() != null ? fragment.reducer().replaceChildren(List.of(localExchangeSource)) : localExchangeSource
+                    reducePlanHolder.get() != null
+                        ? reducePlanHolder.get().replaceChildren(List.of(localExchangeSource))
+                        : localExchangeSource
                 );
             } else {
                 listener.onFailure(new IllegalStateException("expected exchange sink for a remote compute; got " + request.plan()));

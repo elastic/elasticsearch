@@ -2,7 +2,6 @@ plugins {
   id 'idea'
 }
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize

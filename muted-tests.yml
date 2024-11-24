@@ -118,9 +118,6 @@ tests:
 - class: org.elasticsearch.search.SearchServiceTests
   method: testParseSourceValidation
   issue: https://github.com/elastic/elasticsearch/issues/115936
-- class: org.elasticsearch.search.query.SearchQueryIT
-  method: testAllDocsQueryString
-  issue: https://github.com/elastic/elasticsearch/issues/115728
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT

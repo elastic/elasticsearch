@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;

@@ -131,13 +131,8 @@ tasks.register("updateCIBwcVersions") {
   }
 
   doLast {
-<<<<<<< HEAD
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
-    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
-=======
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",

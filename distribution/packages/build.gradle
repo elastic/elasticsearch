@@ -43,7 +43,7 @@ import java.util.regex.Pattern
  */
 
 plugins {
-  id "com.netflix.nebula.ospackage-base" version "11.9.1"
+  id "com.netflix.nebula.ospackage-base" version "11.10.0"
 }
 
 
@@ -208,7 +208,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     }
     from("${packagingFiles}") {
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       into('/etc')
       permissionGroup 'elasticsearch'
@@ -221,7 +221,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
     from("${packagingFiles}/etc/elasticsearch") {
       into('/etc/elasticsearch')
       dirPermissions {
-        unix(02750)
+        unix(0750)
       }
       setgid = true
       filePermissions {
@@ -283,7 +283,7 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
 
     // ========= empty dirs =========
     // NOTE: these are created under packagingFiles as empty, but the permissions are set here
-    Closure copyEmptyDir = { path, u, g, mode ->
+    Closure copyEmptyDir = { path, u, g, gid, mode ->
       File file = new File(path)
       into(file.parent) {
         from "${packagingFiles}/${file.parent}"
@@ -295,12 +295,12 @@ Closure commonPackageConfig(String type, boolean oss, boolean jdk, String archit
         dirPermissions {
           unix(mode)
         }
-        setgid (mode == 02750)
+        setgid(gid)
       }
     }
-    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', 02750)
-    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', 0755)
+    copyEmptyDir('/var/log/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/var/lib/elasticsearch', 'elasticsearch', 'elasticsearch', true, 0750)
+    copyEmptyDir('/usr/share/elasticsearch/plugins', 'root', 'root', false, 0755)
 
     // the oss package conflicts with the default distribution and vice versa
     conflicts('elasticsearch' + (oss ? '' : '-oss'))

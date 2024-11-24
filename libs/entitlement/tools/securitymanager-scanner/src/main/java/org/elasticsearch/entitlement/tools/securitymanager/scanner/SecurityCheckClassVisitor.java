@@ -15,7 +15,6 @@ import org.objectweb.asm.Label;
 import org.objectweb.asm.MethodVisitor;
 import org.objectweb.asm.Type;
 
-import java.lang.constant.ClassDesc;
 import java.lang.reflect.InaccessibleObjectException;
 import java.lang.reflect.Modifier;
 import java.nio.file.Path;
@@ -257,7 +256,8 @@ class SecurityCheckClassVisitor extends ClassVisitor {
         }
 
         private String getPackageName(String className) {
-            return ClassDesc.ofInternalName(className).packageName();
+            int lastSlash = className.lastIndexOf('/');
+            return className.substring(0, lastSlash).replace("/", ".");
         }
 
         @Override

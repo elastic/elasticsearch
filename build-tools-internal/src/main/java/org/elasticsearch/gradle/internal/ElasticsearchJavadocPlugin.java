@@ -18,7 +18,6 @@ import org.gradle.api.Task;
 import org.gradle.api.artifacts.Configuration;
 import org.gradle.api.artifacts.Dependency;
 import org.gradle.api.artifacts.ProjectDependency;
-import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.plugins.BasePluginExtension;
 import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -88,7 +87,7 @@ public class ElasticsearchJavadocPlugin implements Plugin<Project> {
 
     private void configureDependency(Project project, boolean shadowed, ProjectDependency dep) {
         // we should use variant aware dependency management to resolve artifacts required for javadoc here
-        Project upstreamProject = project.project(((ProjectDependencyInternal) dep).getIdentityPath().getPath());
+        Project upstreamProject = project.project(dep.getPath());
         if (upstreamProject == null) {
             return;
         }

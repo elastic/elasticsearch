@@ -11,15 +11,16 @@ package org.elasticsearch.search.aggregations.bucket;
 
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 
+import java.util.Deque;
 import java.util.Iterator;
 
-public class IteratorAndCurrent<B extends InternalMultiBucketAggregation.InternalBucket> implements Iterator<B> {
-    private final Iterator<B> iterator;
+public class DequeAndCurrent<B extends InternalMultiBucketAggregation.InternalBucket> implements Iterator<B> {
+    private final Deque<B> deque;
     private B current;
 
-    public IteratorAndCurrent(Iterator<B> iterator) {
-        this.iterator = iterator;
-        this.current = iterator.next();
+    public DequeAndCurrent(Deque<B> deque) {
+        this.deque = deque;
+        this.current = deque.poll();
     }
 
     public B current() {
@@ -28,11 +29,11 @@ public class IteratorAndCurrent<B extends InternalMultiBucketAggregation.Interna
 
     @Override
     public boolean hasNext() {
-        return iterator.hasNext();
+        return deque.isEmpty() == false;
     }
 
     @Override
     public B next() {
-        return current = iterator.next();
+        return current = deque.poll();
     }
 }

@@ -21,13 +21,14 @@ import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.search.aggregations.InternalMultiBucketAggregation;
 import org.elasticsearch.search.aggregations.KeyComparable;
 import org.elasticsearch.search.aggregations.bucket.BucketReducer;
-import org.elasticsearch.search.aggregations.bucket.IteratorAndCurrent;
+import org.elasticsearch.search.aggregations.bucket.DequeAndCurrent;
 import org.elasticsearch.search.aggregations.support.SamplingContext;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.AbstractMap;
 import java.util.AbstractSet;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
@@ -203,9 +204,9 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
     @Override
     protected AggregatorReducer getLeaderReducer(AggregationReduceContext reduceContext, int size) {
         return new AggregatorReducer() {
-            private final PriorityQueue<IteratorAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size) {
+            private final PriorityQueue<DequeAndCurrent<InternalBucket>> pq = new PriorityQueue<>(size) {
                 @Override
-                protected boolean lessThan(IteratorAndCurrent<InternalBucket> a, IteratorAndCurrent<InternalBucket> b) {
+                protected boolean lessThan(DequeAndCurrent<InternalBucket> a, DequeAndCurrent<InternalBucket> b) {
                     return a.current().compareKey(b.current()) < 0;
                 }
             };
@@ -216,7 +217,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 final InternalComposite sortedAgg = (InternalComposite) aggregation;
                 earlyTerminated |= sortedAgg.earlyTerminated;
                 if (sortedAgg.buckets.isEmpty() == false) {
-                    pq.add(new IteratorAndCurrent<>(sortedAgg.buckets.iterator()));
+                    pq.add(new DequeAndCurrent<>(new ArrayDeque<>(sortedAgg.buckets)));
                 }
             }
 
@@ -226,7 +227,7 @@ public class InternalComposite extends InternalMultiBucketAggregation<InternalCo
                 final List<InternalBucket> buckets = new ArrayList<>();
                 final List<InternalBucket> result = new ArrayList<>();
                 while (pq.size() > 0) {
-                    IteratorAndCurrent<InternalBucket> top = pq.top();
+                    DequeAndCurrent<InternalBucket> top = pq.top();
                     if (lastBucket != null && top.current().compareKey(lastBucket) != 0) {
                         InternalBucket reduceBucket = reduceBucket(buckets, reduceContext);
                         buckets.clear();

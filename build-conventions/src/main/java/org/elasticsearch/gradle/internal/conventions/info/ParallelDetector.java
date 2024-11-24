@@ -8,10 +8,12 @@
 
 package org.elasticsearch.gradle.internal.conventions.info;
 
+import org.gradle.api.Action;
 import org.gradle.api.logging.Logger;
 import org.gradle.api.logging.Logging;
 import org.gradle.api.Project;
 import org.gradle.api.provider.ProviderFactory;
+import org.gradle.process.ExecSpec;
 
 import java.io.BufferedReader;
 import java.io.ByteArrayOutputStream;
@@ -74,13 +76,12 @@ public class ParallelDetector {
                     ? "hw.perflevel0.physicalcpu"
                     : "hw.physicalcpu";
 
-                project.exec(spec -> {
-                    spec.setExecutable("sysctl");
-                    spec.args("-n", query);
-                    spec.setStandardOutput(stdout);
-                });
+                String stdout = project.getProviders().exec(execSpec ->
+                        execSpec.commandLine("sysctl", "-n", query)
+                ).getStandardOutput().getAsText().get();
 
-                _defaultParallel = Integer.parseInt(stdout.toString().trim());
+
+                _defaultParallel = Integer.parseInt(stdout.trim());
             }
 
             if (_defaultParallel == null || _defaultParallel < 1) {

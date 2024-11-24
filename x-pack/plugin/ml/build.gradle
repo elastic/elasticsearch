@@ -29,12 +29,12 @@ if (useDra == false) {
             artifact()
           }
           if (localRepo) {
-            url localRepo
+            url = localRepo
             patternLayout {
               artifact "maven/[orgPath]/[module]/[revision]/[module]-[revision](-[classifier]).[ext]"
             }
           } else {
-            url "https://artifacts-snapshot.elastic.co/"
+            url = "https://artifacts-snapshot.elastic.co/"
             patternLayout {
               if (VersionProperties.isElasticsearchSnapshot()) {
                 artifact '/ml-cpp/[revision]/downloads/ml-cpp/[module]-[revision](-[classifier]).[ext]'

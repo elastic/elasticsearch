@@ -11,11 +11,11 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.utils.GeometryValidator;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
-import org.hamcrest.BaseMatcher;
 import org.hamcrest.Description;
 import org.hamcrest.Matcher;
+import org.hamcrest.TypeSafeMatcher;
 
-public class WellKnownBinaryBytesRefMatcher<G extends Geometry> extends BaseMatcher<BytesRef> {
+public class WellKnownBinaryBytesRefMatcher<G extends Geometry> extends TypeSafeMatcher<BytesRef> {
     private final Matcher<G> matcher;
 
     public WellKnownBinaryBytesRefMatcher(Matcher<G> matcher) {
@@ -23,20 +23,13 @@ public class WellKnownBinaryBytesRefMatcher<G extends Geometry> extends BaseMatc
     }
 
     @Override
-    public boolean matches(Object item) {
-        if (item instanceof BytesRef bytesRef) {
-            return matcher.matches(fromBytesRef(bytesRef));
-        }
-        return false;
+    public boolean matchesSafely(BytesRef bytesRef) {
+        return matcher.matches(fromBytesRef(bytesRef));
     }
 
     @Override
-    public void describeMismatch(Object item, Description description) {
-        if (item instanceof BytesRef bytesRef) {
-            matcher.describeMismatch(fromBytesRef(bytesRef), description);
-        } else {
-            description.appendText("was ").appendValue(item);
-        }
+    public void describeMismatchSafely(BytesRef bytesRef, Description description) {
+        matcher.describeMismatch(fromBytesRef(bytesRef), description);
     }
 
     @SuppressWarnings("unchecked")

@@ -7,41 +7,28 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.geo.XYEncodingUtils;
 import org.elasticsearch.common.util.BigArrays;
-import org.elasticsearch.compute.aggregation.spatial.StExtentAggregator.GroupingStExtentState;
-import org.elasticsearch.compute.aggregation.spatial.StExtentAggregator.StExtentState;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
+import org.elasticsearch.geometry.Point;
+
+import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeX;
+import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeY;
 
 /**
  * This aggregator calculates the centroid of a set of cartesian points.
  * It is assumes that the cartesian points are encoded as longs.
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
-@Aggregator(
-    {
-        @IntermediateState(name = "xVal", type = "DOUBLE"),
-        @IntermediateState(name = "xDel", type = "DOUBLE"),
-        @IntermediateState(name = "yVal", type = "DOUBLE"),
-        @IntermediateState(name = "yDel", type = "DOUBLE") }
-)
+@Aggregator({ @IntermediateState(name = "extent", type = "BYTES_REF") })
 @GroupingAggregator
 class SpatialStExtentCartesianPointDocValuesAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState();
-    }
-
-    public static GroupingStExtentState initGrouping(BigArrays bigArrays) {
-        return new GroupingStExtentState(bigArrays);
-    }
-
     public static void combine(StExtentState current, long v) {
-        throw new AssertionError("TODO(gal)");
+        current.add(new Point(decodeX(v), decodeY(v)));
     }
 
     public static void combine(GroupingStExtentState current, int groupId, long encoded) {
-        throw new AssertionError("TODO(gal)");
+        current.add(groupId, new Point(decodeX(encoded), decodeY(encoded)));
     }
 }

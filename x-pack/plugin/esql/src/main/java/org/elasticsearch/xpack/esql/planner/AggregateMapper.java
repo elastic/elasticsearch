@@ -65,7 +65,7 @@ import java.util.stream.Stream;
 final class AggregateMapper {
 
     private static final List<String> NUMERIC = List.of("Int", "Long", "Double");
-    private static final List<String> SPATIAL = List.of("GeoPoint", "CartesianPoint");
+    private static final List<String> SPATIAL_EXTRA_CONFIGS = List.of("SourceValues", "DocValues");
 
     /** List of all mappable ESQL agg functions (excludes surrogates like AVG = SUM/COUNT). */
     private static final List<? extends Class<? extends Function>> AGG_FUNCTIONS = List.of(
@@ -88,7 +88,11 @@ final class AggregateMapper {
     );
 
     /** Record of agg Class, type, and grouping (or non-grouping). */
-    private record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {}
+    private record AggDef(Class<?> aggClazz, String type, String extra, boolean grouping) {
+        public AggDef withoutExtra() {
+            return new AggDef(aggClazz, type, "", grouping);
+        }
+    }
 
     /** Map of AggDef types to intermediate named expressions. */
     private static final Map<AggDef, List<IntermediateStateDesc>> mapper = AGG_FUNCTIONS.stream()
@@ -146,7 +150,7 @@ final class AggregateMapper {
 
     /** Gets the agg from the mapper - wrapper around map::get for more informative failure.*/
     private static List<IntermediateStateDesc> getNonNull(AggDef aggDef) {
-        var l = mapper.get(aggDef);
+        var l = mapper.getOrDefault(aggDef, mapper.get(aggDef.withoutExtra()));
         if (l == null) {
             throw new EsqlIllegalArgumentException("Cannot find intermediate state for: " + aggDef);
         }
@@ -162,9 +166,14 @@ final class AggregateMapper {
             types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
         } else if (clazz == Count.class) {
             types = List.of(""); // no extra type distinction
-        } else if (SpatialAggregateFunction.class.isAssignableFrom(clazz)) {
-            types = SPATIAL;
-            extraConfigs = List.of("SourceValues", "DocValues");
+        } else if (clazz == SpatialCentroid.class) {
+            types = List.of("GeoPoint", "CartesianPoint");
+            extraConfigs = SPATIAL_EXTRA_CONFIGS;
+        } else if (clazz == SpatialStExtent.class) {
+            return Stream.concat(
+                combine(clazz, List.of("GeoPoint", "CartesianPoint"), SPATIAL_EXTRA_CONFIGS),
+                combine(clazz, List.of("GeoShape", "CartesianShape"), List.of(""))
+            );
         } else if (Values.class.isAssignableFrom(clazz)) {
             // TODO can't we figure this out from the function itself?
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
@@ -180,6 +189,10 @@ final class AggregateMapper {
             assert false : "unknown aggregate type " + clazz;
             throw new IllegalArgumentException("unknown aggregate type " + clazz);
         }
+        return combine(clazz, types, extraConfigs);
+    }
+
+    private static Stream<Tuple<Class<?>, Tuple<String, String>>> combine(Class<?> clazz, List<String> types, List<String> extraConfigs) {
         return combinations(types, extraConfigs).map(combo -> new Tuple<>(clazz, combo));
     }
 
@@ -224,14 +237,29 @@ final class AggregateMapper {
     /** Looks up the intermediate state method for a given class, type, and grouping. */
     private static MethodHandle lookup(Class<?> clazz, String type, String extra, boolean grouping) {
         try {
+            return lookupRetry(clazz, type, extra, grouping);
+        } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
+            throw new EsqlIllegalArgumentException(e);
+        }
+    }
+
+    private static MethodHandle lookupRetry(Class<?> clazz, String type, String extra, boolean grouping) throws IllegalAccessException,
+        NoSuchMethodException, ClassNotFoundException {
+        try {
             return MethodHandles.lookup()
                 .findStatic(
                     Class.forName(determineAggName(clazz, type, extra, grouping)),
                     "intermediateStateDesc",
                     MethodType.methodType(List.class)
                 );
-        } catch (IllegalAccessException | NoSuchMethodException | ClassNotFoundException e) {
-            throw new EsqlIllegalArgumentException(e);
+        } catch (NoSuchMethodException ignore) {
+            // Retry without the extra information.
+            return MethodHandles.lookup()
+                .findStatic(
+                    Class.forName(determineAggName(clazz, type, "", grouping)),
+                    "intermediateStateDesc",
+                    MethodType.methodType(List.class)
+                );
         }
     }
 
@@ -305,9 +333,12 @@ final class AggregateMapper {
             case DataType.KEYWORD, DataType.IP, DataType.VERSION, DataType.TEXT -> "BytesRef";
             case GEO_POINT -> "GeoPoint";
             case CARTESIAN_POINT -> "CartesianPoint";
+            case GEO_SHAPE -> "GeoShape";
+            case CARTESIAN_SHAPE -> "CartesianShape";
             case SEMANTIC_TEXT, UNSUPPORTED, NULL, UNSIGNED_LONG, SHORT, BYTE, FLOAT, HALF_FLOAT, SCALED_FLOAT, OBJECT, SOURCE, DATE_PERIOD,
-                TIME_DURATION, CARTESIAN_SHAPE, GEO_SHAPE, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG ->
-                throw new EsqlIllegalArgumentException("illegal agg type: " + type.typeName());
+                TIME_DURATION, DOC_DATA_TYPE, TSID_DATA_TYPE, PARTIAL_AGG -> throw new EsqlIllegalArgumentException(
+                    "illegal agg type: " + type.typeName()
+                );
         };
     }
 }

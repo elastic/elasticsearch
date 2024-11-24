@@ -9,12 +9,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -29,10 +30,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("xVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("xDel", ElementType.DOUBLE),
-      new IntermediateStateDesc("yVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("yDel", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
 
   private final StExtentAggregator.GroupingStExtentState state;
 
@@ -49,7 +47,7 @@ public final class SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction im
 
   public static SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction(channels, SpatialStExtentGeoPointDocValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction(channels, SpatialStExtentGeoPointDocValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -168,30 +166,15 @@ public final class SpatialStExtentGeoPointDocValuesGroupingAggregatorFunction im
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block xValUncast = page.getBlock(channels.get(0));
-    if (xValUncast.areAllValuesNull()) {
+    Block extentUncast = page.getBlock(channels.get(0));
+    if (extentUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
-    Block xDelUncast = page.getBlock(channels.get(1));
-    if (xDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
-    Block yValUncast = page.getBlock(channels.get(2));
-    if (yValUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
-    Block yDelUncast = page.getBlock(channels.get(3));
-    if (yDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    assert xVal.getPositionCount() == xDel.getPositionCount() && xVal.getPositionCount() == yVal.getPositionCount() && xVal.getPositionCount() == yDel.getPositionCount();
+    BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
+    BytesRef scratch = new BytesRef();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, xVal.getDouble(groupPosition + positionOffset), xDel.getDouble(groupPosition + positionOffset), yVal.getDouble(groupPosition + positionOffset), yDel.getDouble(groupPosition + positionOffset));
+      SpatialStExtentGeoPointDocValuesAggregator.combineIntermediate(state, groupId, extent.getBytesRef(groupPosition + positionOffset, scratch));
     }
   }
 

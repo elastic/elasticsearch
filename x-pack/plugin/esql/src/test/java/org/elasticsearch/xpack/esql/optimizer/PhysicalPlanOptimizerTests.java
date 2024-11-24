@@ -6618,7 +6618,7 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
         var aggFunc = assertAggregation(plan, aliasName, aggClass);
         var aggField = as(aggFunc.field(), Attribute.class);
         var spatialAgg = as(aggFunc, SpatialAggregateFunction.class);
-        assertThat("Expected spatial aggregation to use doc-values", spatialAgg.useDocValues(), equalTo(useDocValues));
+        assertThat("Expected spatial aggregation to use doc-values", spatialAgg.fieldExtractPreference(), equalTo(useDocValues));
         assertThat("", aggField.dataType(), equalTo(fieldType));
     }
 

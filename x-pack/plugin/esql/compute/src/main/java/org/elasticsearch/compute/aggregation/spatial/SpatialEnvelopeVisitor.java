@@ -47,8 +47,12 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
     @Override
     public Boolean visit(Circle circle) throws RuntimeException {
-        // TODO: Support circle, if given CRS (needed for radius to x/y coordinate transformation)
-        throw new UnsupportedOperationException("Circle is not supported");
+        // TODO: Support circle better, if given CRS (needed for radius to x/y coordinate transformation)
+        minX = Math.min(minX, circle.getX() - circle.getRadiusMeters());
+        minY = Math.min(minY, circle.getY() - circle.getRadiusMeters());
+        maxY = Math.max(maxY, circle.getY() + circle.getRadiusMeters());
+        maxX = Math.max(maxX, circle.getX() + circle.getRadiusMeters());
+        return true;
     }
 
     @Override

@@ -8,6 +8,9 @@
 package org.elasticsearch.xpack.esql.expression.function.aggregate;
 
 import org.elasticsearch.common.io.stream.StreamInput;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
+import org.elasticsearch.license.License;
+import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 
@@ -22,27 +25,31 @@ import static java.util.Collections.emptyList;
  * select the best one.
  */
 public abstract class SpatialAggregateFunction extends AggregateFunction {
-    // FIXME(gal) use a proper enum
-    protected final boolean useDocValues;
+    protected final FieldExtractPreference preference;
 
-    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, boolean useDocValues) {
+    protected SpatialAggregateFunction(Source source, Expression field, Expression filter, FieldExtractPreference values) {
         super(source, field, filter, emptyList());
-        this.useDocValues = useDocValues;
+        this.preference = values;
     }
 
-    protected SpatialAggregateFunction(StreamInput in, boolean useDocValues) throws IOException {
+    protected SpatialAggregateFunction(StreamInput in, FieldExtractPreference preference) throws IOException {
         super(in);
         // The useDocValues field is only used on data nodes local planning, and therefor never serialized
-        this.useDocValues = useDocValues;
+        this.preference = preference;
     }
 
     public abstract SpatialAggregateFunction withDocValues();
 
     @Override
+    public boolean checkLicense(XPackLicenseState state) {
+        return state.isAllowedByLicense(License.OperationMode.PLATINUM);
+    }
+
+    @Override
     public int hashCode() {
         // NB: the hashcode is currently used for key generation so
         // to avoid clashes between aggs with the same arguments, add the class name as variation
-        return Objects.hash(getClass(), children(), useDocValues);
+        return Objects.hash(getClass(), children(), preference);
     }
 
     @Override
@@ -51,12 +58,12 @@ public abstract class SpatialAggregateFunction extends AggregateFunction {
             SpatialAggregateFunction other = (SpatialAggregateFunction) obj;
             return Objects.equals(other.field(), field())
                 && Objects.equals(other.parameters(), parameters())
-                && Objects.equals(other.useDocValues, useDocValues);
+                && Objects.equals(other.preference, preference);
         }
         return false;
     }
 
-    public boolean useDocValues() {
-        return useDocValues;
+    public FieldExtractPreference fieldExtractPreference() {
+        return preference;
     }
 }

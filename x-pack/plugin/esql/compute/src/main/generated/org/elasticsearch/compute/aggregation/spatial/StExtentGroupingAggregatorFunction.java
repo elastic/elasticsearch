@@ -30,9 +30,6 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class StExtentGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("minX", ElementType.DOUBLE),
-      new IntermediateStateDesc("maxX", ElementType.DOUBLE),
-      new IntermediateStateDesc("minY", ElementType.DOUBLE),
       new IntermediateStateDesc("maxY", ElementType.DOUBLE)  );
 
   private final StExtentAggregator.GroupingStExtentState state;
@@ -173,30 +170,14 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block minXUncast = page.getBlock(channels.get(0));
-    if (minXUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector minX = ((DoubleBlock) minXUncast).asVector();
-    Block maxXUncast = page.getBlock(channels.get(1));
-    if (maxXUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector maxX = ((DoubleBlock) maxXUncast).asVector();
-    Block minYUncast = page.getBlock(channels.get(2));
-    if (minYUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector minY = ((DoubleBlock) minYUncast).asVector();
-    Block maxYUncast = page.getBlock(channels.get(3));
+    Block maxYUncast = page.getBlock(channels.get(0));
     if (maxYUncast.areAllValuesNull()) {
       return;
     }
     DoubleVector maxY = ((DoubleBlock) maxYUncast).asVector();
-    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == minY.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      StExtentAggregator.combineIntermediate(state, groupId, minX.getDouble(groupPosition + positionOffset), maxX.getDouble(groupPosition + positionOffset), minY.getDouble(groupPosition + positionOffset), maxY.getDouble(groupPosition + positionOffset));
+      StExtentAggregator.combineIntermediate(state, groupId, maxY.getDouble(groupPosition + positionOffset));
     }
   }
 

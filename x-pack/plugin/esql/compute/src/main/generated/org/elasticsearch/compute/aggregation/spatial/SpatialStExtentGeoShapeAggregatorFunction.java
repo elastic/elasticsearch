@@ -21,10 +21,10 @@ import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
 /**
- * {@link AggregatorFunction} implementation for {@link SpatialStExtentCartesianPointSourceValuesAggregator}.
+ * {@link AggregatorFunction} implementation for {@link SpatialStExtentGeoShapeAggregator}.
  * This class is generated. Do not edit it.
  */
-public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction implements AggregatorFunction {
+public final class SpatialStExtentGeoShapeAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
 
@@ -34,16 +34,16 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
 
   private final List<Integer> channels;
 
-  public SpatialStExtentCartesianPointSourceValuesAggregatorFunction(DriverContext driverContext,
+  public SpatialStExtentGeoShapeAggregatorFunction(DriverContext driverContext,
       List<Integer> channels, StExtentAggregator.StExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
   }
 
-  public static SpatialStExtentCartesianPointSourceValuesAggregatorFunction create(
-      DriverContext driverContext, List<Integer> channels) {
-    return new SpatialStExtentCartesianPointSourceValuesAggregatorFunction(driverContext, channels, SpatialStExtentCartesianPointSourceValuesAggregator.initSingle());
+  public static SpatialStExtentGeoShapeAggregatorFunction create(DriverContext driverContext,
+      List<Integer> channels) {
+    return new SpatialStExtentGeoShapeAggregatorFunction(driverContext, channels, SpatialStExtentGeoShapeAggregator.initSingle());
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -85,7 +85,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
   private void addRawVector(BytesRefVector vector) {
     BytesRef scratch = new BytesRef();
     for (int i = 0; i < vector.getPositionCount(); i++) {
-      SpatialStExtentCartesianPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialStExtentGeoShapeAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -95,7 +95,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
       if (mask.getBoolean(i) == false) {
         continue;
       }
-      SpatialStExtentCartesianPointSourceValuesAggregator.combine(state, vector.getBytesRef(i, scratch));
+      SpatialStExtentGeoShapeAggregator.combine(state, vector.getBytesRef(i, scratch));
     }
   }
 
@@ -108,7 +108,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentCartesianPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialStExtentGeoShapeAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -125,7 +125,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
       int start = block.getFirstValueIndex(p);
       int end = start + block.getValueCount(p);
       for (int i = start; i < end; i++) {
-        SpatialStExtentCartesianPointSourceValuesAggregator.combine(state, block.getBytesRef(i, scratch));
+        SpatialStExtentGeoShapeAggregator.combine(state, block.getBytesRef(i, scratch));
       }
     }
   }
@@ -141,7 +141,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
     BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
     assert extent.getPositionCount() == 1;
     BytesRef scratch = new BytesRef();
-    SpatialStExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, extent.getBytesRef(0, scratch));
+    SpatialStExtentGeoShapeAggregator.combineIntermediate(state, extent.getBytesRef(0, scratch));
   }
 
   @Override
@@ -151,7 +151,7 @@ public final class SpatialStExtentCartesianPointSourceValuesAggregatorFunction i
 
   @Override
   public void evaluateFinal(Block[] blocks, int offset, DriverContext driverContext) {
-    blocks[offset] = SpatialStExtentCartesianPointSourceValuesAggregator.evaluateFinal(state, driverContext);
+    blocks[offset] = SpatialStExtentGeoShapeAggregator.evaluateFinal(state, driverContext);
   }
 
   @Override

@@ -11,14 +11,18 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.aggregation.AggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentCartesianShapeAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier;
+import org.elasticsearch.compute.aggregation.spatial.SpatialStExtentGeoShapeAggregatorFunctionSupplier;
+import org.elasticsearch.index.mapper.MappedFieldType.FieldExtractPreference;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.planner.ToAggregator;
@@ -27,11 +31,9 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
-import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatialPoint;
+import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-/**
- * Calculate spatial centroid of all geo_point or cartesian point values of a field in matching documents.
- */
+/** Calculate spatial extent of all geo_point or cartesian point values of a field in matching documents. */
 public final class SpatialStExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -41,21 +43,23 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @FunctionInfo(
         returnType = { "geo_point", "cartesian_point" },
-        description = "Calculate the extent centroid over a field with spatial point geometry type.",
-        isAggregation = true
-//        ,
-//        examples = @Example(file = "spatial", tag = "st_centroid_agg-airports")
+        description = "Calculate the extent over a field with spatial point geometry type.",
+        isAggregation = true,
+        examples = @Example(file = "spatial", tag = "st_spatial-airports")
     )
-    public SpatialStExtent(Source source, @Param(name = "field", type = { "geo_point", "cartesian_point" }) Expression field) {
-        this(source, field, Literal.TRUE, false);
+    public SpatialStExtent(
+        Source source,
+        @Param(name = "field", type = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" }) Expression field
+    ) {
+        this(source, field, Literal.TRUE, FieldExtractPreference.NONE);
     }
 
-    private SpatialStExtent(Source source, Expression field, Expression filter, boolean useDocValues) {
-        super(source, field, filter, useDocValues);
+    private SpatialStExtent(Source source, Expression field, Expression filter, FieldExtractPreference preference) {
+        super(source, field, filter, preference);
     }
 
     private SpatialStExtent(StreamInput in) throws IOException {
-        super(in, false);
+        super(in, FieldExtractPreference.NONE);
     }
 
     @Override
@@ -65,18 +69,17 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @Override
     public SpatialStExtent withFilter(Expression filter) {
-        return new SpatialStExtent(source(), field(), filter, useDocValues);
+        return new SpatialStExtent(source(), field(), filter, preference);
     }
 
     @Override
     public SpatialStExtent withDocValues() {
-        return new SpatialStExtent(source(), field(), filter(), true);
+        return new SpatialStExtent(source(), field(), filter(), FieldExtractPreference.DOC_VALUES);
     }
 
     @Override
     protected TypeResolution resolveType() {
-        // TODO: Support geo_shape and cartesian_shape
-        return isSpatialPoint(field(), sourceText(), DEFAULT);
+        return isSpatial(field(), sourceText(), DEFAULT);
     }
 
     @Override
@@ -98,23 +101,18 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        if (useDocValues) {
-            // When the points are read as doc-values (eg. from the index), feed them into the doc-values aggregator
-            if (type == DataType.GEO_POINT) {
-                return new SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
-            }
-            if (type == DataType.CARTESIAN_POINT) {
-                return new SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
-            }
-        } else {
-            // When the points are read as WKB from source or as point literals, feed them into the source-values aggregator
-            if (type == DataType.GEO_POINT) {
-                return new SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-            }
-            if (type == DataType.CARTESIAN_POINT) {
-                return new SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
-            }
-        }
-        throw EsqlIllegalArgumentException.illegalDataType(type);
+        return switch (type) {
+            case DataType.GEO_SHAPE -> new SpatialStExtentGeoShapeAggregatorFunctionSupplier(inputChannels);
+            case DataType.CARTESIAN_SHAPE ->  new SpatialStExtentCartesianShapeAggregatorFunctionSupplier(inputChannels);
+            case DataType.GEO_POINT -> switch (preference) {
+                case DOC_VALUES -> new SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE -> new SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            };
+            case DataType.CARTESIAN_POINT -> switch (preference) {
+                case DOC_VALUES -> new SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
+                case NONE -> new SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
+            };
+            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+        };
     }
 }

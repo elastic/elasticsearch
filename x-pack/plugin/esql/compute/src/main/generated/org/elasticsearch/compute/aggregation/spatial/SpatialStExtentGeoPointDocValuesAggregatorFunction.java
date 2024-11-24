@@ -9,12 +9,13 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
+import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.AggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanVector;
-import org.elasticsearch.compute.data.DoubleBlock;
-import org.elasticsearch.compute.data.DoubleVector;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
@@ -27,10 +28,7 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentGeoPointDocValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("xVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("xDel", ElementType.DOUBLE),
-      new IntermediateStateDesc("yVal", ElementType.DOUBLE),
-      new IntermediateStateDesc("yDel", ElementType.DOUBLE)  );
+      new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
 
   private final DriverContext driverContext;
 
@@ -134,31 +132,14 @@ public final class SpatialStExtentGeoPointDocValuesAggregatorFunction implements
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block xValUncast = page.getBlock(channels.get(0));
-    if (xValUncast.areAllValuesNull()) {
+    Block extentUncast = page.getBlock(channels.get(0));
+    if (extentUncast.areAllValuesNull()) {
       return;
     }
-    DoubleVector xVal = ((DoubleBlock) xValUncast).asVector();
-    assert xVal.getPositionCount() == 1;
-    Block xDelUncast = page.getBlock(channels.get(1));
-    if (xDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector xDel = ((DoubleBlock) xDelUncast).asVector();
-    assert xDel.getPositionCount() == 1;
-    Block yValUncast = page.getBlock(channels.get(2));
-    if (yValUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yVal = ((DoubleBlock) yValUncast).asVector();
-    assert yVal.getPositionCount() == 1;
-    Block yDelUncast = page.getBlock(channels.get(3));
-    if (yDelUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector yDel = ((DoubleBlock) yDelUncast).asVector();
-    assert yDel.getPositionCount() == 1;
-    SpatialStExtentGeoPointDocValuesAggregator.combineIntermediate(state, xVal.getDouble(0), xDel.getDouble(0), yVal.getDouble(0), yDel.getDouble(0));
+    BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
+    assert extent.getPositionCount() == 1;
+    BytesRef scratch = new BytesRef();
+    SpatialStExtentGeoPointDocValuesAggregator.combineIntermediate(state, extent.getBytesRef(0, scratch));
   }
 
   @Override

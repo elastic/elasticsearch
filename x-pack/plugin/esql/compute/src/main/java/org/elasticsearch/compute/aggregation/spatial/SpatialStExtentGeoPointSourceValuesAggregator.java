@@ -8,14 +8,9 @@
 package org.elasticsearch.compute.aggregation.spatial;
 
 import org.apache.lucene.util.BytesRef;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
-import org.elasticsearch.geometry.Geometry;
-import org.elasticsearch.geometry.Point;
-import org.elasticsearch.geometry.utils.GeometryValidator;
-import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 /**
  * This aggregator calculates the centroid of a set of geo points.
@@ -24,32 +19,14 @@ import org.elasticsearch.geometry.utils.WellKnownBinary;
  * This is also used for final aggregations and aggregations in the coordinator node,
  * even if the local node partial aggregation is done with {@link SpatialStExtentGeoPointDocValuesAggregator}.
  */
-@Aggregator(
-    {
-        @IntermediateState(name = "xVal", type = "DOUBLE"),
-        @IntermediateState(name = "xDel", type = "DOUBLE"),
-        @IntermediateState(name = "yVal", type = "DOUBLE"),
-        @IntermediateState(name = "yDel", type = "DOUBLE") }
-)
+@Aggregator({ @IntermediateState(name = "extent", type = "BYTES_REF") })
 @GroupingAggregator
 class SpatialStExtentGeoPointSourceValuesAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState();
-    }
-
-    public static GroupingStExtentState initGrouping(BigArrays bigArrays) {
-        return new GroupingStExtentState(bigArrays);
-    }
-
     public static void combine(StExtentState current, BytesRef wkb) {
-        current.add(decode(wkb));
+        current.add(SpatialAggregationUtils.decode(wkb));
     }
 
     public static void combine(GroupingStExtentState current, int groupId, BytesRef wkb) {
-        current.add(groupId, decode(wkb));
-    }
-
-    private static Geometry decode(BytesRef wkb) {
-        return WellKnownBinary.fromWKB(GeometryValidator.NOOP, false /* coerce */, wkb.bytes, wkb.offset, wkb.length);
+        current.add(groupId, SpatialAggregationUtils.decode(wkb));
     }
 }

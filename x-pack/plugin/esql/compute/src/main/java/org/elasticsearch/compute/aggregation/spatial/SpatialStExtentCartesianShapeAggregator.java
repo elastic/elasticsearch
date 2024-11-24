@@ -18,19 +18,11 @@ import org.elasticsearch.compute.ann.IntermediateState;
  * It is assumes that the cartesian points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianPointSourceValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianShapeAggregator}.
  */
 @Aggregator({ @IntermediateState(name = "extent", type = "BYTES_REF") })
 @GroupingAggregator
-class SpatialStExtentCartesianPointSourceValuesAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState();
-    }
-
-    public static GroupingStExtentState initGrouping(BigArrays bigArrays) {
-        return new GroupingStExtentState(bigArrays);
-    }
-
+class SpatialStExtentCartesianShapeAggregator extends StExtentAggregator {
     public static void combine(StExtentState current, BytesRef wkb) {
         current.add(SpatialAggregationUtils.decode(wkb));
     }

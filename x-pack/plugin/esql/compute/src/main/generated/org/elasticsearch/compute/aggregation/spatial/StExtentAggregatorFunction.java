@@ -28,9 +28,6 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class StExtentAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("minX", ElementType.DOUBLE),
-      new IntermediateStateDesc("maxX", ElementType.DOUBLE),
-      new IntermediateStateDesc("minY", ElementType.DOUBLE),
       new IntermediateStateDesc("maxY", ElementType.DOUBLE)  );
 
   private final DriverContext driverContext;
@@ -139,31 +136,13 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block minXUncast = page.getBlock(channels.get(0));
-    if (minXUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector minX = ((DoubleBlock) minXUncast).asVector();
-    assert minX.getPositionCount() == 1;
-    Block maxXUncast = page.getBlock(channels.get(1));
-    if (maxXUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector maxX = ((DoubleBlock) maxXUncast).asVector();
-    assert maxX.getPositionCount() == 1;
-    Block minYUncast = page.getBlock(channels.get(2));
-    if (minYUncast.areAllValuesNull()) {
-      return;
-    }
-    DoubleVector minY = ((DoubleBlock) minYUncast).asVector();
-    assert minY.getPositionCount() == 1;
-    Block maxYUncast = page.getBlock(channels.get(3));
+    Block maxYUncast = page.getBlock(channels.get(0));
     if (maxYUncast.areAllValuesNull()) {
       return;
     }
     DoubleVector maxY = ((DoubleBlock) maxYUncast).asVector();
     assert maxY.getPositionCount() == 1;
-    StExtentAggregator.combineIntermediate(state, minX.getDouble(0), maxX.getDouble(0), minY.getDouble(0), maxY.getDouble(0));
+    StExtentAggregator.combineIntermediate(state, maxY.getDouble(0));
   }
 
   @Override

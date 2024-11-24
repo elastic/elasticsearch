@@ -131,13 +131,8 @@ tasks.register("updateCIBwcVersions") {
   }
 
   doLast {
-<<<<<<< HEAD
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
-    writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.unreleasedIndexCompatible))
-=======
-    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    writeVersions(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible))
     writeVersions(file(".ci/snapshotBwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible))
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
     expandBwcList(
       ".buildkite/pipelines/intake.yml",
       ".buildkite/pipelines/intake.template.yml",
@@ -150,15 +145,7 @@ tasks.register("updateCIBwcVersions") {
         new ListExpansion(versions: filterIntermediatePatches(buildParams.bwcVersions.unreleasedIndexCompatible), variable: "BWC_LIST"),
       ],
       [
-<<<<<<< HEAD
         new StepExpansion(templatePath: ".buildkite/pipelines/periodic.bwc.template.yml", versions: filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible), variable: "BWC_STEPS"),
-=======
-        new StepExpansion(
-          templatePath: ".buildkite/pipelines/periodic.bwc.template.yml",
-          versions: filterIntermediatePatches(buildParams.bwcVersions.indexCompatible),
-          variable: "BWC_STEPS"
-        ),
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
       ]
     )
 
@@ -166,11 +153,7 @@ tasks.register("updateCIBwcVersions") {
       ".buildkite/pipelines/periodic-packaging.yml",
       ".buildkite/pipelines/periodic-packaging.template.yml",
       ".buildkite/pipelines/periodic-packaging.bwc.template.yml",
-<<<<<<< HEAD
-      filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible)
-=======
-      filterIntermediatePatches(buildParams.bwcVersions.indexCompatible)
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
+      filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible)
     )
   }
 }
@@ -199,13 +182,8 @@ tasks.register("verifyVersions") {
           .collect { Version.fromString(it) }
       )
     }
-<<<<<<< HEAD
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(BuildParams.bwcVersions.allIndexCompatible))
-    verifyCiYaml(file(".ci/snapshotBwcVersions"), BuildParams.bwcVersions.unreleasedIndexCompatible)
-=======
-    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.indexCompatible))
+    verifyCiYaml(file(".ci/bwcVersions"), filterIntermediatePatches(buildParams.bwcVersions.allIndexCompatible))
     verifyCiYaml(file(".ci/snapshotBwcVersions"), buildParams.bwcVersions.unreleasedIndexCompatible)
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
 
     // Make sure backport bot config file is up to date
     JsonNode backportConfig = new ObjectMapper().readTree(file(".backportrc.json"))

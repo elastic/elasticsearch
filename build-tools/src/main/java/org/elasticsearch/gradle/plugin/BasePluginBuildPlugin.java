@@ -24,6 +24,8 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.Transformer;
 import org.gradle.api.artifacts.type.ArtifactTypeDefinition;
+import org.gradle.api.attributes.Attribute;
+import org.gradle.api.attributes.LibraryElements;
 import org.gradle.api.file.CopySpec;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.RegularFile;
@@ -126,9 +128,27 @@ public class BasePluginBuildPlugin implements Plugin<Project> {
         // know about the plugin (used by test security code to statically initialize the plugin in unit tests)
         var testSourceSet = project.getExtensions().getByType(SourceSetContainer.class).getByName("test");
         Map<String, Object> map = Map.of("builtBy", buildProperties);
-        testSourceSet.getOutput().dir(map, new File(project.getBuildDir(), "generated-resources"));
+
+        File generatedResources = new File(project.getBuildDir(), "generated-resources");
+        testSourceSet.getOutput().dir(map, generatedResources);
         testSourceSet.getResources().srcDir(pluginMetadata);
 
+        // expose the plugin properties and metadata for other plugins to use in their tests.
+        // See TestWithDependenciesPlugin for how this is used.
+        project.getConfigurations().create("pluginMetadata", conf -> {
+            conf.getAttributes().attribute(Attribute.of("pluginMetadata", Boolean.class), true);
+            conf.getAttributes()
+                .attribute(
+                    LibraryElements.LIBRARY_ELEMENTS_ATTRIBUTE,
+                    project.getObjects().named(LibraryElements.class, LibraryElements.RESOURCES)
+                );
+        });
+
+        project.getArtifacts().add("pluginMetadata", new File(project.getBuildDir(), "generated-descriptor"), artifact -> {
+            artifact.builtBy(buildProperties);
+        });
+        project.getArtifacts().add("pluginMetadata", pluginMetadata);
+        // getAttributes().attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, "plugin-metadata");
         var bundleSpec = createBundleSpec(project, pluginMetadata, buildProperties);
         extension.setBundleSpec(bundleSpec);
         // create the actual bundle task, which zips up all the files for the plugin

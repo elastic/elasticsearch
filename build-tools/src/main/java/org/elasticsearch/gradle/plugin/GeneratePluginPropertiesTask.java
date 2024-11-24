@@ -19,6 +19,7 @@ import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.file.RegularFileProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
+import org.gradle.api.tasks.CacheableTask;
 import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
@@ -41,6 +42,7 @@ import java.util.Map;
 
 import javax.inject.Inject;
 
+@CacheableTask
 public abstract class GeneratePluginPropertiesTask extends DefaultTask {
 
     public static final String PROPERTIES_FILENAME = "plugin-descriptor.properties";

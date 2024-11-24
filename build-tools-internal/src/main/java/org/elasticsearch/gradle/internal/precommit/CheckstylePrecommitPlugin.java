@@ -19,6 +19,7 @@ import org.gradle.api.plugins.JavaBasePlugin;
 import org.gradle.api.plugins.quality.Checkstyle;
 import org.gradle.api.plugins.quality.CheckstyleExtension;
 import org.gradle.api.provider.Provider;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
@@ -53,7 +54,11 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
                 throw new UncheckedIOException(e);
             }
         } else if ("file".equals(checkstyleConfUrl.getProtocol())) {
-            copyCheckstyleConf.configure(t -> t.getInputs().files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile()));
+            copyCheckstyleConf.configure(
+                t -> t.getInputs()
+                    .files(checkstyleConfUrl.getFile(), checkstyleSuppressionsUrl.getFile())
+                    .withPathSensitivity(PathSensitivity.RELATIVE)
+            );
         }
 
         // Explicitly using an Action interface as java lambdas

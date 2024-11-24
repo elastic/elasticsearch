@@ -23,6 +23,8 @@ import org.gradle.api.tasks.Input;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Optional;
 import org.gradle.api.tasks.OutputFile;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskAction;
 import org.objectweb.asm.ClassReader;
 import org.objectweb.asm.tree.ClassNode;
@@ -82,6 +84,7 @@ public abstract class GeneratePluginPropertiesTask extends DefaultTask {
     public abstract Property<Boolean> getIsLicensed();
 
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public abstract ConfigurableFileCollection getModuleInfoFile();
 
     @OutputFile

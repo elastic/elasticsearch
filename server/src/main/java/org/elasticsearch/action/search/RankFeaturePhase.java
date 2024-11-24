@@ -38,20 +38,22 @@ import java.util.List;
 public class RankFeaturePhase extends SearchPhase {
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
     private final SearchProgressListener progressListener;
-    private final Client client;
+    private final RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext;
 
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
-        SearchPhaseContext context,
-        Client client
+        AbstractSearchAsyncAction<?> context,
+        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super("rank-feature");
+        assert rankFeaturePhaseRankCoordinatorContext != null;
+        this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
         if (context.getNumShards() != queryPhaseResults.getNumShards()) {
             throw new IllegalStateException(
                 "number of shards must match the length of the query results but doesn't:"
@@ -66,17 +68,10 @@ public class RankFeaturePhase extends SearchPhase {
         this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
-        this.client = client;
     }
 
     @Override
     public void run() {
-        RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext = coordinatorContext(context.getRequest().source());
-        if (rankFeaturePhaseRankCoordinatorContext == null) {
-            moveToNextPhase(queryPhaseResults, null);
-            return;
-        }
-
         context.execute(new AbstractRunnable() {
             @Override
             protected void doRun() throws Exception {
@@ -123,7 +118,7 @@ public class RankFeaturePhase extends SearchPhase {
         }
     }
 
-    private RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source) {
+    static RankFeaturePhaseRankCoordinatorContext coordinatorContext(SearchSourceBuilder source, Client client) {
         return source == null || source.rankBuilder() == null
             ? null
             : source.rankBuilder().buildRankFeaturePhaseCoordinatorContext(source.size(), source.from(), client);
@@ -184,23 +179,25 @@ public class RankFeaturePhase extends SearchPhase {
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext,
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
-        assert rankFeaturePhaseRankCoordinatorContext != null;
-        ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(context, new ActionListener<>() {
-            @Override
-            public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
-                RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
-                SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
-                    reducedQueryPhase,
-                    topResults
-                );
-                moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
-            }
+        ThreadedActionListener<RankFeatureDoc[]> rankResultListener = new ThreadedActionListener<>(
+            context::execute,
+            new ActionListener<>() {
+                @Override
+                public void onResponse(RankFeatureDoc[] docsWithUpdatedScores) {
+                    RankFeatureDoc[] topResults = rankFeaturePhaseRankCoordinatorContext.rankAndPaginate(docsWithUpdatedScores);
+                    SearchPhaseController.ReducedQueryPhase reducedRankFeaturePhase = newReducedQueryPhaseResults(
+                        reducedQueryPhase,
+                        topResults
+                    );
+                    moveToNextPhase(rankPhaseResults, reducedRankFeaturePhase);
+                }
 
-            @Override
-            public void onFailure(Exception e) {
-                context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+                @Override
+                public void onFailure(Exception e) {
+                    context.onPhaseFailure(RankFeaturePhase.this, "Computing updated ranks for results failed", e);
+                }
             }
-        });
+        );
         rankFeaturePhaseRankCoordinatorContext.computeRankScoresForGlobalResults(
             rankPhaseResults.getAtomicArray().asList().stream().map(SearchPhaseResult::rankFeatureResult).toList(),
             rankResultListener

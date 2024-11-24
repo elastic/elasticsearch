@@ -441,6 +441,11 @@ public class EsqlCapabilities {
         PER_AGG_FILTERING_ORDS,
 
         /**
+         * Support for {@code STD_DEV} aggregation.
+         */
+        STD_DEV,
+
+        /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
          */
         FIX_STATS_BY_FOLDABLE_EXPRESSION,
@@ -504,7 +509,12 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot());
+        JOIN_LOOKUP(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER;
 
         private final boolean enabled;
 

@@ -739,14 +739,15 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             clusterService,
             expressionResolver
         );
+        var mapperService = mapperService();
         return new SearchExecutionContext(
             shardId,
             shardRequestIndex,
             indexSettings,
             indexCache.bitsetFilterCache(),
             this::loadFielddata,
-            mapperService(),
-            mapperService().mappingLookup(),
+            mapperService,
+            mapperService.mappingLookup(),
             similarityService(),
             scriptService,
             parserConfiguration,
@@ -782,7 +783,7 @@ public class IndexService extends AbstractIndexComponent implements IndicesClust
             expressionResolver
         );
         final MapperService mapperService = mapperService();
-        final MappingLookup mappingLookup = mapperService().mappingLookup();
+        final MappingLookup mappingLookup = mapperService.mappingLookup();
         return new QueryRewriteContext(
             parserConfiguration,
             client,

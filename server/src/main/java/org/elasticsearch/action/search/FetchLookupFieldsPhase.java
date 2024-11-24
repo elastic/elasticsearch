@@ -33,11 +33,15 @@ import java.util.stream.Collectors;
  * @see org.elasticsearch.index.mapper.LookupRuntimeFieldType
  */
 final class FetchLookupFieldsPhase extends SearchPhase {
-    private final SearchPhaseContext context;
+    private final AbstractSearchAsyncAction<?> context;
     private final SearchResponseSections searchResponse;
     private final AtomicArray<SearchPhaseResult> queryResults;
 
-    FetchLookupFieldsPhase(SearchPhaseContext context, SearchResponseSections searchResponse, AtomicArray<SearchPhaseResult> queryResults) {
+    FetchLookupFieldsPhase(
+        AbstractSearchAsyncAction<?> context,
+        SearchResponseSections searchResponse,
+        AtomicArray<SearchPhaseResult> queryResults
+    ) {
         super("fetch_lookup_fields");
         this.context = context;
         this.searchResponse = searchResponse;

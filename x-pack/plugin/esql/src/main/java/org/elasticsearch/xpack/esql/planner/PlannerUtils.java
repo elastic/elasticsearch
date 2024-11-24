@@ -92,13 +92,10 @@ public class PlannerUtils {
                 LocalMapper mapper = new LocalMapper();
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));
                 return physicalPlan.collectFirstChildren(TopNExec.class::isInstance).get(0);
-
             } else if (pipelineBreaker instanceof Limit limit) {
                 return new LimitExec(limit.source(), unused, limit.limit());
-
             } else if (pipelineBreaker instanceof OrderBy order) {
                 return new OrderExec(order.source(), unused, order.order());
-
             } else if (pipelineBreaker instanceof Aggregate) {
                 LocalMapper mapper = new LocalMapper();
                 var physicalPlan = EstimatesRowSize.estimateRowSize(0, mapper.map(plan));

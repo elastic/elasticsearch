@@ -1,0 +1,5 @@
+pr: 117153
+summary: "ESQL: fix the column position in errors"
+area: ES|QL
+type: bug
+issues: []

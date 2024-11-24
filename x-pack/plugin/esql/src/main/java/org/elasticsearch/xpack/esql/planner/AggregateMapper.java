@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialAggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialCentroid;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.SpatialStExtent;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.StdDev;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Sum;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.ToPartial;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Top;
@@ -77,6 +78,7 @@ final class AggregateMapper {
         Percentile.class,
         SpatialCentroid.class,
         SpatialStExtent.class,
+        StdDev.class,
         Sum.class,
         Values.class,
         Top.class,
@@ -179,7 +181,7 @@ final class AggregateMapper {
             types = List.of("Int", "Long", "Double", "Boolean", "BytesRef");
         } else if (Top.class.isAssignableFrom(clazz)) {
             types = List.of("Boolean", "Int", "Long", "Double", "Ip", "BytesRef");
-        } else if (Rate.class.isAssignableFrom(clazz)) {
+        } else if (Rate.class.isAssignableFrom(clazz) || StdDev.class.isAssignableFrom(clazz)) {
             types = List.of("Int", "Long", "Double");
         } else if (FromPartial.class.isAssignableFrom(clazz) || ToPartial.class.isAssignableFrom(clazz)) {
             types = List.of(""); // no type

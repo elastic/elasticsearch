@@ -99,8 +99,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             return Instant.ofEpochMilli(key).atZone(ZoneOffset.UTC);
         }
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        private void bucketToXContent(XContentBuilder builder, Params params, DocValueFormat format) throws IOException {
             String keyAsString = format.format(key).toString();
             builder.startObject();
             if (format != DocValueFormat.RAW) {
@@ -110,7 +109,6 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), docCount);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         @Override
@@ -597,7 +595,7 @@ public final class InternalAutoDateHistogram extends InternalMultiBucketAggregat
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (Bucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params, format);
         }
         builder.endArray();
         builder.field("interval", getInterval().toString());

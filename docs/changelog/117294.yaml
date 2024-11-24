@@ -1,0 +1,5 @@
+pr: 117294
+summary: Always Emit Inference ID in Semantic Text Mapping
+area: Mapping
+type: bug
+issues: []

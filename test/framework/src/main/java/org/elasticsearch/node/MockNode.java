@@ -31,6 +31,7 @@ import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.recovery.RecoverySettings;
 import org.elasticsearch.plugins.MockPluginsService;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.plugins.PluginsLoader;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.readiness.MockReadinessService;
 import org.elasticsearch.readiness.ReadinessService;
@@ -279,10 +280,11 @@ public class MockNode extends Node {
         final Collection<Class<? extends Plugin>> classpathPlugins,
         final boolean forbidPrivateIndexSettings
     ) {
-        super(NodeConstruction.prepareConstruction(environment, new MockServiceProvider() {
+        super(NodeConstruction.prepareConstruction(environment, null, new MockServiceProvider() {
+
             @Override
-            PluginsService newPluginService(Environment environment, Settings settings) {
-                return new MockPluginsService(settings, environment, classpathPlugins);
+            PluginsService newPluginService(Environment environment, PluginsLoader pluginsLoader) {
+                return new MockPluginsService(environment.settings(), environment, classpathPlugins);
             }
         }, forbidPrivateIndexSettings));
 

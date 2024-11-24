@@ -43,13 +43,14 @@ public class CheckstylePrecommitPlugin extends PrecommitPlugin {
         File checkstyleSuppressions = new File(checkstyleDir, "checkstyle_suppressions.xml");
         File checkstyleConf = new File(checkstyleDir, "checkstyle.xml");
         TaskProvider<Task> copyCheckstyleConf = project.getTasks().register("copyCheckstyleConf");
-
         // configure inputs and outputs so up to date works properly
         copyCheckstyleConf.configure(t -> t.getOutputs().files(checkstyleSuppressions, checkstyleConf));
         if ("jar".equals(checkstyleConfUrl.getProtocol())) {
             try {
                 JarURLConnection jarURLConnection = (JarURLConnection) checkstyleConfUrl.openConnection();
-                copyCheckstyleConf.configure(t -> t.getInputs().file(jarURLConnection.getJarFileURL()));
+                copyCheckstyleConf.configure(
+                    t -> t.getInputs().file(jarURLConnection.getJarFileURL()).withPathSensitivity(PathSensitivity.RELATIVE)
+                );
             } catch (IOException e) {
                 throw new UncheckedIOException(e);
             }

@@ -44,6 +44,7 @@ import org.gradle.api.attributes.Attribute;
 import org.gradle.api.file.ConfigurableFileCollection;
 import org.gradle.api.file.FileCollection;
 import org.gradle.api.file.FileTree;
+import org.gradle.api.internal.artifacts.dependencies.ProjectDependencyInternal;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.ClasspathNormalizer;
 import org.gradle.api.tasks.PathSensitivity;
@@ -245,7 +246,7 @@ public class RestTestBasePlugin implements Plugin<Project> {
         configuration.getDependencies()
             .stream()
             .filter(d -> d instanceof ProjectDependency)
-            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependency) d).getDependencyProject().getPath())))
+            .map(d -> project.getDependencies().project(Map.of("path", ((ProjectDependencyInternal) d).getIdentityPath().getPath())))
             .forEach(dependencies::add);
     }
 
@@ -322,8 +323,11 @@ public class RestTestBasePlugin implements Plugin<Project> {
                     Collection<Dependency> additionalDependencies = new LinkedHashSet<>();
                     for (Iterator<Dependency> iterator = dependencies.iterator(); iterator.hasNext();) {
                         Dependency dependency = iterator.next();
+                        // this logic of relying on other projects metadata should probably live in a build service
                         if (dependency instanceof ProjectDependency projectDependency) {
-                            Project dependencyProject = projectDependency.getDependencyProject();
+                            Project dependencyProject = project.project(
+                                ((ProjectDependencyInternal) projectDependency).getIdentityPath().getPath()
+                            );
                             List<String> extendedPlugins = dependencyProject.getExtensions()
                                 .getByType(PluginPropertiesExtension.class)
                                 .getExtendedPlugins();

@@ -93,7 +93,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
     public Provider<String> getWorkingDirPath() {
         return getWorkingDir().map(file -> {
             String relativeWorkingDir = projectLayout.getProjectDirectory().getAsFile().toPath().relativize(file.toPath()).toString();
-            System.out.println("relativeWorkingDir = " + relativeWorkingDir);
             return relativeWorkingDir;
         });
     }
@@ -149,13 +148,6 @@ public abstract class LoggedExec extends DefaultTask implements FileSystemOperat
 
     @TaskAction
     public void run() {
-        String executable = getExecutable().get();
-        System.out.println("executable = " + executable);
-        List<Object> args = getArgs().get();
-        System.out.println("args = " + args);
-        Map<String, String> stringStringMap = getEnvironment().get();
-        System.out.println("env = " + stringStringMap);
-
         boolean spoolOutput = getSpoolOutput().get();
         if (spoolOutput && getCaptureOutput().get()) {
             throw new GradleException("Capturing output is not supported when spoolOutput is true.");

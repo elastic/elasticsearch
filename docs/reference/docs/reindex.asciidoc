@@ -1146,8 +1146,6 @@ a colon (e.g., cluster_one:my-index-000001).
 Additionally, you must configure the remote cluster in advance and retrieve the remote cluster name.
 For more details, refer to the reference for <<add-remote-clusters>>.
 
-NOTE: Needs v8.12.0 or later on the reindexing cluster.
-
 [[reindex-ssl]]
 ===== Configuring SSL parameters
 

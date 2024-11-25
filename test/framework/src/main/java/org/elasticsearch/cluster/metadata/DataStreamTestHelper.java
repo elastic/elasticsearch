@@ -745,7 +745,7 @@ public final class DataStreamTestHelper {
             return DataStreamOptions.Template.EMPTY;
         }
         return new DataStreamOptions.Template(
-            Template.ExplicitlyNullable.create(new DataStreamFailureStore.Template(Template.ExplicitlyNullable.create(failureStore)))
+            ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(failureStore)))
         );
     }
 }

@@ -25,6 +25,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
+import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -351,13 +352,7 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
         DataStreamOptions.Template dataStreamOptions = resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate);
-        return new Template(
-            settings,
-            mergedMapping,
-            aliasesByName,
-            lifecycle,
-            dataStreamOptions == null ? null : Template.ExplicitlyNullable.create(dataStreamOptions)
-        );
+        return new Template(settings, mergedMapping, aliasesByName, lifecycle, ResettableValue.create(dataStreamOptions));
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {

@@ -32,22 +32,22 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             case 0 -> DataStreamOptions.Template.EMPTY;
             case 1 -> createTemplateWithFailureStoreConfig(true);
             case 2 -> createTemplateWithFailureStoreConfig(false);
-            case 3 -> new DataStreamOptions.Template(Template.ExplicitlyNullable.empty());
+            case 3 -> new DataStreamOptions.Template(ResettableValue.unset());
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
     }
 
     @Override
     protected DataStreamOptions.Template mutateInstance(DataStreamOptions.Template instance) throws IOException {
-        Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore = instance.failureStore();
-        if (failureStore == null) {
+        ResettableValue<DataStreamFailureStore.Template> failureStore = instance.failureStore();
+        if (failureStore.isDefined() == false) {
             if (randomBoolean()) {
                 return createTemplateWithFailureStoreConfig(randomBoolean());
             } else {
-                return new DataStreamOptions.Template(Template.ExplicitlyNullable.empty());
+                return new DataStreamOptions.Template(ResettableValue.unset());
             }
         }
-        if (failureStore.isNull()) {
+        if (failureStore.isUnset()) {
             if (randomBoolean()) {
                 return createTemplateWithFailureStoreConfig(randomBoolean());
             } else {
@@ -65,8 +65,6 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     }
 
     private static DataStreamOptions.Template createTemplateWithFailureStoreConfig(boolean enabled) {
-        return new DataStreamOptions.Template(
-            Template.ExplicitlyNullable.create(new DataStreamFailureStore.Template(Template.ExplicitlyNullable.create(enabled)))
-        );
+        return new DataStreamOptions.Template(ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(enabled))));
     }
 }

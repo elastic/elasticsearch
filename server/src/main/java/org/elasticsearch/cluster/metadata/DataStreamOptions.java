@@ -32,7 +32,10 @@ import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.FAILURE_
  * supports the following configurations:
  * - failure store
  */
-public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToXContentObject {
+public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
+    implements
+        SimpleDiffable<DataStreamOptions>,
+        ToXContentObject {
 
     public static final ParseField FAILURE_STORE_FIELD = new ParseField(FAILURE_STORE);
     public static final DataStreamOptions FAILURE_STORE_ENABLED = new DataStreamOptions(new DataStreamFailureStore(true));
@@ -44,12 +47,6 @@ public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToX
         false,
         (args, unused) -> new DataStreamOptions((DataStreamFailureStore) args[0])
     );
-    @Nullable
-    private final DataStreamFailureStore failureStore;
-
-    public DataStreamOptions(@Nullable DataStreamFailureStore failureStore) {
-        this.failureStore = failureStore;
-    }
 
     static {
         PARSER.declareObject(
@@ -108,78 +105,49 @@ public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToX
         return PARSER.parse(parser, null);
     }
 
-    @Nullable
-    public DataStreamFailureStore failureStore() {
-        return failureStore;
-    }
-
-    @Override
-    public boolean equals(Object obj) {
-        if (obj == this) return true;
-        if (obj == null || obj.getClass() != this.getClass()) return false;
-        var that = (DataStreamOptions) obj;
-        return Objects.equals(this.failureStore, that.failureStore);
-    }
-
-    @Override
-    public int hashCode() {
-        return Objects.hash(failureStore);
-    }
-
     /**
-     * This class is only used in template configuration. It allows us to represent explicit null values and denotes that the fields
-     * of the failure can be merged.
+     * This class is only used in template configuration. It allows us to represent resettable values during template composition.
      */
     public static class Template implements Writeable, ToXContentObject {
         public static final Template EMPTY = new Template();
 
-        @Nullable
-        private final org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore;
+        private final ResettableValue<DataStreamFailureStore.Template> failureStore;
 
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<DataStreamOptions.Template, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_options_template",
             false,
-            (args, unused) -> new DataStreamOptions.Template(
-                (org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template>) args[0]
-            )
+            (args, unused) -> new Template((ResettableValue<DataStreamFailureStore.Template>) args[0])
         );
 
         static {
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
-                (p, s) -> org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.create(
-                    DataStreamFailureStore.Template.fromXContent(p)
-                ),
-                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.empty(),
+                (p, s) -> ResettableValue.create(DataStreamFailureStore.Template.fromXContent(p)),
+                ResettableValue.unset(),
                 FAILURE_STORE_FIELD
             );
         }
 
         private Template() {
-            this.failureStore = null;
+            this.failureStore = ResettableValue.undefined();
         }
 
-        public Template(org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore) {
-            this.failureStore = failureStore;
+        public Template(@Nullable ResettableValue<DataStreamFailureStore.Template> failureStore) {
+            this.failureStore = failureStore == null ? ResettableValue.undefined() : failureStore;
         }
 
-        public org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore() {
+        public ResettableValue<DataStreamFailureStore.Template> failureStore() {
             return failureStore;
-        }
-
-        public boolean isFailureStoreDefined() {
-            return failureStore != null;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.write(out, failureStore, (o, v) -> v.writeTo(o));
+            ResettableValue.write(out, failureStore, (o, v) -> v.writeTo(o));
         }
 
         public static Template read(StreamInput in) throws IOException {
-            org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore =
-                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.read(in, DataStreamFailureStore.Template::read);
+            ResettableValue<DataStreamFailureStore.Template> failureStore = ResettableValue.read(in, DataStreamFailureStore.Template::read);
             return new Template(failureStore);
         }
 
@@ -188,41 +156,31 @@ public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToX
         }
 
         /**
-         * Converts the template to XContent, when the parameter
-         * {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not display
-         * any explicit nulls
+         * Converts the template to XContent, depending on the {@param params} set by {@link ResettableValue#disableResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            boolean skipExplicitNulls = params.paramAsBoolean(
-                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.SKIP_EXPLICIT_NULLS,
-                false
-            );
             builder.startObject();
-            if (failureStore != null) {
-                if (failureStore.isNull() == false) {
-                    builder.field(FAILURE_STORE_FIELD.getPreferredName(), failureStore.get());
-                } else if (skipExplicitNulls == false) {
-                    builder.nullField(FAILURE_STORE_FIELD.getPreferredName());
-                }
-            }
+            failureStore.toXContent(builder, params, FAILURE_STORE_FIELD.getPreferredName());
             builder.endObject();
             return builder;
         }
 
         @Nullable
         public DataStreamOptions toDataStreamOptions() {
-            return new DataStreamOptions(
-                failureStore == null ? null : failureStore.applyAndGet(DataStreamFailureStore.Template::toFailureStore)
-            );
+            return new DataStreamOptions(failureStore.applyAndGet(DataStreamFailureStore.Template::toFailureStore));
         }
 
         public static Builder builder(Template template) {
             return new Builder(template);
         }
 
+        /**
+         * Builds and composes a data stream template.
+         */
         public static class Builder {
-            private org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore = null;
+            private ResettableValue<DataStreamFailureStore.Template> failureStore = ResettableValue.undefined();
 
             public Builder(Template template) {
                 if (template != null) {
@@ -230,16 +188,13 @@ public class DataStreamOptions implements SimpleDiffable<DataStreamOptions>, ToX
                 }
             }
 
-            public Builder updateFailureStore(
-                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable<DataStreamFailureStore.Template> failureStore
-            ) {
-                DataStreamFailureStore.Template current = this.failureStoreValue();
-                this.failureStore = current == null ? failureStore : failureStore.map(current::mergeWith);
+            /**
+             * Updates the current failure store configuration with the provided value. This is not a replacement necessarily, if both
+             * instance contain data the configurations are merged.
+             */
+            public Builder updateFailureStore(ResettableValue<DataStreamFailureStore.Template> newFailureStore) {
+                failureStore = failureStore.merge(newFailureStore, fs -> fs.mergeWith(newFailureStore.get()));
                 return this;
-            }
-
-            public DataStreamFailureStore.Template failureStoreValue() {
-                return failureStore == null ? null : failureStore.get();
             }
 
             public Template build() {

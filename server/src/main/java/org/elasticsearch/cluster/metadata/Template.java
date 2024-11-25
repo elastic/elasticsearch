@@ -35,7 +35,6 @@ import java.util.Base64;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
-import java.util.function.Function;
 
 /**
  * A template consists of optional settings, mappings, alias or lifecycle configuration for an index or data stream, however,
@@ -59,7 +58,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             (CompressedXContent) a[1],
             (Map<String, AliasMetadata>) a[2],
             (DataStreamLifecycle) a[3],
-            (ExplicitlyNullable<DataStreamOptions.Template>) a[4]
+            a[4] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamOptions.Template>) a[4]
         )
     );
 
@@ -92,8 +91,8 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         PARSER.declareObject(ConstructingObjectParser.optionalConstructorArg(), (p, c) -> DataStreamLifecycle.fromXContent(p), LIFECYCLE);
         PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
-            (p, c) -> ExplicitlyNullable.create(DataStreamOptions.Template.fromXContent(p)),
-            ExplicitlyNullable.empty(),
+            (p, c) -> ResettableValue.create(DataStreamOptions.Template.fromXContent(p)),
+            ResettableValue.unset(),
             DATA_STREAM_OPTIONS
         );
     }
@@ -107,15 +106,14 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Nullable
     private final DataStreamLifecycle lifecycle;
-    @Nullable
-    private final ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions;
+    private final ResettableValue<DataStreamOptions.Template> dataStreamOptions;
 
     public Template(
         @Nullable Settings settings,
         @Nullable CompressedXContent mappings,
         @Nullable Map<String, AliasMetadata> aliases,
         @Nullable DataStreamLifecycle lifecycle,
-        @Nullable ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions
     ) {
         this.settings = settings;
         this.mappings = mappings;
@@ -125,7 +123,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     public Template(@Nullable Settings settings, @Nullable CompressedXContent mappings, @Nullable Map<String, AliasMetadata> aliases) {
-        this(settings, mappings, aliases, null, null);
+        this(settings, mappings, aliases, null, ResettableValue.undefined());
     }
 
     public Template(StreamInput in) throws IOException {
@@ -157,10 +155,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             this.lifecycle = null;
         }
         if (in.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            dataStreamOptions = ExplicitlyNullable.read(in, DataStreamOptions.Template::read);
+            dataStreamOptions = ResettableValue.read(in, DataStreamOptions.Template::read);
         } else {
             // We default to no data stream options since failure store is behind a feature flag up to this version
-            this.dataStreamOptions = null;
+            this.dataStreamOptions = ResettableValue.undefined();
         }
     }
 
@@ -186,11 +184,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
 
     @Nullable
     public DataStreamOptions.Template dataStreamOptions() {
-        return dataStreamOptions == null ? null : dataStreamOptions.get();
+        return dataStreamOptions.get();
     }
 
-    @Nullable
-    public ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptionsNullable() {
+    public ResettableValue<DataStreamOptions.Template> resettableDataStreamOptions() {
         return dataStreamOptions;
     }
 
@@ -224,7 +221,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             }
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ADD_DATA_STREAM_OPTIONS_TO_TEMPLATES)) {
-            ExplicitlyNullable.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
+            ResettableValue.write(out, dataStreamOptions, (o, v) -> v.writeTo(o));
         }
     }
 
@@ -260,9 +257,9 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
     }
 
     /**
-     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle.
-     * When the parameter {@link org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true,
-     * it will not display any explicit nulls
+     * Converts the template to XContent and passes the RolloverConditions, when provided, to the lifecycle. Depending on the
+     * {@param params} set by {@link ResettableValue#disableResetValues(Params)} it may or may not display <code>null</code> when the value
+     * is to be reset.
      */
     public XContentBuilder toXContent(XContentBuilder builder, Params params, @Nullable RolloverConfiguration rolloverConfiguration)
         throws IOException {
@@ -298,11 +295,10 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             lifecycle.toXContent(builder, params, rolloverConfiguration, null, false);
         }
         if (DataStream.isFailureStoreFeatureFlagEnabled()) {
-            if (this.dataStreamOptions != null) {
-                boolean skipNulls = params.paramAsBoolean(ExplicitlyNullable.SKIP_EXPLICIT_NULLS, false);
+            if (dataStreamOptions.isDefined()) {
                 if (dataStreamOptions.get() != null) {
                     builder.field(DATA_STREAM_OPTIONS.getPreferredName(), dataStreamOptions.get());
-                } else if (skipNulls == false) {
+                } else if (ResettableValue.shouldDisplayResetValue(params)) {
                     builder.nullField(DATA_STREAM_OPTIONS.getPreferredName());
                 }
             }
@@ -355,7 +351,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         private CompressedXContent mappings = null;
         private Map<String, AliasMetadata> aliases = null;
         private DataStreamLifecycle lifecycle = null;
-        private ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions = null;
+        private ResettableValue<DataStreamOptions.Template> dataStreamOptions = ResettableValue.undefined();
 
         private Builder() {}
 
@@ -397,123 +393,21 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
             return this;
         }
 
-        public Builder dataStreamOptions(DataStreamOptions.Template dataStreamOptions) {
-            this.dataStreamOptions = ExplicitlyNullable.create(dataStreamOptions);
+        /**
+         * When the value passed is null it considers the value as undefined.
+         */
+        public Builder dataStreamOptions(@Nullable DataStreamOptions.Template dataStreamOptions) {
+            this.dataStreamOptions = ResettableValue.create(dataStreamOptions);
             return this;
         }
 
-        public Builder dataStreamOptions(ExplicitlyNullable<DataStreamOptions.Template> dataStreamOptions) {
+        public Builder dataStreamOptions(ResettableValue<DataStreamOptions.Template> dataStreamOptions) {
             this.dataStreamOptions = dataStreamOptions;
             return this;
         }
 
         public Template build() {
             return new Template(settings, mappings, aliases, lifecycle, dataStreamOptions);
-        }
-    }
-
-    public static class ExplicitlyNullable<T> {
-        private static final ExplicitlyNullable<?> EMPTY = new ExplicitlyNullable<>(null);
-        public static final String SKIP_EXPLICIT_NULLS = "skip_explicit_nulls";
-        public static final Map<String, String> SKIP_EXPLICIT_NULLS_PARAMS = Map.of(SKIP_EXPLICIT_NULLS, "true");
-
-        private final T value;
-
-        public static <T> ExplicitlyNullable<T> empty() {
-            @SuppressWarnings("unchecked")
-            ExplicitlyNullable<T> t = (ExplicitlyNullable<T>) EMPTY;
-            return t;
-        }
-
-        private ExplicitlyNullable(T value) {
-            this.value = value;
-        }
-
-        public boolean isNull() {
-            return value == null;
-        }
-
-        public T get() {
-            return value;
-        }
-
-        public static <T> ExplicitlyNullable<T> create(T value) {
-            if (value == null) {
-                return empty();
-            }
-            return new ExplicitlyNullable<>(value);
-        }
-
-        /**
-         * Writes a single optional explicitly nullable value. This method is in direct relation with the
-         * {@link #read(StreamInput, Reader)} which reads the respective value. It's the
-         * responsibility of the caller to preserve order of the fields and their backwards compatibility.
-         * @throws IOException
-         */
-        static <T> void write(StreamOutput out, ExplicitlyNullable<T> value, Writer<T> writer) throws IOException {
-            boolean isDefined = value != null;
-            out.writeBoolean(isDefined);
-            if (isDefined) {
-                out.writeBoolean(value.isNull());
-                if (value.isNull() == false) {
-                    writer.write(out, value.get());
-                }
-            }
-        }
-
-        /**
-         * Reads a single optional and explicitly nullable value. This method is in direct relation with the
-         * {@link #write(StreamOutput, ExplicitlyNullable, Writer)} which writes the respective value. It's the
-         * responsibility of the caller to preserve order of the fields and their backwards compatibility.
-         * @throws IOException
-         */
-        @Nullable
-        static <T> ExplicitlyNullable<T> read(StreamInput in, Reader<T> reader) throws IOException {
-            boolean isDefined = in.readBoolean();
-            if (isDefined == false) {
-                return null;
-            }
-            boolean isExplicitNull = in.readBoolean();
-            if (isExplicitNull) {
-                return ExplicitlyNullable.empty();
-            }
-            T value = reader.read(in);
-            return ExplicitlyNullable.create(value);
-        }
-
-        public <U> U applyAndGet(Function<? super T, ? extends U> f) {
-            if (isNull()) {
-                return null;
-            } else {
-                return f.apply(value);
-            }
-        }
-
-        public <U> ExplicitlyNullable<U> map(Function<? super T, ? extends U> mapper) {
-            Objects.requireNonNull(mapper);
-            if (isNull()) {
-                return empty();
-            } else {
-                return ExplicitlyNullable.create(mapper.apply(value));
-            }
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            ExplicitlyNullable<?> that = (ExplicitlyNullable<?>) o;
-            return Objects.equals(value, that.value);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(value);
-        }
-
-        @Override
-        public String toString() {
-            return isNull() ? "null" : value.toString();
         }
     }
 }

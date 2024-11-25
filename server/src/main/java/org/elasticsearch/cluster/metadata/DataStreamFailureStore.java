@@ -11,7 +11,6 @@ package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.cluster.Diff;
 import org.elasticsearch.cluster.SimpleDiffable;
-import org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -96,73 +95,60 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
      */
     public static class Template implements Writeable, ToXContentObject {
 
-        private final ExplicitlyNullable<Boolean> enabled;
+        private final ResettableValue<Boolean> enabled;
 
         @SuppressWarnings("unchecked")
-        public static final ConstructingObjectParser<DataStreamFailureStore.Template, Void> PARSER = new ConstructingObjectParser<>(
+        public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
             "failure_store_template",
             false,
-            (args, unused) -> new DataStreamFailureStore.Template((ExplicitlyNullable<Boolean>) args[0])
+            (args, unused) -> new Template((ResettableValue<Boolean>) args[0])
         );
 
         static {
             PARSER.declareField(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
-                    ? ExplicitlyNullable.empty()
-                    : ExplicitlyNullable.create(p.booleanValue()),
+                    ? ResettableValue.unset()
+                    : ResettableValue.create(p.booleanValue()),
                 ENABLED_FIELD,
                 ObjectParser.ValueType.BOOLEAN_OR_NULL
             );
         }
 
-        public Template(ExplicitlyNullable<Boolean> enabled) {
-            if (enabled == null || enabled.isNull()) {
+        public Template(@Nullable ResettableValue<Boolean> enabled) {
+            if (enabled == null || enabled.get() == null) {
                 throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
             }
             this.enabled = enabled;
         }
 
-        public ExplicitlyNullable<Boolean> enabled() {
+        public ResettableValue<Boolean> enabled() {
             return enabled;
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
-            org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.write(out, enabled, StreamOutput::writeBoolean);
+            ResettableValue.write(out, enabled, StreamOutput::writeBoolean);
         }
 
         public static Template read(StreamInput in) throws IOException {
-            ExplicitlyNullable<Boolean> enabled = org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.read(
-                in,
-                StreamInput::readBoolean
-            );
+            ResettableValue<Boolean> enabled = ResettableValue.read(in, StreamInput::readBoolean);
             return new Template(enabled);
         }
 
         /**
-         * Converts the template to XContent, when the parameter {@link ExplicitlyNullable#SKIP_EXPLICIT_NULLS} is set to true, it will not
-         * display any explicit nulls
+         * Converts the template to XContent, depending on the XContent.Params set by {@link ResettableValue#disableResetValues(Params)}
+         * it may or may not display any explicit nulls when the value is to be reset.
          */
         @Override
         public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            boolean skipExplicitNulls = params.paramAsBoolean(
-                org.elasticsearch.cluster.metadata.Template.ExplicitlyNullable.SKIP_EXPLICIT_NULLS,
-                false
-            );
             builder.startObject();
-            if (enabled != null) {
-                if (enabled.isNull() == false) {
-                    builder.field(ENABLED_FIELD.getPreferredName(), enabled.get());
-                } else if (skipExplicitNulls == false) {
-                    builder.nullField(ENABLED_FIELD.getPreferredName());
-                }
-            }
+            enabled.toXContent(builder, params, ENABLED_FIELD.getPreferredName());
             builder.endObject();
             return builder;
         }
 
-        public static DataStreamFailureStore.Template fromXContent(XContentParser parser) throws IOException {
+        public static Template fromXContent(XContentParser parser) throws IOException {
             return PARSER.parse(parser, null);
         }
 

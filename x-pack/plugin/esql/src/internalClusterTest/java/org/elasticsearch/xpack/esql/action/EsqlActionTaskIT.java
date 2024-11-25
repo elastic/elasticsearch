@@ -380,12 +380,13 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                 .get();
             ensureYellowAndNoInitializingShards("test");
             request.query("FROM test | LIMIT 10");
-            request.pragmas(randomPragmas());
+            QueryPragmas pragmas = randomPragmas();
+            request.pragmas(pragmas);
             PlainActionFuture<EsqlQueryResponse> future = new PlainActionFuture<>();
             client.execute(EsqlQueryAction.INSTANCE, request, future);
             ExchangeService exchangeService = internalCluster().getInstance(ExchangeService.class, dataNode);
-            boolean waitedForPages;
-            final String sessionId;
+            final boolean waitedForPages;
+            final String exchangeId;
             try {
                 List<TaskInfo> foundTasks = new ArrayList<>();
                 assertBusy(() -> {
@@ -399,13 +400,22 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
                     assertThat(tasks, hasSize(1));
                     foundTasks.addAll(tasks);
                 });
-                sessionId = foundTasks.get(0).taskId().toString();
+                final String sessionId = foundTasks.get(0).taskId().toString();
                 assertTrue(fetchingStarted.await(1, TimeUnit.MINUTES));
-                String exchangeId = exchangeService.sinkKeys().stream().filter(s -> s.startsWith(sessionId)).findFirst().get();
+                List<String> sinkKeys = exchangeService.sinkKeys()
+                    .stream()
+                    .filter(
+                        s -> s.startsWith(sessionId)
+                            // exclude the node-level reduction sink
+                            && s.endsWith("[n]") == false
+                    )
+                    .toList();
+                assertThat(sinkKeys.toString(), sinkKeys.size(), equalTo(1));
+                exchangeId = sinkKeys.get(0);
                 ExchangeSinkHandler exchangeSink = exchangeService.getSinkHandler(exchangeId);
                 waitedForPages = randomBoolean();
                 if (waitedForPages) {
-                    // do not fail exchange requests until we have some pages
+                    // do not fail exchange requests until we have some pages.
                     assertBusy(() -> assertThat(exchangeSink.bufferSize(), greaterThan(0)));
                 }
             } finally {
@@ -417,7 +427,7 @@ public class EsqlActionTaskIT extends AbstractPausableIntegTestCase {
             // As a result, the exchange sinks on data-nodes won't be removed until the inactive_timeout elapses, which is
             // longer than the assertBusy timeout.
             if (waitedForPages == false) {
-                exchangeService.finishSinkHandler(sessionId, failure);
+                exchangeService.finishSinkHandler(exchangeId, failure);
             }
         } finally {
             transportService.clearAllRules();

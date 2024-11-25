@@ -567,9 +567,6 @@ public class EsqlCapabilities {
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
             caps.add(cap(feature));
         }
-        for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
-            caps.add(cap(feature));
-        }
         return Set.copyOf(caps);
     }
 

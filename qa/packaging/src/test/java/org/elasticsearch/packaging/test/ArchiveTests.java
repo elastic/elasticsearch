@@ -48,7 +48,6 @@ import static org.hamcrest.Matchers.startsWith;
 import static org.junit.Assume.assumeThat;
 import static org.junit.Assume.assumeTrue;
 
-@PackagingTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/116299")
 public class ArchiveTests extends PackagingTestCase {
 
     @BeforeClass

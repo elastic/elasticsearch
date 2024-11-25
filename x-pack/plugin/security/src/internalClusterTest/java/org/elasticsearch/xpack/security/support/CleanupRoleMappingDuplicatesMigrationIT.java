@@ -14,6 +14,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.integration.RoleMappingFileSettingsIT;
 import org.elasticsearch.reservedstate.service.FileSettingsService;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.SecurityIntegTestCase;
@@ -40,7 +41,6 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.integration.RoleMappingFileSettingsIT.setupClusterStateListener;
-import static org.elasticsearch.integration.RoleMappingFileSettingsIT.writeJSONFile;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_DATA_KEY;
 import static org.elasticsearch.xpack.core.security.action.UpdateIndexMigrationVersionAction.MIGRATION_VERSION_CUSTOM_KEY;
 import static org.elasticsearch.xpack.core.security.test.TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7;
@@ -138,7 +138,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Setup listener to wait for role mapping
         var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         // Write role mappings
-        writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter.incrementAndGet());
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
@@ -170,7 +170,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Setup listener to wait for role mapping
         var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         // Write role mappings with fallback name, this should block any security migration
-        writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter.incrementAndGet());
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
@@ -202,7 +202,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Setup listener to wait for role mapping
         var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode, "everyone_kibana_alone");
         // Write role mappings with fallback name, this should block any security migration
-        writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter.incrementAndGet());
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
 
@@ -228,7 +228,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Setup listener to wait for role mapping
         var nameNotAvailableListener = setupClusterStateListener(masterNode, "name_not_available_after_deserialization");
         // Write role mappings with fallback name, this should block any security migration
-        writeJSONFile(masterNode, TEST_JSON_WITH_FALLBACK_NAME, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_FALLBACK_NAME, logger, versionCounter.incrementAndGet());
         assertTrue(nameNotAvailableListener.v1().await(20, TimeUnit.SECONDS));
 
         // Create a native role mapping to create security index and trigger migration
@@ -249,7 +249,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         assertThat(status, equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.NOT_READY));
 
         // Write file without fallback name in it to unblock migration
-        writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_ROLE_MAPPINGS, logger, versionCounter.incrementAndGet());
         waitForMigrationCompletion(SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION);
     }
 
@@ -282,7 +282,7 @@ public class CleanupRoleMappingDuplicatesMigrationIT extends SecurityIntegTestCa
         // Setup listener to wait for any role mapping
         var fileBasedRoleMappingsWrittenListener = setupClusterStateListener(masterNode);
         // Write role mappings
-        writeJSONFile(masterNode, TEST_JSON_WITH_EMPTY_ROLE_MAPPINGS, logger, versionCounter);
+        RoleMappingFileSettingsIT.writeJSONFile(masterNode, TEST_JSON_WITH_EMPTY_ROLE_MAPPINGS, logger, versionCounter.incrementAndGet());
         assertTrue(fileBasedRoleMappingsWrittenListener.v1().await(20, TimeUnit.SECONDS));
 
         // Create a native role mapping to create security index and trigger migration (skipped initially)

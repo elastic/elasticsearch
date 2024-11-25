@@ -7,6 +7,8 @@
 
 package org.elasticsearch.xpack.ml.packageloader.action;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.ResourceNotFoundException;
@@ -56,10 +58,12 @@ import static java.net.HttpURLConnection.HTTP_SEE_OTHER;
  */
 final class ModelLoaderUtils {
 
+    private static final Logger logger = LogManager.getLogger(ModelLoaderUtils.class);
+
     public static String METADATA_FILE_EXTENSION = ".metadata.json";
     public static String MODEL_FILE_EXTENSION = ".pt";
 
-    private static ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
+    private static final ByteSizeValue VOCABULARY_SIZE_LIMIT = new ByteSizeValue(20, ByteSizeUnit.MB);
     private static final String VOCABULARY = "vocabulary";
     private static final String MERGES = "merges";
     private static final String SCORES = "scores";
@@ -83,6 +87,7 @@ final class ModelLoaderUtils {
         private final AtomicInteger currentPart;
         private final int lastPartNumber;
         private final byte[] buf;
+        private final RequestRange range;  // TODO debug only
 
         HttpStreamChunker(URI uri, RequestRange range, int chunkSize) {
             var inputStream = getHttpOrHttpsInputStream(uri, range);
@@ -91,6 +96,7 @@ final class ModelLoaderUtils {
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
             this.buf = new byte[chunkSize];
+            this.range = range;
         }
 
         // This ctor exists for testing purposes only.
@@ -100,6 +106,7 @@ final class ModelLoaderUtils {
             this.lastPartNumber = range.startPart() + range.numParts();
             this.currentPart = new AtomicInteger(range.startPart());
             this.buf = new byte[chunkSize];
+            this.range = range;
         }
 
         public boolean hasNext() {
@@ -113,6 +120,7 @@ final class ModelLoaderUtils {
                 int read = inputStream.read(buf, bytesRead, chunkSize - bytesRead);
                 // EOF??
                 if (read == -1) {
+                    logger.debug("end of stream, " + bytesRead + " bytes read");
                     break;
                 }
                 bytesRead += read;
@@ -122,6 +130,7 @@ final class ModelLoaderUtils {
                 totalBytesRead.addAndGet(bytesRead);
                 return new BytesAndPartIndex(new BytesArray(buf, 0, bytesRead), currentPart.getAndIncrement());
             } else {
+                logger.warn("Empty part in range " + range + ", current part=" + currentPart.get() + ", last part=" + lastPartNumber);
                 return new BytesAndPartIndex(BytesArray.EMPTY, currentPart.get());
             }
         }

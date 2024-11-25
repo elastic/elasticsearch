@@ -147,26 +147,7 @@ public class MetadataAttribute extends TypedAttribute {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(
-            this,
-            (source, name, dataType, qualifier, nullability, id, synthetic, searchable1) -> new MetadataAttribute(
-                source,
-                name,
-                dataType,
-                qualifier,
-                nullability,
-                id,
-                synthetic,
-                searchable1
-            ),
-            name(),
-            dataType(),
-            (String) null,
-            nullable(),
-            id(),
-            synthetic(),
-            searchable
-        );
+        return NodeInfo.create(this, MetadataAttribute::new, name(), dataType(), nullable(), id(), synthetic(), searchable);
     }
 
     public boolean searchable() {

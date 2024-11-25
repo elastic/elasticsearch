@@ -209,12 +209,13 @@ host.name pass-through:
                 k8s.replicaset.name: myReplicasetName
                 k8s.node.uid: myNodeUid
                 k8s.node.hostname: myNodeHostname
+                k8s.cluster.name: myClusterName
   - is_false: errors
   - do:
       search:
         index: logs-generic.otel-default
         body:
-          fields: ["kubernetes.container.name", "kubernetes.cronjob.name", "kubernetes.job.name", "kubernetes.statefulset.name", "kubernetes.daemonset.name", "kubernetes.replicaset.name", "kubernetes.node.uid", "kubernetes.node.hostname" ]
+          fields: ["kubernetes.container.name", "kubernetes.cronjob.name", "kubernetes.job.name", "kubernetes.statefulset.name", "kubernetes.daemonset.name", "kubernetes.replicaset.name", "kubernetes.node.uid", "kubernetes.node.hostname", "orchestrator.cluster.name" ]
   - length: { hits.hits: 1 }
   - match: { hits.hits.0.fields.kubernetes\.container\.name : ["myContainerName"] }
   - match: { hits.hits.0.fields.kubernetes\.cronjob\.name : ["myCronJobName"] }
@@ -224,3 +225,4 @@ host.name pass-through:
   - match: { hits.hits.0.fields.kubernetes\.replicaset\.name : ["myReplicasetName"] }
   - match: { hits.hits.0.fields.kubernetes\.node\.uid : ["myNodeUid"] }
   - match: { hits.hits.0.fields.kubernetes\.node\.hostname : ["myNodeHostname"] }
+  - match: { hits.hits.0.fields.orchestrator\.cluster\.name : ["myClusterName"] }

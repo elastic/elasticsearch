@@ -1,9 +1,0 @@
-
-subprojects {
-  // fixtures don't have tests, these are external projects used by the build
-  pluginManager.withPlugin('java') {
-    tasks.named('test').configure {
-      enabled = false
-    }
-  }
-}

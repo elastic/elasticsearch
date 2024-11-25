@@ -9,6 +9,7 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.fixture.HttpHeaderParser;
 
@@ -31,7 +32,7 @@ public class HttpHeaderParserTests extends ESTestCase {
     public void testParseRangeHeaderMultipleRangesNotMatched() {
         assertNull(
             HttpHeaderParser.parseRangeHeader(
-                String.format(
+                Strings.format(
                     "bytes=%d-%d,%d-%d",
                     randomIntBetween(0, 99),
                     randomIntBetween(100, 199),
@@ -43,10 +44,10 @@ public class HttpHeaderParserTests extends ESTestCase {
     }
 
     public void testParseRangeHeaderEndlessRangeNotMatched() {
-        assertNull(HttpHeaderParser.parseRangeHeader(String.format("bytes=%d-", randomLongBetween(0, Long.MAX_VALUE))));
+        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=%d-", randomLongBetween(0, Long.MAX_VALUE))));
     }
 
     public void testParseRangeHeaderSuffixLengthNotMatched() {
-        assertNull(HttpHeaderParser.parseRangeHeader(String.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
+        assertNull(HttpHeaderParser.parseRangeHeader(Strings.format("bytes=-%d", randomLongBetween(0, Long.MAX_VALUE))));
     }
 }

@@ -42,7 +42,6 @@ tasks.named("yamlRestTest").configure {
     'cluster.desired_balance/10_basic/*',
     'cluster.desired_nodes/*/*',
     'cluster.prevalidate_node_removal/*/*',
-    'cluster.reroute/11_explain/*',
     'cluster.state/20_filtering/*',
     'cluster.state/30_expand_wildcards/*',
     'cluster.stats/*/*',

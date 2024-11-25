@@ -217,6 +217,7 @@ import org.elasticsearch.action.update.TransportUpdateAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.NamedRegistry;
@@ -449,6 +450,7 @@ public class ActionModule extends AbstractModule {
     private final Map<String, ActionHandler<?, ?>> actions;
     private final ActionFilters actionFilters;
     private final IncrementalBulkService bulkService;
+    private final ProjectIdResolver projectIdResolver;
     private final AutoCreateIndex autoCreateIndex;
     private final DestructiveOperations destructiveOperations;
     private final RestController restController;
@@ -478,7 +480,8 @@ public class ActionModule extends AbstractModule {
         RerouteService rerouteService,
         List<ReservedClusterStateHandler<?>> reservedStateHandlers,
         RestExtension restExtension,
-        IncrementalBulkService bulkService
+        IncrementalBulkService bulkService,
+        ProjectIdResolver projectIdResolver
     ) {
         this.settings = settings;
         this.indexNameExpressionResolver = indexNameExpressionResolver;
@@ -491,6 +494,7 @@ public class ActionModule extends AbstractModule {
         actions = setupActions(actionPlugins);
         actionFilters = setupActionFilters(actionPlugins);
         this.bulkService = bulkService;
+        this.projectIdResolver = projectIdResolver;
         autoCreateIndex = new AutoCreateIndex(settings, clusterSettings, indexNameExpressionResolver, systemIndices);
         destructiveOperations = new DestructiveOperations(settings, clusterSettings);
         Set<RestHeaderDefinition> headers = Stream.concat(
@@ -854,7 +858,7 @@ public class ActionModule extends AbstractModule {
         registerHandler.accept(new RestClusterHealthAction());
         registerHandler.accept(new RestClusterUpdateSettingsAction());
         registerHandler.accept(new RestClusterGetSettingsAction(settings, clusterSettings, settingsFilter));
-        registerHandler.accept(new RestClusterRerouteAction(settingsFilter));
+        registerHandler.accept(new RestClusterRerouteAction(settingsFilter, projectIdResolver));
         registerHandler.accept(new RestClusterSearchShardsAction());
         registerHandler.accept(new RestPendingClusterTasksAction());
         registerHandler.accept(new RestPutRepositoryAction());

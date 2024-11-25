@@ -46,6 +46,7 @@ import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.common.logging.ESLogMessage;
 import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.gateway.GatewayAllocator;
@@ -409,6 +410,7 @@ public class AllocationService {
         }
     }
 
+    @FixForMultiProject(description = "we should assert retryFailed is not allowed with non-empty commands")
     public CommandsResult reroute(
         ClusterState clusterState,
         AllocationCommands commands,

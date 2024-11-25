@@ -13,12 +13,15 @@ import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.cluster.reroute.TransportClusterRerouteAction;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
+import org.elasticsearch.cluster.metadata.ProjectId;
+import org.elasticsearch.cluster.project.ProjectIdResolver;
 import org.elasticsearch.cluster.routing.allocation.command.AllocationCommands;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
+import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.rest.BaseRestHandler;
@@ -47,10 +50,10 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     private static final Set<String> RESPONSE_PARAMS = addToCopy(Settings.FORMAT_PARAMS, "metric");
 
-    private static final ObjectParser<ClusterRerouteRequest, Void> PARSER = new ObjectParser<>("cluster_reroute");
+    private static final ObjectParser<ClusterRerouteRequest, ProjectId> PARSER = new ObjectParser<>("cluster_reroute");
     static {
         PARSER.declareField(
-            (p, v, c) -> v.commands(AllocationCommands.fromXContent(p)),
+            (p, v, projectId) -> v.commands(AllocationCommands.fromXContent(p, projectId)),
             new ParseField("commands"),
             ValueType.OBJECT_ARRAY
         );
@@ -63,9 +66,17 @@ public class RestClusterRerouteAction extends BaseRestHandler {
     );
 
     private final SettingsFilter settingsFilter;
+    private final ProjectIdResolver projectIdResolver;
 
-    public RestClusterRerouteAction(SettingsFilter settingsFilter) {
+    @FixForMultiProject(
+        description = "We need finalize on whether having REST handler to access ProjectIdResolver is an acceptable pattern."
+            + "NOTE that we intentionally do NOT want pass ProjectResolver because it would imply accessing ClusterState"
+            + "in REST handlers which is not a good idea, e.g. we don't want REST handlers make too many decisions based"
+            + "on ClusterState. That is the job of the transport handlers."
+    )
+    public RestClusterRerouteAction(SettingsFilter settingsFilter, ProjectIdResolver projectIdResolver) {
         this.settingsFilter = settingsFilter;
+        this.projectIdResolver = projectIdResolver;
     }
 
     @Override
@@ -90,7 +101,7 @@ public class RestClusterRerouteAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        ClusterRerouteRequest clusterRerouteRequest = createRequest(request);
+        ClusterRerouteRequest clusterRerouteRequest = createRequest(request, projectIdResolver.getProjectId());
         settingsFilter.addFilterSettingParams(request);
         if (clusterRerouteRequest.explain()) {
             request.params().put("explain", Boolean.TRUE.toString());
@@ -125,12 +136,12 @@ public class RestClusterRerouteAction extends BaseRestHandler {
         return RESPONSE_PARAMS;
     }
 
-    public static ClusterRerouteRequest createRequest(RestRequest request) throws IOException {
+    public static ClusterRerouteRequest createRequest(RestRequest request, ProjectId projectId) throws IOException {
         final var clusterRerouteRequest = new ClusterRerouteRequest(getMasterNodeTimeout(request), getAckTimeout(request));
         clusterRerouteRequest.dryRun(request.paramAsBoolean("dry_run", clusterRerouteRequest.dryRun()));
         clusterRerouteRequest.explain(request.paramAsBoolean("explain", clusterRerouteRequest.explain()));
         clusterRerouteRequest.setRetryFailed(request.paramAsBoolean("retry_failed", clusterRerouteRequest.isRetryFailed()));
-        request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, null));
+        request.applyContentParser(parser -> PARSER.parse(parser, clusterRerouteRequest, projectId));
         return clusterRerouteRequest;
     }
 }

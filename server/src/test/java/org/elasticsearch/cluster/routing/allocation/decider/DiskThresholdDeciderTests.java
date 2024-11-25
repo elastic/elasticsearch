@@ -661,11 +661,15 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
             .numberOfReplicas(1)
             .build();
         var metadataBuilder = Metadata.builder();
+        final ProjectId projectId1, projectId2;
         if (multipleProjects) {
-            metadataBuilder.put(ProjectMetadata.builder(new ProjectId(randomUUID())).put(indexMetadata1, false));
-            metadataBuilder.put(ProjectMetadata.builder(new ProjectId(randomUUID())).put(indexMetadata2, false));
+            projectId1 = new ProjectId(randomUUID());
+            projectId2 = new ProjectId(randomUUID());
+            metadataBuilder.put(ProjectMetadata.builder(projectId1).put(indexMetadata1, false));
+            metadataBuilder.put(ProjectMetadata.builder(projectId2).put(indexMetadata2, false));
         } else {
-            metadataBuilder.put(ProjectMetadata.builder(Metadata.DEFAULT_PROJECT_ID).put(indexMetadata1, false).put(indexMetadata2, false));
+            projectId1 = projectId2 = Metadata.DEFAULT_PROJECT_ID;
+            metadataBuilder.put(ProjectMetadata.builder(projectId2).put(indexMetadata1, false).put(indexMetadata2, false));
         }
         var metadata = metadataBuilder.build();
         ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
@@ -699,7 +703,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         clusterState = ClusterState.builder(clusterState).nodes(DiscoveryNodes.builder(clusterState.nodes()).add(newNode("node3"))).build();
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test", 0, "node2", "node3", projectId1);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = strategy.reroute(clusterState, cmds, false, false, false, ActionListener.noop()).clusterState();
@@ -726,7 +730,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         final ClusterInfo overfullClusterInfo = new DevNullClusterInfo(overfullUsages, overfullUsages, largerShardSizes);
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3", projectId2);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             final ClusterState clusterStateThatRejectsCommands = clusterState;
@@ -760,7 +764,7 @@ public class DiskThresholdDeciderTests extends ESAllocationTestCase {
         }
 
         {
-            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3");
+            AllocationCommand moveAllocationCommand = new MoveAllocationCommand("test2", 0, "node2", "node3", projectId2);
             AllocationCommands cmds = new AllocationCommands(moveAllocationCommand);
 
             clusterState = startInitializingShardsAndReroute(strategy, clusterState);

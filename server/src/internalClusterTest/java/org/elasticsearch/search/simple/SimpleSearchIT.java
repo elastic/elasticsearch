@@ -148,7 +148,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         refresh();
 
         assertHitCount(prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.1.5/32"))), 0L);
-        assertHitCount(1L,
+        assertHitCount(
+            1L,
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1"))),
             prepareSearch().setQuery(queryStringQuery("ip: 192.168.0.1")),
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.1/32"))),
@@ -156,12 +157,12 @@ public class SimpleSearchIT extends ESIntegTestCase {
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "2001:db8::/64")))
         );
         assertHitCount(prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.168.0.0/24"))), 3L);
-        assertHitCount(4L,
+        assertHitCount(
+            4L,
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "192.0.0.0/8"))),
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0.0.0.0/0")))
         );
         assertHitCount(prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "::/0"))), 5L);
-
 
         assertFailures(
             prepareSearch().setQuery(boolQuery().must(QueryBuilders.termQuery("ip", "0/0/0/0/0"))),
@@ -175,7 +176,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
 
         prepareIndex("test").setId("XXX1").setSource("field", "value").setRefreshPolicy(IMMEDIATE).get();
         // id is not indexed, but lets see that we automatically convert to
-        assertHitCount(1L,
+        assertHitCount(
+            1L,
             prepareSearch().setQuery(QueryBuilders.termQuery("_id", "XXX1")),
             prepareSearch().setQuery(QueryBuilders.queryStringQuery("_id:XXX1"))
         );
@@ -331,7 +333,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         createIndex("idx");
         indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
-        assertHitCount(1,
+        assertHitCount(
+            1,
             prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) - 10),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) / 2)
@@ -346,7 +349,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         ).get();
         indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
-        assertHitCount(1,
+        assertHitCount(
+            1,
             prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY))
@@ -363,7 +367,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         );
         indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
-        assertHitCount(1 ,
+        assertHitCount(
+            1,
             prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY)),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) + 1),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY))
@@ -375,7 +380,8 @@ public class SimpleSearchIT extends ESIntegTestCase {
         prepareCreate("idx").setSettings(Settings.builder().put(IndexSettings.MAX_RESULT_WINDOW_SETTING.getKey(), Integer.MAX_VALUE)).get();
         indexRandom(true, prepareIndex("idx").setSource("{}", XContentType.JSON));
 
-        assertHitCount(1,
+        assertHitCount(
+            1,
             prepareSearch("idx").setFrom(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10),
             prepareSearch("idx").setSize(IndexSettings.MAX_RESULT_WINDOW_SETTING.get(Settings.EMPTY) * 10)

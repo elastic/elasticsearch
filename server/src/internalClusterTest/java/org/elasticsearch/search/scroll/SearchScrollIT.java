@@ -206,12 +206,14 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertHitCount(500,
+        assertHitCount(
+            500,
             prepareSearch().setSize(0).setQuery(matchAllQuery()),
             prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
             prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
         );
-        assertHitCount(0,
+        assertHitCount(
+            0,
             prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
             prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
         );
@@ -233,14 +235,17 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             indicesAdmin().prepareRefresh().get();
-            assertHitCount(500,
+            assertHitCount(
+                500,
                 prepareSearch().setSize(0).setQuery(matchAllQuery()),
                 prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
                 prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
             );
-            assertHitCount(0,
+            assertHitCount(
+                0,
                 prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
-                prepareSearch().setSize(0).setQuery(termQuery("message", "test")));
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+            );
         } finally {
             clearScroll(searchResponse.getScrollId());
             searchResponse.decRef();

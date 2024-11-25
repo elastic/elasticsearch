@@ -261,7 +261,8 @@ public class NoMasterNodeIT extends ESIntegTestCase {
         GetResponse getResponse = clientToMasterlessNode.prepareGet("test1", "1").get();
         assertExists(getResponse);
 
-        assertHitCount(1L,
+        assertHitCount(
+            1L,
             clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true).setSize(0),
             clientToMasterlessNode.prepareSearch("test1").setAllowPartialSearchResults(true)
         );

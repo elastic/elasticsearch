@@ -678,7 +678,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         indexRandom(true, builders);
         flushAndRefresh();
 
-        assertHitCount(numdocs,
+        assertHitCount(
+            numdocs,
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "foo")),
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
         );
@@ -738,7 +739,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));
         assertThat(getSettingsResponse.getSetting("test-idx", "index.analysis.analyzer.my_analyzer.type"), equalTo("standard"));
 
-        assertHitCount(numdocs,
+        assertHitCount(
+            numdocs,
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")),
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
         );
@@ -762,7 +764,8 @@ public class RestoreSnapshotIT extends AbstractSnapshotIntegTestCase {
         // Make sure that number of shards didn't change
         assertThat(getSettingsResponse.getSetting("test-idx", SETTING_NUMBER_OF_SHARDS), equalTo("" + numberOfShards));
 
-        assertHitCount(numdocs,
+        assertHitCount(
+            numdocs,
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "Foo")),
             client.prepareSearch("test-idx").setSize(0).setQuery(matchQuery("field1", "bar"))
         );

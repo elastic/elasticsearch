@@ -71,7 +71,7 @@ public class UpdateRateLimitsClusterService implements ClusterStateListener {
             LOGGER.info("Updating rate limits for {} endpoints", httpRequestSender.rateLimitingEndpointHandlers().size());
             for (RequestExecutorService.RateLimitingEndpointHandler rateLimitingEndpointHandler : httpRequestSender
                 .rateLimitingEndpointHandlers()) {
-                // TODO: treat a node joining and a node leaving differently, otherwise the rate limit will become smaller and smaller
+                // TODO: keep the original rate limit and always divide by the number of nodes to handle node leaving/joining correctly
                 var oldRequestsPerTimeUnit = rateLimitingEndpointHandler.requestsPerTimeUnit();
                 var clusterAwareTokenLimit = oldRequestsPerTimeUnit / numNodes;
                 LOGGER.info(

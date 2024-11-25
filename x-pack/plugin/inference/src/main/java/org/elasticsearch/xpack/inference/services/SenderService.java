@@ -21,12 +21,13 @@ import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.rest.RestStatus;
-import org.elasticsearch.xpack.inference.external.http.sender.CompletionInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs;
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequestEntity;
 
 import java.io.IOException;
 import java.util.EnumSet;
@@ -73,7 +74,7 @@ public abstract class SenderService implements InferenceService {
     private static InferenceInputs createInput(Model model, List<String> input, @Nullable String query, boolean stream) {
         return switch (model.getTaskType()) {
             // TODO implement parameters
-            case COMPLETION -> new CompletionInputs(null);
+            case COMPLETION -> new UnifiedChatInput(null);
             case RERANK -> new QueryAndDocsInputs(query, input, stream);
             case TEXT_EMBEDDING -> new DocumentsOnlyInput(input, stream);
             default -> throw new ElasticsearchStatusException(
@@ -84,9 +85,14 @@ public abstract class SenderService implements InferenceService {
     }
 
     @Override
-    public void completionInfer(Model model, Object parameters, TimeValue timeout, ActionListener<InferenceServiceResults> listener) {
+    public void completionInfer(
+        Model model,
+        OpenAiUnifiedChatCompletionRequestEntity parameters,
+        TimeValue timeout,
+        ActionListener<InferenceServiceResults> listener
+    ) {
         init();
-        doUnifiedCompletionInfer(model, new CompletionInputs(parameters), timeout, listener);
+        doUnifiedCompletionInfer(model, new UnifiedChatInput(parameters), timeout, listener);
     }
 
     @Override
@@ -116,7 +122,7 @@ public abstract class SenderService implements InferenceService {
 
     protected abstract void doUnifiedCompletionInfer(
         Model model,
-        CompletionInputs inputs,
+        UnifiedChatInput inputs,
         TimeValue timeout,
         ActionListener<InferenceServiceResults> listener
     );

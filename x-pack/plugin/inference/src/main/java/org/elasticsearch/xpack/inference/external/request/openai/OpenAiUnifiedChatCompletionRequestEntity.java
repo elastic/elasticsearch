@@ -7,90 +7,57 @@
 
 package org.elasticsearch.xpack.inference.external.request.openai;
 
-import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequest;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
+import org.elasticsearch.xpack.inference.external.request.UnifiedRequest;
 
 import java.io.IOException;
 import java.util.List;
-import java.util.Objects;
 
 public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
-    private static final String MESSAGES_FIELD = "messages";
-    private static final String MODEL_FIELD = "model";
-
+    public static final String NAME_FIELD = "name";
+    public static final String TOOL_CALL_ID_FIELD = "tool_call_id";
+    public static final String TOOL_CALLS_FIELD = "tool_calls";
+    public static final String ID_FIELD = "id";
+    public static final String FUNCTION_FIELD = "function";
+    public static final String ARGUMENTS_FIELD = "arguments";
+    public static final String DESCRIPTION_FIELD = "description";
+    public static final String PARAMETERS_FIELD = "parameters";
+    public static final String STRICT_FIELD = "strict";
+    public static final String TOP_P_FIELD = "top_p";
+    public static final String USER_FIELD = "user";
+    public static final String STREAM_FIELD = "stream";
     private static final String NUMBER_OF_RETURNED_CHOICES_FIELD = "n";
-
+    private static final String MODEL_FIELD = "model";
+    public static final String MESSAGES_FIELD = "messages";
     private static final String ROLE_FIELD = "role";
-    private static final String USER_FIELD = "user";
     private static final String CONTENT_FIELD = "content";
-    private static final String STREAM_FIELD = "stream";
     private static final String MAX_COMPLETION_TOKENS_FIELD = "max_completion_tokens";
     private static final String STOP_FIELD = "stop";
     private static final String TEMPERATURE_FIELD = "temperature";
     private static final String TOOL_CHOICE_FIELD = "tool_choice";
     private static final String TOOL_FIELD = "tool";
-    private static final String TOP_P_FIELD = "top_p";
+    private static final String TEXT_FIELD = "text";
+    private static final String TYPE_FIELD = "type";
 
-    private final String user;
+    private final UnifiedRequest unifiedRequest;
 
-    public boolean isStream() {
-        return stream;
+    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedRequest unifiedRequest) {
+        this.unifiedRequest = unifiedRequest;
     }
 
-    private final boolean stream;
-    private final Long maxCompletionTokens;
-    private final Integer n;
-    private final UnifiedCompletionRequest.Stop stop;
-    private final Float temperature;
-    private final UnifiedCompletionRequest.ToolChoice toolChoice;
-    private final List<UnifiedCompletionRequest.Tool> tool;
-    private final Float topP;
-    private final List<UnifiedCompletionRequest.Message> messages;
-    private final String model;
-
     public OpenAiUnifiedChatCompletionRequestEntity(DocumentsOnlyInput input) {
-        this(convertDocumentsOnlyInputToMessages(input), null, null, null, null, null, null, null, null, null);
+        this(new UnifiedRequest(convertDocumentsOnlyInputToMessages(input), null, null, null, null, null, null, null, null, null, true));
     }
 
     private static List<UnifiedCompletionRequest.Message> convertDocumentsOnlyInputToMessages(DocumentsOnlyInput input) {
         return input.getInputs()
             .stream()
-            .map(doc -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(doc), "user", null, null, null))
+            .map(doc -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(doc), USER_FIELD, null, null, null))
             .toList();
-    }
-
-    public OpenAiUnifiedChatCompletionRequestEntity(
-        List<UnifiedCompletionRequest.Message> messages,
-        @Nullable String model,
-        @Nullable Long maxCompletionTokens,
-        @Nullable Integer n,
-        @Nullable UnifiedCompletionRequest.Stop stop,
-        @Nullable Float temperature,
-        @Nullable UnifiedCompletionRequest.ToolChoice toolChoice,
-        @Nullable List<UnifiedCompletionRequest.Tool> tool,
-        @Nullable Float topP,
-        @Nullable String user
-    ) {
-        Objects.requireNonNull(messages);
-        Objects.requireNonNull(model);
-
-        this.user = user;
-        this.stream = true; // always stream in unified API
-        this.maxCompletionTokens = maxCompletionTokens;
-        this.n = n;
-        this.stop = stop;
-        this.temperature = temperature;
-        this.toolChoice = toolChoice;
-        this.tool = tool;
-        this.topP = topP;
-        this.messages = messages;
-        this.model = model;
-
     }
 
     @Override
@@ -98,7 +65,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         builder.startObject();
         builder.startArray(MESSAGES_FIELD);
         {
-            for (UnifiedCompletionRequest.Message message : messages) {
+            for (UnifiedCompletionRequest.Message message : unifiedRequest.messages()) {
                 builder.startObject();
                 {
                     switch (message.content()) {
@@ -106,8 +73,8 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                         case UnifiedCompletionRequest.ContentObjects contentObjects -> {
                             for (UnifiedCompletionRequest.ContentObject contentObject : contentObjects.contentObjects()) {
                                 builder.startObject(CONTENT_FIELD);
-                                builder.field("text", contentObject.text());
-                                builder.field("type", contentObject.type());
+                                builder.field(TEXT_FIELD, contentObject.text());
+                                builder.field(TYPE_FIELD, contentObject.type());
                                 builder.endObject();
                             }
                         }
@@ -115,24 +82,24 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
                     builder.field(ROLE_FIELD, message.role());
                     if (message.name() != null) {
-                        builder.field("name", message.name());
+                        builder.field(NAME_FIELD, message.name());
                     }
                     if (message.toolCallId() != null) {
-                        builder.field("tool_call_id", message.toolCallId());
+                        builder.field(TOOL_CALL_ID_FIELD, message.toolCallId());
                     }
                     if (message.toolCalls() != null) {
-                        builder.startArray("tool_calls");
+                        builder.startArray(TOOL_CALLS_FIELD);
                         for (UnifiedCompletionRequest.ToolCall toolCall : message.toolCalls()) {
                             builder.startObject();
                             {
-                                builder.field("id", toolCall.id());
-                                builder.startObject("function");
+                                builder.field(ID_FIELD, toolCall.id());
+                                builder.startObject(FUNCTION_FIELD);
                                 {
-                                    builder.field("arguments", toolCall.function().arguments());
-                                    builder.field("name", toolCall.function().name());
+                                    builder.field(ARGUMENTS_FIELD, toolCall.function().arguments());
+                                    builder.field(NAME_FIELD, toolCall.function().name());
                                 }
                                 builder.endObject();
-                                builder.field("type", toolCall.type());
+                                builder.field(TYPE_FIELD, toolCall.type());
                             }
                             builder.endObject();
                         }
@@ -144,52 +111,55 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         }
         builder.endArray();
 
-        if (model != null) {
-            builder.field(MODEL_FIELD, model);
+        if (unifiedRequest.model() != null) {
+            builder.field(MODEL_FIELD, unifiedRequest.model());
         }
-        if (maxCompletionTokens != null) {
-            builder.field(MAX_COMPLETION_TOKENS_FIELD, maxCompletionTokens);
+        if (unifiedRequest.maxCompletionTokens() != null) {
+            builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
-        if (n != null) {
-            builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, n);
+        if (unifiedRequest.n() != null) {
+            builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, unifiedRequest.n());
         }
-        if (stop != null) {
-            switch (stop) {
+        if (unifiedRequest.stop() != null) {
+            switch (unifiedRequest.stop()) {
                 case UnifiedCompletionRequest.StopString stopString -> builder.field(STOP_FIELD, stopString.value());
                 case UnifiedCompletionRequest.StopValues stopValues -> builder.field(STOP_FIELD, stopValues.values());
             }
         }
-        if (temperature != null) {
-            builder.field(TEMPERATURE_FIELD, temperature);
+        if (unifiedRequest.temperature() != null) {
+            builder.field(TEMPERATURE_FIELD, unifiedRequest.temperature());
         }
-        if (toolChoice != null) {
-            if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceString) {
-                builder.field(TOOL_CHOICE_FIELD, ((UnifiedCompletionRequest.ToolChoiceString) toolChoice).value());
-            } else if (toolChoice instanceof UnifiedCompletionRequest.ToolChoiceObject) {
+        if (unifiedRequest.toolChoice() != null) {
+            if (unifiedRequest.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceString) {
+                builder.field(TOOL_CHOICE_FIELD, ((UnifiedCompletionRequest.ToolChoiceString) unifiedRequest.toolChoice()).value());
+            } else if (unifiedRequest.toolChoice() instanceof UnifiedCompletionRequest.ToolChoiceObject) {
                 builder.startObject(TOOL_CHOICE_FIELD);
                 {
-                    builder.field("type", ((UnifiedCompletionRequest.ToolChoiceObject) toolChoice).type());
-                    builder.startObject("function");
+                    builder.field(TYPE_FIELD, ((UnifiedCompletionRequest.ToolChoiceObject) unifiedRequest.toolChoice()).type());
+                    builder.startObject(FUNCTION_FIELD);
                     {
-                        builder.field("name", ((UnifiedCompletionRequest.ToolChoiceObject) toolChoice).function().name());
+                        builder.field(
+                            NAME_FIELD,
+                            ((UnifiedCompletionRequest.ToolChoiceObject) unifiedRequest.toolChoice()).function().name()
+                        );
                     }
                     builder.endObject();
                 }
                 builder.endObject();
             }
         }
-        if (tool != null) {
+        if (unifiedRequest.tool() != null) {
             builder.startArray(TOOL_FIELD);
-            for (UnifiedCompletionRequest.Tool t : tool) {
+            for (UnifiedCompletionRequest.Tool t : unifiedRequest.tool()) {
                 builder.startObject();
                 {
-                    builder.field("type", t.type());
-                    builder.startObject("function");
+                    builder.field(TYPE_FIELD, t.type());
+                    builder.startObject(FUNCTION_FIELD);
                     {
-                        builder.field("description", t.function().description());
-                        builder.field("name", t.function().name());
-                        builder.field("parameters", t.function().parameters());
-                        builder.field("strict", t.function().strict());
+                        builder.field(DESCRIPTION_FIELD, t.function().description());
+                        builder.field(NAME_FIELD, t.function().name());
+                        builder.field(PARAMETERS_FIELD, t.function().parameters());
+                        builder.field(STRICT_FIELD, t.function().strict());
                     }
                     builder.endObject();
                 }
@@ -197,12 +167,13 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             }
             builder.endArray();
         }
-        if (topP != null) {
-            builder.field(TOP_P_FIELD, topP);
+        if (unifiedRequest.topP() != null) {
+            builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
-        if (Strings.isNullOrEmpty(user) == false) {
-            builder.field(USER_FIELD, user);
+        if (unifiedRequest.user() != null && unifiedRequest.user().isEmpty() == false) {
+            builder.field(USER_FIELD, unifiedRequest.user());
         }
+        builder.field(STREAM_FIELD, unifiedRequest.stream());
         builder.endObject();
         return builder;
     }

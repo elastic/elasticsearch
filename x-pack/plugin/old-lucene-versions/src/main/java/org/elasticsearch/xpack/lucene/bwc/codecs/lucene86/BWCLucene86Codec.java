@@ -61,7 +61,7 @@ public class BWCLucene86Codec extends BWCCodec {
 
     /** Instantiates a new codec. */
     public BWCLucene86Codec() {
-        super("BWCLucene87Codec");
+        super("BWCLucene86Codec");
         this.storedFieldsFormat = new Lucene50StoredFieldsFormat(Objects.requireNonNull(Lucene50StoredFieldsFormat.Mode.BEST_SPEED));
         this.defaultFormat = new Lucene84PostingsFormat();
     }

@@ -777,7 +777,8 @@ class NodeConstruction {
                 clusterService.getClusterSettings(),
                 client,
                 threadPool.relativeTimeInMillisSupplier(),
-                rerouteService
+                rerouteService,
+                projectResolver
             )::onNewInfo
         );
 

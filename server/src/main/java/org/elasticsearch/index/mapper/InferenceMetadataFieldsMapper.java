@@ -78,7 +78,7 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
             XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
             String fieldName = parser.currentName();
             Mapper mapper = context.mappingLookup().getMapper(fieldName);
-            if (mapper != null && mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
+            if (mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
                 fieldMapper.parseCreateField(new DocumentParserContext.Wrapper(context.parent(), context) {
                     @Override
                     public boolean isWithinInferenceMetadata() {
@@ -86,7 +86,7 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
                     }
                 });
             } else {
-                throw new IllegalArgumentException("Illegal inference field [" + fieldName + "] found.");
+                throw new IllegalArgumentException("Field [" + fieldName + "] is not an inference field");
             }
         }
     }

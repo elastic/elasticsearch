@@ -86,25 +86,6 @@ public record InternalFilesReplicatedRanges(List<InternalFileReplicatedRange> re
         return size;
     }
 
-    /**
-     * ES-9179 this might change once real reader is implemented
-     *
-     * @param position of the original file content (relative to the beginning of main content section)
-     * @param length length of the content to be read
-     * @return the position of the replicated content (relative to the beginning of replicated content section) if present completely
-     * or -1 otherwise.
-     */
-    public long getReplicatedPosition(long position, int length) {
-        long pos = 0;
-        for (var range : replicatedRanges) {
-            if (range.position <= position && position + length <= range.position + range.length) {
-                return pos + (position - range.position);
-            }
-            pos += range.length;
-        }
-        return -1;
-    }
-
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
         builder.startArray("internal_files_replicated_ranges");

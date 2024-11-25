@@ -90,6 +90,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
             "node1",
+            null,
             type,
             "sunsetting",
             allocationDelay,
@@ -134,6 +135,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
                     "node1",
+                    null,
                     type,
                     "test",
                     allocationDelay,
@@ -146,6 +148,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 "node1",
+                null,
                 type,
                 "test",
                 allocationDelay,
@@ -164,6 +167,7 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 "node1",
+                null,
                 Type.SIGTERM,
                 "test",
                 null,
@@ -174,9 +178,17 @@ public class TransportPutShutdownNodeActionTests extends ESTestCase {
         );
 
         assertThat(
-            new PutShutdownNodeAction.Request(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "node1", Type.SIGTERM, "test", null, null, null)
-                .validate()
-                .getMessage(),
+            new PutShutdownNodeAction.Request(
+                TEST_REQUEST_TIMEOUT,
+                TEST_REQUEST_TIMEOUT,
+                "node1",
+                null,
+                Type.SIGTERM,
+                "test",
+                null,
+                null,
+                null
+            ).validate().getMessage(),
             containsString("grace period is required for SIGTERM shutdowns")
         );
     }

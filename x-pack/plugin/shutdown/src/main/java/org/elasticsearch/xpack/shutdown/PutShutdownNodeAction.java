@@ -37,6 +37,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
     public static class Request extends AcknowledgedRequest<Request> {
 
         private final String nodeId;
+        private final String ephemeralId;
         private final SingleNodeShutdownMetadata.Type type;
         private final String reason;
         @Nullable
@@ -93,6 +94,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             TimeValue masterNodeTimeout,
             TimeValue ackTimeout,
             String nodeId,
+            @Nullable String ephemeralId,
             SingleNodeShutdownMetadata.Type type,
             String reason,
             @Nullable TimeValue allocationDelay,
@@ -101,6 +103,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         ) {
             super(masterNodeTimeout, ackTimeout);
             this.nodeId = nodeId;
+            this.ephemeralId = ephemeralId;
             this.type = type;
             this.reason = reason;
             this.allocationDelay = allocationDelay;
@@ -111,6 +114,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
+            this.ephemeralId = in.readOptionalString();
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
             this.allocationDelay = in.readOptionalTimeValue();
@@ -122,6 +126,7 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
+            out.writeOptionalString(ephemeralId);
             out.writeEnum(type);
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);
@@ -131,6 +136,10 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
 
         public String getNodeId() {
             return nodeId;
+        }
+
+        public String getEphemeralId() {
+            return ephemeralId;
         }
 
         public SingleNodeShutdownMetadata.Type getType() {
@@ -186,6 +195,8 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
             }
 
             if (SingleNodeShutdownMetadata.Type.SIGTERM.equals(type)) {
+                // Require ephemeral ID?
+
                 if (gracePeriod == null) {
                     arve.addValidationError("grace period is required for SIGTERM shutdowns");
                 }

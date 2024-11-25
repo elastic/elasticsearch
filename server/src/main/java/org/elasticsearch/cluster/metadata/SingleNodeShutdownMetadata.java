@@ -40,6 +40,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final TransportVersion GRACE_PERIOD_ADDED_VERSION = TransportVersions.V_8_9_X;
 
     public static final ParseField NODE_ID_FIELD = new ParseField("node_id");
+    public static final ParseField EPHEMERAL_ID_FIELD = new ParseField("ephemeral_id");
     public static final ParseField TYPE_FIELD = new ParseField("type");
     public static final ParseField REASON_FIELD = new ParseField("reason");
     public static final String STARTED_AT_READABLE_FIELD = "shutdown_started";
@@ -53,18 +54,20 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         "node_shutdown_info",
         a -> new SingleNodeShutdownMetadata(
             (String) a[0],
-            Type.valueOf((String) a[1]),
-            (String) a[2],
-            (long) a[3],
-            (boolean) a[4],
-            (TimeValue) a[5],
-            (String) a[6],
-            (TimeValue) a[7]
+            (String) a[1],
+            Type.valueOf((String) a[2]),
+            (String) a[3],
+            (long) a[4],
+            (boolean) a[5],
+            (TimeValue) a[6],
+            (String) a[7],
+            (TimeValue) a[8]
         )
     );
 
     static {
         PARSER.declareString(ConstructingObjectParser.constructorArg(), NODE_ID_FIELD);
+        PARSER.declareStringOrNull(ConstructingObjectParser.optionalConstructorArg(), EPHEMERAL_ID_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), TYPE_FIELD);
         PARSER.declareString(ConstructingObjectParser.constructorArg(), REASON_FIELD);
         PARSER.declareLong(ConstructingObjectParser.constructorArg(), STARTED_AT_MILLIS_FIELD);
@@ -91,6 +94,8 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     public static final TimeValue DEFAULT_RESTART_SHARD_ALLOCATION_DELAY = TimeValue.timeValueMinutes(5);
 
     private final String nodeId;
+    @Nullable
+    private final String ephemeralId;
     private final Type type;
     private final String reason;
     private final long startedAtMillis;
@@ -110,6 +115,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
+        String ephemeralId,
         Type type,
         String reason,
         long startedAtMillis,
@@ -119,6 +125,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         @Nullable TimeValue gracePeriod
     ) {
         this.nodeId = Objects.requireNonNull(nodeId, "node ID must not be null");
+        this.ephemeralId = ephemeralId;
         this.type = Objects.requireNonNull(type, "shutdown type must not be null");
         this.reason = Objects.requireNonNull(reason, "shutdown reason must not be null");
         this.startedAtMillis = startedAtMillis;
@@ -157,6 +164,11 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public SingleNodeShutdownMetadata(StreamInput in) throws IOException {
         this.nodeId = in.readString();
+        if (in.getTransportVersion().onOrAfter(TransportVersions.EPHEMERAL_ID_IN_SHUTDOWN_METADATA)) {
+            this.ephemeralId = in.readOptionalString();
+        } else {
+            this.ephemeralId = null;
+        }
         this.type = in.readEnum(Type.class);
         this.reason = in.readString();
         this.startedAtMillis = in.readVLong();
@@ -179,6 +191,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
      */
     public String getNodeId() {
         return nodeId;
+    }
+
+    /**
+     * Return The ephemeral ID of the node this {@link SingleNodeShutdownMetadata} concerns.
+     */
+    @Nullable
+    public String getEphemeralId() {
+        return ephemeralId;
     }
 
     /**
@@ -241,6 +261,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeString(nodeId);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.EPHEMERAL_ID_IN_SHUTDOWN_METADATA)) {
+            out.writeOptionalString(ephemeralId);
+        }
         if ((out.getTransportVersion().before(REPLACE_SHUTDOWN_TYPE_ADDED_VERSION) && this.type == SingleNodeShutdownMetadata.Type.REPLACE)
             || (out.getTransportVersion().before(SIGTERM_ADDED_VERSION) && this.type == Type.SIGTERM)) {
             out.writeEnum(SingleNodeShutdownMetadata.Type.REMOVE);
@@ -264,6 +287,9 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
         builder.startObject();
         {
             builder.field(NODE_ID_FIELD.getPreferredName(), nodeId);
+            if (ephemeralId != null) {
+                builder.field(EPHEMERAL_ID_FIELD.getPreferredName(), ephemeralId);
+            }
             builder.field(TYPE_FIELD.getPreferredName(), type);
             builder.field(REASON_FIELD.getPreferredName(), reason);
             builder.timestampFieldsFromUnixEpochMillis(
@@ -359,6 +385,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     public static class Builder {
         private String nodeId;
+        private String ephemeralId;
         private Type type;
         private String reason;
         private long startedAtMillis = -1;
@@ -375,6 +402,15 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
          */
         public Builder setNodeId(String nodeId) {
             this.nodeId = nodeId;
+            return this;
+        }
+
+        /**
+         * @param ephemeralId The ephemeral ID this metadata refers to
+         * @return This builder.
+         */
+        public Builder setEphemeralId(String ephemeralId) {
+            this.ephemeralId = ephemeralId;
             return this;
         }
 
@@ -444,6 +480,7 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
             return new SingleNodeShutdownMetadata(
                 nodeId,
+                ephemeralId,
                 type,
                 reason,
                 startedAtMillis,

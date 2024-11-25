@@ -126,6 +126,7 @@ public class SearchableSnapshotShutdownIntegTests extends BaseSearchableSnapshot
             TEST_REQUEST_TIMEOUT,
             TEST_REQUEST_TIMEOUT,
             nodeToRestartId,
+            null,
             SingleNodeShutdownMetadata.Type.RESTART,
             this.getTestName(),
             null,

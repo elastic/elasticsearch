@@ -65,6 +65,7 @@ public class DesiredBalanceShutdownIT extends ESIntegTestCase {
                             TEST_REQUEST_TIMEOUT,
                             TEST_REQUEST_TIMEOUT,
                             oldNodeId,
+                            null,
                             SingleNodeShutdownMetadata.Type.REPLACE,
                             "test",
                             null,

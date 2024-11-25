@@ -63,6 +63,7 @@ public class NodeShutdownPluginsIT extends ESIntegTestCase {
                 TEST_REQUEST_TIMEOUT,
                 TEST_REQUEST_TIMEOUT,
                 shutdownNode,
+                null,
                 SingleNodeShutdownMetadata.Type.REMOVE,
                 "removal for testing",
                 null,

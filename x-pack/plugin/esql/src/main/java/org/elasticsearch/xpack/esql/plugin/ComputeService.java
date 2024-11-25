@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.action.EsqlQueryAction;
 import org.elasticsearch.xpack.esql.action.EsqlSearchShardsAction;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.enrich.EnrichLookupService;
+import org.elasticsearch.xpack.esql.enrich.LookupFromIndexService;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSinkExec;
 import org.elasticsearch.xpack.esql.plan.physical.ExchangeSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
@@ -81,6 +82,7 @@ import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executor;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicLong;
 
 import static org.elasticsearch.xpack.esql.plugin.EsqlPlugin.ESQL_WORKER_THREAD_POOL_NAME;
 
@@ -98,13 +100,16 @@ public class ComputeService {
     private final DriverTaskRunner driverRunner;
     private final ExchangeService exchangeService;
     private final EnrichLookupService enrichLookupService;
+    private final LookupFromIndexService lookupFromIndexService;
     private final ClusterService clusterService;
+    private final AtomicLong childSessionIdGenerator = new AtomicLong();
 
     public ComputeService(
         SearchService searchService,
         TransportService transportService,
         ExchangeService exchangeService,
         EnrichLookupService enrichLookupService,
+        LookupFromIndexService lookupFromIndexService,
         ClusterService clusterService,
         ThreadPool threadPool,
         BigArrays bigArrays,
@@ -125,6 +130,7 @@ public class ComputeService {
         this.driverRunner = new DriverTaskRunner(transportService, this.esqlExecutor);
         this.exchangeService = exchangeService;
         this.enrichLookupService = enrichLookupService;
+        this.lookupFromIndexService = lookupFromIndexService;
         this.clusterService = clusterService;
     }
 
@@ -163,7 +169,7 @@ public class ComputeService {
                 return;
             }
             var computeContext = new ComputeContext(
-                sessionId,
+                newChildSession(sessionId),
                 RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY,
                 List.of(),
                 configuration,
@@ -326,14 +332,15 @@ public class ComputeService {
                 // the new remote exchange sink, and initialize the computation on the target node via data-node-request.
                 for (DataNode node : dataNodeResult.dataNodes()) {
                     var queryPragmas = configuration.pragmas();
+                    var childSessionId = newChildSession(sessionId);
                     ExchangeService.openExchange(
                         transportService,
                         node.connection,
-                        sessionId,
+                        childSessionId,
                         queryPragmas.exchangeBufferSize(),
                         esqlExecutor,
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
-                            var remoteSink = exchangeService.newRemoteSink(parentTask, sessionId, transportService, node.connection);
+                            var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, node.connection);
                             exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
@@ -341,7 +348,7 @@ public class ComputeService {
                                 node.connection,
                                 DATA_ACTION_NAME,
                                 new DataNodeRequest(
-                                    sessionId,
+                                    childSessionId,
                                     configuration,
                                     clusterAlias,
                                     node.shardIds,
@@ -374,17 +381,18 @@ public class ComputeService {
         var linkExchangeListeners = ActionListener.releaseAfter(computeListener.acquireAvoid(), exchangeSource.addEmptySink());
         try (RefCountingListener refs = new RefCountingListener(linkExchangeListeners)) {
             for (RemoteCluster cluster : clusters) {
+                final var childSessionId = newChildSession(sessionId);
                 ExchangeService.openExchange(
                     transportService,
                     cluster.connection,
-                    sessionId,
+                    childSessionId,
                     queryPragmas.exchangeBufferSize(),
                     esqlExecutor,
                     refs.acquire().delegateFailureAndWrap((l, unused) -> {
-                        var remoteSink = exchangeService.newRemoteSink(rootTask, sessionId, transportService, cluster.connection);
+                        var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
                         exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients());
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
-                        var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, sessionId, configuration, remotePlan);
+                        var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(
                             computeListener.acquireCompute(cluster.clusterAlias()),
                             () -> l.onResponse(null)
@@ -429,6 +437,7 @@ public class ComputeService {
                 context.exchangeSource(),
                 context.exchangeSink(),
                 enrichLookupService,
+                lookupFromIndexService,
                 new EsPhysicalOperationProviders(contexts)
             );
 
@@ -906,5 +915,9 @@ public class ComputeService {
         public List<SearchExecutionContext> searchExecutionContexts() {
             return searchContexts.stream().map(ctx -> ctx.getSearchExecutionContext()).toList();
         }
+    }
+
+    private String newChildSession(String session) {
+        return session + "/" + childSessionIdGenerator.incrementAndGet();
     }
 }

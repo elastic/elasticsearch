@@ -110,7 +110,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         ).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -184,7 +184,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
             XContentType.JSON
         ).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -230,7 +230,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         ).build();
 
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        final RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        final RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -290,7 +290,7 @@ public class RestQueryApiKeyActionTests extends ESTestCase {
         }
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withParams(param).build();
         SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

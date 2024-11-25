@@ -28,8 +28,12 @@ public class PipelineConfigurationBridge extends StableBridgeAPI.Proxy<PipelineC
         return delegate.getId();
     }
 
-    public Map<String, Object> getConfigAsMap() {
-        return delegate.getConfigAsMap();
+    public Map<String, Object> getConfig() {
+        return delegate.getConfig();
+    }
+
+    public Map<String, Object> getConfig(final boolean unmodifiable) {
+        return delegate.getConfig(unmodifiable);
     }
 
     @Override

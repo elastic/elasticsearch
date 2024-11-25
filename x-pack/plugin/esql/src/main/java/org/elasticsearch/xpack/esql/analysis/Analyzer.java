@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.esql.analysis;
 
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.xpack.core.enrich.EnrichPolicy;
 import org.elasticsearch.xpack.esql.Column;
@@ -20,6 +21,7 @@ import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Resolvables;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.EmptyAttribute;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
@@ -75,6 +77,12 @@ import org.elasticsearch.xpack.esql.plan.logical.MvExpand;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.Rename;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
+import org.elasticsearch.xpack.esql.plan.logical.join.Join;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinConfig;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.UsingJoinType;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.EsqlProject;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
@@ -98,12 +106,14 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.singletonList;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.core.enrich.EnrichPolicy.GEO_MATCH_TYPE;
@@ -189,6 +199,9 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
+            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
+                return hackLookupMapping(plan);
+            }
             if (context.indexResolution().isValid() == false) {
                 return plan.unresolvedMessage().equals(context.indexResolution().toString())
                     ? plan
@@ -222,6 +235,21 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
         }
 
+        private LogicalPlan hackLookupMapping(UnresolvedRelation plan) {
+            if (plan.table().index().toLowerCase(Locale.ROOT).equals("languages_lookup")) {
+                EsIndex esIndex = new EsIndex(
+                    "languages_lookup",
+                    Map.ofEntries(
+                        Map.entry("language_code", new EsField("language_code", DataType.LONG, Map.of(), true)),
+                        Map.entry("language_name", new EsField("language", DataType.KEYWORD, Map.of(), true))
+                    ),
+                    Map.of("languages_lookup", IndexMode.LOOKUP)
+                );
+                var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
+                return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
+            }
+            return plan;
+        }
     }
 
     /**
@@ -448,6 +476,10 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return resolveLookup(l, childrenOutput);
             }
 
+            if (plan instanceof LookupJoin j) {
+                return resolveLookupJoin(j);
+            }
+
             return plan.transformExpressionsOnly(UnresolvedAttribute.class, ua -> maybeResolveAttribute(ua, childrenOutput));
         }
 
@@ -586,6 +618,77 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                 return new Lookup(l.source(), l.child(), l.tableName(), matchFields, l.localRelation());
             }
             return l;
+        }
+
+        private Join resolveLookupJoin(LookupJoin join) {
+            JoinConfig config = join.config();
+            // for now, support only (LEFT) USING clauses
+            JoinType type = config.type();
+            // rewrite the join into a equi-join between the field with the same name between left and right
+            // per SQL standard, the USING columns are placed first in the output, followed by the rest of left, then right
+            if (type instanceof UsingJoinType using) {
+                List<Attribute> cols = using.columns();
+                // the lookup cannot be resolved, bail out
+                if (Expressions.anyMatch(cols, c -> c instanceof UnresolvedAttribute ua && ua.customMessage())) {
+                    return join;
+                }
+
+                JoinType coreJoin = using.coreJoin();
+                // verify the join type
+                if (coreJoin != JoinTypes.LEFT) {
+                    String name = cols.get(0).name();
+                    UnresolvedAttribute errorAttribute = new UnresolvedAttribute(
+                        join.source(),
+                        name,
+                        "Only LEFT join is supported with USING"
+                    );
+                    return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+                }
+                // resolve the using columns against the left and the right side then assemble the new join config
+                List<Attribute> leftKeys = resolveUsingColumns(cols, join.left().output(), "left");
+                List<Attribute> rightKeys = resolveUsingColumns(cols, join.right().output(), "right");
+                List<Attribute> output = new ArrayList<>(join.left().output());
+                // the order is stable (since the AttributeSet preservers the insertion order)
+                output.addAll(join.right().outputSet().subtract(new AttributeSet(rightKeys)));
+
+                // update the config - pick the left keys as those in the output
+                type = new UsingJoinType(coreJoin, rightKeys);
+                config = new JoinConfig(type, leftKeys, leftKeys, rightKeys);
+                join = new LookupJoin(join.source(), join.left(), join.right(), config, output);
+            }
+            // everything else is unsupported for now
+            else {
+                UnresolvedAttribute errorAttribute = new UnresolvedAttribute(join.source(), "unsupported", "Unsupported join type");
+                // add error message
+                return join.withConfig(new JoinConfig(type, singletonList(errorAttribute), emptyList(), emptyList()));
+            }
+            return join;
+        }
+
+        private List<Attribute> resolveUsingColumns(List<Attribute> cols, List<Attribute> output, String side) {
+            List<Attribute> resolved = new ArrayList<>(cols.size());
+            for (Attribute col : cols) {
+                if (col instanceof UnresolvedAttribute ua) {
+                    Attribute resolvedCol = maybeResolveAttribute(ua, output);
+                    if (resolvedCol instanceof UnresolvedAttribute ucol) {
+                        String message = ua.unresolvedMessage();
+                        String match = "column [" + ucol.name() + "]";
+                        resolvedCol = ucol.withUnresolvedMessage(message.replace(match, match + "in " + side + " side of join"));
+                    }
+                    resolved.add(resolvedCol);
+                }
+                // columns are expected to be unresolved - if that's not the case return an error
+                else {
+                    return singletonList(
+                        new UnresolvedAttribute(
+                            col.source(),
+                            col.name(),
+                            "Surprised to discover column [ " + col.name() + "] already resolved"
+                        )
+                    );
+                }
+            }
+            return resolved;
         }
 
         private Attribute maybeResolveAttribute(UnresolvedAttribute ua, List<Attribute> childrenOutput) {

@@ -17,11 +17,9 @@ import com.github.jengelman.gradle.plugins.shadow.ShadowPlugin;
 import org.elasticsearch.gradle.internal.conventions.info.GitInfo;
 import org.elasticsearch.gradle.internal.conventions.precommit.PomValidationPrecommitPlugin;
 import org.elasticsearch.gradle.internal.conventions.util.Util;
-import org.gradle.api.Action;
 import org.gradle.api.NamedDomainObjectSet;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
-import org.gradle.api.Task;
 import org.gradle.api.XmlProvider;
 import org.gradle.api.file.ProjectLayout;
 import org.gradle.api.plugins.BasePlugin;
@@ -69,6 +67,7 @@ public class PublishPlugin implements Plugin<Project> {
         configureSourcesJar(project);
         configurePomGeneration(project);
         configurePublications(project);
+        formatGeneratedPom(project);
     }
 
     private void configurePublications(Project project) {
@@ -127,33 +126,20 @@ public class PublishPlugin implements Plugin<Project> {
                     projectVersion.get()
                 )
             );
-            pomTask.doFirst(t -> pomTask.getPom().withXml(xml -> formatDependencies(xml)));
         });
 
         var publishing = extensions.getByType(PublishingExtension.class);
         final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
-
         addNameAndDescriptionToPom(project, mavenPublications);
         mavenPublications.configureEach(publication -> {
-            // Add git origin info to generated POM files for internal builds
-            publication.getPom().withXml(xml -> addScmInfo(xml, gitInfo.get()));
+            publication.getPom().withXml(xml -> {
+                // Add git origin info to generated POM files for internal builds
+                addScmInfo(xml, gitInfo.get());
+            });
             // have to defer this until archivesBaseName is set
             project.afterEvaluate(p -> publication.setArtifactId(archivesBaseName.get()));
             generatePomTask.configure(t -> t.dependsOn(generateMavenPoms));
         });
-    }
-
-    /**
-     * just ensure we put dependencies to the end. more a cosmetic thing than anything else
-     * */
-    private void formatDependencies(XmlProvider xml) {
-        Element rootElement = xml.asElement();
-        var dependencies = rootElement.getElementsByTagName("dependencies");
-        if (dependencies.getLength() == 1 && dependencies.item(0) != null) {
-            org.w3c.dom.Node item = dependencies.item(0);
-            rootElement.removeChild(item);
-            rootElement.appendChild(item);
-        }
     }
 
     private void addNameAndDescriptionToPom(Project project, NamedDomainObjectSet<MavenPublication> mavenPublications) {
@@ -161,8 +147,6 @@ public class PublishPlugin implements Plugin<Project> {
         var description = providerFactory.provider(() -> project.getDescription() != null ? project.getDescription() : "");
         mavenPublications.configureEach(p -> p.getPom().withXml(xml -> {
             var root = xml.asNode();
-            // Node versionNode = root.get("version");
-            // versionNode.plus(1, "name", name);
             root.appendNode("name", name);
             root.appendNode("description", description.get());
         }));
@@ -208,5 +192,33 @@ public class PublishPlugin implements Plugin<Project> {
             });
             project.getTasks().named(BasePlugin.ASSEMBLE_TASK_NAME).configure(t -> t.dependsOn(sourcesJarTask));
         });
+    }
+
+
+    /**
+     * Format the generated pom files to be in a sort of reproducible order.
+     */
+    private void formatGeneratedPom(Project project) {
+        var publishing = project.getExtensions().getByType(PublishingExtension.class);
+        final var mavenPublications = publishing.getPublications().withType(MavenPublication.class);
+        mavenPublications.configureEach(publication -> {
+            publication.getPom().withXml(xml -> {
+                // Add some pom formatting
+                formatDependencies(xml);
+            });
+        });
+    }
+
+    /**
+     * just ensure we put dependencies to the end. more a cosmetic thing than anything else
+     * */
+    private void formatDependencies(XmlProvider xml) {
+        Element rootElement = xml.asElement();
+        var dependencies = rootElement.getElementsByTagName("dependencies");
+        if (dependencies.getLength() == 1 && dependencies.item(0) != null) {
+            org.w3c.dom.Node item = dependencies.item(0);
+            rootElement.removeChild(item);
+            rootElement.appendChild(item);
+        }
     }
 }

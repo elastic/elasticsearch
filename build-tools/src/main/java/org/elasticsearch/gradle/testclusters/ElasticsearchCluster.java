@@ -76,6 +76,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     private final LinkedHashMap<String, Predicate<TestClusterConfiguration>> waitConditions = new LinkedHashMap<>();
     private final transient Project project;
     private final Provider<ReaperService> reaper;
+    private final Provider<TestClustersRegistry> testClustersRegistryProvider;
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
@@ -87,11 +88,14 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
 
     private boolean shared = false;
 
+    private int claims = 0;
+
     public ElasticsearchCluster(
         String path,
         String clusterName,
         Project project,
         Provider<ReaperService> reaper,
+        Provider<TestClustersRegistry> testClustersRegistryProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
@@ -104,6 +108,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         this.clusterName = clusterName;
         this.project = project;
         this.reaper = reaper;
+        this.testClustersRegistryProvider = testClustersRegistryProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
@@ -120,6 +125,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                 clusterName + "-0",
                 project,
                 reaper,
+                testClustersRegistryProvider,
                 fileSystemOperations,
                 archiveOperations,
                 execOperations,
@@ -177,6 +183,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
                     clusterName + "-" + i,
                     project,
                     reaper,
+                    testClustersRegistryProvider,
                     fileSystemOperations,
                     archiveOperations,
                     execOperations,
@@ -408,6 +415,7 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
     public void freeze() {
         nodes.forEach(ElasticsearchNode::freeze);
         configurationFrozen.set(true);
+        nodes.whenObjectAdded(node -> { throw new IllegalStateException("Cannot add nodes to test cluster after is has been frozen"); });
     }
 
     private void checkFrozen() {
@@ -663,4 +671,11 @@ public class ElasticsearchCluster implements TestClusterConfiguration, Named {
         return "cluster{" + path + ":" + clusterName + "}";
     }
 
+    int addClaim() {
+        return ++this.claims;
+    }
+
+    int removeClaim() {
+        return --this.claims;
+    }
 }

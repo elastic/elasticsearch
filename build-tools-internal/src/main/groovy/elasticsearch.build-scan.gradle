@@ -12,9 +12,13 @@ import java.time.LocalDateTime;
 
 import org.elasticsearch.gradle.Architecture
 import org.elasticsearch.gradle.OS
+import static org.elasticsearch.gradle.internal.util.CiUtils.safeName
 
 import java.lang.management.ManagementFactory
 import java.time.LocalDateTime
+
+// Resolving this early to avoid issues with the build scan plugin in combination with the configuration cache usage
+def taskNames = gradle.startParameter.taskNames.join(' ')
 
 develocity {
 
@@ -110,7 +114,7 @@ develocity {
 
             // Add a build annotation
             // See: https://buildkite.com/docs/agent/v3/cli-annotate
-            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${gradle.startParameter.taskNames.join(' ')}</code></a></div>"""
+            def body = """<div class="mb3"><span class="p1 border rounded">${System.getenv('BUILDKITE_LABEL')}</span> :gradle: ${result.failures ? 'failed' : 'successful'} build: <a href="${scan.buildScanUri}"><code>gradle ${taskNames}</code></a></div>"""
             def process = [
               'buildkite-agent',
               'annotate',
@@ -130,8 +134,4 @@ develocity {
       }
     }
   }
-}
-
-static def safeName(String string) {
-  return string.replaceAll(/[^a-zA-Z0-9_\-\.]+/, ' ').trim().replaceAll(' ', '_').toLowerCase()
 }

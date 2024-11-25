@@ -33,31 +33,6 @@ endif::[]
 // tag::notable-highlights[]
 
 [discrete]
-[[esql_inlinestats]]
-=== ESQL: INLINESTATS
-This adds the `INLINESTATS` command to ESQL which performs a STATS and
-then enriches the results into the output stream. So, this query:
-
-[source,esql]
-----
-FROM test
-| INLINESTATS m=MAX(a * b) BY b
-| WHERE m == a * b
-| SORT a DESC, b DESC
-| LIMIT 3
-----
-
-Produces output like:
-
-|  a  |  b  |   m   |
-| --- | --- | ----- |
-|  99 | 999 | 98901 |
-|  99 | 998 | 98802 |
-|  99 | 997 | 98703 |
-
-{es-pull}109583[#109583]
-
-[discrete]
 [[always_allow_rebalancing_by_default]]
 === Always allow rebalancing by default
 In earlier versions of {es} the `cluster.routing.allocation.allow_rebalance` setting defaults to

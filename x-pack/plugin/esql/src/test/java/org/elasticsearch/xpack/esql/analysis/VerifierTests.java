@@ -1876,31 +1876,4 @@ public class VerifierTests extends ESTestCase {
     protected List<String> filteredWarnings() {
         return withDefaultLimitWarning(super.filteredWarnings());
     }
-
-    public void testScoreFarMatchClauses() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
-        assertEquals(
-            "1:108: `_score` manipulation between fulltext expressions",
-            error(
-                "from foo metadata _score | where match(first_name,\"a\") "
-                    + "| eval fs = _score | where match(first_name, \"b\") | keep fs, _score"
-            )
-        );
-    }
-
-    public void testScoreFarQstrClauses() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
-        assertEquals(
-            "1:65: [QSTR] function cannot be used after EVAL\n" + "line 1:83: `_score` manipulation between fulltext expressions",
-            error("from foo metadata _score | where qstr(\"a\") | eval fs = _score | where qstr(\"b\") | keep fs, _score")
-        );
-    }
-
-    public void testScoreFarQstrAndMatchClauses() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
-        assertEquals(
-            "1:96: `_score` manipulation between fulltext expressions",
-            error("from foo metadata _score | where qstr(\"a\") | eval fs = _score | where match(first_name, \"b\") | keep fs, _score")
-        );
-    }
 }

@@ -58,6 +58,7 @@ import org.elasticsearch.client.internal.ElasticsearchClient;
 import org.elasticsearch.client.internal.Requests;
 import org.elasticsearch.cluster.ClusterModule;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.UUIDs;
@@ -1219,6 +1220,10 @@ public abstract class ESTestCase extends LuceneTestCase {
 
     public static ProjectId randomProjectId() {
         return new ProjectId(randomUUID());
+    }
+
+    public static ProjectId randomProjectIdOrDefault() {
+        return randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
     }
 
     public static String randomUUID() {

@@ -10,7 +10,6 @@
 package org.elasticsearch.action.admin.cluster.reroute;
 
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateEmptyPrimaryAllocationCommand;
 import org.elasticsearch.cluster.routing.allocation.command.AllocateReplicaAllocationCommand;
@@ -50,7 +49,7 @@ import static org.elasticsearch.rest.RestUtils.REST_MASTER_TIMEOUT_PARAM;
  */
 public class ClusterRerouteRequestTests extends ESTestCase {
     private static final int ROUNDS = 30;
-    private final ProjectId projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+    private final ProjectId projectId = randomProjectIdOrDefault();
     private final List<Supplier<AllocationCommand>> RANDOM_COMMAND_GENERATORS = List.of(
         () -> new AllocateReplicaAllocationCommand(
             randomAlphaOfLengthBetween(2, 10),

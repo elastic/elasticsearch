@@ -86,7 +86,7 @@ public class AllocationCommandsTests extends ESAllocationTestCase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+        projectId = randomProjectIdOrDefault();
     }
 
     public void testMoveShardCommand() {

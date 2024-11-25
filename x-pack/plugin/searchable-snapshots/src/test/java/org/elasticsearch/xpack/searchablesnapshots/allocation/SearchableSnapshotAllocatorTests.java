@@ -66,7 +66,7 @@ public class SearchableSnapshotAllocatorTests extends ESAllocationTestCase {
 
     @Before
     public void setupProjectId() {
-        projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : new ProjectId(randomUUID());
+        projectId = randomProjectIdOrDefault();
     }
 
     public void testAllocateToNodeWithLargestCache() {

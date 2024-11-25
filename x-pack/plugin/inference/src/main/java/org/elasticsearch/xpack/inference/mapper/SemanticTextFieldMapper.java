@@ -389,8 +389,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         String[] copyFields = sourcePaths.toArray(String[]::new);
         // ensure consistent order
         Arrays.sort(copyFields);
-        return new InferenceFieldMetadata(fullPath(), fieldType().inferenceId,
-            fieldType().searchInferenceId, copyFields, SemanticQueryBuilder.NAME);
+        return new InferenceFieldMetadata(
+            fullPath(),
+            fieldType().inferenceId,
+            fieldType().searchInferenceId,
+            copyFields,
+            SemanticQueryBuilder.NAME
+        );
     }
 
     @Override
@@ -444,7 +449,8 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         ) {
             super(name, true, false, false, TextSearchInfo.NONE, meta);
             this.inferenceId = inferenceId;
-            this.searchInferenceId = searchInferenceId;
+            this.searchInferenceId = searchInferenceId == null ? inferenceId : searchInferenceId;
+            ;
             this.modelSettings = modelSettings;
             this.inferenceField = inferenceField;
             this.indexVersionCreated = indexVersionCreated;
@@ -460,7 +466,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         }
 
         public String getSearchInferenceId() {
-            return searchInferenceId == null ? inferenceId : searchInferenceId;
+            return searchInferenceId;
         }
 
         public SemanticTextField.ModelSettings getModelSettings() {

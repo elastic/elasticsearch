@@ -113,7 +113,7 @@ public class Match extends FullTextFunction implements Validatable {
             );
         } else {
             EsField esField = ((FieldAttribute) field).field();
-            if (esField instanceof SemanticTextEsField && ((SemanticTextEsField) esField).inferenceIds().size() > 1) {
+            if (esField instanceof SemanticTextEsField stf && stf.inferenceIds().size() > 1) {
                 failures.add(
                     Failure.fail(
                         field,

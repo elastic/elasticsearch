@@ -16,8 +16,12 @@ import java.util.Set;
 public class SemanticTextEsFieldTests extends AbstractEsFieldTypeTests<SemanticTextEsField> {
     @Override
     protected SemanticTextEsField createTestInstance() {
+        return randomSemanticTextEsField(4);
+    }
+
+    static SemanticTextEsField randomSemanticTextEsField(int maxPropertiesDepth) {
         String name = randomAlphaOfLength(4);
-        Map<String, EsField> properties = randomProperties(4);
+        Map<String, EsField> properties = randomProperties(maxPropertiesDepth);
         boolean hasDocValues = randomBoolean();
         boolean isAlias = randomBoolean();
         Set<String> inferenceIds = randomSet(1, 10, () -> randomAlphaOfLength(8));

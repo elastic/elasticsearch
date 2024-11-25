@@ -16,6 +16,8 @@ import java.util.Objects;
 import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.SEMANTIC_TEXT;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 public class SemanticTextEsField extends EsField {
     private final Set<String> inferenceIds;
@@ -25,15 +27,15 @@ public class SemanticTextEsField extends EsField {
         Map<String, EsField> properties,
         boolean aggregatable,
         boolean isAlias,
-        Set<String> infereceIds
+        Set<String> inferenceIds
     ) {
         super(name, SEMANTIC_TEXT, properties, aggregatable, isAlias);
-        this.inferenceIds = infereceIds;
+        this.inferenceIds = inferenceIds;
     }
 
     public SemanticTextEsField(StreamInput in) throws IOException {
         this(
-            in.readString(),
+            readCachedStringWithVersionCheck(in),
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
             in.readBoolean(),
@@ -43,7 +45,7 @@ public class SemanticTextEsField extends EsField {
 
     @Override
     public void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
+        writeCachedStringWithVersionCheck(out, getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeBoolean(isAlias());
@@ -63,10 +65,7 @@ public class SemanticTextEsField extends EsField {
         if (super.equals(obj) == false) {
             return false;
         }
-        if (obj instanceof SemanticTextEsField other) {
-            return super.equals(other) && Objects.equals(inferenceIds, other.inferenceIds);
-        }
-        return false;
+        return Objects.equals(inferenceIds, ((SemanticTextEsField) obj).inferenceIds);
     }
 
     @Override

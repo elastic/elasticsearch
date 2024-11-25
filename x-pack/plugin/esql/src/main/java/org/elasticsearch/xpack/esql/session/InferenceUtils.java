@@ -102,8 +102,7 @@ public final class InferenceUtils {
         Set<SemanticQuery> result = new HashSet<>();
 
         analyzedPlan.forEachExpressionDown(Match.class, match -> {
-            if (match.field().dataType() == DataType.SEMANTIC_TEXT && match.field() instanceof FieldAttribute) {
-                FieldAttribute field = (FieldAttribute) match.field();
+            if (match.field().dataType() == DataType.SEMANTIC_TEXT && match.field() instanceof FieldAttribute field) {
                 SemanticTextEsField esField = (SemanticTextEsField) field.field();
                 if (esField.inferenceIds().size() == 1) {
                     result.add(new SemanticQuery(field.sourceText(), match.query().sourceText(), esField.inferenceIds().iterator().next()));

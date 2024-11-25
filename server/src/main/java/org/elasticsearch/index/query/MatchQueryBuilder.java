@@ -12,7 +12,6 @@ package org.elasticsearch.index.query;
 import org.apache.lucene.analysis.core.KeywordAnalyzer;
 import org.apache.lucene.search.FuzzyQuery;
 import org.apache.lucene.search.Query;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ResolvedIndices;
@@ -29,7 +28,6 @@ import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.support.QueryParsers;
 import org.elasticsearch.index.search.MatchQueryParser;
-import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
@@ -39,7 +37,6 @@ import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
 import java.util.Objects;
-import java.util.function.Supplier;
 
 /**
  * Match query is a query that analyzes the text and constructs a query as the
@@ -403,16 +400,20 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
                 if (inferenceIndices.isEmpty() == false && nonInferenceIndices.isEmpty() == false) {
                     BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-                    boolQueryBuilder.should(
-                        createInferenceSubQuery(
-                            queryRewriteContext.getQueryBuilderService(),
-                            inferenceFieldQueryName,
-                            inferenceIndices,
-                            fieldName,
-                            value
-                        )
-                    );
-                    boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndices, rewritten));
+                    for (String inferenceIndexName : inferenceIndices) {
+                        boolQueryBuilder.should(
+                            createInferenceSubQuery(
+                                queryRewriteContext.getQueryBuilderService(),
+                                inferenceFieldQueryName,
+                                inferenceIndexName,
+                                fieldName,
+                                value
+                            )
+                        );
+                    }
+                    for (String nonInferenceIndexName : nonInferenceIndices) {
+                        boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndexName, rewritten));
+                    }
                     rewritten = boolQueryBuilder;
                 } else if (inferenceFieldQueryName != null) {
                     rewritten = queryRewriteContext.getQueryBuilderService()
@@ -421,27 +422,26 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
             }
         }
 
-        // LogManager.getLogger(MatchQueryBuilder.class).info("rewritten: " + rewritten);
         return rewritten;
     }
 
     private QueryBuilder createInferenceSubQuery(
         QueryBuilderService queryBuilderService,
         String inferenceFieldQueryName,
-        List<String> indices,
+        String indexName,
         String fieldName,
         Object value
     ) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(queryBuilderService.getQueryBuilder(inferenceFieldQueryName, fieldName, value.toString()));
-        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
+        boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }
 
-    private QueryBuilder createNonInferenceSubQuery(List<String> indices, QueryBuilder rewritten) {
+    private QueryBuilder createNonInferenceSubQuery(String indexName, QueryBuilder rewritten) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(rewritten);
-        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
+        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }
 

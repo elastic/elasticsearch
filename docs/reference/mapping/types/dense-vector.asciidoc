@@ -338,12 +338,12 @@ by 32x at the cost of accuracy. See <<dense-vector-quantization, Automatically q
 `m`:::
 (Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, and `int4_hnsw` index types.
+Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
 `ef_construction`:::
 (Optional, integer)
 The number of candidates to track while assembling the list of nearest
-neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, and `int4_hnsw` index types.
+neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
 `confidence_interval`:::
 (Optional, float)

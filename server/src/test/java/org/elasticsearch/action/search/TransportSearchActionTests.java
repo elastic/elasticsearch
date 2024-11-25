@@ -34,7 +34,6 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
-import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -1418,7 +1417,7 @@ public class TransportSearchActionTests extends ESTestCase {
         for (int i = 0; i < numIndices; i++) {
             indices[i] = randomAlphaOfLengthBetween(5, 10);
         }
-        final ProjectId projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())
             .build();
@@ -1527,7 +1526,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 }
             }
         }
-        final ProjectId projectId = randomBoolean() ? Metadata.DEFAULT_PROJECT_ID : randomProjectId();
+        final ProjectId projectId = randomProjectIdOrDefault();
         final ClusterState clusterState = ClusterState.builder(ClusterName.DEFAULT)
             .blocks(blocksBuilder)
             .putProjectMetadata(ProjectMetadata.builder(projectId).build())

@@ -14,18 +14,20 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.injection.guice.Inject;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.transport.TransportService;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
 import org.elasticsearch.xpack.inference.registry.ModelRegistry;
 import org.elasticsearch.xpack.inference.telemetry.InferenceStats;
 
-public class TransportInferenceAction extends BaseTransportInferenceAction<InferenceAction.Request> {
+public class TransportUnifiedCompletionInferenceAction extends BaseTransportInferenceAction<UnifiedCompletionAction.Request> {
 
     @Inject
-    public TransportInferenceAction(
+    public TransportUnifiedCompletionInferenceAction(
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
@@ -40,39 +42,35 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
             serviceRegistry,
             inferenceStats,
             streamingTaskManager,
-            InferenceAction.Request::new
+            UnifiedCompletionAction.Request::new
         );
     }
 
     @Override
-    protected boolean isInvalidTaskTypeForInferenceEndpoint(InferenceAction.Request request, UnparsedModel unparsedModel) {
-        return false;
+    protected boolean isInvalidTaskTypeForInferenceEndpoint(UnifiedCompletionAction.Request request, UnparsedModel unparsedModel) {
+        return request.getTaskType() != TaskType.COMPLETION;
     }
 
     @Override
     protected ElasticsearchStatusException createIncompatibleTaskTypeException(
-        InferenceAction.Request request,
+        UnifiedCompletionAction.Request request,
         UnparsedModel unparsedModel
     ) {
-        return null;
+        return new ElasticsearchStatusException(
+            "Incompatible task_type for unified API, the requested type [{}] must be one of [{}]",
+            RestStatus.BAD_REQUEST,
+            request.getTaskType(),
+            TaskType.COMPLETION.toString()
+        );
     }
 
     @Override
     protected void doInference(
         Model model,
-        InferenceAction.Request request,
+        UnifiedCompletionAction.Request request,
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.infer(
-            model,
-            request.getQuery(),
-            request.getInput(),
-            request.isStreaming(),
-            request.getTaskSettings(),
-            request.getInputType(),
-            request.getInferenceTimeout(),
-            listener
-        );
+        service.completionInfer(model, request.getUnifiedCompletionRequest(), null, listener);
     }
 }

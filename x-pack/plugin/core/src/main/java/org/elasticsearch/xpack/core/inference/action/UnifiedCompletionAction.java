@@ -7,11 +7,11 @@
 
 package org.elasticsearch.xpack.core.inference.action;
 
-import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -26,20 +26,22 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         super(NAME);
     }
 
-    public static class Request extends ActionRequest {
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, XContentParser parser) throws IOException {
+    public static class Request extends BaseInferenceActionRequest {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, TimeValue timeout, XContentParser parser) throws IOException {
             var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
-            return new Request(inferenceEntityId, taskType, unifiedRequest);
+            return new Request(inferenceEntityId, taskType, unifiedRequest, timeout);
         }
 
         private final String inferenceEntityId;
         private final TaskType taskType;
         private final UnifiedCompletionRequest unifiedCompletionRequest;
+        private final TimeValue timeout;
 
-        public Request(String inferenceEntityId, TaskType taskType, UnifiedCompletionRequest unifiedCompletionRequest) {
+        public Request(String inferenceEntityId, TaskType taskType, UnifiedCompletionRequest unifiedCompletionRequest, TimeValue timeout) {
             this.inferenceEntityId = Objects.requireNonNull(inferenceEntityId);
             this.taskType = Objects.requireNonNull(taskType);
             this.unifiedCompletionRequest = Objects.requireNonNull(unifiedCompletionRequest);
+            this.timeout = Objects.requireNonNull(timeout);
         }
 
         public Request(StreamInput in) throws IOException {
@@ -47,6 +49,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             this.inferenceEntityId = in.readString();
             this.taskType = TaskType.fromStream(in);
             this.unifiedCompletionRequest = new UnifiedCompletionRequest(in);
+            this.timeout = in.readTimeValue();
         }
 
         public TaskType getTaskType() {
@@ -62,7 +65,11 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
         }
 
         public boolean isStreaming() {
-            return Objects.requireNonNullElse(unifiedCompletionRequest.stream(), false);
+            return true;
+        }
+
+        public TimeValue getTimeout() {
+            return timeout;
         }
 
         @Override
@@ -94,6 +101,7 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             out.writeString(inferenceEntityId);
             taskType.writeTo(out);
             unifiedCompletionRequest.writeTo(out);
+            out.writeTimeValue(timeout);
         }
 
         @Override
@@ -102,12 +110,13 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             Request request = (Request) o;
             return Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
-                && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest);
+                && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest) &&
+                Objects.equals(timeout, request.timeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(inferenceEntityId, taskType, unifiedCompletionRequest);
+            return Objects.hash(inferenceEntityId, taskType, unifiedCompletionRequest, timeout);
         }
     }
 

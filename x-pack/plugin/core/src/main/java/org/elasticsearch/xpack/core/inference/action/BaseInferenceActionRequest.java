@@ -5,12 +5,24 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.action;
+package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.action.ActionRequest;
+import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.inference.TaskType;
 
+import java.io.IOException;
+
 public abstract class BaseInferenceActionRequest extends ActionRequest {
+
+    public BaseInferenceActionRequest() {
+        super();
+    }
+
+    public BaseInferenceActionRequest(StreamInput in) throws IOException {
+        super(in);
+    }
+
     public abstract boolean isStreaming();
 
     public abstract TaskType getTaskType();

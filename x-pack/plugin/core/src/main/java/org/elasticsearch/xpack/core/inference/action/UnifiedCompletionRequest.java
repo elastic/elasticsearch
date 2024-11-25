@@ -32,7 +32,6 @@ public record UnifiedCompletionRequest(
     @Nullable Long maxCompletionTokens,
     @Nullable Integer n,
     @Nullable Stop stop,
-    @Nullable Boolean stream,
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
     @Nullable List<Tool> tool,
@@ -49,7 +48,6 @@ public record UnifiedCompletionRequest(
             (Long) args[2],
             (Integer) args[3],
             (Stop) args[4],
-            (Boolean) args[5],
             (Float) args[6],
             (ToolChoice) args[7],
             (List<Tool>) args[8],
@@ -64,7 +62,6 @@ public record UnifiedCompletionRequest(
         PARSER.declareLong(optionalConstructorArg(), new ParseField("max_completion_tokens"));
         PARSER.declareInt(optionalConstructorArg(), new ParseField("n"));
         PARSER.declareField(optionalConstructorArg(), (p, c) -> parseStop(p), new ParseField("stop"), ObjectParser.ValueType.VALUE_ARRAY);
-        PARSER.declareBoolean(optionalConstructorArg(), new ParseField("stream"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("temperature"));
         PARSER.declareField(
             optionalConstructorArg(),
@@ -84,7 +81,6 @@ public record UnifiedCompletionRequest(
             in.readOptionalVLong(),
             in.readOptionalVInt(),
             in.readOptionalNamedWriteable(Stop.class),
-            in.readOptionalBoolean(),
             in.readOptionalFloat(),
             in.readOptionalNamedWriteable(ToolChoice.class),
             in.readCollectionAsImmutableList(Tool::new),
@@ -100,7 +96,6 @@ public record UnifiedCompletionRequest(
         out.writeOptionalVLong(maxCompletionTokens);
         out.writeOptionalVInt(n);
         out.writeOptionalNamedWriteable(stop);
-        out.writeOptionalBoolean(stream);
         out.writeOptionalFloat(temperature);
         out.writeOptionalNamedWriteable(toolChoice);
         out.writeOptionalCollection(tool);

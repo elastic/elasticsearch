@@ -7,19 +7,23 @@
 
 package org.elasticsearch.xpack.inference.rest;
 
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.rest.RestChannel;
+import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.rest.BaseRestHandler;
+import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
+import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
+import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.POST;
+import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_INFERENCE_ID_PATH;
 import static org.elasticsearch.xpack.inference.rest.Paths.UNIFIED_TASK_TYPE_INFERENCE_ID_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
-public class RestUnifiedCompletionInferenceAction extends BaseInferenceAction {
+public class RestUnifiedCompletionInferenceAction extends BaseRestHandler {
     @Override
     public String getName() {
         return "unified_inference_action";
@@ -27,16 +31,20 @@ public class RestUnifiedCompletionInferenceAction extends BaseInferenceAction {
 
     @Override
     public List<Route> routes() {
-        return List.of(new Route(POST, UNIFIED_TASK_TYPE_INFERENCE_ID_PATH), new Route(POST, UNIFIED_TASK_TYPE_INFERENCE_ID_PATH));
+        return List.of(new Route(POST, UNIFIED_INFERENCE_ID_PATH), new Route(POST, UNIFIED_TASK_TYPE_INFERENCE_ID_PATH));
     }
 
     @Override
-    protected InferenceAction.Request prepareInferenceRequest(InferenceAction.Request.Builder builder) {
-        return builder.setUnifiedCompletionMode(true).setStream(true).build();
-    }
+    protected RestChannelConsumer prepareRequest(RestRequest restRequest, NodeClient client) throws IOException {
+        var params = BaseInferenceAction.parseParams(restRequest);
 
-    @Override
-    protected ActionListener<InferenceAction.Response> listener(RestChannel channel) {
-        return new ServerSentEventsRestActionListener(channel);
+        var inferTimeout = BaseInferenceAction.parseTimeout(restRequest);
+
+        UnifiedCompletionAction.Request request;
+        try (var parser = restRequest.contentParser()) {
+            request = UnifiedCompletionAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), inferTimeout, parser);
+        }
+
+        return channel -> client.execute(InferenceAction.INSTANCE, request, new ServerSentEventsRestActionListener(channel));
     }
 }

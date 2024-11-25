@@ -101,11 +101,21 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             for (UnifiedCompletionRequest.Message message : messages) {
                 builder.startObject();
                 {
-                    builder.field(CONTENT_FIELD);
-                    message.content().toXContent(builder, params);
+                    switch (message.content()) {
+                        case UnifiedCompletionRequest.ContentString contentString -> builder.field(CONTENT_FIELD, contentString.content());
+                        case UnifiedCompletionRequest.ContentObjects contentObjects -> {
+                            for (UnifiedCompletionRequest.ContentObject contentObject : contentObjects.contentObjects()) {
+                                builder.startObject(CONTENT_FIELD);
+                                builder.field("text", contentObject.text());
+                                builder.field("type", contentObject.type());
+                                builder.endObject();
+                            }
+                        }
+                    }
+
                     builder.field(ROLE_FIELD, message.role());
                     if (message.name() != null) {
-                        builder.field("name", message.name());// <---- HERE
+                        builder.field("name", message.name());
                     }
                     if (message.toolCallId() != null) {
                         builder.field("tool_call_id", message.toolCallId());
@@ -144,10 +154,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             builder.field(NUMBER_OF_RETURNED_CHOICES_FIELD, n);
         }
         if (stop != null) {
-            if (stop instanceof UnifiedCompletionRequest.StopString) {
-                builder.field(STOP_FIELD, ((UnifiedCompletionRequest.StopString) stop).value());
-            } else if (stop instanceof UnifiedCompletionRequest.StopValues) {
-                builder.field(STOP_FIELD, ((UnifiedCompletionRequest.StopValues) stop).values());
+            switch (stop) {
+                case UnifiedCompletionRequest.StopString stopString -> builder.field(STOP_FIELD, stopString.value());
+                case UnifiedCompletionRequest.StopValues stopValues -> builder.field(STOP_FIELD, stopValues.values());
             }
         }
         if (temperature != null) {

@@ -42,9 +42,7 @@ public record UnifiedCompletionRequest(
     @Nullable String user
 ) implements Writeable {
 
-    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {
-        void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException;
-    }
+    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -178,17 +176,6 @@ public record UnifiedCompletionRequest(
         }
 
         @Override
-        public void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startArray();
-            for (ContentObject contentObject : contentObjects) {
-                builder.startObject();
-                contentObject.toXContentObject(builder, params);
-                builder.endObject();
-            }
-            builder.endArray();
-        }
-
-        @Override
         public String getWriteableName() {
             return NAME;
         }
@@ -215,13 +202,6 @@ public record UnifiedCompletionRequest(
             out.writeString(type);
         }
 
-        public XContentBuilder toXContentObject(XContentBuilder builder, ToXContent.Params params) throws IOException {
-            builder.startObject();
-            builder.field("text", text);
-            builder.field("type", type);
-            builder.endObject();
-            return builder;
-        }
     }
 
     public record ContentString(String content) implements Content, NamedWriteable {

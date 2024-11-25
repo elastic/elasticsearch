@@ -145,6 +145,6 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 }

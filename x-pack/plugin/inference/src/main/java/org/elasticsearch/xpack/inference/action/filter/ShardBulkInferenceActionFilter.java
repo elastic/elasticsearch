@@ -30,7 +30,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
-import org.elasticsearch.inference.ChunkingOptions;
 import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceRegistry;
 import org.elasticsearch.inference.InputType;
@@ -343,7 +342,6 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                     inputs,
                     Map.of(),
                     InputType.INGEST,
-                    new ChunkingOptions(null, null),
                     TimeValue.MAX_VALUE,
                     completionListener
                 );

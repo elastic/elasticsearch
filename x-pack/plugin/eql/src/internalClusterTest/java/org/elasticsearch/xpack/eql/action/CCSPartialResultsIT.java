@@ -30,6 +30,8 @@ import static org.hamcrest.Matchers.is;
 
 public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
 
+    static String REMOTE_CLUSTER = "cluster_a";
+
     protected Collection<Class<? extends Plugin>> nodePlugins(String cluster) {
         return Collections.singletonList(LocalStateEQLXPackPlugin.class);
     }
@@ -38,14 +40,20 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         return client(LOCAL_CLUSTER);
     }
 
+    @Override
     protected Collection<String> remoteClusterAlias() {
-        return List.of("cluster-a", "cluster-b");
+        return List.of(REMOTE_CLUSTER);
+    }
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
     }
 
     public void testFailuresFromRemote() throws ExecutionException, InterruptedException, IOException {
-        final Client localClient = localClient();
-        String REMOTE_CLUSTER = "cluster-b";
         final Client remoteClient = client(REMOTE_CLUSTER);
+        final String remoteNode = cluster(REMOTE_CLUSTER).startDataOnlyNode();
+        final String remoteNode2 = cluster(REMOTE_CLUSTER).startDataOnlyNode();
 
         assertAcked(
             remoteClient.admin()
@@ -53,8 +61,8 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
                 .prepareCreate("test-1-remote")
                 .setSettings(
                     Settings.builder()
+                        .put("index.routing.allocation.require._name", remoteNode)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.include._name", clusters().get(REMOTE_CLUSTER).getNodeNames()[0])
                         .build()
                 )
                 .setMapping("@timestamp", "type=date"),
@@ -67,8 +75,8 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
                 .prepareCreate("test-2-remote")
                 .setSettings(
                     Settings.builder()
+                        .put("index.routing.allocation.require._name", remoteNode2)
                         .put(IndexMetadata.SETTING_NUMBER_OF_REPLICAS, 0)
-                        .put("index.routing.allocation.exclude._name", clusters().get(REMOTE_CLUSTER).getNodeNames()[0])
                         .build()
                 )
                 .setMapping("@timestamp", "type=date"),
@@ -91,7 +99,6 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         }
 
         remoteClient.admin().indices().prepareRefresh().get();
-        localClient.admin().indices().prepareRefresh().get();
 
         // ------------------------------------------------------------------------
         // queries with full cluster (no missing shards)
@@ -194,7 +201,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         // stop one of the nodes, make one of the shards unavailable
         // ------------------------------------------------------------------------
 
-        cluster(REMOTE_CLUSTER).stopNode(clusters().get(REMOTE_CLUSTER).getNodeNames()[0]);
+        cluster(REMOTE_CLUSTER).stopNode(remoteNode);
 
         // ------------------------------------------------------------------------
         // same queries, with missing shards and allow_partial_search_results=true

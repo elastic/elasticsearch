@@ -11,6 +11,7 @@ import org.apache.lucene.index.CorruptIndexException;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.transport.ConnectTransportException;
@@ -251,7 +252,7 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
         {
             EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
             executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
-            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "*", true));
+            executionInfo.swapCluster(remote1Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote1Alias, "x*", true));
             executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
 
             EsIndex esIndex = new EsIndex(
@@ -277,13 +278,15 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
             assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
 
             EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
-            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("x*"));
             assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
             assertThat(remote1Cluster.getTook().millis(), equalTo(0L));
             assertThat(remote1Cluster.getTotalShards(), equalTo(0));
             assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
             assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
             assertThat(remote1Cluster.getFailedShards(), equalTo(0));
+            assertThat(remote1Cluster.getFailures().size(), equalTo(1));
+            assertThat(remote1Cluster.getFailures().get(0).getCause().getMessage(), containsString("Unknown index [x*]"));
 
             EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
             assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
@@ -349,6 +352,63 @@ public class EsqlSessionCCSUtilsTests extends ESTestCase {
                 () -> EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution)
             );
             assertThat(ve.getDetailedMessage(), containsString("Unknown index [remote2:mylogs1,mylogs2,logs*]"));
+        }
+
+        // remotes already marked as skipped should not be modified
+        {
+            EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(true);
+            executionInfo.swapCluster(localClusterAlias, (k, v) -> new EsqlExecutionInfo.Cluster(localClusterAlias, "logs*", false));
+            // remote1 has already been marked as SKIPPED with a previous error message, so should not be overwritten
+            // by updateExecutionInfoWithClustersWithNoMatchingIndices
+            executionInfo.swapCluster(
+                remote1Alias,
+                (k, v) -> new EsqlExecutionInfo.Cluster(
+                    remote1Alias,
+                    "*",
+                    true,
+                    EsqlExecutionInfo.Cluster.Status.SKIPPED,
+                    0,
+                    0,
+                    0,
+                    0,
+                    List.of(new ShardSearchFailure(new IllegalStateException("previous error message"))),
+                    TimeValue.timeValueMillis(22)
+                )
+            );
+            executionInfo.swapCluster(remote2Alias, (k, v) -> new EsqlExecutionInfo.Cluster(remote2Alias, "mylogs1,mylogs2,logs*", false));
+            EsIndex esIndex = new EsIndex(
+                "logs*,remote2:mylogs1,remote2:mylogs2,remote2:logs*",
+                randomMapping(),
+                Map.of(
+                    "logs-a",
+                    IndexMode.STANDARD,
+                    "remote2:mylogs1",
+                    IndexMode.STANDARD,
+                    "remote2:mylogs2",
+                    IndexMode.STANDARD,
+                    "remote2:logs-b",
+                    IndexMode.STANDARD
+                )
+            );
+            // remote1 is missing from the concrete indices so would normally be marked as skipped and set with failure of "Unknown index"
+            IndexResolution indexResolution = IndexResolution.valid(esIndex, esIndex.concreteIndices(), Map.of());
+            EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
+            EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(localClusterAlias);
+            assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+            assertClusterStatusAndShardCounts(localCluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
+            EsqlExecutionInfo.Cluster remote1Cluster = executionInfo.getCluster(remote1Alias);
+            assertThat(remote1Cluster.getIndexExpression(), equalTo("*"));
+            assertThat(remote1Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SKIPPED));
+            assertThat(remote1Cluster.getTook().millis(), equalTo(22L));
+            assertThat(remote1Cluster.getTotalShards(), equalTo(0));
+            assertThat(remote1Cluster.getSuccessfulShards(), equalTo(0));
+            assertThat(remote1Cluster.getSkippedShards(), equalTo(0));
+            assertThat(remote1Cluster.getFailedShards(), equalTo(0));
+            assertThat(remote1Cluster.getFailures().size(), equalTo(1));
+            assertThat(remote1Cluster.getFailures().get(0).getCause().getMessage(), containsString("previous error message"));
+            EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(remote2Alias);
+            assertThat(remote2Cluster.getIndexExpression(), equalTo("mylogs1,mylogs2,logs*"));
+            assertClusterStatusAndShardCounts(remote2Cluster, EsqlExecutionInfo.Cluster.Status.RUNNING);
         }
     }
 

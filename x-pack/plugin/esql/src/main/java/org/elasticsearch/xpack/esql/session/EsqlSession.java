@@ -14,6 +14,7 @@ import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
+import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverProfile;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -294,19 +296,22 @@ public class EsqlSession {
             .collect(Collectors.toSet());
         final List<TableInfo> indices = preAnalysis.indices;
         // TODO: make a separate call for lookup indices
-        final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
+        final Set<String> clusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
+        // key: cluster alias; value = skip_unavailable setting
+        Map<String, Boolean> targetClusters = Maps.newHashMapWithExpectedSize(clusters.size());
+        for (String alias : clusters) {
+            targetClusters.put(alias, executionInfo.isSkipUnavailable(alias));
+        }
         enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()
                 .stream()
                 .map(ResolvedEnrichPolicy::matchField)
                 .collect(Collectors.toSet());
-            Map<String, Exception> unavailableClusters = enrichResolution.getUnavailableClusters();
-            preAnalyzeIndices(parsed, executionInfo, unavailableClusters, l.delegateFailureAndWrap((ll, indexResolution) -> {
-                // TODO in follow-PR (for skip_unavailble handling of missing concrete indexes) add some tests for invalid index
-                // resolution to updateExecutionInfo
+            Map<String, Exception> unusableRemotes = enrichResolution.unusableRemotes();
+            preAnalyzeIndices(parsed, executionInfo, unusableRemotes, l.delegateFailureAndWrap((ll, indexResolution) -> {
                 if (indexResolution.isValid()) {
                     EsqlSessionCCSUtils.updateExecutionInfoWithClustersWithNoMatchingIndices(executionInfo, indexResolution);
                     EsqlSessionCCSUtils.updateExecutionInfoWithUnavailableClusters(executionInfo, indexResolution.unavailableClusters());
@@ -324,11 +329,15 @@ public class EsqlSession {
                     // If new clusters appear when resolving the main indices, we need to resolve the enrich policies again
                     // or exclude main concrete indices. Since this is rare, it's simpler to resolve the enrich policies again.
                     // TODO: add a test for this
-                    if (targetClusters.containsAll(newClusters) == false
+                    if (clusters.containsAll(newClusters) == false
                         // do not bother with a re-resolution if only remotes were requested and all were offline
                         && executionInfo.getClusterStateCount(EsqlExecutionInfo.Cluster.Status.RUNNING) > 0) {
+                        Map<String, Boolean> newClusterInfo = new HashMap<>();
+                        for (String newCluster : newClusters) {
+                            newClusterInfo.put(newCluster, executionInfo.isSkipUnavailable(newCluster));
+                        }
                         enrichPolicyResolver.resolvePolicies(
-                            newClusters,
+                            newClusterInfo,
                             unresolvedPolicies,
                             ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
                         );

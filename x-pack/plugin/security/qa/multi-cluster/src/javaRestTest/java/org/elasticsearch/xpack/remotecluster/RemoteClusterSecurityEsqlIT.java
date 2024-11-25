@@ -158,6 +158,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
     })).around(fulfillingCluster).around(queryCluster);
 
     public void populateData() throws Exception {
+        populateData(true);
+    }
+
+    public void populateData(boolean includeEnrichPolicyOnRemoteCluster) throws Exception {
         CheckedConsumer<RestClient, IOException> setupEnrich = client -> {
             Request createIndex = new Request("PUT", "countries");
             createIndex.setJsonEntity("""
@@ -204,8 +208,10 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                     }
                 }
                 """);
-            assertOK(performRequestWithAdminUser(client, createEnrich));
-            assertOK(performRequestWithAdminUser(client, new Request("PUT", "_enrich/policy/countries/_execute")));
+            if (includeEnrichPolicyOnRemoteCluster) {
+                assertOK(performRequestWithAdminUser(client, createEnrich));
+                assertOK(performRequestWithAdminUser(client, new Request("PUT", "_enrich/policy/countries/_execute")));
+            }
             performRequestWithAdminUser(client, new Request("DELETE", "/countries"));
         };
         // Fulfilling cluster
@@ -331,7 +337,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             performRequestWithAdminUser(client, new Request("DELETE", "/employees"));
             performRequestWithAdminUser(client, new Request("DELETE", "/employees2"));
             performRequestWithAdminUser(client, new Request("DELETE", "/employees3"));
-            performRequestWithAdminUser(client, new Request("DELETE", "/_enrich/policy/countries"));
+            final Response response = performRequestWithAdminUser(client, new Request("GET", "/_enrich/policy/countries"));
+            final Map<String, Object> getResponseMap = responseAsMap(response);
+            List<?> policies = (List<?>) getResponseMap.get("policies");
+            if (policies.isEmpty() == false) {
+                performRequestWithAdminUser(client, new Request("DELETE", "/_enrich/policy/countries"));
+            }
         };
         wipe.accept(fulfillingClusterClient);
         wipe.accept(client());
@@ -809,6 +820,78 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
             .flatMap(innerList -> innerList instanceof List ? ((List<?>) innerList).stream() : Stream.empty())
             .collect(Collectors.toList());
         assertThat(flatList, containsInAnyOrder(1, 3, "usa", "germany"));
+    }
+
+    public void testCrossClusterEnrichWithMissingEnrichPolicySkipUnavailableFalse() throws Exception {
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, randomBoolean(), false);
+        populateData(false);
+        {
+            Request request = esqlRequest("""
+                FROM my_remote_cluster:employees
+                | ENRICH countries
+                | STATS size=count(*) by country
+                | SORT size DESC
+                | LIMIT 2""");
+
+            ResponseException e = expectThrows(ResponseException.class, () -> performRequestWithRemoteSearchUser(request));
+            assertThat(e.getMessage(), containsString("verification_exception"));
+            assertThat(e.getMessage(), containsString("cannot find enrich policy [countries]"));
+        }
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testCrossClusterEnrichWithMissingEnrichPolicySkipUnavailableTrue() throws Exception {
+        configureRemoteCluster(REMOTE_CLUSTER_ALIAS, fulfillingCluster, false, randomBoolean(), true);
+        populateData(false);
+        {
+            Request request = esqlRequest("""
+                FROM my_remote_cluster:employees
+                | ENRICH countries
+                | STATS size=count(*) by country
+                | SORT size DESC
+                | LIMIT 2""");
+
+            Response response = performRequestWithRemoteSearchUser(request);
+            assertOK(response);
+
+            /**
+             * Expected response
+             * took=109,
+             * columns=[{name=<no-fields>, type=null}],
+             * values=[],
+             * _clusters={running=0, total=1, failed=0, partial=0, successful=0, skipped=1,
+             *   details={my_remote_cluster=
+             *     {_shards={total=0, failed=0, successful=0, skipped=0},
+             *      took=109, indices=employees,
+             *      failures=[{reason={reason=failed to resolve enrich policy [countries],
+             *        type=illegal_state_exception}, index=null, shard=-1}], status=skipped}},
+             *  }}
+             */
+
+            Map<String, Object> responseAsMap = entityAsMap(response);
+            List<?> columns = (List<?>) responseAsMap.get("columns");
+            List<?> values = (List<?>) responseAsMap.get("values");
+            assertThat(columns.size(), equalTo(1));
+            Map<String, ?> column1 = (Map<String, ?>) columns.get(0);
+            assertThat(column1.get("name").toString(), equalTo("<no-fields>"));
+            assertThat(values.size(), equalTo(0));
+            Map<String, ?> clusters = (Map<String, ?>) responseAsMap.get("_clusters");
+
+            assertThat((int) clusters.get("total"), is(1));
+            assertThat((int) clusters.get("successful"), is(0));
+            assertThat((int) clusters.get("skipped"), is(1));
+            assertThat((int) clusters.get("failed"), is(0));
+
+            Map<String, ?> details = (Map<String, ?>) clusters.get("details");
+            Map<String, ?> invalidRemoteEntry = (Map<String, ?>) details.get("my_remote_cluster");
+            assertThat(invalidRemoteEntry.get("status").toString(), equalTo("skipped"));
+            List<?> failures = (List<?>) invalidRemoteEntry.get("failures");
+            assertThat(failures.size(), equalTo(1));
+            Map<String, ?> failuresMap = (Map<String, ?>) failures.get(0);
+            Map<String, ?> reason = (Map<String, ?>) failuresMap.get("reason");
+            assertThat(reason.get("type").toString(), equalTo("illegal_state_exception"));
+            assertThat(reason.get("reason").toString(), containsString("failed to resolve enrich policy [countries]"));
+        }
     }
 
     private void createAliases() throws Exception {

@@ -23,7 +23,8 @@ public final class EnrichResolution {
 
     private final Map<Key, ResolvedEnrichPolicy> resolvedPolicies = ConcurrentCollections.newConcurrentMap();
     private final Map<Key, String> errors = ConcurrentCollections.newConcurrentMap();
-    private final Map<String, Exception> unavailableClusters = ConcurrentCollections.newConcurrentMap();
+    // skip_unavailable=true remote clusters that are unavailable or had errors when resolving the enrich policy
+    private final Map<String, Exception> unusableRemotes = ConcurrentCollections.newConcurrentMap();
 
     public ResolvedEnrichPolicy getResolvedPolicy(String policyName, Enrich.Mode mode) {
         return resolvedPolicies.get(new Key(policyName, mode));
@@ -34,11 +35,17 @@ public final class EnrichResolution {
 
     }
 
+    // created for testing
+    public boolean hasErrors() {
+        return errors.size() > 0;
+    }
+
     public String getError(String policyName, Enrich.Mode mode) {
         final String error = errors.get(new Key(policyName, mode));
         if (error != null) {
             return error;
         } else {
+            // TODO: I don't understand this code - why not just return null? Why is it wrong to call this when there's no errors?
             assert false : "unresolved enrich policy [" + policyName + "] mode [" + mode + "]";
             return "unresolved enrich policy [" + policyName + "] mode [" + mode + "]";
         }
@@ -52,12 +59,16 @@ public final class EnrichResolution {
         errors.putIfAbsent(new Key(policyName, mode), reason);
     }
 
-    public void addUnavailableCluster(String clusterAlias, Exception e) {
-        unavailableClusters.put(clusterAlias, e);
+    public void addUnusableRemote(String clusterAlias, Exception e) {
+        unusableRemotes.put(clusterAlias, e);
     }
 
-    public Map<String, Exception> getUnavailableClusters() {
-        return unavailableClusters;
+    /**
+     * @return Remote clusters that are either unavailable (disconnected) or had a failure when resolving the enrich policy.
+     *         Map key is cluster alias. Map value is the Exception showing the particular error encountered.
+     */
+    public Map<String, Exception> unusableRemotes() {
+        return unusableRemotes;
     }
 
     private record Key(String policyName, Enrich.Mode mode) {

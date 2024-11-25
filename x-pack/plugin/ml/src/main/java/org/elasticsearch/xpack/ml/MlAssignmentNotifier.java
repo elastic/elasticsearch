@@ -281,15 +281,21 @@ public class MlAssignmentNotifier implements ClusterStateListener {
     }
 
     private void logLongTimeUnassigned(Instant now, ClusterState state) {
-        PersistentTasksCustomMetadata tasks = state.getMetadata().getProject().custom(PersistentTasksCustomMetadata.TYPE);
-        if (tasks == null) {
-            return;
-        }
+        state.forEachProject(project -> {
+            PersistentTasksCustomMetadata tasks = project.metadata().custom(PersistentTasksCustomMetadata.TYPE);
+            if (tasks == null) {
+                return;
+            }
 
-        List<String> itemsToReport = findLongTimeUnassignedTasks(now, tasks);
-        if (itemsToReport.isEmpty() == false) {
-            logger.warn("ML persistent tasks unassigned for a long time [{}]", String.join("|", itemsToReport));
-        }
+            List<String> itemsToReport = findLongTimeUnassignedTasks(now, tasks);
+            if (itemsToReport.isEmpty() == false) {
+                logger.warn(
+                    "In project [{}] ML persistent tasks unassigned for a long time [{}]",
+                    project.projectId(),
+                    String.join("|", itemsToReport)
+                );
+            }
+        });
     }
 
     /**

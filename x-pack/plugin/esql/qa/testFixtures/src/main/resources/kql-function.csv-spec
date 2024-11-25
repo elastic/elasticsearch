@@ -1,19 +1,19 @@
 ###############################################
-# Tests for QSTR function
+# Tests for KQL function
 #
 
-qstrWithField
-required_capability: qstr_function
+kqlWithField
+required_capability: kql_function
 
-// tag::qstr-with-field[]
+// tag::kql-with-field[]
 FROM books 
-| WHERE QSTR("author: Faulkner")
+| WHERE KQL("author: Faulkner")
 | KEEP book_no, author 
 | SORT book_no 
 | LIMIT 5;
-// end::qstr-with-field[]
+// end::kql-with-field[]
 
-// tag::qstr-with-field-result[]
+// tag::kql-with-field-result[]
 book_no:keyword | author:text
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott]
 2713            | William Faulkner
@@ -21,13 +21,13 @@ book_no:keyword | author:text
 2883            | William Faulkner
 3293            | Danny Faulkner
 ;
-// end::qstr-with-field-result[]
+// end::kql-with-field-result[]
 
-qstrWithMultipleFields
-required_capability: qstr_function
+kqlWithMultipleFields
+required_capability: kql_function
 
 from books 
-| where qstr("title:Return* AND author:*Tolkien")  
+| where kql("title:Return* AND author:*Tolkien")  
 | keep book_no, title;
 ignoreOrder:true
 
@@ -36,11 +36,11 @@ book_no:keyword | title:text
 7350            | Return of the Shadow
 ;
 
-qstrWithQueryExpressions
-required_capability: qstr_function
+kqlWithQueryExpressions
+required_capability: kql_function
 
 from books 
-| where qstr(CONCAT("title:Return*", " AND author:*Tolkien"))  
+| where kql(CONCAT("title:Return*", " AND author:*Tolkien"))  
 | keep book_no, title;
 ignoreOrder:true
 
@@ -49,24 +49,24 @@ book_no:keyword | title:text
 7350            | Return of the Shadow
 ;
 
-qstrWithConjunction
-required_capability: qstr_function
+kqlWithConjunction
+required_capability: kql_function
 
 from books 
-| where qstr("title: Rings") and ratings > 4.6
+| where kql("title: Rings") and ratings > 4.6
 | keep book_no, title;
 ignoreOrder:true
 
 book_no:keyword | title:text
-4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
-7140            |The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
+4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)     
 ;
 
-qstrWithFunctionPushedToLucene
-required_capability: qstr_function
+kqlWithFunctionPushedToLucene
+required_capability: kql_function
 
 from hosts 
-| where qstr("host: beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
+| where kql("host: beta") and cidr_match(ip1, "127.0.0.2/32", "127.0.0.3/32") 
 | keep card, host, ip0, ip1;
 ignoreOrder:true
 
@@ -74,11 +74,11 @@ card:keyword   |host:keyword   |ip0:ip                   |ip1:ip
 eth1           |beta           |127.0.0.1                |127.0.0.2
 ;
 
-qstrWithNonPushableConjunction
-required_capability: qstr_function
+kqlWithNonPushableConjunction
+required_capability: kql_function
 
 from books 
-| where qstr("title: Rings") and length(title) > 75
+| where kql("title: Rings") and length(title) > 75
 | keep book_no, title;
 ignoreOrder:true
 
@@ -86,12 +86,12 @@ book_no:keyword | title:text
 4023            |A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings
 ;
 
-qstrWithMultipleWhereClauses
-required_capability: qstr_function
+kqlWithMultipleWhereClauses
+required_capability: kql_function
 
 from books 
-| where qstr("title: rings") 
-| where qstr("year: [1 TO 2005]") 
+| where kql("title: rings") 
+| where kql("year > 1 AND year < 2005") 
 | keep book_no, title;
 ignoreOrder:true
 
@@ -101,11 +101,11 @@ book_no:keyword | title:text
 ;
 
 
-qstrWithMultivaluedTextField
-required_capability: qstr_function
+kqlWithMultivaluedTextField
+required_capability: kql_function
 
 from employees 
-| where qstr("job_positions: (Tech Lead) AND job_positions:(Reporting Analyst)") 
+| where kql("job_positions: Tech Lead AND job_positions:(Reporting Analyst)") 
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 
@@ -118,11 +118,11 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10097          | Remzi              | Waschkowski    
 ;
 
-qstrWithMultivaluedNumericField
-required_capability: qstr_function
+kqlWithMultivaluedNumericField
+required_capability: kql_function
 
 from employees 
-| where qstr("salary_change: [14 TO *]") 
+| where kql("salary_change > 14") 
 | keep emp_no, first_name, last_name, salary_change;
 ignoreOrder:true
 
@@ -137,10 +137,10 @@ emp_no:integer | first_name:keyword | last_name:keyword | salary_change:double
 ;
 
 testMultiValuedFieldWithConjunction
-required_capability: qstr_function
+required_capability: kql_function
 
 from employees 
-| where (qstr("job_positions: (Data Scientist) OR job_positions:(Support Engineer)")) and gender == "F"
+| where (kql("job_positions: (Data Scientist) OR job_positions:(Support Engineer)")) and gender == "F"
 | keep emp_no, first_name, last_name;
 ignoreOrder:true
 

@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.shutdown;
 
+import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionRequestValidationException;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.master.AcknowledgedRequest;
@@ -114,7 +115,11 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         public Request(StreamInput in) throws IOException {
             super(in);
             this.nodeId = in.readString();
-            this.ephemeralId = in.readOptionalString();
+            if (in.getTransportVersion().onOrAfter(TransportVersions.EPHEMERAL_ID_IN_SHUTDOWN_METADATA)) {
+                this.ephemeralId = in.readOptionalString();
+            } else {
+                this.ephemeralId = null;
+            }
             this.type = in.readEnum(SingleNodeShutdownMetadata.Type.class);
             this.reason = in.readString();
             this.allocationDelay = in.readOptionalTimeValue();
@@ -126,7 +131,9 @@ public class PutShutdownNodeAction extends ActionType<AcknowledgedResponse> {
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
             out.writeString(nodeId);
-            out.writeOptionalString(ephemeralId);
+            if (out.getTransportVersion().onOrAfter(TransportVersions.EPHEMERAL_ID_IN_SHUTDOWN_METADATA)) {
+                out.writeOptionalString(ephemeralId);
+            }
             out.writeEnum(type);
             out.writeString(reason);
             out.writeOptionalTimeValue(allocationDelay);

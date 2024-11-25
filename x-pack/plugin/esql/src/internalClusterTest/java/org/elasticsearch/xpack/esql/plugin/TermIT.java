@@ -26,7 +26,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
         createAndPopulateIndex();
     }
 
-public void testSimpleTermQuery() throws Exception {
+    public void testSimpleTermQuery() throws Exception {
         var query = """
             FROM test
             | WHERE term(content,"dog")

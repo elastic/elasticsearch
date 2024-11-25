@@ -436,7 +436,7 @@ public class KeystoreManagementTests extends PackagingTestCase {
         switch (distribution.packaging) {
             case TAR, ZIP -> assertThat(keystore, file(File, ARCHIVE_OWNER, ARCHIVE_OWNER, p660));
             case DEB, RPM -> assertThat(keystore, file(File, "root", "elasticsearch", p660));
-            case DOCKER, DOCKER_UBI, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> assertThat(keystore, DockerFileMatcher.file(p660));
+            case DOCKER, DOCKER_IRON_BANK, DOCKER_CLOUD_ESS, DOCKER_WOLFI -> assertThat(keystore, DockerFileMatcher.file(p660));
             default -> throw new IllegalStateException("Unknown Elasticsearch packaging type.");
         }
     }

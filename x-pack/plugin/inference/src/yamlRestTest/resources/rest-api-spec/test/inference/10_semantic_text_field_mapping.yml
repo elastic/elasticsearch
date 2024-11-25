@@ -371,3 +371,29 @@ setup:
   - match: { error.type: illegal_argument_exception }
   - match: { error.reason: "semantic_text field [level_1.level_2.sparse_field] cannot be in an object field with
                             subobjects disabled" }
+
+---
+"Mapping always includes inference ID":
+  - requires:
+      cluster_features: "semantic_text.always_emit_inference_id_fix"
+      reason: always emit inference ID fix added in 8.17.0
+      test_runner_features: [capabilities]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [default_elser_2]
+
+  - do:
+      indices.create:
+        index: test-always-include-inference-id-index
+        body:
+          mappings:
+            properties:
+              semantic_field:
+                type: semantic_text
+
+  - do:
+      indices.get_mapping:
+        index: test-always-include-inference-id-index
+
+  - exists: test-always-include-inference-id-index.mappings.properties.semantic_field.inference_id

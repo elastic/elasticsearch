@@ -206,11 +206,15 @@ public class SearchScrollIT extends ESIntegTestCase {
 
         indicesAdmin().prepareRefresh().get();
 
-        assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 500);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
-        assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 0);
+        assertHitCount(500,
+            prepareSearch().setSize(0).setQuery(matchAllQuery()),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "test"))
+        );
+        assertHitCount(0,
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+            prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+        );
 
         SearchResponse searchResponse = prepareSearch().setQuery(queryStringQuery("user:kimchy"))
             .setSize(35)
@@ -229,11 +233,14 @@ public class SearchScrollIT extends ESIntegTestCase {
             } while (searchResponse.getHits().getHits().length > 0);
 
             indicesAdmin().prepareRefresh().get();
-            assertHitCount(prepareSearch().setSize(0).setQuery(matchAllQuery()), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "test")), 0);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
-            assertHitCount(prepareSearch().setSize(0).setQuery(termQuery("message", "update")), 500);
+            assertHitCount(500,
+                prepareSearch().setSize(0).setQuery(matchAllQuery()),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "update"))
+            );
+            assertHitCount(0,
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test")),
+                prepareSearch().setSize(0).setQuery(termQuery("message", "test")));
         } finally {
             clearScroll(searchResponse.getScrollId());
             searchResponse.decRef();

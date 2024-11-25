@@ -125,7 +125,7 @@ public class KqlQueryTests extends ESTestCase {
         assertThat(e.getMessage(), equalTo("Unknown time-zone ID: aoeu"));
     }
 
-    private static KqlQueryBuilder getBuilder(Map<String, String>  options) {
+    private static KqlQueryBuilder getBuilder(Map<String, String> options) {
         final Source source = new Source(1, 1, StringUtils.EMPTY);
         final KqlQuery kqlQuery = new KqlQuery(source, "eggplant", options);
         return (KqlQueryBuilder) kqlQuery.asBuilder();

@@ -43,7 +43,7 @@ import java.util.stream.StreamSupport;
 import static java.lang.Double.NEGATIVE_INFINITY;
 import static java.lang.Double.POSITIVE_INFINITY;
 
-@FunctionName("st_centroid_agg")
+@FunctionName("st_extent")
 public class SpatialStExtentTests extends AbstractAggregationTestCase {
     public SpatialStExtentTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         this.testCase = testCaseSupplier.get();

@@ -173,9 +173,6 @@ public class InternalDistributionDownloadPlugin implements Plugin<Project> {
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER) {
             return projectName + "docker" + archString + "-export";
         }
-        if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_UBI) {
-            return projectName + "ubi-docker" + archString + "-export";
-        }
         if (distribution.getType() == InternalElasticsearchDistributionTypes.DOCKER_IRONBANK) {
             return projectName + "ironbank-docker" + archString + "-export";
         }

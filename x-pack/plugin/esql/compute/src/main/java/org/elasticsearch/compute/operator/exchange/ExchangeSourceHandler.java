@@ -35,7 +35,10 @@ public final class ExchangeSourceHandler {
 
     private final PendingInstances outstandingSinks;
     private final PendingInstances outstandingSources;
-    private final FailureCollector failure;
+    // Collect failures that occur while fetching pages from the remote sink with `failFast=true`.
+    // The exchange source will stop fetching and abort as soon as any failure is added to this failure collector.
+    // The final failure collected will be notified to callers via the {@code completionListener}.
+    private final FailureCollector failure = new FailureCollector();
 
     /**
      * Creates a new ExchangeSourceHandler.
@@ -50,7 +53,6 @@ public final class ExchangeSourceHandler {
         this.fetchExecutor = fetchExecutor;
         this.outstandingSinks = new PendingInstances(() -> buffer.finish(false));
         this.outstandingSources = new PendingInstances(() -> buffer.finish(true));
-        this.failure = new FailureCollector();
         buffer.addCompletionListener(ActionListener.running(() -> {
             final ActionListener<Void> listener = ActionListener.assertAtLeastOnce(completionListener).delegateFailure((l, unused) -> {
                 final Exception e = failure.getFailure();

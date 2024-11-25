@@ -6,12 +6,16 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
-package fixture.s3;
+package fixture.aws.sts;
 
+import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
+import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.rest.RestStatus;
 
+import java.io.IOException;
 import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.time.ZonedDateTime;
@@ -19,53 +23,39 @@ import java.time.format.DateTimeFormatter;
 import java.util.Arrays;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
+import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
-public class S3HttpFixtureWithSTS extends S3HttpFixture {
+import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 
-    private static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
-    private static final String ROLE_NAME = "sts-fixture-test";
-    private final String sessionToken;
+/**
+ * Minimal HTTP handler that emulates the EC2 IMDS server
+ */
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate the EC2 IMDS endpoint")
+public class AwsStsHttpHandler implements HttpHandler {
+
+    static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";
+    static final String ROLE_NAME = "sts-fixture-test";
+
+    private final BiConsumer<String, String> newCredentialsConsumer;
     private final String webIdentityToken;
 
-    public S3HttpFixtureWithSTS() {
-        this(true);
-    }
-
-    public S3HttpFixtureWithSTS(boolean enabled) {
-        this(
-            enabled,
-            "sts_bucket",
-            "sts_base_path",
-            "sts_access_key",
-            "sts_session_token",
-            "Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDansFBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFOzTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ"
-        );
-    }
-
-    public S3HttpFixtureWithSTS(
-        boolean enabled,
-        String bucket,
-        String basePath,
-        String accessKey,
-        String sessionToken,
-        String webIdentityToken
-    ) {
-        super(enabled, bucket, basePath, accessKey);
-        this.sessionToken = sessionToken;
+    public AwsStsHttpHandler(BiConsumer<String, String> newCredentialsConsumer, String webIdentityToken) {
+        this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
         this.webIdentityToken = webIdentityToken;
     }
 
     @Override
-    protected HttpHandler createHandler() {
-        final HttpHandler delegate = super.createHandler();
+    public void handle(final HttpExchange exchange) throws IOException {
+        // https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
 
-        return exchange -> {
-            // https://docs.aws.amazon.com/STS/latest/APIReference/API_AssumeRoleWithWebIdentity.html
-            // It's run as a separate service, but we emulate it under the `assume-role-with-web-identity` endpoint
-            // of the S3 serve for the simplicity sake
-            if ("POST".equals(exchange.getRequestMethod())
-                && exchange.getRequestURI().getPath().startsWith("/assume-role-with-web-identity")) {
+        try (exchange) {
+            final var requestMethod = exchange.getRequestMethod();
+            final var path = exchange.getRequestURI().getPath();
+
+            if ("POST".equals(requestMethod) && "/assume-role-with-web-identity/".equals(path)) {
+
                 String body = new String(exchange.getRequestBody().readAllBytes(), StandardCharsets.UTF_8);
                 Map<String, String> params = Arrays.stream(body.split("&"))
                     .map(e -> e.split("="))
@@ -82,6 +72,9 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                     exchange.close();
                     return;
                 }
+                final var accessKey = randomIdentifier();
+                final var sessionToken = randomIdentifier();
+                newCredentialsConsumer.accept(accessKey, sessionToken);
                 final byte[] response = String.format(
                     Locale.ROOT,
                     """
@@ -95,7 +88,7 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                             </AssumedRoleUser>
                             <Credentials>
                               <SessionToken>%s</SessionToken>
-                              <SecretAccessKey>secret_access_key</SecretAccessKey>
+                              <SecretAccessKey>%s</SecretAccessKey>
                               <Expiration>%s</Expiration>
                               <AccessKeyId>%s</AccessKeyId>
                             </Credentials>
@@ -109,6 +102,7 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                     ROLE_ARN,
                     ROLE_NAME,
                     sessionToken,
+                    randomIdentifier(),
                     ZonedDateTime.now().plusDays(1L).format(DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ssZ")),
                     accessKey
                 ).getBytes(StandardCharsets.UTF_8);
@@ -118,7 +112,8 @@ public class S3HttpFixtureWithSTS extends S3HttpFixture {
                 exchange.close();
                 return;
             }
-            delegate.handle(exchange);
-        };
+
+            ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("not supported: " + requestMethod + " " + path));
+        }
     }
 }

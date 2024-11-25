@@ -59,6 +59,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
@@ -767,18 +768,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            final String esJavaOpts = Stream.of(
-                "-Xms" + heapSize,
-                "-Xmx" + heapSize,
-                "-ea",
-                "-esa",
-                System.getProperty("tests.jvm.argline", ""),
-                featureFlagProperties,
-                systemProperties,
-                jvmArgs,
-                debugArgs
-            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
+
+            String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
+                .filter(not(String::isEmpty))
+                .collect(Collectors.joining(" "));
+            String cliJavaOpts = commonOpts.stream().filter(not(String::isEmpty)).collect(Collectors.joining(" "));
+
             environment.put("ES_JAVA_OPTS", esJavaOpts);
+            environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
         }

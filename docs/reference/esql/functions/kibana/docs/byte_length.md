@@ -9,6 +9,6 @@ Returns the byte length of a string.
 FROM airports
 | WHERE country == "India"
 | KEEP city
-| EVAL fn_length=LENGTH(city), fn_byte_length = BYTE_LENGTH(city)
+| EVAL fn_length = LENGTH(city), fn_byte_length = BYTE_LENGTH(city)
 ```
 Note: All strings are in UTF-8, so a single character can use multiple bytes.

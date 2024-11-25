@@ -104,6 +104,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_14_0 = def(8_636_00_1);
     public static final TransportVersion V_8_15_0 = def(8_702_00_2);
     public static final TransportVersion V_8_15_2 = def(8_702_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_15 = def(8_702_00_4);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -177,6 +178,7 @@ public class TransportVersions {
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16 = def(8_772_00_1);
     public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_00_2);
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_00_4);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_00_0);
     public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_00_0);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_00_0);
@@ -197,7 +199,14 @@ public class TransportVersions {
     public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_790_00_0);
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_00_0);
-    public static final TransportVersion EPHEMERAL_ID_IN_SHUTDOWN_METADATA = def(8_793_00_0);
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_00_0);
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS_REVERT = def(8_794_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
+    public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_00_0);
+    public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
+    public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_00_0);
+    public static final TransportVersion EPHEMERAL_ID_IN_SHUTDOWN_METADATA = def(8_800_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

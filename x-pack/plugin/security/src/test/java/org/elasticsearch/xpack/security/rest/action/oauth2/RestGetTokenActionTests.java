@@ -43,7 +43,7 @@ public class RestGetTokenActionTests extends ESTestCase {
     public void testListenerHandlesExceptionProperly() {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -67,7 +67,7 @@ public class RestGetTokenActionTests extends ESTestCase {
     public void testSendResponse() {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);
@@ -114,7 +114,7 @@ public class RestGetTokenActionTests extends ESTestCase {
     public void testSendResponseKerberosError() {
         FakeRestRequest restRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).build();
         final SetOnce<RestResponse> responseSetOnce = new SetOnce<>();
-        RestChannel restChannel = new AbstractRestChannel(restRequest, true) {
+        RestChannel restChannel = new AbstractRestChannel(restRequest, randomBoolean()) {
             @Override
             public void sendResponse(RestResponse restResponse) {
                 responseSetOnce.set(restResponse);

@@ -81,6 +81,24 @@
       "params" : [
         {
           "name" : "lhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "An expression."
+        },
+        {
+          "name" : "rhs",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "An expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "lhs",
           "type" : "double",
           "optional" : false,
           "description" : "An expression."

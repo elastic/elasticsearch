@@ -1062,13 +1062,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, 
         return true;
     }
 
-    public static boolean assertTestThreadPool() {
-        final var threadName = Thread.currentThread().getName();
-        final var executorName = EsExecutors.executorName(threadName);
-        assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") : threadName + " is not a test thread";
-        return true;
-    }
-
     public static boolean assertInSystemContext(ThreadPool threadPool) {
         final var threadName = Thread.currentThread().getName();
         assert threadName.startsWith("TEST-") || threadName.startsWith("LuceneTestCase") || threadPool.getThreadContext().isSystemContext()

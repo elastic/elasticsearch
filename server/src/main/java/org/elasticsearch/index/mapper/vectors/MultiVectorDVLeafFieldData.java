@@ -9,37 +9,44 @@
 
 package org.elasticsearch.index.mapper.vectors;
 
+import org.apache.lucene.index.BinaryDocValues;
+import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.LeafReader;
-import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.fielddata.LeafFieldData;
 import org.elasticsearch.index.fielddata.SortedBinaryDocValues;
 import org.elasticsearch.script.field.DocValuesScriptFieldFactory;
+import org.elasticsearch.script.field.vectors.BitMultiDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.ByteMultiDenseVectorDocValuesField;
+import org.elasticsearch.script.field.vectors.FloatMultiDenseVectorDocValuesField;
+
+import java.io.IOException;
 
 final class MultiVectorDVLeafFieldData implements LeafFieldData {
     private final LeafReader reader;
     private final String field;
-    private final IndexVersion indexVersion;
     private final DenseVectorFieldMapper.ElementType elementType;
     private final int dims;
 
-    MultiVectorDVLeafFieldData(
-        LeafReader reader,
-        String field,
-        IndexVersion indexVersion,
-        DenseVectorFieldMapper.ElementType elementType,
-        int dims
-    ) {
+    MultiVectorDVLeafFieldData(LeafReader reader, String field, DenseVectorFieldMapper.ElementType elementType, int dims) {
         this.reader = reader;
         this.field = field;
-        this.indexVersion = indexVersion;
         this.elementType = elementType;
         this.dims = dims;
     }
 
     @Override
     public DocValuesScriptFieldFactory getScriptFieldFactory(String name) {
-        // TODO
-        return null;
+        try {
+            BinaryDocValues values = DocValues.getBinary(reader, field);
+            BinaryDocValues magnitudeValues = DocValues.getBinary(reader, field + MultiDenseVectorFieldMapper.VECTOR_MAGNITUDES_SUFFIX);
+            return switch (elementType) {
+                case BYTE -> new ByteMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case FLOAT -> new FloatMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
+                case BIT -> new BitMultiDenseVectorDocValuesField(values, magnitudeValues, name, elementType, dims);
+            };
+        } catch (IOException e) {
+            throw new IllegalStateException("Cannot load doc values for multi-vector field!", e);
+        }
     }
 
     @Override

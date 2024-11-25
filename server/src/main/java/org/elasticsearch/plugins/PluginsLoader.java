@@ -120,7 +120,6 @@ public class PluginsLoader {
      */
     @SuppressWarnings("this-escape")
     public PluginsLoader(Path modulesDirectory, Path pluginsDirectory) {
-
         Map<String, List<ModuleQualifiedExportsService>> qualifiedExports = new HashMap<>(ModuleQualifiedExportsService.getBootServices());
         addServerExportsService(qualifiedExports);
 
@@ -159,6 +158,13 @@ public class PluginsLoader {
         }
 
         this.loadedPluginLayers = Collections.unmodifiableMap(loadPluginLayers(seenBundles, qualifiedExports));
+    }
+
+    // Used only for testing.
+    PluginsLoader() {
+        moduleDescriptors = Collections.emptyList();
+        pluginDescriptors = Collections.emptyList();
+        loadedPluginLayers = Collections.emptyMap();
     }
 
     public List<PluginDescriptor> moduleDescriptors() {

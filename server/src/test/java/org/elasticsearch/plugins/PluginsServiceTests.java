@@ -18,7 +18,6 @@ import org.elasticsearch.core.Strings;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexModule;
-import org.elasticsearch.jdk.ModuleQualifiedExportsService;
 import org.elasticsearch.plugin.analysis.CharFilterFactory;
 import org.elasticsearch.plugins.scanners.PluginInfo;
 import org.elasticsearch.plugins.spi.BarPlugin;
@@ -66,12 +65,7 @@ public class PluginsServiceTests extends ESTestCase {
     public static class FilterablePlugin extends Plugin implements ScriptPlugin {}
 
     static PluginsService newPluginsService(Settings settings) {
-        return new PluginsService(settings, null, new PluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile()) {
-            @Override
-            protected void addServerExportsService(Map<String, List<ModuleQualifiedExportsService>> qualifiedExports) {
-                // tests don't run modular
-            }
-        });
+        return new PluginsService(settings, null, new TestPluginsLoader(null, TestEnvironment.newEnvironment(settings).pluginsFile()));
     }
 
     static PluginsService newMockPluginsService(List<Class<? extends Plugin>> classpathPlugins) {

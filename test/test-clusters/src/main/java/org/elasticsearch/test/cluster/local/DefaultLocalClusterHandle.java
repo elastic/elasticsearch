@@ -185,6 +185,8 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         Node node = nodes.get(index);
         node.stop(forcibly);
         node.start(null);
+        // Update discovery with bounced node details
+        writeUnicastHostsFile(true);
     }
 
     @Override
@@ -198,7 +200,7 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
     }
 
     protected void waitUntilReady() {
-        writeUnicastHostsFile();
+        writeUnicastHostsFile(false);
         try {
             WaitForHttpResource wait = configureWaitForReady();
             wait.waitFor(CLUSTER_UP_TIMEOUT.toMillis());
@@ -254,12 +256,12 @@ public class DefaultLocalClusterHandle implements LocalClusterHandle {
         }
     }
 
-    private void writeUnicastHostsFile() {
+    private void writeUnicastHostsFile(boolean overwriteIfExists) {
         String transportUris = execute(() -> nodes.parallelStream().map(Node::getTransportEndpoint).collect(Collectors.joining("\n")));
         execute(() -> nodes.parallelStream().forEach(node -> {
             try {
                 Path hostsFile = node.getWorkingDir().resolve("config").resolve("unicast_hosts.txt");
-                if (Files.notExists(hostsFile)) {
+                if (overwriteIfExists || Files.notExists(hostsFile)) {
                     Files.writeString(hostsFile, transportUris);
                 }
             } catch (IOException e) {

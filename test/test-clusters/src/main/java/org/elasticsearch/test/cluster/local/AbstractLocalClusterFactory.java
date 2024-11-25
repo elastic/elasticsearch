@@ -146,6 +146,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 if (process.isAlive() == false) {
                     LOGGER.info("Restarting Elasticsearch node '{}'", name);
                     startElasticsearch();
+                    return;
                 } else {
                     throw new AssertionError("Elasticsearch is already started");
                 }

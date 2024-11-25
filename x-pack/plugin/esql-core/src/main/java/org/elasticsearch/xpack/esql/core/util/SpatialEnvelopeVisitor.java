@@ -32,6 +32,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
     /**
      * Determine the BBOX without considering the CRS or wrapping of the longitude.
+     * Note that incoming BBOX's that do cross the dateline (minx>maxx) will be treated as invalid.
      */
     public static Optional<Rectangle> visit(Geometry geometry) {
         var visitor = new SpatialEnvelopeVisitor(new CartesianPointVisitor());
@@ -66,7 +67,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         Rectangle getResult();
     }
 
-    private static class CartesianPointVisitor implements PointVisitor {
+    static class CartesianPointVisitor implements PointVisitor {
         private double minX = Double.POSITIVE_INFINITY;
         private double minY = Double.POSITIVE_INFINITY;
         private double maxX = Double.NEGATIVE_INFINITY;
@@ -82,6 +83,9 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
+            if (minX > maxX) {
+                throw new IllegalArgumentException("Invalid cartesian rectangle: minX > maxX");
+            }
             this.minX = Math.min(this.minX, minX);
             this.minY = Math.min(this.minY, minY);
             this.maxX = Math.max(this.maxX, maxX);
@@ -99,7 +103,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         }
     }
 
-    private static class GeoPointVisitor implements PointVisitor {
+    static class GeoPointVisitor implements PointVisitor {
         private double minY = Double.POSITIVE_INFINITY;
         private double maxY = Double.NEGATIVE_INFINITY;
         private double minNegX = Double.POSITIVE_INFINITY;
@@ -109,7 +113,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         private final boolean wrapLongitude;
 
-        private GeoPointVisitor(boolean wrapLongitude) {
+        GeoPointVisitor(boolean wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
         }
 

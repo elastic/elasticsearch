@@ -968,7 +968,7 @@ public class DesiredBalanceShardsAllocatorTests extends ESAllocationTestCase {
                 lastListener.onResponse(null);
             }
         };
-        assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.INITIAL));
+        assertThat(desiredBalanceShardsAllocator.getDesiredBalance(), sameInstance(DesiredBalance.NOT_MASTER));
         try {
             final PlainActionFuture<Void> future = new PlainActionFuture<>();
             desiredBalanceShardsAllocator.allocate(

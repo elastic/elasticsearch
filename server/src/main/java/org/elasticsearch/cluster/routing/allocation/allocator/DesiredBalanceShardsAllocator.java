@@ -237,7 +237,9 @@ public class DesiredBalanceShardsAllocator implements ShardsAllocator {
         logger.debug("Executing allocate for [{}]", index);
         queue.add(index, listener);
         // This can only run on master, so unset not-master if exists
-        currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.INITIAL);
+        if (currentDesiredBalanceRef.compareAndSet(DesiredBalance.NOT_MASTER, DesiredBalance.INITIAL)) {
+            logger.debug("initialized desired balance for becoming master");
+        }
         desiredBalanceComputation.onNewInput(DesiredBalanceInput.create(index, allocation));
 
         if (allocation.routingTable().indicesRouting().isEmpty()) {

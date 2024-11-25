@@ -11,6 +11,8 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.automaton.Automaton;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
+import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
@@ -69,21 +71,28 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
 
     private final DeprecationLogger deprecationLogger;
     private final ClusterService clusterService;
+    private final ProjectResolver projectResolver;
     private final ThreadPool threadPool;
     private final Object mutex;
     private final Queue<RoleDescriptor> workQueue;
     private boolean workerBusy;
     private final Set<String> dailyRoleCache;
 
-    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool) {
-        this(clusterService, threadPool, DeprecationLogger.getLogger(DeprecationRoleDescriptorConsumer.class));
+    public DeprecationRoleDescriptorConsumer(ClusterService clusterService, ProjectResolver projectResolver, ThreadPool threadPool) {
+        this(clusterService, projectResolver, threadPool, DeprecationLogger.getLogger(DeprecationRoleDescriptorConsumer.class));
     }
 
     // package-private for testing
-    DeprecationRoleDescriptorConsumer(ClusterService clusterService, ThreadPool threadPool, DeprecationLogger deprecationLogger) {
-        this.deprecationLogger = deprecationLogger;
+    DeprecationRoleDescriptorConsumer(
+        ClusterService clusterService,
+        ProjectResolver projectResolver,
+        ThreadPool threadPool,
+        DeprecationLogger deprecationLogger
+    ) {
         this.clusterService = clusterService;
+        this.projectResolver = projectResolver;
         this.threadPool = threadPool;
+        this.deprecationLogger = deprecationLogger;
         this.mutex = new Object();
         this.workQueue = new LinkedList<>();
         this.workerBusy = false;
@@ -158,7 +167,8 @@ public final class DeprecationRoleDescriptorConsumer implements Consumer<Collect
     }
 
     private void logDeprecatedPermission(RoleDescriptor roleDescriptor) {
-        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = clusterService.state().metadata().getProject().getIndicesLookup();
+        final ProjectMetadata metadata = projectResolver.getProjectMetadata(clusterService.state());
+        final SortedMap<String, IndexAbstraction> aliasOrIndexMap = metadata.getIndicesLookup();
         final Map<String, Set<String>> privilegesByAliasMap = new HashMap<>();
         // sort answer by alias for tests
         final SortedMap<String, Set<String>> privilegesByIndexMap = new TreeMap<>();

@@ -11,8 +11,8 @@ import org.elasticsearch.gradle.internal.info.BuildParams
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
-apply plugin: 'elasticsearch.legacy-yaml-rest-test'
-apply plugin: 'elasticsearch.legacy-yaml-rest-compat-test'
+apply plugin: 'elasticsearch.internal-yaml-rest-test'
+apply plugin: 'elasticsearch.yaml-rest-compat-test'
 
 esplugin {
   name 'unsigned-long'
@@ -44,14 +44,4 @@ tasks.named("yamlRestTestV7CompatTest").configure {
         '50_script_values/Script query',
         '50_script_values/script_score query'
     ].join(',')
-}
-
-if (BuildParams.isSnapshotBuild() == false) {
-  tasks.named("test").configure {
-    systemProperty 'es.index_mode_feature_flag_registered', 'true'
-  }
-}
-
-testClusters.configureEach {
-  requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
 }

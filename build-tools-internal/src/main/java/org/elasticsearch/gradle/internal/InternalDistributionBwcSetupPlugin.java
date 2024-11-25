@@ -23,6 +23,7 @@ import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -322,7 +323,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             File expectedOutputFile = useNativeExpanded
                 ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
                 : projectArtifact.distFile;
-            c.getInputs().file(new File(project.getBuildDir(), "refspec"));
+            c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
             if (useNativeExpanded) {
                 c.getOutputs().dir(expectedOutputFile);
             } else {

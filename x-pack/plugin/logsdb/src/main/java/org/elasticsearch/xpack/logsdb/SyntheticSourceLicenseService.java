@@ -77,27 +77,36 @@ final class SyntheticSourceLicenseService {
         }
 
         var licenseStateSnapshot = licenseState.copyCurrentLicenseState();
-        var operationMode = licenseStateSnapshot.getOperationMode();
+        if (checkFeature(SYNTHETIC_SOURCE_FEATURE, licenseStateSnapshot, isTemplateValidation)) {
+            return false;
+        }
+
         var license = licenseService.getLicense();
         if (license == null) {
             return true;
         }
 
-        LicensedFeature.Momentary licensedFeature;
         boolean beforeCutoffDate = license.startDate() <= cutoffDate;
         if (legacyLicensedUsageOfSyntheticSourceAllowed
             && beforeCutoffDate
-            && (operationMode == License.OperationMode.GOLD || operationMode == License.OperationMode.PLATINUM)) {
+            && checkFeature(SYNTHETIC_SOURCE_FEATURE_LEGACY, licenseStateSnapshot, isTemplateValidation)) {
             // platinum license will allow synthetic source with gold legacy licensed feature too.
-            licensedFeature = SYNTHETIC_SOURCE_FEATURE_LEGACY;
-            LOGGER.debug("legacy license [{}] is allowed to use synthetic source", operationMode.description());
-        } else {
-            licensedFeature = SYNTHETIC_SOURCE_FEATURE;
+            LOGGER.debug("legacy license [{}] is allowed to use synthetic source", licenseStateSnapshot.getOperationMode().description());
+            return false;
         }
+
+        return true;
+    }
+
+    private static boolean checkFeature(
+        LicensedFeature.Momentary licensedFeature,
+        XPackLicenseState licenseStateSnapshot,
+        boolean isTemplateValidation
+    ) {
         if (isTemplateValidation) {
-            return licensedFeature.checkWithoutTracking(licenseStateSnapshot) == false;
+            return licensedFeature.checkWithoutTracking(licenseStateSnapshot);
         } else {
-            return licensedFeature.check(licenseStateSnapshot) == false;
+            return licensedFeature.check(licenseStateSnapshot);
         }
     }
 

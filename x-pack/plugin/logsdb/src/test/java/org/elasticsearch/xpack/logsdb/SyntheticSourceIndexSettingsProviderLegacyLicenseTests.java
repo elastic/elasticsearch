@@ -34,7 +34,6 @@ import static org.mockito.Mockito.when;
 public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTestCase {
 
     private SyntheticSourceIndexSettingsProvider provider;
-    private SyntheticSourceLicenseService syntheticSourceLicenseService;
 
     @Before
     public void setup() throws Exception {
@@ -47,7 +46,7 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
         var mockLicenseService = mock(LicenseService.class);
         when(mockLicenseService.getLicense()).thenReturn(license);
 
-        syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);
         syntheticSourceLicenseService.setLicenseService(mockLicenseService);
 
@@ -96,5 +95,35 @@ public class SyntheticSourceIndexSettingsProviderLegacyLicenseTests extends ESTe
         String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
         var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
         assertThat(result.size(), equalTo(0));
+    }
+
+    public void testGetAdditionalIndexSettingsTsdbAfterCutoffDate() throws Exception {
+        long start = LocalDateTime.of(2024, 12, 20, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        License license = createGoldOrPlatinumLicense(start);
+        long time = LocalDateTime.of(2024, 12, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        var licenseState = new XPackLicenseState(() -> time, new XPackLicenseStatus(license.operationMode(), true, null));
+
+        var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        licenseService.setLicenseState(licenseState);
+        var mockLicenseService = mock(LicenseService.class);
+        when(mockLicenseService.getLicense()).thenReturn(license);
+
+        SyntheticSourceLicenseService syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
+        syntheticSourceLicenseService.setLicenseState(licenseState);
+        syntheticSourceLicenseService.setLicenseService(mockLicenseService);
+
+        provider = new SyntheticSourceIndexSettingsProvider(
+            syntheticSourceLicenseService,
+            im -> MapperTestUtils.newMapperService(xContentRegistry(), createTempDir(), im.getSettings(), im.getIndex().getName()),
+            getLogsdbIndexModeSettingsProvider(false),
+            IndexVersion::current
+        );
+
+        Settings settings = Settings.builder().put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "SYNTHETIC").build();
+        String dataStreamName = "metrics-my-app";
+        String indexName = DataStream.getDefaultBackingIndexName(dataStreamName, 0);
+        var result = provider.getAdditionalIndexSettings(indexName, dataStreamName, IndexMode.TIME_SERIES, null, null, settings, List.of());
+        assertThat(result.size(), equalTo(1));
+        assertThat(result.get(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey()), equalTo("STORED"));
     }
 }

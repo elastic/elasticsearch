@@ -779,17 +779,13 @@ public class TasksIT extends ESIntegTestCase {
         assertNoFailures(indicesAdmin().prepareRefresh(TaskResultsService.TASK_INDEX).get());
 
         assertHitCount(
+            1L,
             prepareSearch(TaskResultsService.TASK_INDEX).setSource(
                 SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.action", taskInfo.action()))
             ),
-            1L
-        );
-
-        assertHitCount(
             prepareSearch(TaskResultsService.TASK_INDEX).setSource(
                 SearchSourceBuilder.searchSource().query(QueryBuilders.termQuery("task.node", taskInfo.taskId().getNodeId()))
-            ),
-            1L
+            )
         );
 
         GetTaskResponse getResponse = expectFinishedTask(taskId);

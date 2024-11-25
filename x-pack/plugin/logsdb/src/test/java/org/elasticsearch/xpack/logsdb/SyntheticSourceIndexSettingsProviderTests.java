@@ -24,6 +24,7 @@ import org.junit.Before;
 
 import java.io.IOException;
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -401,5 +402,12 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         );
         assertThat(result.size(), equalTo(0));
         assertThat(newMapperServiceCounter.get(), equalTo(0));
+    }
+
+    protected List<String> filteredWarnings() {
+        var warnings = super.filteredWarnings();
+        List<String> result = warnings == null ? new ArrayList<>() : new ArrayList<>(warnings);
+        result.add("Configuring source mode in mappings is deprecated and will be removed in future versions");
+        return result;
     }
 }

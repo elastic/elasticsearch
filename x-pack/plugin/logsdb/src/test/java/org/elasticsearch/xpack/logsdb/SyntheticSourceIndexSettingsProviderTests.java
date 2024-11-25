@@ -88,10 +88,12 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertTrue(result);
             assertThat(newMapperServiceCounter.get(), equalTo(1));
+            assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
         }
         {
             String mapping;
-            if (randomBoolean()) {
+            boolean withSourceMode = randomBoolean();
+            if (withSourceMode) {
                 mapping = """
                     {
                         "_doc": {
@@ -122,6 +124,9 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
             boolean result = provider.newIndexHasSyntheticSourceUsage(indexName, null, settings, List.of(new CompressedXContent(mapping)));
             assertFalse(result);
             assertThat(newMapperServiceCounter.get(), equalTo(2));
+            if (withSourceMode) {
+                assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
+            }
         }
     }
 

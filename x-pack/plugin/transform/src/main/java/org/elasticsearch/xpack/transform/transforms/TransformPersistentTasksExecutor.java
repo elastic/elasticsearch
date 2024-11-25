@@ -68,6 +68,8 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.common.notifications.Level.ERROR;
 import static org.elasticsearch.xpack.core.common.notifications.Level.INFO;
+import static org.elasticsearch.xpack.core.transform.TransformField.AWAITING_UPGRADE;
+import static org.elasticsearch.xpack.core.transform.TransformField.RESET_IN_PROGRESS;
 import static org.elasticsearch.xpack.transform.transforms.TransformNodes.nodeCanRunThisTransform;
 
 public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<TransformTaskParams> {
@@ -119,11 +121,12 @@ public class TransformPersistentTasksExecutor extends PersistentTasksExecutor<Tr
          *
          * Operations on the transform node happen in {@link #nodeOperation()}
          */
-        if (TransformMetadata.getTransformMetadata(clusterState).isResetMode()) {
-            return new PersistentTasksCustomMetadata.Assignment(
-                null,
-                "Transform task will not be assigned as a feature reset is in progress."
-            );
+        var transformMetadata = TransformMetadata.getTransformMetadata(clusterState);
+        if (transformMetadata.upgradeMode()) {
+            return AWAITING_UPGRADE;
+        }
+        if (transformMetadata.resetMode()) {
+            return RESET_IN_PROGRESS;
         }
         List<String> unavailableIndices = verifyIndicesPrimaryShardsAreActive(clusterState, resolver);
         if (unavailableIndices.size() != 0) {

@@ -862,6 +862,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
+    @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
@@ -892,7 +893,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultE5 = new MultilingualE5SmallModel(
             DEFAULT_E5_ID,
@@ -904,7 +905,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5);
     }

@@ -63,12 +63,12 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.seqno.ReplicationTracker;
 import org.elasticsearch.rest.RestStatus;
@@ -396,29 +396,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    /**
-     * Override to provide additional test-only historical features.
-     *
-     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
-     * must contain only historical features, otherwise an assertion error is thrown.
-     */
-    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
-        return List.of();
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification."
-            );
-        }
-        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -1129,6 +1111,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+            deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1139,6 +1122,30 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    // Make warnings handler that ignores the .async-search warning since .async-search may randomly appear when async requests are slow
+    // See: https://github.com/elastic/elasticsearch/issues/117099
+    protected static WarningsHandler ignoreAsyncSearchWarning() {
+        return new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                if (warnings.isEmpty()) {
+                    return false;
+                }
+                return warnings.equals(
+                    List.of(
+                        "this request accesses system indices: [.async-search], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                ) == false;
+            }
+
+            @Override
+            public String toString() {
+                return "ignore .async-search warning";
+            }
+        };
     }
 
     protected static void wipeDataStreams() throws IOException {
@@ -1827,8 +1834,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        }
-
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)
+            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+            }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1870,6 +1879,49 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             v.compatible(expectedWarning);
         }));
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInMapping(String mapping) {
+        if (mapping == null) {
+            return false;
+        }
+        var mappings = XContentHelper.convertToMap(
+            JsonXContent.jsonXContent,
+            mapping.trim().startsWith("{") ? mapping : '{' + mapping + '}',
+            false
+        );
+        if (mappings.containsKey("_doc")) {
+            mappings = (Map<String, Object>) mappings.get("_doc");
+        }
+        Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+        if (sourceMapper == null) {
+            return false;
+        }
+        return sourceMapper.get("mode") != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
+        if (template == null) {
+            return false;
+        }
+        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        for (Object value : values.values()) {
+            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
+            if (mappings == null) {
+                continue;
+            }
+            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+            if (sourceMapper == null) {
+                continue;
+            }
+            Object mode = sourceMapper.get("mode");
+            if (mode != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {
@@ -2269,7 +2321,7 @@ public abstract class ESRestTestCase extends ESTestCase {
      */
     protected static IndexVersion minimumIndexVersion() throws IOException {
         final Request request = new Request("GET", "_nodes");
-        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version");
+        request.addParameter("filter_path", "nodes.*.version,nodes.*.max_index_version,nodes.*.index_version");
 
         final Response response = adminClient().performRequest(request);
         final Map<String, Object> nodes = ObjectPath.createFromResponse(response).evaluate("nodes");
@@ -2277,10 +2329,13 @@ public abstract class ESRestTestCase extends ESTestCase {
         IndexVersion minVersion = null;
         for (Map.Entry<String, Object> node : nodes.entrySet()) {
             Map<?, ?> nodeData = (Map<?, ?>) node.getValue();
-            String versionStr = (String) nodeData.get("max_index_version");
+            Object versionStr = nodeData.get("index_version");
+            if (versionStr == null) {
+                versionStr = nodeData.get("max_index_version");
+            }
             // fallback on version if index version is not there
             IndexVersion indexVersion = versionStr != null
-                ? IndexVersion.fromId(Integer.parseInt(versionStr))
+                ? IndexVersion.fromId(Integer.parseInt(versionStr.toString()))
                 : IndexVersion.fromId(
                     parseLegacyVersion((String) nodeData.get("version")).map(Version::id).orElse(IndexVersions.MINIMUM_COMPATIBLE.id())
                 );

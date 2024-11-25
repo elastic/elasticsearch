@@ -113,8 +113,8 @@ public class LessThanTests extends AbstractScalarFunctionTestCase {
                 "rhs",
                 (l, r) -> ((Number) l).longValue() < ((Number) r).longValue(),
                 DataType.BOOLEAN,
-                TestCaseSupplier.dateCases(),
-                TestCaseSupplier.dateCases(),
+                TestCaseSupplier.dateNanosCases(),
+                TestCaseSupplier.dateNanosCases(),
                 List.of(),
                 false
             )

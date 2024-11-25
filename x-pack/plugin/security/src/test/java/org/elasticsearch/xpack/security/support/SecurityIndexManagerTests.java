@@ -76,6 +76,7 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -428,7 +429,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
 
         // Hard-code a failure here.
-        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
+        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString(), any());
         doReturn(null).when(descriptorSpy)
             .getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0)));
 

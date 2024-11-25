@@ -66,6 +66,7 @@ import java.util.Objects;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -81,6 +82,8 @@ import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.getOrig
  */
 public class SemanticTextFieldMapper extends FieldMapper implements InferenceFieldMapper {
     public static final NodeFeature SEMANTIC_TEXT_IN_OBJECT_FIELD_FIX = new NodeFeature("semantic_text.in_object_field_fix");
+    public static final NodeFeature SEMANTIC_TEXT_ZERO_SIZE_FIX = new NodeFeature("semantic_text.zero_size_fix");
+    public static final NodeFeature SEMANTIC_TEXT_DELETE_FIX = new NodeFeature("semantic_text.delete_fix");
 
     public static final String CONTENT_TYPE = "semantic_text";
 
@@ -427,7 +430,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
             throw new IllegalArgumentException("[semantic_text] fields do not support sorting, scripting or aggregating");
         }
 
-        public QueryBuilder semanticQuery(InferenceResults inferenceResults, float boost, String queryName) {
+        public QueryBuilder semanticQuery(InferenceResults inferenceResults, Integer requestSize, float boost, String queryName) {
             String nestedFieldPath = getChunksFieldName(name());
             String inferenceResultsFieldName = getEmbeddingsFieldName(name());
             QueryBuilder childQueryBuilder;
@@ -491,7 +494,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
                             );
                         }
 
-                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, null, null, null);
+                        Integer k = requestSize;
+                        if (k != null) {
+                            // Ensure that k is at least the default size so that aggregations work when size is set to 0 in the request
+                            k = Math.max(k, DEFAULT_SIZE);
+                        }
+
+                        yield new KnnVectorQueryBuilder(inferenceResultsFieldName, inference, k, null, null);
                     }
                     default -> throw new IllegalStateException(
                         "Field ["

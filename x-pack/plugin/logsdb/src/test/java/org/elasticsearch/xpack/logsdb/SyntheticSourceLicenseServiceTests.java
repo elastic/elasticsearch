@@ -34,7 +34,7 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
     @Before
     public void setup() throws Exception {
         mockLicenseService = mock(LicenseService.class);
-        License license = createEnterpirseLicense();
+        License license = createEnterpriseLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
         licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
     }
@@ -163,15 +163,20 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         assertEquals("Provided cutoff date is beyond max cutoff date", e.getMessage());
     }
 
-    static License createEnterpirseLicense() throws Exception {
+    static License createEnterpriseLicense() throws Exception {
         long start = LocalDateTime.of(2024, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+        return createEnterpriseLicense(start);
+    }
+
+    static License createEnterpriseLicense(long start) throws Exception {
         String uid = UUID.randomUUID().toString();
+        long currentTime = System.currentTimeMillis();
         final License.Builder builder = License.builder()
             .uid(uid)
             .version(License.VERSION_CURRENT)
-            .expiryDate(dateMath("now+2d", System.currentTimeMillis()))
+            .expiryDate(dateMath("now+2d", currentTime))
             .startDate(start)
-            .issueDate(start)
+            .issueDate(currentTime)
             .type("enterprise")
             .issuedTo("customer")
             .issuer("elasticsearch")
@@ -186,12 +191,13 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
 
     static License createGoldOrPlatinumLicense(long start) throws Exception {
         String uid = UUID.randomUUID().toString();
+        long currentTime = System.currentTimeMillis();
         final License.Builder builder = License.builder()
             .uid(uid)
             .version(License.VERSION_CURRENT)
-            .expiryDate(dateMath("now+100d", System.currentTimeMillis()))
+            .expiryDate(dateMath("now+100d", currentTime))
             .startDate(start)
-            .issueDate(start)
+            .issueDate(currentTime)
             .type(randomBoolean() ? "gold" : "platinum")
             .issuedTo("customer")
             .issuer("elasticsearch")

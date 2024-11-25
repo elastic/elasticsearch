@@ -30,7 +30,7 @@ import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.elasticsearch.common.settings.Settings.builder;
-import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpirseLicense;
+import static org.elasticsearch.xpack.logsdb.SyntheticSourceLicenseServiceTests.createEnterpriseLicense;
 import static org.hamcrest.Matchers.equalTo;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -53,7 +53,7 @@ public class SyntheticSourceIndexSettingsProviderTests extends ESTestCase {
         var licenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         licenseService.setLicenseState(licenseState);
         var mockLicenseService = mock(LicenseService.class);
-        License license = createEnterpirseLicense();
+        License license = createEnterpriseLicense();
         when(mockLicenseService.getLicense()).thenReturn(license);
         syntheticSourceLicenseService = new SyntheticSourceLicenseService(Settings.EMPTY);
         syntheticSourceLicenseService.setLicenseState(licenseState);

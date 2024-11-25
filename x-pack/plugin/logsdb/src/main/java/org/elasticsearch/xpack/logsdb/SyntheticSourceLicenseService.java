@@ -24,7 +24,7 @@ import java.time.ZoneOffset;
  */
 final class SyntheticSourceLicenseService {
 
-    private static final String MAPPINGS_FEATURE_FAMILY = "mappings";
+    static final String MAPPINGS_FEATURE_FAMILY = "mappings";
     // You can only override this property if you received explicit approval from Elastic.
     private static final String CUTOFF_DATE_SYS_PROP_NAME =
         "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";

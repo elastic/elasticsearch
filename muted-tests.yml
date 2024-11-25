@@ -118,9 +118,6 @@ tests:
 - class: org.elasticsearch.search.SearchServiceTests
   method: testParseSourceValidation
   issue: https://github.com/elastic/elasticsearch/issues/115936
-- class: org.elasticsearch.search.query.SearchQueryIT
-  method: testAllDocsQueryString
-  issue: https://github.com/elastic/elasticsearch/issues/115728
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -232,9 +229,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testInferDeploysDefaultElser
   issue: https://github.com/elastic/elasticsearch/issues/114913
-- class: org.elasticsearch.xpack.esql.action.EsqlActionTaskIT
-  method: testCancelRequestWhenFailingFetchingPages
-  issue: https://github.com/elastic/elasticsearch/issues/117397
 - class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
   method: testEveryActionIsEitherOperatorOnlyOrNonOperator
   issue: https://github.com/elastic/elasticsearch/issues/102992

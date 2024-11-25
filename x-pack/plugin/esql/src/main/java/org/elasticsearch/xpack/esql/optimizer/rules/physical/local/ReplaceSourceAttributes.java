@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsSourceExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 
+import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.optimizer.rules.logical.OptimizerRules.TransformDirection.UP;
@@ -29,8 +30,8 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
     @Override
     protected PhysicalPlan rule(EsSourceExec plan) {
         var docId = new FieldAttribute(plan.source(), EsQueryExec.DOC_ID_FIELD.getName(), EsQueryExec.DOC_ID_FIELD);
-        MetadataAttribute scoring = getScoringAttribute(plan);
-        List<Attribute> attributes;
+        final List<Attribute> attributes = new ArrayList<>();
+        attributes.add(docId);
         if (plan.indexMode() == IndexMode.TIME_SERIES) {
             Attribute tsid = null, timestamp = null;
             for (Attribute attr : plan.output()) {
@@ -44,23 +45,14 @@ public class ReplaceSourceAttributes extends PhysicalOptimizerRules.OptimizerRul
             if (tsid == null || timestamp == null) {
                 throw new IllegalStateException("_tsid or @timestamp are missing from the time-series source");
             }
-            attributes = scoring != null ? List.of(docId, tsid, timestamp, scoring) : List.of(docId, tsid, timestamp);
-        } else {
-            attributes = scoring != null ? List.of(docId, scoring) : List.of(docId);
+            attributes.add(tsid);
+            attributes.add(timestamp);
         }
-        return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
-    }
-
-    private static MetadataAttribute getScoringAttribute(EsSourceExec plan) {
-        // extract and populate _score metadata attribute, if present
-        MetadataAttribute scoring = null;
-        for (Attribute attr : plan.output()) {
-            String name = attr.name();
-            if (attr instanceof MetadataAttribute metadataAttribute && name.equals(MetadataAttribute.SCORE)) {
-                scoring = metadataAttribute;
-                break;
+        plan.output().forEach(attr -> {
+            if (attr instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE)) {
+                attributes.add(ma);
             }
-        }
-        return scoring;
+        });
+        return new EsQueryExec(plan.source(), plan.index(), plan.indexMode(), attributes, plan.query());
     }
 }

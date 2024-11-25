@@ -1,8 +1,14 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 plugins {
   id 'idea'
 }
 
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.precommit.CheckForbiddenApisTask;
 import org.elasticsearch.gradle.internal.util.SourceDirectoryCommandLineArgumentProvider;
 import static org.elasticsearch.gradle.util.PlatformUtils.normalize
@@ -28,6 +34,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:dissect')
@@ -44,6 +51,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('kql'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')
@@ -83,7 +91,6 @@ tasks.named("test").configure {
       }
     }
     File functionsFolder = file("build/testrun/test/temp/esql/functions")
-    File signatureFolder = file("build/testrun/test/temp/esql/functions/signature")
     File typesFolder = file("build/testrun/test/temp/esql/functions/types")
     def functionsDocFolder = file("${rootDir}/docs/reference/esql/functions")
     def effectiveProjectDir = projectDir

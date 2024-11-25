@@ -1,6 +1,12 @@
+/*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
 import org.elasticsearch.gradle.Version
 import org.elasticsearch.gradle.VersionProperties
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.util.GradleUtils
 
@@ -81,7 +87,6 @@ tasks.named("precommit").configure {
 }
 
 tasks.named("yamlRestCompatTestTransform").configure({ task ->
-  task.skipTest("security/10_forbidden/Test bulk response with invalid credentials", "warning does not exist for compatibility")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry)", "The telemetry output changed. We dropped a column. That's safe.")
   task.skipTest("inference/inference_crud/Test get all", "Assertions on number of inference models break due to default configs")
   task.skipTest("esql/60_usage/Basic ESQL usage output (telemetry) snapshot version", "The number of functions is constantly increasing")
@@ -89,5 +94,6 @@ tasks.named("yamlRestCompatTestTransform").configure({ task ->
   task.skipTest("esql/80_text/reverse text", "The output type changed from TEXT to KEYWORD.")
   task.skipTest("esql/80_text/values function", "The output type changed from TEXT to KEYWORD.")
   task.skipTest("privileges/11_builtin/Test get builtin privileges" ,"unnecessary to test compatibility")
+  task.skipTest("esql/61_enrich_ip/Invalid IP strings", "We switched from exceptions to null+warnings for ENRICH runtime errors")
 })
 

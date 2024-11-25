@@ -181,7 +181,12 @@ public class EsRelation extends LeafPlan {
 
     @Override
     public String nodeString() {
-        return nodeName() + "[" + index + "]" + NodeUtils.limitedToString(attrs);
+        return nodeName()
+            + "["
+            + index
+            + "]"
+            + (indexMode != IndexMode.STANDARD ? "[" + indexMode.name() + "]" : "")
+            + NodeUtils.limitedToString(attrs);
     }
 
     public static IndexMode readIndexMode(StreamInput in) throws IOException {

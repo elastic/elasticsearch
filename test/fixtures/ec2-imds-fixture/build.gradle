@@ -6,22 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+apply plugin: 'elasticsearch.java'
 
-package org.elasticsearch.gradle.internal.distribution;
+description = 'Fixture for emulating the Instance Metadata Service (IMDS) running in AWS EC2'
 
-import org.elasticsearch.gradle.ElasticsearchDistributionType;
-
-public class DockerUbiElasticsearchDistributionType implements ElasticsearchDistributionType {
-
-    DockerUbiElasticsearchDistributionType() {}
-
-    @Override
-    public String getName() {
-        return "dockerUbi";
-    }
-
-    @Override
-    public boolean isDocker() {
-        return true;
-    }
+dependencies {
+  api project(':server')
+  api("junit:junit:${versions.junit}") {
+    transitive = false
+  }
+  api project(':test:framework')
 }

@@ -16,9 +16,11 @@ import org.elasticsearch.action.datastreams.ReindexDataStreamIndexAction;
 import org.elasticsearch.action.datastreams.SwapDataStreamIndexAction;
 import org.elasticsearch.action.support.CountDownActionListener;
 import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClientHelperService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksCustomMetadata;
@@ -34,12 +36,18 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
     private final Client client;
     private final ClusterService clusterService;
     private final ThreadPool threadPool;
+    private ClientHelperService clientHelperService;
 
     public ReindexDataStreamPersistentTaskExecutor(Client client, ClusterService clusterService, String taskName, ThreadPool threadPool) {
         super(taskName, threadPool.generic());
         this.client = client;
         this.clusterService = clusterService;
         this.threadPool = threadPool;
+    }
+
+    @Inject
+    public void initialize(ClientHelperService clientHelperService) {
+        this.clientHelperService = clientHelperService;
     }
 
     @Override
@@ -72,7 +80,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        ReindexDataStreamClient reindexClient = new ReindexDataStreamClient(client, params.headers());
+        ReindexDataStreamClient reindexClient = new ReindexDataStreamClient(clientHelperService, client, params.headers());
         reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {

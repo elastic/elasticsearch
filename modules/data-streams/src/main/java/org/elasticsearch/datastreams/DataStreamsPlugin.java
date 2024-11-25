@@ -97,6 +97,7 @@ import org.elasticsearch.datastreams.task.ReindexDataStreamTaskParams;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.HealthIndicatorService;
 import org.elasticsearch.index.IndexSettingProvider;
+import org.elasticsearch.node.PluginComponentBinding;
 import org.elasticsearch.persistent.PersistentTaskParams;
 import org.elasticsearch.persistent.PersistentTaskState;
 import org.elasticsearch.persistent.PersistentTasksExecutor;
@@ -173,6 +174,7 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
     private final SetOnce<DataStreamLifecycleHealthInfoPublisher> dataStreamLifecycleErrorsPublisher = new SetOnce<>();
     private final SetOnce<DataStreamLifecycleHealthIndicatorService> dataStreamLifecycleHealthIndicatorService = new SetOnce<>();
     private final Settings settings;
+    private PersistentTasksExecutor<?> persistentTaskExecutor;
 
     public DataStreamsPlugin(Settings settings) {
         this.settings = settings;
@@ -250,6 +252,13 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         components.add(errorStoreInitialisationService.get());
         components.add(dataLifecycleInitialisationService.get());
         components.add(dataStreamLifecycleErrorsPublisher.get());
+        persistentTaskExecutor = new ReindexDataStreamPersistentTaskExecutor(
+            services.client(),
+            services.clusterService(),
+            ReindexDataStreamTask.TASK_NAME,
+            services.threadPool()
+        );
+        components.add(new PluginComponentBinding<>(ReindexDataStreamPersistentTaskExecutor.class, persistentTaskExecutor));
         return components;
     }
 
@@ -381,6 +390,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(new ReindexDataStreamPersistentTaskExecutor(client, clusterService, ReindexDataStreamTask.TASK_NAME, threadPool));
+        return List.of(persistentTaskExecutor);
     }
 }

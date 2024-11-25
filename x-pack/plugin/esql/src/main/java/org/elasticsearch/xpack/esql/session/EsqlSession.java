@@ -65,6 +65,8 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.UnresolvedRelation;
 import org.elasticsearch.xpack.esql.plan.logical.join.InlineJoin;
+import org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalRelation;
 import org.elasticsearch.xpack.esql.plan.logical.local.LocalSupplier;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
@@ -318,7 +320,7 @@ public class EsqlSession {
             })
             .<ListenerResult>andThen((l, listenerResult) -> {
                 // resolve the main indices
-                preAnalyzeIndices(parsed, executionInfo, listenerResult, requestFilter, l);
+                preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, requestFilter, l);
             })
             .<ListenerResult>andThen((l, listenerResult) -> {
                 // TODO in follow-PR (for skip_unavailable handling of missing concrete indexes) add some tests for
@@ -345,7 +347,7 @@ public class EsqlSession {
                 }
 
                 // here the requestFilter is set to null, performing the pre-analysis after the first step failed
-                preAnalyzeIndices(parsed, executionInfo, listenerResult, null, l);
+                preAnalyzeIndices(preAnalysis.indices, executionInfo, listenerResult, null, l);
             })
             .<LogicalPlan>andThen((l, listenerResult) -> {
                 assert requestFilter != null : "The second analysis shouldn't take place when there is no index filter in the request";
@@ -395,21 +397,20 @@ public class EsqlSession {
     }
 
     private void preAnalyzeIndices(
-        LogicalPlan parsed,
+        List<TableInfo> indices,
         EsqlExecutionInfo executionInfo,
         ListenerResult listenerResult,
         QueryBuilder requestFilter,
         ActionListener<ListenerResult> listener
     ) {
-        PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
-        if (preAnalysis.indices.size() > 1) {
+        if (indices.size() > 1) {
             // Note: JOINs are not supported but we detect them when
             listener.onFailure(new MappingException("Queries with multiple indices are not supported"));
-        } else if (preAnalysis.indices.size() == 1) {
+        } else if (indices.size() == 1) {
             // known to be unavailable from the enrich policy API call
             Map<String, Exception> unavailableClusters = listenerResult.enrichResolution.getUnavailableClusters();
-            TableInfo tableInfo = preAnalysis.indices.get(0);
+            TableInfo tableInfo = indices.get(0);
             TableIdentifier table = tableInfo.id();
 
             Map<String, OriginalIndices> clusterIndices = indicesExpressionGrouper.groupIndices(IndicesOptions.DEFAULT, table.index());
@@ -575,6 +576,7 @@ public class EsqlSession {
         // "keep" attributes are special whenever a wildcard is used in their name
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
+        AttributeSet keepJoinReferences = new AttributeSet();
         List<Predicate<String>> keepMatches = new ArrayList<>();
         List<String> keepPatterns = new ArrayList<>();
 
@@ -593,6 +595,11 @@ public class EsqlSession {
                 // The exact name of the field will be added later as part of enrichPolicyMatchFields Set
                 enrichRefs.removeIf(attr -> attr instanceof EmptyAttribute);
                 references.addAll(enrichRefs);
+            } else if (p instanceof LookupJoin join) {
+                keepJoinReferences.addAll(join.config().matchFields());  // TODO: why is this empty
+                if (join.config().type() instanceof JoinTypes.UsingJoinType usingJoinType) {
+                    keepJoinReferences.addAll(usingJoinType.columns());
+                }
             } else {
                 references.addAll(p.references());
                 if (p instanceof UnresolvedRelation ur && ur.indexMode() == IndexMode.TIME_SERIES) {
@@ -626,6 +633,8 @@ public class EsqlSession {
                 references.removeIf(attr -> matchByName(attr, alias.name(), keepCommandReferences.contains(attr)));
             });
         });
+        // Add JOIN ON column references afterward to avoid Alias removal
+        references.addAll(keepJoinReferences);
 
         // remove valid metadata attributes because they will be filtered out by the IndexResolver anyway
         // otherwise, in some edge cases, we will fail to ask for "*" (all fields) instead

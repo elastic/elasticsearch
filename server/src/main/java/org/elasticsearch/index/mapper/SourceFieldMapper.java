@@ -484,7 +484,8 @@ public class SourceFieldMapper extends MetadataFieldMapper {
     }
 
     public static boolean onOrAfterDeprecateModeVersion(IndexVersion version) {
-        return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
-            || version.between(IndexVersions.BACKPORT_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
+        return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER);
+        // Adjust versions after backporting.
+        // || version.between(IndexVersions.BACKPORT_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 }

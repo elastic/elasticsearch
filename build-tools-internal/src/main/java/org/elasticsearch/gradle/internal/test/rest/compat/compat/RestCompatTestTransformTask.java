@@ -60,7 +60,6 @@ import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
 import org.gradle.api.tasks.util.PatternSet;
 import org.gradle.internal.Factory;
-import org.gradle.model.Path;
 
 import java.io.File;
 import java.io.IOException;

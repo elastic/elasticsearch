@@ -13,12 +13,12 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.ConvertEvaluator;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -28,6 +28,7 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_POINT;
 import static org.elasticsearch.xpack.esql.core.util.SpatialCoordinateTypes.UNSPECIFIED;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
@@ -73,6 +74,9 @@ public class StYMin extends UnaryScalarFunction {
 
     @Override
     public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
+        if (field().dataType() == GEO_POINT || field().dataType() == DataType.GEO_SHAPE) {
+            return new StYMinFromWKBGeoEvaluator.Factory(toEvaluator.apply(field()), source());
+        }
         return new StYMinFromWKBEvaluator.Factory(toEvaluator.apply(field()), source());
     }
 
@@ -98,6 +102,19 @@ public class StYMin extends UnaryScalarFunction {
             return point.getY();
         }
         var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        if (envelope.isPresent()) {
+            return envelope.get().getMinY();
+        }
+        throw new IllegalArgumentException("Cannot determine envelope of geometry");
+    }
+
+    @ConvertEvaluator(extraName = "FromWKBGeo", warnExceptions = { IllegalArgumentException.class })
+    static double fromWellKnownBinaryGeo(BytesRef wkb) {
+        var geometry = UNSPECIFIED.wkbToGeometry(wkb);
+        if (geometry instanceof Point point) {
+            return point.getY();
+        }
+        var envelope = SpatialEnvelopeVisitor.visit(geometry, true);
         if (envelope.isPresent()) {
             return envelope.get().getMinY();
         }

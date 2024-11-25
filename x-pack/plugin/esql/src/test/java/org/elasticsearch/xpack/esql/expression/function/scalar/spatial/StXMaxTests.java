@@ -12,9 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -34,12 +34,13 @@ public class StXMaxTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedEvaluator = "StXMaxFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StXMaxFromWKBGeoEvaluator[field=Attribute[channel=0]]";
+        String expectedCartesian = "StXMaxFromWKBEvaluator[field=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, DOUBLE, StXMaxTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, DOUBLE, StXMaxTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedEvaluator, DOUBLE, StXMaxTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedEvaluator, DOUBLE, StXMaxTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, DOUBLE, StXMaxTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedCartesian, DOUBLE, StXMaxTests::valueOfCartesian, List.of());
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, DOUBLE, StXMaxTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedCartesian, DOUBLE, StXMaxTests::valueOfCartesian, List.of());
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             true,
             suppliers,
@@ -47,12 +48,20 @@ public class StXMaxTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static double valueOf(BytesRef wkb) {
+    private static double valueOfGeo(BytesRef wkb) {
+        return valueOf(wkb, true);
+    }
+
+    private static double valueOfCartesian(BytesRef wkb) {
+        return valueOf(wkb, false);
+    }
+
+    private static double valueOf(BytesRef wkb, boolean geo) {
         var geometry = UNSPECIFIED.wkbToGeometry(wkb);
         if (geometry instanceof Point point) {
             return point.getX();
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        var envelope = geo ? SpatialEnvelopeVisitor.visit(geometry, true) : SpatialEnvelopeVisitor.visit(geometry);
         if (envelope.isPresent()) {
             return envelope.get().getMaxX();
         }

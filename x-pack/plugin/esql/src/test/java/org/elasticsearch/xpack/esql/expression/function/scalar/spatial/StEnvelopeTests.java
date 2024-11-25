@@ -12,9 +12,9 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.geometry.Point;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.util.SpatialEnvelopeVisitor;
 import org.elasticsearch.xpack.esql.expression.function.AbstractScalarFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
@@ -35,12 +35,25 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        String expectedEvaluator = "StEnvelopeFromWKBEvaluator[field=Attribute[channel=0]]";
+        String expectedGeo = "StEnvelopeFromWKBGeoEvaluator[field=Attribute[channel=0]]";
+        String expectedCartesian = "StEnvelopeFromWKBEvaluator[field=Attribute[channel=0]]";
         final List<TestCaseSupplier> suppliers = new ArrayList<>();
-        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedEvaluator, GEO_SHAPE, StEnvelopeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianPoint(suppliers, expectedEvaluator, CARTESIAN_SHAPE, StEnvelopeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedEvaluator, GEO_SHAPE, StEnvelopeTests::valueOf, List.of());
-        TestCaseSupplier.forUnaryCartesianShape(suppliers, expectedEvaluator, CARTESIAN_SHAPE, StEnvelopeTests::valueOf, List.of());
+        TestCaseSupplier.forUnaryGeoPoint(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianPoint(
+            suppliers,
+            expectedCartesian,
+            CARTESIAN_SHAPE,
+            StEnvelopeTests::valueOfCartesian,
+            List.of()
+        );
+        TestCaseSupplier.forUnaryGeoShape(suppliers, expectedGeo, GEO_SHAPE, StEnvelopeTests::valueOfGeo, List.of());
+        TestCaseSupplier.forUnaryCartesianShape(
+            suppliers,
+            expectedCartesian,
+            CARTESIAN_SHAPE,
+            StEnvelopeTests::valueOfCartesian,
+            List.of()
+        );
         return parameterSuppliersFromTypedDataWithDefaultChecks(
             false,
             suppliers,
@@ -48,12 +61,20 @@ public class StEnvelopeTests extends AbstractScalarFunctionTestCase {
         );
     }
 
-    private static BytesRef valueOf(BytesRef wkb) {
+    private static BytesRef valueOfGeo(BytesRef wkb) {
+        return valueOf(wkb, true);
+    }
+
+    private static BytesRef valueOfCartesian(BytesRef wkb) {
+        return valueOf(wkb, false);
+    }
+
+    private static BytesRef valueOf(BytesRef wkb, boolean geo) {
         var geometry = UNSPECIFIED.wkbToGeometry(wkb);
         if (geometry instanceof Point) {
             return wkb;
         }
-        var envelope = SpatialEnvelopeVisitor.visit(geometry);
+        var envelope = geo ? SpatialEnvelopeVisitor.visit(geometry, true) : SpatialEnvelopeVisitor.visit(geometry);
         if (envelope.isPresent()) {
             return UNSPECIFIED.asWkb(envelope.get());
         }

@@ -1,11 +1,13 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0; you may not use this file except in compliance with the Elastic License
- * 2.0.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.xpack.esql.core.util;
+package org.elasticsearch.geometry.utils;
 
 import org.elasticsearch.geometry.Circle;
 import org.elasticsearch.geometry.Geometry;
@@ -28,8 +30,8 @@ import java.util.Optional;
  * <ul>
  *     <li>
  *         Cartesian mode: The envelope is determined by the minimum and maximum x/y coordinates.
- *         Incoming BBOX geometries with minX > maxX are treated as invalid.
- *         Resulting BBOX geometries will always have minX <= maxX.
+ *         Incoming BBOX geometries with minX &gt; maxX are treated as invalid.
+ *         Resulting BBOX geometries will always have minX &lt;= maxX.
  *     </li>
  *     <li>
  *         Geographic mode: The envelope is determined by the minimum and maximum x/y coordinates,
@@ -39,7 +41,7 @@ import java.util.Optional;
  * </ul>
  * Usage of this is as simple as:
  * <code>
- *     Optional<Rectangle> bbox = SpatialEnvelopeVisitor.visit(geometry);
+ *     Optional&lt;Rectangle&gt; bbox = SpatialEnvelopeVisitor.visit(geometry);
  *     if (bbox.isPresent()) {
  *         Rectangle envelope = bbox.get();
  *         // Do stuff with the envelope
@@ -155,8 +157,8 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * while allowing for wrapping the longitude around the dateline.
      * When longitude wrapping is enabled, the visitor will determine the smallest bounding box between the two choices:
      * <ul>
-     *     <li>Wrapping around the front of the earth, in which case the result will have minx<maxx</li>
-     *     <li>Wrapping around the back of the earth, crossing the dateline, in which case the result will have minx>maxx</li>
+     *     <li>Wrapping around the front of the earth, in which case the result will have minx &lt; maxx</li>
+     *     <li>Wrapping around the back of the earth, crossing the dateline, in which case the result will have minx &gt; maxx</li>
      * </ul>
      */
     public static class GeoPointVisitor implements PointVisitor {
@@ -169,7 +171,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         private final boolean wrapLongitude;
 
-        GeoPointVisitor(boolean wrapLongitude) {
+        public GeoPointVisitor(boolean wrapLongitude) {
             this.wrapLongitude = wrapLongitude;
         }
 

@@ -13,6 +13,7 @@ import fixture.s3.S3HttpFixture;
 
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.ResponseException;
+import org.elasticsearch.cluster.routing.Murmur3HashFunction;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
@@ -28,10 +29,11 @@ import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.Matchers.allOf;
 import static org.hamcrest.Matchers.equalTo;
 
-public class RepositoryS3RestIT extends ESRestTestCase {
+public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
-    private static final String BUCKET = "RepositoryS3JavaRestTest-bucket";
-    private static final String BASE_PATH = "RepositoryS3JavaRestTest-base-path";
+    private static final String HASHED_SEED = Integer.toString(Murmur3HashFunction.hash(System.getProperty("tests.seed")));
+    private static final String BUCKET = "RepositoryS3RestReloadCredentialsIT-bucket-" + HASHED_SEED;
+    private static final String BASE_PATH = "RepositoryS3RestReloadCredentialsIT-base-path-" + HASHED_SEED;
 
     public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, "ignored");
 

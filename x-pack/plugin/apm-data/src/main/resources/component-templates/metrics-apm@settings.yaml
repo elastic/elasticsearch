@@ -12,4 +12,4 @@ template:
       # and this combination is incompatible with the
       # aggregate_metric_double field type.
       ignore_malformed: false
-      index.mapping.source.mode: synthetic
+      source.mode: synthetic

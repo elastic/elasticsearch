@@ -16,6 +16,7 @@ import org.elasticsearch.license.LicenseService;
 import org.elasticsearch.license.LicensedFeature;
 import org.elasticsearch.license.XPackLicenseState;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.time.ZoneOffset;
 
@@ -30,7 +31,6 @@ final class SyntheticSourceLicenseService {
         "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
     static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2024, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
-    private static final long MAX_CUTOFF_DATE = LocalDateTime.of(2026, 12, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**
      * A setting that determines whether source mode should always be stored source. Regardless of licence.
@@ -125,10 +125,12 @@ final class SyntheticSourceLicenseService {
     private static long getCutoffDate(String cutoffDateAsString) {
         if (cutoffDateAsString != null) {
             long cutoffDate = LocalDateTime.parse(cutoffDateAsString).toInstant(ZoneOffset.UTC).toEpochMilli();
-            if (cutoffDate > MAX_CUTOFF_DATE) {
-                throw new IllegalArgumentException("Provided cutoff date is beyond max cutoff date");
-            }
             LOGGER.warn("Configuring [{}] is only allowed with explicit approval from Elastic.", CUTOFF_DATE_SYS_PROP_NAME);
+            LOGGER.info(
+                "Configuring [{}] to [{}]",
+                CUTOFF_DATE_SYS_PROP_NAME,
+                LocalDateTime.ofInstant(Instant.ofEpochSecond(cutoffDate), ZoneOffset.UTC)
+            );
             return cutoffDate;
         } else {
             return DEFAULT_CUTOFF_DATE;

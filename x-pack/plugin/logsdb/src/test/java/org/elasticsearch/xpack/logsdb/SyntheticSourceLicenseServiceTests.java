@@ -158,11 +158,6 @@ public class SyntheticSourceLicenseServiceTests extends ESTestCase {
         Mockito.verify(licenseState, Mockito.times(1)).isAllowed(same(SyntheticSourceLicenseService.SYNTHETIC_SOURCE_FEATURE_LEGACY));
     }
 
-    public void testGoldOrPlatinumLicenseIllegalCustomCutoffDate() throws Exception {
-        var e = expectThrows(IllegalArgumentException.class, () -> new SyntheticSourceLicenseService(Settings.EMPTY, "2026-12-13T00:00"));
-        assertEquals("Provided cutoff date is beyond max cutoff date", e.getMessage());
-    }
-
     static License createEnterpriseLicense() throws Exception {
         long start = LocalDateTime.of(2024, 11, 12, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
         return createEnterpriseLicense(start);

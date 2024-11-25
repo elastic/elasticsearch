@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.OS
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
@@ -20,7 +19,7 @@ esplugin {
 }
 
 versions << [
-  'hadoop': '3.3.3'
+  'hadoop': '3.4.1'
 ]
 
 configurations {
@@ -42,9 +41,9 @@ dependencies {
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api "commons-logging:commons-logging:${versions.commonslogging}"
   api "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
-  api 'commons-cli:commons-cli:1.2'
+  api 'commons-cli:commons-cli:1.5.0'
   api "commons-codec:commons-codec:${versions.commonscodec}"
-  api 'commons-io:commons-io:2.8.0'
+  api 'commons-io:commons-io:2.16.1'
   api 'org.apache.commons:commons-lang3:3.11'
   api 'javax.servlet:javax.servlet-api:3.1.0'
   api "org.slf4j:slf4j-api:${versions.slf4j}"
@@ -58,14 +57,14 @@ dependencies {
   javaRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   javaRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   javaRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
-  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  javaRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   javaRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
   yamlRestTestCompileOnly(project(':test:fixtures:hdfs-fixture'))
   yamlRestTestImplementation project(':test:fixtures:krb5kdc-fixture')
   yamlRestTestImplementation "org.slf4j:slf4j-api:${versions.slf4j}"
   yamlRestTestRuntimeOnly "com.google.guava:guava:16.0.1"
-  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.2"
+  yamlRestTestRuntimeOnly "commons-cli:commons-cli:1.5.0"
   yamlRestTestRuntimeOnly "org.apache.logging.log4j:log4j-1.2-api:${versions.log4j}"
 
   hdfsFixture2 project(path: ':test:fixtures:hdfs-fixture', configuration: 'shadowedHdfs2')
@@ -178,7 +177,6 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$2',
-    'org.apache.hadoop.thirdparty.com.google.common.hash.LittleEndianByteArray$UnsafeByteArray$3',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$1',
     'org.apache.hadoop.thirdparty.com.google.common.hash.Striped64$Cell',
@@ -189,6 +187,9 @@ tasks.named("thirdPartyAudit").configure {
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$1',
     'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$JvmMemoryAccessor',
-    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor'
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.MessageSchema',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android32MemoryAccessor',
+    'org.apache.hadoop.thirdparty.protobuf.UnsafeUtil$Android64MemoryAccessor'
   )
 }

@@ -35,11 +35,7 @@ tasks.named("javaRestTest") {
   exclude '**/RemoteClusterSecurityBWCToRCS2ClusterRestIT.class'
 }
 
-<<<<<<< HEAD
-BuildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter('8.16.0')) { bwcVersion, baseName ->
-=======
-buildParams.bwcVersions.withWireCompatible() { bwcVersion, baseName ->
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
+buildParams.bwcVersions.withWireCompatible(v -> v.onOrAfter('8.16.0')) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

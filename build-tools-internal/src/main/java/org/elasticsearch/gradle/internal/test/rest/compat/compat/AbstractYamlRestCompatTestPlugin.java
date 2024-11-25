@@ -46,7 +46,6 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
-import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.

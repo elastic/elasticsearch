@@ -19,14 +19,10 @@ dependencies {
   javaRestTestImplementation(testArtifact(project(":qa:full-cluster-restart"), "javaRestTest"))
 }
 
-<<<<<<< HEAD
 assert Version.fromString(VersionProperties.getVersions().get("elasticsearch")).getMajor() == 8:
   "If we are targeting a branch other than 8, we should enable migration tests"
 
-BuildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
-=======
 buildParams.bwcVersions.withWireCompatible(v -> v.after("8.8.0")) { bwcVersion, baseName ->
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

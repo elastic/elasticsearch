@@ -12,11 +12,7 @@ dependencies {
   testImplementation project(':x-pack:qa')
 }
 
-<<<<<<< HEAD
 Version ccsCompatVersion = new Version(VersionProperties.getElasticsearchVersion().getMajor(), VersionProperties.getElasticsearchVersion().getMinor() - 1, 0)
-=======
-Version ccsCompatVersion = buildParams.bwcVersions.minimumWireCompatibleVersion
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
 
 restResources {
   restApi {

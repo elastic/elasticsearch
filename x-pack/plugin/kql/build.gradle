@@ -26,15 +26,6 @@ dependencies {
 
 tasks.named('yamlRestTest').configure {
   usesDefaultDistribution()
-<<<<<<< HEAD
-=======
-
-  /****************************************************************
-  *  Enable QA/rest integration tests for snapshot builds only   *
-  *  TODO: Enable for all builds upon this feature release       *
-    ****************************************************************/
-  enabled = buildParams.isSnapshotBuild()
->>>>>>> 13c8aaeffac ([Gradle] Remove static use of BuildParams (#115122))
 }
 
 /**********************************

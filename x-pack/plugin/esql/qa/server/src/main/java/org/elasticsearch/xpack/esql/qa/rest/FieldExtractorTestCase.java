@@ -1775,16 +1775,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
-        Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-        index.startObject("mappings");
         mapping.accept(index);
-        index.endObject();
         index.endObject();
         String configStr = Strings.toString(index);
         logger.info("index: {} {}", name, configStr);
-        request.setJsonEntity(configStr);
-        client().performRequest(request);
+        ESRestTestCase.createIndex(name, Settings.EMPTY, configStr);
     }
 
     /**

@@ -68,7 +68,7 @@ public class DefaultBuiltInExecutorBuilders implements BuiltInExecutorBuilders {
                 settings,
                 ThreadPool.Names.SEARCH,
                 searchOrGetThreadPoolSize,
-                1000,
+                searchOrGetThreadPoolSize * 1000,
                 new EsExecutors.TaskTrackingConfig(true, searchAutoscalingEWMA)
             )
         );

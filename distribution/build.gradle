@@ -14,8 +14,7 @@ import org.elasticsearch.gradle.VersionProperties
 import org.elasticsearch.gradle.internal.ConcatFilesTask
 import org.elasticsearch.gradle.internal.DependenciesInfoPlugin
 import org.elasticsearch.gradle.internal.NoticeTask
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.HistoricalFeaturesMetadataPlugin
+import org.elasticsearch.gradle.internal.test.ClusterFeaturesMetadataPlugin
 
 import java.nio.file.Files
 import java.nio.file.Path
@@ -34,7 +33,7 @@ configurations {
   }
   featuresMetadata {
     attributes {
-      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, HistoricalFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
+      attribute(ArtifactTypeDefinition.ARTIFACT_TYPE_ATTRIBUTE, ClusterFeaturesMetadataPlugin.FEATURES_METADATA_TYPE)
     }
   }
 }
@@ -208,7 +207,7 @@ project.rootProject.subprojects.findAll { it.parent.path == ':modules' }.each { 
 
   distro.copyModule(processDefaultOutputsTaskProvider, module)
   dependencies.add('featuresMetadata', module)
-  if (module.name.startsWith('transport-') || (BuildParams.snapshotBuild == false && module.name == 'apm')) {
+  if (module.name.startsWith('transport-') || (buildParams.snapshotBuild == false && module.name == 'apm')) {
     distro.copyModule(processIntegTestOutputsTaskProvider, module)
   }
 
@@ -262,7 +261,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
    *             Properties to expand when copying packaging files             *
    *****************************************************************************/
   configurations {
-    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative'].each {
+    ['libs', 'libsVersionChecker', 'libsCliLauncher', 'libsServerCli', 'libsWindowsServiceCli', 'libsPluginCli', 'libsKeystoreCli', 'libsSecurityCli', 'libsGeoIpCli', 'libsAnsiConsole', 'libsNative', 'libsEntitlementAgent', 'libsEntitlementBridge'].each {
       create(it) {
         canBeConsumed = false
         canBeResolved = true
@@ -292,6 +291,8 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
     libsSecurityCli project(':x-pack:plugin:security:cli')
     libsGeoIpCli project(':distribution:tools:geoip-cli')
     libsNative project(':libs:native:native-libraries')
+    libsEntitlementAgent project(':libs:entitlement:agent')
+    libsEntitlementBridge project(':libs:entitlement:bridge')
   }
 
   project.ext {
@@ -336,6 +337,12 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             include (os + '-' + architecture + '/*')
           }
         }
+        into('entitlement-agent') {
+          from(configurations.libsEntitlementAgent)
+        }
+        into('entitlement-bridge') {
+          from(configurations.libsEntitlementBridge)
+        }
       }
     }
 
@@ -370,7 +377,7 @@ configure(subprojects.findAll { ['archives', 'packages'].contains(it.name) }) {
             exclude "**/platform/${excludePlatform}/**"
           }
         }
-        if (BuildParams.isSnapshotBuild()) {
+        if (buildParams.isSnapshotBuild()) {
           from(buildExternalTestModulesTaskProvider)
         }
         if (project.path.startsWith(':distribution:packages')) {

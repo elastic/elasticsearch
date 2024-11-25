@@ -38,7 +38,6 @@ import org.elasticsearch.search.aggregations.bucket.filter.Filters;
 import org.elasticsearch.search.builder.PointInTimeBuilder;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.tasks.TaskCancelledException;
-import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.ql.execution.search.FieldExtraction;
 import org.elasticsearch.xpack.ql.execution.search.extractor.AbstractFieldHitExtractor;
 import org.elasticsearch.xpack.ql.execution.search.extractor.BucketExtractor;
@@ -359,11 +358,6 @@ public class Querier {
     static class ImplicitGroupActionListener extends BaseAggActionListener {
 
         private static final List<? extends Bucket> EMPTY_BUCKET = singletonList(new Bucket() {
-
-            @Override
-            public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-                throw new SqlIllegalArgumentException("No group-by/aggs defined");
-            }
 
             @Override
             public Object getKey() {

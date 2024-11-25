@@ -75,6 +75,14 @@ public interface InferenceService extends Closeable {
     InferenceServiceConfiguration getConfiguration();
 
     /**
+     * Whether this service should be hidden from the API. Should be used for services
+     * that are not ready to be used.
+     */
+    default Boolean hideFromConfigurationApi() {
+        return Boolean.FALSE;
+    }
+
+    /**
      * The task types supported by the service
      * @return Set of supported.
      */
@@ -131,9 +139,10 @@ public interface InferenceService extends Closeable {
     /**
      * Start or prepare the model for use.
      * @param model The model
+     * @param timeout Start timeout
      * @param listener The listener
      */
-    void start(Model model, ActionListener<Boolean> listener);
+    void start(Model model, TimeValue timeout, ActionListener<Boolean> listener);
 
     /**
      * Stop the model deployment.
@@ -142,17 +151,6 @@ public interface InferenceService extends Closeable {
      * @param listener The listener
      */
     default void stop(UnparsedModel unparsedModel, ActionListener<Boolean> listener) {
-        listener.onResponse(true);
-    }
-
-    /**
-     * Put the model definition (if applicable)
-     * The main purpose of this function is to download ELSER
-     * The default action does nothing except acknowledge the request (true).
-     * @param modelVariant The configuration of the model variant to be downloaded
-     * @param listener The listener
-     */
-    default void putModel(Model modelVariant, ActionListener<Boolean> listener) {
         listener.onResponse(true);
     }
 
@@ -175,6 +173,15 @@ public interface InferenceService extends Closeable {
      * @return The model with updated embedding details
      */
     default Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        return model;
+    }
+
+    /**
+     * Update a chat completion model's max tokens if required. The default behaviour is to just return the model.
+     * @param model The original model without updated embedding details
+     * @return The model with updated chat completion details
+     */
+    default Model updateModelWithChatCompletionDetails(Model model) {
         return model;
     }
 

@@ -9,6 +9,7 @@ boolean | integer | integer | boolean
 cartesian_point | integer | integer | cartesian_point
 cartesian_shape | integer | integer | cartesian_shape
 date | integer | integer | date
+date_nanos | integer | integer | date_nanos
 double | integer | integer | double
 geo_point | integer | integer | geo_point
 geo_shape | integer | integer | geo_shape

@@ -68,7 +68,10 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
         var filteredServices = serviceRegistry.getServices()
             .entrySet()
             .stream()
-            .filter(service -> service.getValue().supportedTaskTypes().contains(requestedTaskType))
+            .filter(
+                service -> service.getValue().hideFromConfigurationApi() == false
+                    && service.getValue().supportedTaskTypes().contains(requestedTaskType)
+            )
             .collect(Collectors.toSet());
 
         getServiceConfigurationsForServices(filteredServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
@@ -77,12 +80,14 @@ public class TransportGetInferenceServicesAction extends HandledTransportAction<
     }
 
     private void getAllServiceConfigurations(ActionListener<GetInferenceServicesAction.Response> listener) {
-        getServiceConfigurationsForServices(
-            serviceRegistry.getServices().entrySet(),
-            listener.delegateFailureAndWrap((delegate, configurations) -> {
-                delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
-            })
-        );
+        var availableServices = serviceRegistry.getServices()
+            .entrySet()
+            .stream()
+            .filter(service -> service.getValue().hideFromConfigurationApi() == false)
+            .collect(Collectors.toSet());
+        getServiceConfigurationsForServices(availableServices, listener.delegateFailureAndWrap((delegate, configurations) -> {
+            delegate.onResponse(new GetInferenceServicesAction.Response(configurations));
+        }));
     }
 
     private void getServiceConfigurationsForServices(

@@ -1,0 +1,5 @@
+pr: 116382
+summary: Validate missing shards after the coordinator rewrite
+area: Search
+type: bug
+issues: []

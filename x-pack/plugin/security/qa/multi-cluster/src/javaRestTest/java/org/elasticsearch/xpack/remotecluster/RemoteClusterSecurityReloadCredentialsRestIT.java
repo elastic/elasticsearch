@@ -42,7 +42,7 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.nullValue;
 
 // account for slow stored secure settings updates (involves removing and re-creating the keystore)
-@TimeoutSuite(millis = 10 * TimeUnits.MINUTE)
+@TimeoutSuite(millis = 20 * TimeUnits.MINUTE)
 public class RemoteClusterSecurityReloadCredentialsRestIT extends AbstractRemoteClusterSecurityTestCase {
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();

@@ -258,6 +258,10 @@ public class CsvTests extends ESTestCase {
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.MATCH_FUNCTION.capabilityName())
             );
             assumeFalse(
+                "can't use KQL function in csv tests",
+                testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.KQL_FUNCTION.capabilityName())
+            );
+            assumeFalse(
                 "lookup join disabled for csv tests",
                 testCase.requiredCapabilities.contains(EsqlCapabilities.Cap.JOIN_LOOKUP.capabilityName())
             );

@@ -416,6 +416,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION,
 
         /**
+         * KQL function
+         */
+        KQL_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -521,7 +526,12 @@ public class EsqlCapabilities {
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/117054
          */
-        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER;
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean enabled;
 
@@ -565,9 +575,6 @@ public class EsqlCapabilities {
          * Add all of our cluster features without the leading "esql."
          */
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
         return Set.copyOf(caps);

@@ -102,7 +102,9 @@ They have no effect for remote clusters configured with the <<remote-clusters-ce
 `clusters` (required)::: (list) A list of cluster aliases to which the permissions
 in this entry apply.
 `privileges`(required)::: (list) The cluster level privileges that the owners of the role
-have in the specified clusters.
+have in the specified clusters. Note - only a subset of the cluster privileges are supported for remote clusters.
+The <<security-api-get-builtin-privileges-request, builtin privileges API>> can be used to determine
+which privileges are allowed per version.
 
 
 For more information, see <<defining-roles>>.

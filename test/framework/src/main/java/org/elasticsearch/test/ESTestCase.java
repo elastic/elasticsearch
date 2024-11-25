@@ -435,11 +435,6 @@ public abstract class ESTestCase extends LuceneTestCase {
         // We have to disable setting the number of available processors as tests in the same JVM randomize processors and will step on each
         // other if we allow them to set the number of available processors as it's set-once in Netty.
         System.setProperty("es.set.netty.runtime.available.processors", "false");
-
-        // sometimes use the java.time date formatters
-        if (random.nextBoolean()) {
-            System.setProperty("es.datetime.java_time_parsers", "true");
-        }
     }
 
     protected final Logger logger = LogManager.getLogger(getClass());
@@ -1709,7 +1704,23 @@ public abstract class ESTestCase extends LuceneTestCase {
         boolean humanReadable,
         String... exceptFieldNames
     ) throws IOException {
-        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, params, humanReadable);
+        return toShuffledXContent(toXContent, xContentType, RestApiVersion.current(), params, humanReadable, exceptFieldNames);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns. Shuffles the keys to make sure that parsing never relies on keys ordering.
+     */
+    protected final BytesReference toShuffledXContent(
+        ToXContent toXContent,
+        XContentType xContentType,
+        RestApiVersion restApiVersion,
+        ToXContent.Params params,
+        boolean humanReadable,
+        String... exceptFieldNames
+    ) throws IOException {
+        BytesReference bytes = XContentHelper.toXContent(toXContent, xContentType, restApiVersion, params, humanReadable);
         try (XContentParser parser = createParser(xContentType.xContent(), bytes)) {
             try (XContentBuilder builder = shuffleXContent(parser, rarely(), exceptFieldNames)) {
                 return BytesReference.bytes(builder);
@@ -2320,10 +2331,18 @@ public abstract class ESTestCase extends LuceneTestCase {
      * flag and asserting that the latch is indeed completed before the timeout.
      */
     public static void safeAwait(CountDownLatch countDownLatch) {
+        safeAwait(countDownLatch, SAFE_AWAIT_TIMEOUT);
+    }
+
+    /**
+     * Await on the given {@link CountDownLatch} with a supplied timeout, preserving the thread's interrupt status
+     * flag and asserting that the latch is indeed completed before the timeout.
+     */
+    public static void safeAwait(CountDownLatch countDownLatch, TimeValue timeout) {
         try {
             assertTrue(
                 "safeAwait: CountDownLatch did not reach zero within the timeout",
-                countDownLatch.await(SAFE_AWAIT_TIMEOUT.millis(), TimeUnit.MILLISECONDS)
+                countDownLatch.await(timeout.millis(), TimeUnit.MILLISECONDS)
             );
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

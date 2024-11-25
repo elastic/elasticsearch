@@ -1,6 +1,0 @@
-pr: 116086
-summary: "ESQL: Fix DEBUG log of filter"
-area: ES|QL
-type: bug
-issues:
- - 116055

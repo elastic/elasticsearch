@@ -56,7 +56,7 @@ public class EnrichPolicyReindexPipeline {
         if (ingestMetadata != null) {
             final PipelineConfiguration pipeline = ingestMetadata.getPipelines().get(pipelineName());
             if (pipeline != null) {
-                Object version = pipeline.getConfigAsMap().get("version");
+                Object version = pipeline.getConfig().get("version");
                 return version instanceof Number number && number.intValue() >= ENRICH_PIPELINE_LAST_UPDATED_VERSION;
             }
         }

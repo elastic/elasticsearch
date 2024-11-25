@@ -1,6 +1,0 @@
-pr: 111749
-summary: "ESQL: Added `mv_percentile` function"
-area: ES|QL
-type: feature
-issues:
- - 111591

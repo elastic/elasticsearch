@@ -109,13 +109,14 @@ public class SingleNodeShutdownMetadata implements SimpleDiffable<SingleNodeShut
 
     /**
      * @param nodeId The node ID that this shutdown metadata refers to.
+     * @param ephemeralId The ephemeral node ID that this shutdown metadata refers to, or null if it's not process-specific.
      * @param type The type of shutdown. See {@link Type}.
      * @param reason The reason for the shutdown, per the original shutdown request.
      * @param startedAtMillis The timestamp at which this shutdown was requested.
      */
     private SingleNodeShutdownMetadata(
         String nodeId,
-        String ephemeralId,
+        @Nullable String ephemeralId,
         Type type,
         String reason,
         long startedAtMillis,

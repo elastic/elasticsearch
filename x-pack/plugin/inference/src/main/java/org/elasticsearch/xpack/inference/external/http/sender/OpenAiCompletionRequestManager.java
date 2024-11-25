@@ -15,7 +15,7 @@ import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.inference.external.http.retry.RequestSender;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseHandler;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiChatCompletionResponseHandler;
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest;
+import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest;
 import org.elasticsearch.xpack.inference.external.response.openai.OpenAiChatCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
@@ -35,7 +35,7 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
     private final OpenAiChatCompletionModel model;
 
     private OpenAiCompletionRequestManager(OpenAiChatCompletionModel model, ThreadPool threadPool) {
-        super(threadPool, model, OpenAiChatCompletionRequest::buildDefaultUri);
+        super(threadPool, model, OpenAiUnifiedChatCompletionRequest::buildDefaultUri);
         this.model = Objects.requireNonNull(model);
     }
 
@@ -46,10 +46,11 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        var docsOnly = DocumentsOnlyInput.of(inferenceInputs);
-        var docsInput = docsOnly.getInputs();
-        var stream = docsOnly.stream();
-        OpenAiChatCompletionRequest request = new OpenAiChatCompletionRequest(docsInput, model, stream);
+
+        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(
+            UnifiedChatInput.of(inferenceInputs).getRequestEntity(),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

@@ -1,0 +1,5 @@
+pr: 117526
+summary: Exposing `ClientHelper` outside of xpack
+area: Client
+type: enhancement
+issues: []

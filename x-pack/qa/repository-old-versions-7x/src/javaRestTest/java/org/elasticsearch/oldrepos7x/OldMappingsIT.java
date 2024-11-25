@@ -57,7 +57,7 @@ public class OldMappingsIT extends ESRestTestCase {
         .build();
 
     public static ElasticsearchCluster oldCluster = ElasticsearchCluster.local()
-        .version(Version.fromString("7.17.25"))
+        .version(Version.fromString(System.getProperty("tests.old_cluster_version")))
         .distribution(DistributionType.DEFAULT)
         .setting("xpack.security.enabled", "false")
         .setting("xpack.license.self_generated.type", "trial")

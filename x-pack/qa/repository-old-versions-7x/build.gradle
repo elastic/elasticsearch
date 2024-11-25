@@ -4,6 +4,8 @@ import org.elasticsearch.gradle.Version
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
 tasks.named("javaRestTest").configure {
+  def versionString = "7.17.25"
+  systemProperty 'tests.old_cluster_version', versionString
   usesDefaultDistribution()
-  usesBwcDistribution(Version.fromString("7.17.25"))
+  usesBwcDistribution(Version.fromString(versionString))
 }

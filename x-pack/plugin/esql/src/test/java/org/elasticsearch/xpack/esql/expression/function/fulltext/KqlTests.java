@@ -10,18 +10,22 @@ package org.elasticsearch.xpack.esql.expression.function.fulltext;
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.junit.BeforeClass;
 
 import java.util.List;
 import java.util.function.Supplier;
 
-@FunctionName("qstr")
-public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
+public class KqlTests extends NoneFieldFullTextFunctionTestCase {
+    @BeforeClass
+    protected static void ensureKqlFunctionEnabled() {
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+    }
 
-    public QueryStringTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
+    public KqlTests(@Name("TestCase") Supplier<TestCaseSupplier.TestCase> testCaseSupplier) {
         super(testCaseSupplier);
     }
 
@@ -32,6 +36,6 @@ public class QueryStringTests extends NoneFieldFullTextFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new QueryString(source, args.get(0));
+        return new Kql(source, args.get(0));
     }
 }

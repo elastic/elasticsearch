@@ -67,13 +67,8 @@ abstract class StExtentAggregator {
         return state.toBlock(selected, driverContext);
     }
 
-    public static void combineStates(GroupingStExtentState current, int groupId, GroupingStExtentState inState, int position) {
-        System.out.println("---\nBefore\n---");
-        System.out.println(inState.getExtent(position));
-        System.out.println(current.getExtent(groupId));
-        inState.getExtent(position).ifPresent(extent -> current.add(groupId, extent));
-        System.out.println("---\nAfter\n---");
-        System.out.println(current.getExtent(groupId));
+    public static void combineStates(GroupingStExtentState current, int groupId, GroupingStExtentState inState, int inPosition) {
+        inState.getExtent(inPosition).ifPresent(extent -> current.add(groupId, extent));
     }
 
     public static final class StExtentState implements AggregatorState {

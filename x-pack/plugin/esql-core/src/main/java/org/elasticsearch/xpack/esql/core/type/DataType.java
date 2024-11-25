@@ -37,7 +37,7 @@ import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCache
  * interact with in some way. This includes fully representable types (e.g.
  * {@link DataType#LONG}, numeric types which we promote early in the
  * processing pipeline (e.g. {@link DataType#SHORT}),  types for internal use
- * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the lanugage
+ * cases (e.g. {@link DataType#PARTIAL_AGG}), and types which the language
  * doesn't support but require special handling anyway (e.g.
  * {@link DataType#OBJECT})
  *

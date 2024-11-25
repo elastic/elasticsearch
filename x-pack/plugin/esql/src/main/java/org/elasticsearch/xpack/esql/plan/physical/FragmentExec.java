@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
+import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -38,6 +40,9 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      */
     private final int estimatedRowSize;
 
+    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_ANALYTICS)
+    private static final TransportVersion OLD_NODE_LEVEL_REDUCTION_PLAN = TransportVersions.V_8_14_0;
+
     public FragmentExec(LogicalPlan fragment) {
         this(fragment.source(), fragment, null, 0);
     }
@@ -53,22 +58,29 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
         super(Source.readFrom((PlanStreamInput) in));
         this.fragment = in.readNamedWriteable(LogicalPlan.class);
         this.esFilter = in.readOptionalNamedWriteable(QueryBuilder.class);
-        this.estimatedRowSize = in.readOptionalVInt(); // TODO: fix this
-        // for old reducer
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            in.readOptionalNamedWriteable(PhysicalPlan.class);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
+            this.estimatedRowSize = in.readVInt();
+        } else {
+            this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
+            if (in.getTransportVersion().onOrAfter(OLD_NODE_LEVEL_REDUCTION_PLAN)) {
+                in.readOptionalNamedWriteable(PhysicalPlan.class); // for old reducer
+            }
         }
     }
+
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
         out.writeNamedWriteable(fragment());
         out.writeOptionalNamedWriteable(esFilter());
-        out.writeOptionalVInt(estimatedRowSize());
-        // for old reducer
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
-            out.writeOptionalNamedWriteable(null);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_REMOVE_NODE_LEVEL_PLAN)) {
+            out.writeVInt(estimatedRowSize);
+        } else {
+            out.writeOptionalVInt(estimatedRowSize());
+            if (out.getTransportVersion().onOrAfter(OLD_NODE_LEVEL_REDUCTION_PLAN)) {
+                out.writeOptionalNamedWriteable(null);// for old reducer
+            }
         }
     }
 

@@ -70,6 +70,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.function.Function;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.search.SearchService.DEFAULT_SIZE;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
@@ -290,11 +291,13 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        if (context.isWithinInferenceMetadata() == false) {
-            assert indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS);
-            // ignore original text value
+        if (indexSettings.getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+            && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()
+            && context.isWithinInferenceMetadata() == false) {
+            // Do not parse field value, it will be handled when parsing the _inference_fields metadata field
             return;
         }
+
         XContentParser parser = context.parser();
         if (parser.currentToken() == XContentParser.Token.VALUE_NULL) {
             return;
@@ -505,8 +508,7 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
         @Override
         public ValueFetcher valueFetcher(SearchExecutionContext context, String format) {
             String fieldName = context.getIndexSettings().getIndexVersionCreated().onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
-                ? name()
-                : getOriginalTextFieldName(name());
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? name() : getOriginalTextFieldName(name());
             return SourceValueFetcher.toString(fieldName, context, format);
         }
 

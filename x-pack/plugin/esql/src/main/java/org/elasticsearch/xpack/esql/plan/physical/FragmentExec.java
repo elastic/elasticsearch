@@ -7,12 +7,10 @@
 
 package org.elasticsearch.xpack.esql.plan.physical;
 
-import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -40,9 +38,6 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
      */
     private final int estimatedRowSize;
 
-    @UpdateForV10(owner = UpdateForV10.Owner.SEARCH_ANALYTICS)
-    private static final TransportVersion OLD_NODE_LEVEL_REDUCTION_PLAN = TransportVersions.V_8_14_0;
-
     public FragmentExec(LogicalPlan fragment) {
         this(fragment.source(), fragment, null, 0);
     }
@@ -62,12 +57,11 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             this.estimatedRowSize = in.readVInt();
         } else {
             this.estimatedRowSize = Objects.requireNonNull(in.readOptionalVInt());
-            if (in.getTransportVersion().onOrAfter(OLD_NODE_LEVEL_REDUCTION_PLAN)) {
+            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 in.readOptionalNamedWriteable(PhysicalPlan.class); // for old reducer
             }
         }
     }
-
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -78,7 +72,7 @@ public class FragmentExec extends LeafExec implements EstimatesRowSize {
             out.writeVInt(estimatedRowSize);
         } else {
             out.writeOptionalVInt(estimatedRowSize());
-            if (out.getTransportVersion().onOrAfter(OLD_NODE_LEVEL_REDUCTION_PLAN)) {
+            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalNamedWriteable(null);// for old reducer
             }
         }

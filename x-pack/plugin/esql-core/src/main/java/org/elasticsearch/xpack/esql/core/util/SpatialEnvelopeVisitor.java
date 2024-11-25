@@ -22,6 +22,44 @@ import org.elasticsearch.geometry.Rectangle;
 
 import java.util.Optional;
 
+/**
+ * This visitor is designed to determine the spatial envelope (or BBOX or MBR) of a potentially complex geometry.
+ * It has two modes:
+ * <ul>
+ *     <li>
+ *         Cartesian mode: The envelope is determined by the minimum and maximum x/y coordinates.
+ *         Incoming BBOX geometries with minX > maxX are treated as invalid.
+ *         Resulting BBOX geometries will always have minX <= maxX.
+ *     </li>
+ *     <li>
+ *         Geographic mode: The envelope is determined by the minimum and maximum x/y coordinates,
+ *         considering the possibility of wrapping the longitude around the dateline.
+ *         A bounding box can be determined either by wrapping the longitude around the dateline or not,
+ *         and the smaller bounding box is chosen. It is possible to disable the wrapping of the longitude.
+ * </ul>
+ * Usage of this is as simple as:
+ * <code>
+ *     Optional<Rectangle> bbox = SpatialEnvelopeVisitor.visit(geometry);
+ *     if (bbox.isPresent()) {
+ *         Rectangle envelope = bbox.get();
+ *         // Do stuff with the envelope
+ *     }
+ * </code>
+ * It is also possible to create the inner <code>PointVisitor</code> separately, as well as use the visitor for multiple geometries.
+ * <code>
+ *     PointVisitor pointVisitor = new CartesianPointVisitor();
+ *     SpatialEnvelopeVisitor visitor = new SpatialEnvelopeVisitor(pointVisitor);
+ *     for (Geometry geometry : geometries) {
+ *         geometry.visit(visitor);
+ *     }
+ *     if (visitor.isValid()) {
+ *         Rectangle envelope = visitor.getResult();
+ *         // Do stuff with the envelope
+ *     }
+ * </code>
+ * Code that wishes to modify the behaviour of the visitor can implement the <code>PointVisitor</code> interface,
+ * or extend the existing implementations.
+ */
 public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeException> {
 
     private final PointVisitor pointVisitor;
@@ -57,7 +95,12 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         return pointVisitor.getResult();
     }
 
-    private interface PointVisitor {
+    /**
+     * Visitor for visiting points and rectangles. This is where the actual envelope calculation happens.
+     * There are two implementations, one for cartesian coordinates and one for geographic coordinates.
+     * The latter can optionally wrap the longitude around the dateline.
+     */
+    public interface PointVisitor {
         void visitPoint(double x, double y);
 
         void visitRectangle(double minX, double maxX, double maxY, double minY);
@@ -67,7 +110,11 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         Rectangle getResult();
     }
 
-    static class CartesianPointVisitor implements PointVisitor {
+    /**
+     * The cartesian point visitor determines the envelope by the minimum and maximum x/y coordinates.
+     * It also disallows invalid rectangles where minX > maxX.
+     */
+    public static class CartesianPointVisitor implements PointVisitor {
         private double minX = Double.POSITIVE_INFINITY;
         private double minY = Double.POSITIVE_INFINITY;
         private double maxX = Double.NEGATIVE_INFINITY;
@@ -103,7 +150,16 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         }
     }
 
-    static class GeoPointVisitor implements PointVisitor {
+    /**
+     * The geographic point visitor determines the envelope by the minimum and maximum x/y coordinates,
+     * while allowing for wrapping the longitude around the dateline.
+     * When longitude wrapping is enabled, the visitor will determine the smallest bounding box between the two choices:
+     * <ul>
+     *     <li>Wrapping around the front of the earth, in which case the result will have minx<maxx</li>
+     *     <li>Wrapping around the back of the earth, crossing the dateline, in which case the result will have minx>maxx</li>
+     * </ul>
+     */
+    public static class GeoPointVisitor implements PointVisitor {
         private double minY = Double.POSITIVE_INFINITY;
         private double maxY = Double.NEGATIVE_INFINITY;
         private double minNegX = Double.POSITIVE_INFINITY;

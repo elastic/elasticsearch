@@ -20,6 +20,10 @@ ignore_missing_component_templates:
   - traces@custom
   - traces-otel@custom
 template:
+  settings:
+    index:
+      mapping:
+        source.mode: synthetic
   mappings:
     properties:
       data_stream.type:

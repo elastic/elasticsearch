@@ -165,7 +165,7 @@ public class ObjectStoreService extends AbstractLifecycleComponent {
 
     public record IndexingShardState(
         BatchedCompoundCommit latestCommit,
-        Set<BlobFile> unreferencedBlobs,
+        Set<BlobFile> otherBlobs,
         Map<String, BlobFileRanges> blobFileRanges
     ) {
         public static IndexingShardState EMPTY = new IndexingShardState(null, Set.of(), Map.of());

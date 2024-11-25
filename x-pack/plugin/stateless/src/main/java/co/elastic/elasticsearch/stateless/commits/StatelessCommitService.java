@@ -331,11 +331,11 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
         return routingTable.hasIndex(shardId.getIndex()) ? Optional.of(routingTable.shardRoutingTable(shardId)) : Optional.empty();
     }
 
-    public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> unreferencedFiles) {
+    public void markRecoveredBcc(ShardId shardId, BatchedCompoundCommit recoveredBcc, Set<BlobFile> otherBlobs) {
         ShardCommitState commitState = getSafe(shardsCommitsStates, shardId);
         assert recoveredBcc != null;
         assert recoveredBcc.shardId().equals(shardId) : recoveredBcc.shardId() + " vs " + shardId;
-        commitState.markBccRecovered(recoveredBcc, unreferencedFiles);
+        commitState.markBccRecovered(recoveredBcc, otherBlobs);
     }
 
     /**
@@ -1004,9 +1004,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
             return inititalizingNoSearchSupplier.getAsBoolean();
         }
 
-        private void markBccRecovered(BatchedCompoundCommit recoveredBcc, Set<BlobFile> nonRecoveredBlobs) {
+        private void markBccRecovered(BatchedCompoundCommit recoveredBcc, Set<BlobFile> otherBlobs) {
             assert recoveredBcc != null;
-            assert nonRecoveredBlobs != null;
+            assert otherBlobs != null;
             assert primaryTermAndGenToBlobReference.isEmpty() : primaryTermAndGenToBlobReference;
             assert blobLocations.isEmpty() : blobLocations;
 
@@ -1030,9 +1030,9 @@ public class StatelessCommitService extends AbstractLifecycleComponent implement
                 }
             }
 
-            List<BlobReference> previousBCCBlobs = new ArrayList<>(nonRecoveredBlobs.size());
+            List<BlobReference> previousBCCBlobs = new ArrayList<>(otherBlobs.size());
             // create a compound commit blob instance for the recovery commit
-            for (BlobFile nonRecoveredBlobFile : nonRecoveredBlobs) {
+            for (BlobFile nonRecoveredBlobFile : otherBlobs) {
                 if (StatelessCompoundCommit.startsWithBlobPrefix(nonRecoveredBlobFile.blobName())) {
                     PrimaryTermAndGeneration nonRecoveredTermGen = nonRecoveredBlobFile.termAndGeneration();
 

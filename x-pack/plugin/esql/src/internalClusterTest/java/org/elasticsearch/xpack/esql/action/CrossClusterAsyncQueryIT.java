@@ -54,6 +54,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 import static org.hamcrest.Matchers.is;
+import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
 /**
@@ -63,6 +64,11 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
     private static final String REMOTE_CLUSTER_2 = "remote-b";
+    private static String LOCAL_INDEX = "logs-1";
+    private static String IDX_ALIAS = "alias1";
+    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
+    private static String REMOTE_INDEX = "logs-2";
+    private static final String INDEX_WITH_RUNTIME_MAPPING = "blocking";
 
     @Override
     protected Collection<String> remoteClusterAlias() {
@@ -176,6 +182,8 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             assertTrue(resp.isRunning());
             assertNotNull("async execution id is null", resp.asyncExecutionId());
             asyncExecutionId.set(resp.asyncExecutionId().get());
+            // executionInfo may or may not be set on the initial response when there is a relatively low wait_for_completion_timeout
+            // so we do not check for it here
         }
 
         // wait until we know that the query against 'remote-b:blocking' has started
@@ -281,6 +289,76 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    public void testAsyncQueriesWithLimit0() throws IOException {
+        setupClusters(3);
+        Tuple<Boolean, Boolean> includeCCSMetadata = randomIncludeCCSMetadata();
+        Boolean requestIncludeMeta = includeCCSMetadata.v1();
+        boolean responseExpectMeta = includeCCSMetadata.v2();
+
+        final TimeValue waitForCompletion = TimeValue.timeValueNanos(randomFrom(1L, Long.MAX_VALUE));
+        String asyncExecutionId = null;
+        try (EsqlQueryResponse resp = runAsyncQuery("FROM logs*,*:logs* | LIMIT 0", requestIncludeMeta, null, waitForCompletion)) {
+            EsqlExecutionInfo executionInfo = resp.getExecutionInfo();
+            if (resp.isRunning()) {
+                asyncExecutionId = resp.asyncExecutionId().get();
+                assertThat(resp.columns().size(), equalTo(0));
+                assertThat(resp.values().hasNext(), is(false));  // values should be empty list
+
+            } else {
+                assertThat(resp.columns().size(), equalTo(4));
+                assertThat(resp.columns().contains(new ColumnInfoImpl("const", "long")), is(true));
+                assertThat(resp.columns().contains(new ColumnInfoImpl("id", "keyword")), is(true));
+                assertThat(resp.columns().contains(new ColumnInfoImpl("tag", "keyword")), is(true));
+                assertThat(resp.columns().contains(new ColumnInfoImpl("v", "long")), is(true));
+                assertThat(resp.values().hasNext(), is(false));  // values should be empty list
+
+                assertNotNull(executionInfo);
+                assertThat(executionInfo.isCrossClusterSearch(), is(true));
+                long overallTookMillis = executionInfo.overallTook().millis();
+                assertThat(overallTookMillis, greaterThanOrEqualTo(0L));
+                assertThat(executionInfo.includeCCSMetadata(), equalTo(responseExpectMeta));
+                assertThat(executionInfo.clusterAliases(), equalTo(Set.of(LOCAL_CLUSTER, REMOTE_CLUSTER_1, REMOTE_CLUSTER_2)));
+
+                EsqlExecutionInfo.Cluster remoteCluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remoteCluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(remoteCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(remoteCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remoteCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+                assertThat(remoteCluster.getTotalShards(), equalTo(0));
+                assertThat(remoteCluster.getSuccessfulShards(), equalTo(0));
+                assertThat(remoteCluster.getSkippedShards(), equalTo(0));
+                assertThat(remoteCluster.getFailedShards(), equalTo(0));
+
+                EsqlExecutionInfo.Cluster remote2Cluster = executionInfo.getCluster(REMOTE_CLUSTER_1);
+                assertThat(remote2Cluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(remote2Cluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(remote2Cluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(remote2Cluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+                assertThat(remote2Cluster.getTotalShards(), equalTo(0));
+                assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
+                assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
+                assertThat(remote2Cluster.getFailedShards(), equalTo(0));
+
+                EsqlExecutionInfo.Cluster localCluster = executionInfo.getCluster(LOCAL_CLUSTER);
+                assertThat(localCluster.getIndexExpression(), equalTo("logs*"));
+                assertThat(localCluster.getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
+                assertThat(localCluster.getTook().millis(), greaterThanOrEqualTo(0L));
+                assertThat(localCluster.getTook().millis(), lessThanOrEqualTo(overallTookMillis));
+                assertThat(remote2Cluster.getTotalShards(), equalTo(0));
+                assertThat(remote2Cluster.getSuccessfulShards(), equalTo(0));
+                assertThat(remote2Cluster.getSkippedShards(), equalTo(0));
+                assertThat(remote2Cluster.getFailedShards(), equalTo(0));
+
+                assertClusterMetadataInResponse(resp, responseExpectMeta, 3);
+            }
+        } finally {
+            if (asyncExecutionId != null) {
+                AcknowledgedResponse acknowledgedResponse = deleteAsyncId(asyncExecutionId);
+                assertThat(acknowledgedResponse.isAcknowledged(), is(true));
+            }
+        }
+    }
+
     protected EsqlQueryResponse runAsyncQuery(String query, Boolean ccsMetadata, QueryBuilder filter, TimeValue waitCompletionTime) {
         EsqlQueryRequest request = EsqlQueryRequest.asyncEsqlQueryRequest();
         request.query(query);
@@ -357,12 +435,6 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             default -> throw new AssertionError("should not get here");
         };
     }
-
-    private static String LOCAL_INDEX = "logs-1";
-    private static String IDX_ALIAS = "alias1";
-    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
-    private static String REMOTE_INDEX = "logs-2";
-    private static final String INDEX_WITH_RUNTIME_MAPPING = "blocking";
 
     Map<String, Object> setupClusters(int numClusters) throws IOException {
         assert numClusters == 2 || numClusters == 3 : "2 or 3 clusters supported not: " + numClusters;

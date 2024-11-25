@@ -10,9 +10,13 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.SpecialPermission;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.ActionRequest;
 import org.elasticsearch.action.ActionResponse;
+import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.support.TransportAction;
+import org.elasticsearch.client.internal.Client;
+import org.elasticsearch.client.internal.ClientHelperService;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -31,6 +35,7 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.settings.SettingsFilter;
 import org.elasticsearch.common.ssl.SslConfiguration;
 import org.elasticsearch.common.util.BigArrays;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.Booleans;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.features.NodeFeature;
@@ -345,6 +350,25 @@ public class XPackPlugin extends XPackClientPlugin
         components.add(new PluginComponentBinding<>(LicenseService.class, licenseService));
         components.add(getLicenseState());
 
+        ClientHelperService clientHelperService = new ClientHelperService() {
+            @Override
+            public Map<String, String> getPersistableSafeSecurityHeaders(ThreadContext threadContext, ClusterState clusterState) {
+                return ClientHelper.getPersistableSafeSecurityHeaders(threadContext, clusterState);
+            }
+
+            @Override
+            public <Request extends ActionRequest, Response extends ActionResponse> void executeWithHeadersAsync(
+                Map<String, String> headers,
+                String origin,
+                Client client,
+                ActionType<Response> action,
+                Request request,
+                ActionListener<Response> listener
+            ) {
+                ClientHelper.executeWithHeadersAsync(headers, origin, client, action, request, listener);
+            }
+        };
+        components.add(new PluginComponentBinding<>(ClientHelperService.class, clientHelperService));
         return components;
     }
 

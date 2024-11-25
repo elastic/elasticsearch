@@ -31,7 +31,13 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
 
     @Override
     protected ReindexDataStreamTaskParams createTestInstance() {
-        return new ReindexDataStreamTaskParams(randomAlphaOfLength(50), randomLong(), randomNonNegativeInt(), randomNonNegativeInt());
+        return new ReindexDataStreamTaskParams(
+            randomAlphaOfLength(50),
+            randomLong(),
+            randomNonNegativeInt(),
+            randomNonNegativeInt(),
+            Map.of()
+        );
     }
 
     @Override
@@ -47,7 +53,7 @@ public class ReindexDataStreamTaskParamsTests extends AbstractXContentSerializin
             case 3 -> totalIndices = totalIndicesToBeUpgraded + 1;
             default -> throw new UnsupportedOperationException();
         }
-        return new ReindexDataStreamTaskParams(sourceDataStream, startTime, totalIndices, totalIndicesToBeUpgraded);
+        return new ReindexDataStreamTaskParams(sourceDataStream, startTime, totalIndices, totalIndicesToBeUpgraded, Map.of());
     }
 
     @Override

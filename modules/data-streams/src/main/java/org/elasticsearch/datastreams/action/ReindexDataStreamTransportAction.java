@@ -17,6 +17,7 @@ import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataS
 import org.elasticsearch.action.datastreams.ReindexDataStreamAction.ReindexDataStreamResponse;
 import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.HandledTransportAction;
+import org.elasticsearch.client.internal.ClientHelperService;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -36,13 +37,15 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
     private final PersistentTasksService persistentTasksService;
     private final TransportService transportService;
     private final ClusterService clusterService;
+    private final ClientHelperService clientHelperService;
 
     @Inject
     public ReindexDataStreamTransportAction(
         TransportService transportService,
         ActionFilters actionFilters,
         PersistentTasksService persistentTasksService,
-        ClusterService clusterService
+        ClusterService clusterService,
+        ClientHelperService clientHelperService
     ) {
         super(
             ReindexDataStreamAction.NAME,
@@ -55,6 +58,7 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
         this.transportService = transportService;
         this.persistentTasksService = persistentTasksService;
         this.clusterService = clusterService;
+        this.clientHelperService = clientHelperService;
     }
 
     @Override
@@ -75,7 +79,11 @@ public class ReindexDataStreamTransportAction extends HandledTransportAction<Rei
             sourceDataStreamName,
             transportService.getThreadPool().absoluteTimeInMillis(),
             totalIndices,
-            totalIndicesToBeUpgraded
+            totalIndicesToBeUpgraded,
+            clientHelperService.getPersistableSafeSecurityHeaders(
+                transportService.getThreadPool().getThreadContext(),
+                clusterService.state()
+            )
         );
         String persistentTaskId = getPersistentTaskId(sourceDataStreamName);
         persistentTasksService.sendStartRequest(

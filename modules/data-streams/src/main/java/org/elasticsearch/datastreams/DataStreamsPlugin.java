@@ -120,7 +120,6 @@ import java.util.Locale;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.action.datastreams.ReindexDataStreamAction.REINDEX_DATA_STREAM_ORIGIN;
 import static org.elasticsearch.cluster.metadata.DataStreamLifecycle.DATA_STREAM_LIFECYCLE_ORIGIN;
 
 public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlugin, PersistentTaskPlugin {
@@ -382,13 +381,6 @@ public class DataStreamsPlugin extends Plugin implements ActionPlugin, HealthPlu
         SettingsModule settingsModule,
         IndexNameExpressionResolver expressionResolver
     ) {
-        return List.of(
-            new ReindexDataStreamPersistentTaskExecutor(
-                new OriginSettingClient(client, REINDEX_DATA_STREAM_ORIGIN),
-                clusterService,
-                ReindexDataStreamTask.TASK_NAME,
-                threadPool
-            )
-        );
+        return List.of(new ReindexDataStreamPersistentTaskExecutor(client, clusterService, ReindexDataStreamTask.TASK_NAME, threadPool));
     }
 }

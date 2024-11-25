@@ -72,7 +72,8 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         GetDataStreamAction.Request request = new GetDataStreamAction.Request(TimeValue.MAX_VALUE, new String[] { sourceDataStream });
         assert task instanceof ReindexDataStreamTask;
         final ReindexDataStreamTask reindexDataStreamTask = (ReindexDataStreamTask) task;
-        client.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
+        ReindexDataStreamClient reindexClient = new ReindexDataStreamClient(client, params.headers());
+        reindexClient.execute(GetDataStreamAction.INSTANCE, request, ActionListener.wrap(response -> {
             List<GetDataStreamAction.Response.DataStreamInfo> dataStreamInfos = response.getDataStreams();
             if (dataStreamInfos.size() == 1) {
                 List<Index> indices = dataStreamInfos.getFirst().getDataStream().getIndices();
@@ -89,7 +90,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                 // TODO: put all these on a queue, only process N from queue at a time
                 for (Index index : indicesToBeReindexed) {
                     reindexDataStreamTask.incrementInProgressIndicesCount();
-                    client.execute(
+                    reindexClient.execute(
                         ReindexDataStreamIndexAction.INSTANCE,
                         new ReindexDataStreamIndexAction.Request(index.getName()),
                         ActionListener.wrap(response1 -> {
@@ -99,7 +100,7 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
                             }, exception -> {
                                 reindexDataStreamTask.reindexFailed(index.getName(), exception);
                                 listener.onResponse(null);
-                            }));
+                            }), reindexClient);
 
                         }, exception -> {
                             reindexDataStreamTask.reindexFailed(index.getName(), exception);
@@ -114,8 +115,14 @@ public class ReindexDataStreamPersistentTaskExecutor extends PersistentTasksExec
         }, exception -> completeFailedPersistentTask(reindexDataStreamTask, exception)));
     }
 
-    private void updateDataStream(String dataStream, String oldIndex, String newIndex, ActionListener<Void> listener) {
-        client.execute(
+    private void updateDataStream(
+        String dataStream,
+        String oldIndex,
+        String newIndex,
+        ActionListener<Void> listener,
+        ReindexDataStreamClient reindexClient
+    ) {
+        reindexClient.execute(
             SwapDataStreamIndexAction.INSTANCE,
             new SwapDataStreamIndexAction.Request(dataStream, oldIndex, newIndex),
             new ActionListener<>() {

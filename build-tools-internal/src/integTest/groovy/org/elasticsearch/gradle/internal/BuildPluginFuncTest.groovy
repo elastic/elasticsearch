@@ -119,7 +119,7 @@ class BuildPluginFuncTest extends AbstractGradleFuncTest {
             noticeFile.set(file("NOTICE"))
             """
         when:
-        def result = gradleRunner("assemble", "-x", "generateHistoricalFeaturesMetadata").build()
+        def result = gradleRunner("assemble", "-x", "generateClusterFeaturesMetadata").build()
         then:
         result.task(":assemble").outcome == TaskOutcome.SUCCESS
         file("build/distributions/hello-world.jar").exists()

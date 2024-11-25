@@ -19,6 +19,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
 
@@ -31,6 +32,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.IdentityHashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.OptionalLong;
@@ -51,6 +53,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
      * Create {@link MappingStats} from the given cluster state.
      */
     public static MappingStats of(Metadata metadata, Runnable ensureNotCancelled) {
+        Map<String, Integer> sourceModeUsageCount = new HashMap<>();
         Map<String, FieldStats> fieldTypes = new HashMap<>();
         Set<String> concreteFieldNames = new HashSet<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
@@ -62,6 +65,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
                 continue;
             }
             AnalysisStats.countMapping(mappingCounts, indexMetadata);
+
+            var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
+            sourceModeUsageCount.compute(sourceMode.toString().toLowerCase(Locale.ENGLISH), (k, v) -> v == null ? 1 : v + 1);
         }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();
@@ -180,7 +186,8 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalDeduplicatedFieldCount.get(),
             totalMappingSizeBytes,
             fieldTypes.values(),
-            runtimeFieldTypes.values()
+            runtimeFieldTypes.values(),
+            sourceModeUsageCount
         );
     }
 
@@ -215,17 +222,20 @@ public final class MappingStats implements ToXContentFragment, Writeable {
 
     private final List<FieldStats> fieldTypeStats;
     private final List<RuntimeFieldStats> runtimeFieldStats;
+    private final Map<String, Integer> sourceModeUsageCount;
 
     MappingStats(
         long totalFieldCount,
         long totalDeduplicatedFieldCount,
         long totalMappingSizeBytes,
         Collection<FieldStats> fieldTypeStats,
-        Collection<RuntimeFieldStats> runtimeFieldStats
+        Collection<RuntimeFieldStats> runtimeFieldStats,
+        Map<String, Integer> sourceModeUsageCount
     ) {
         this.totalFieldCount = totalFieldCount;
         this.totalDeduplicatedFieldCount = totalDeduplicatedFieldCount;
         this.totalMappingSizeBytes = totalMappingSizeBytes;
+        this.sourceModeUsageCount = sourceModeUsageCount;
         List<FieldStats> stats = new ArrayList<>(fieldTypeStats);
         stats.sort(Comparator.comparing(IndexFeatureStats::getName));
         this.fieldTypeStats = Collections.unmodifiableList(stats);
@@ -246,6 +256,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         fieldTypeStats = in.readCollectionAsImmutableList(FieldStats::new);
         runtimeFieldStats = in.readCollectionAsImmutableList(RuntimeFieldStats::new);
+        sourceModeUsageCount = in.getTransportVersion().onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY)
+            ? in.readImmutableMap(StreamInput::readString, StreamInput::readVInt)
+            : Map.of();
     }
 
     @Override
@@ -257,6 +270,9 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         }
         out.writeCollection(fieldTypeStats);
         out.writeCollection(runtimeFieldStats);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.SOURCE_MODE_TELEMETRY)) {
+            out.writeMap(sourceModeUsageCount, StreamOutput::writeVInt);
+        }
     }
 
     private static OptionalLong ofNullable(Long l) {
@@ -300,6 +316,10 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         return runtimeFieldStats;
     }
 
+    public Map<String, Integer> getSourceModeUsageCount() {
+        return sourceModeUsageCount;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject("mappings");
@@ -326,6 +346,12 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             st.toXContent(builder, params);
         }
         builder.endArray();
+        builder.startObject("source_modes");
+        var entries = sourceModeUsageCount.entrySet().stream().sorted(Map.Entry.comparingByKey()).toList();
+        for (var entry : entries) {
+            builder.field(entry.getKey(), entry.getValue());
+        }
+        builder.endObject();
         builder.endObject();
         return builder;
     }
@@ -344,11 +370,19 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             && Objects.equals(totalDeduplicatedFieldCount, that.totalDeduplicatedFieldCount)
             && Objects.equals(totalMappingSizeBytes, that.totalMappingSizeBytes)
             && fieldTypeStats.equals(that.fieldTypeStats)
-            && runtimeFieldStats.equals(that.runtimeFieldStats);
+            && runtimeFieldStats.equals(that.runtimeFieldStats)
+            && sourceModeUsageCount.equals(that.sourceModeUsageCount);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(totalFieldCount, totalDeduplicatedFieldCount, totalMappingSizeBytes, fieldTypeStats, runtimeFieldStats);
+        return Objects.hash(
+            totalFieldCount,
+            totalDeduplicatedFieldCount,
+            totalMappingSizeBytes,
+            fieldTypeStats,
+            runtimeFieldStats,
+            sourceModeUsageCount
+        );
     }
 }

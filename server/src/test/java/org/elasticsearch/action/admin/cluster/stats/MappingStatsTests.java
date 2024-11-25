@@ -29,7 +29,14 @@ import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
+import java.util.Map;
+
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.DISABLED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.STORED;
+import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
@@ -203,7 +210,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "doc_max" : 0,
                     "doc_total" : 0
                   }
-                ]
+                ],
+                "source_modes" : {
+                  "stored" : 2
+                }
               }
             }""", Strings.toString(mappingStats, true, true));
     }
@@ -332,7 +342,10 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
                     "doc_max" : 0,
                     "doc_total" : 0
                   }
-                ]
+                ],
+                "source_modes" : {
+                  "stored" : 3
+                }
               }
             }""", Strings.toString(mappingStats, true, true));
     }
@@ -362,7 +375,24 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         if (randomBoolean()) {
             runtimeFieldStats.add(randomRuntimeFieldStats("long"));
         }
-        return new MappingStats(randomNonNegativeLong(), randomNonNegativeLong(), randomNonNegativeLong(), stats, runtimeFieldStats);
+        Map<String, Integer> sourceModeUsageCount = randomBoolean()
+            ? Map.of()
+            : Map.of(
+                STORED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                SYNTHETIC.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt(),
+                DISABLED.toString().toLowerCase(Locale.ENGLISH),
+                randomNonNegativeInt()
+            );
+        return new MappingStats(
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            randomNonNegativeLong(),
+            stats,
+            runtimeFieldStats,
+            sourceModeUsageCount
+        );
     }
 
     private static FieldStats randomFieldStats(String type) {
@@ -410,7 +440,8 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         long totalFieldCount = instance.getTotalFieldCount().getAsLong();
         long totalDeduplicatedFieldCount = instance.getTotalDeduplicatedFieldCount().getAsLong();
         long totalMappingSizeBytes = instance.getTotalMappingSizeBytes().getAsLong();
-        switch (between(1, 5)) {
+        var sourceModeUsageCount = new HashMap<>(instance.getSourceModeUsageCount());
+        switch (between(1, 6)) {
             case 1 -> {
                 boolean remove = fieldTypes.size() > 0 && randomBoolean();
                 if (remove) {
@@ -435,8 +466,22 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
             case 3 -> totalFieldCount = randomValueOtherThan(totalFieldCount, ESTestCase::randomNonNegativeLong);
             case 4 -> totalDeduplicatedFieldCount = randomValueOtherThan(totalDeduplicatedFieldCount, ESTestCase::randomNonNegativeLong);
             case 5 -> totalMappingSizeBytes = randomValueOtherThan(totalMappingSizeBytes, ESTestCase::randomNonNegativeLong);
+            case 6 -> {
+                if (sourceModeUsageCount.isEmpty() == false) {
+                    sourceModeUsageCount.remove(sourceModeUsageCount.keySet().stream().findFirst().get());
+                } else {
+                    sourceModeUsageCount.put("stored", randomNonNegativeInt());
+                }
+            }
         }
-        return new MappingStats(totalFieldCount, totalDeduplicatedFieldCount, totalMappingSizeBytes, fieldTypes, runtimeFieldTypes);
+        return new MappingStats(
+            totalFieldCount,
+            totalDeduplicatedFieldCount,
+            totalMappingSizeBytes,
+            fieldTypes,
+            runtimeFieldTypes,
+            sourceModeUsageCount
+        );
     }
 
     public void testDenseVectorType() {

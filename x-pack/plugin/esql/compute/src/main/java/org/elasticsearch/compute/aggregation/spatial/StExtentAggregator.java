@@ -32,14 +32,6 @@ abstract class StExtentAggregator {
         return new GroupingStExtentState();
     }
 
-    public static void combine(StExtentState current, BytesRef wkb) {
-        throw new AssertionError("TODO(gal)");
-    }
-
-    public static void combine(GroupingStExtentState current, int groupId, BytesRef wkb) {
-        throw new AssertionError("TODO(gal)");
-    }
-
     public static void combineIntermediate(StExtentState current, BytesRef wkb) {
         current.extent = Optional.of(combineIntermediate(current.extent, SpatialAggregationUtils.decodeRectangle(wkb)));
     }

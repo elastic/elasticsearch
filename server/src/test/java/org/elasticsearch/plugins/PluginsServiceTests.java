@@ -466,7 +466,8 @@ public class PluginsServiceTests extends ESTestCase {
             List.of(
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
-                    extensiblePlugin
+                    extensiblePlugin,
+                    null
                 )
             )
         );
@@ -480,7 +481,8 @@ public class PluginsServiceTests extends ESTestCase {
             List.of(
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor("extensible", null, null, null, null, classname, null, List.of(), false, false, false, false),
-                    extensiblePlugin
+                    extensiblePlugin,
+                    null
                 ),
                 new PluginsService.LoadedPlugin(
                     new PluginDescriptor(
@@ -497,7 +499,8 @@ public class PluginsServiceTests extends ESTestCase {
                         false,
                         false
                     ),
-                    testPlugin
+                    testPlugin,
+                    null
                 )
             )
         );
@@ -885,20 +888,22 @@ public class PluginsServiceTests extends ESTestCase {
     // We can use the direct ClassLoader from the plugin because tests do not use any parent SPI ClassLoaders.
     static void closePluginLoaders(PluginsService pluginService) {
         for (var lp : pluginService.plugins()) {
-            if (lp.instance().getClass().getClassLoader() instanceof URLClassLoader urlClassLoader) {
+            if (lp.classLoader() instanceof URLClassLoader urlClassLoader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(urlClassLoader);
                 } catch (IOException unexpected) {
                     throw new UncheckedIOException(unexpected);
                 }
-            }
-            if (lp.instance().getClass().getClassLoader() instanceof UberModuleClassLoader loader) {
+            } else if (lp.classLoader() instanceof UberModuleClassLoader loader) {
                 try {
                     PrivilegedOperations.closeURLClassLoader(loader.getInternalLoader());
                 } catch (Exception e) {
                     throw new RuntimeException(e);
                 }
+            } else {
+                throw new AssertionError("Cannot close unexpected classloader " + lp.classLoader());
             }
+
         }
     }
 

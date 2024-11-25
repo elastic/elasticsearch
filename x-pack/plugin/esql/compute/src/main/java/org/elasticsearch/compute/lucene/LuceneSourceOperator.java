@@ -93,7 +93,6 @@ public class LuceneSourceOperator extends LuceneOperator {
         try {
             this.docsBuilder = blockFactory.newIntVectorBuilder(estimatedSize);
             if (scoreMode.needsScores()) {
-                System.err.println("basic scoring");
                 scoreBuilder = blockFactory.newDoubleVectorBuilder(estimatedSize);
                 this.leafCollector = new ScoringCollector();
             } else {

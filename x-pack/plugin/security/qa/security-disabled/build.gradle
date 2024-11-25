@@ -1,11 +1,17 @@
 /*
+ * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+ * or more contributor license agreements. Licensed under the Elastic License
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
+ */
+
+/*
  * This QA project tests the security plugin when security is explicitly disabled.
  * It is intended to cover security functionality which is supposed to
  * function in a specific way even if security is disabled on the cluster
  * For example: If a cluster has a pipeline with the set_security_user processor
  *              defined, it should be not fail
  */
-import org.elasticsearch.gradle.internal.info.BuildParams
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 

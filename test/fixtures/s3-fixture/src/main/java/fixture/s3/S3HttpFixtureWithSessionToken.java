@@ -18,16 +18,8 @@ public class S3HttpFixtureWithSessionToken extends S3HttpFixture {
 
     protected final String sessionToken;
 
-    public S3HttpFixtureWithSessionToken() {
-        this(true);
-    }
-
-    public S3HttpFixtureWithSessionToken(boolean enabled) {
-        this(enabled, "session_token_bucket", "session_token_base_path_integration_tests", "session_token_access_key", "session_token");
-    }
-
-    public S3HttpFixtureWithSessionToken(boolean enabled, String bucket, String basePath, String accessKey, String sessionToken) {
-        super(enabled, bucket, basePath, accessKey);
+    public S3HttpFixtureWithSessionToken(String bucket, String basePath, String accessKey, String sessionToken) {
+        super(true, bucket, basePath, accessKey);
         this.sessionToken = sessionToken;
     }
 

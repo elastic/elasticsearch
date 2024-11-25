@@ -1,0 +1,5 @@
+pr: 117312
+summary: Add missing `async_search` query parameters to rest-api-spec
+area: Search
+type: bug
+issues: []

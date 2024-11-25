@@ -63,7 +63,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -398,29 +397,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    /**
-     * Override to provide additional test-only historical features.
-     *
-     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
-     * must contain only historical features, otherwise an assertion error is thrown.
-     */
-    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
-        return List.of();
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification."
-            );
-        }
-        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {

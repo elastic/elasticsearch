@@ -6,6 +6,7 @@
 #
 
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene87.BWCLucene87Codec
+org.elasticsearch.xpack.lucene.bwc.codecs.lucene86.BWCLucene86Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.BWCLucene70Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene70.Lucene70Codec
 org.elasticsearch.xpack.lucene.bwc.codecs.lucene62.Lucene62Codec

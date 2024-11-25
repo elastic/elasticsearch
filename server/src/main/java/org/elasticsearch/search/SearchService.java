@@ -46,6 +46,7 @@ import org.elasticsearch.common.util.concurrent.ConcurrentCollections;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.IOUtils;
+import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.RefCounted;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
@@ -553,19 +554,21 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
             : "empty responses require more than one shard";
         final IndexShard shard = getShard(request);
         rewriteAndFetchShardRequest(shard, request, listener.delegateFailure((l, orig) -> {
+            final ReaderContext readerContext = request.readerId() == null ? null : findReaderContext(orig.readerId(), orig);
+            IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
             // check if we can shortcut the query phase entirely.
             if (orig.canReturnNullResponseIfMatchNoDocs()) {
                 assert orig.scroll() == null;
-                final CanMatchShardResponse canMatchResp;
-                try {
-                    ShardSearchRequest clone = new ShardSearchRequest(orig);
-                    canMatchResp = canMatch(clone, false);
+                CanMatchShardResponse canMatchResp;
+                ShardSearchRequest clone = new ShardSearchRequest(orig);
+                try (CanMatchContext canMatchContext = new CanMatchContext(clone, indexService, readerContext, getKeepAlive(request))) {
+                    canMatchResp = canMatch(canMatchContext, false);
                 } catch (Exception exc) {
-                    l.onFailure(exc);
-                    return;
+                    // if can_match throws for some reason, we go ahead with the query phase
+                    canMatchResp = new CanMatchShardResponse(true, null);
                 }
                 if (canMatchResp.canMatch() == false) {
-                    l.onResponse(QuerySearchResult.nullInstance());
+                    listener.onResponse(QuerySearchResult.nullInstance());
                     return;
                 }
             }
@@ -1645,39 +1648,96 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * won't match any documents on the current shard.
      */
     public CanMatchShardResponse canMatch(ShardSearchRequest request) throws IOException {
-        return canMatch(request, true);
+        ReaderContext readerContext = findReaderContext(request.readerId(), request);
+        IndexService indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
+        try (CanMatchContext canMatchContext = new CanMatchContext(request, indexService, readerContext, getKeepAlive(request))) {
+            return canMatch(canMatchContext, true);
+        }
     }
 
-    private CanMatchShardResponse canMatch(ShardSearchRequest request, boolean checkRefreshPending) throws IOException {
-        assert request.searchType() == SearchType.QUERY_THEN_FETCH : "unexpected search type: " + request.searchType();
+    static class CanMatchContext implements Releasable {
+        private final ShardSearchRequest request;
+        private final ReaderContext readerContext;
+        private final IndexService indexService;
+        private final IndexService readerContextIndexService;
+        private final Releasable releasable;
+
+        CanMatchContext(
+            ShardSearchRequest request,
+            IndexService indexService,
+            @Nullable ReaderContext readerContext,
+            long requestKeepAlive
+        ) {
+            this.request = request;
+            this.readerContext = readerContext;
+            this.indexService = indexService;
+            if (request.readerId() == null) {
+                assert readerContext == null;
+                this.releasable = null;
+                this.readerContextIndexService = null;
+            } else {
+                assert readerContext != null;
+                releasable = readerContext.markAsUsed(requestKeepAlive);
+                this.readerContextIndexService = readerContext.indexService();
+            }
+        }
+
+        QueryRewriteContext getQueryRewriteContext(IndexService indexService) {
+            return indexService.newQueryRewriteContext(request::nowInMillis, request.getRuntimeMappings(), request.getClusterAlias());
+        }
+
+        SearchExecutionContext getSearchExecutionContext(Engine.Searcher searcher) {
+            return indexService.newSearchExecutionContext(
+                request.shardId().id(),
+                0,
+                searcher,
+                request::nowInMillis,
+                request.getClusterAlias(),
+                request.getRuntimeMappings()
+            );
+        }
+
+        IndexShard getShard() {
+            return indexService.getShard(request.shardId().getId());
+        }
+
+        @Override
+        public void close() {
+            Releasables.close(releasable);
+        }
+    }
+
+    static CanMatchShardResponse canMatch(CanMatchContext canMatchContext, boolean checkRefreshPending) throws IOException {
+        assert canMatchContext.request.searchType() == SearchType.QUERY_THEN_FETCH
+            : "unexpected search type: " + canMatchContext.request.searchType();
         Releasable releasable = null;
         try {
-            IndexService indexService;
             final boolean hasRefreshPending;
             final Engine.Searcher canMatchSearcher;
-            if (request.readerId() != null) {
+            if (canMatchContext.readerContext != null) {
+                assert canMatchContext.request.readerId() != null;
                 hasRefreshPending = false;
-                ReaderContext readerContext;
                 Engine.Searcher searcher;
                 try {
-                    readerContext = findReaderContext(request.readerId(), request);
-                    releasable = readerContext.markAsUsed(getKeepAlive(request));
-                    indexService = readerContext.indexService();
-                    if (canMatchAfterRewrite(request, indexService) == false) {
+                    if (queryStillMatchesAfterRewrite(
+                        canMatchContext.request,
+                        canMatchContext.getQueryRewriteContext(canMatchContext.readerContextIndexService)
+                    ) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
-                    searcher = readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
+                    searcher = canMatchContext.readerContext.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
                 } catch (SearchContextMissingException e) {
-                    final String searcherId = request.readerId().getSearcherId();
+                    final String searcherId = canMatchContext.request.readerId().getSearcherId();
                     if (searcherId == null) {
                         throw e;
                     }
-                    indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                    if (canMatchAfterRewrite(request, indexService) == false) {
+                    if (queryStillMatchesAfterRewrite(
+                        canMatchContext.request,
+                        canMatchContext.getQueryRewriteContext(canMatchContext.indexService)
+                    ) == false) {
                         return new CanMatchShardResponse(false, null);
                     }
-                    IndexShard indexShard = indexService.getShard(request.shardId().getId());
-                    final Engine.SearcherSupplier searcherSupplier = indexShard.acquireSearcherSupplier();
+                    final Engine.SearcherSupplier searcherSupplier = canMatchContext.getShard().acquireSearcherSupplier();
                     if (searcherId.equals(searcherSupplier.getSearcherId()) == false) {
                         searcherSupplier.close();
                         throw e;
@@ -1687,36 +1747,33 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
                 }
                 canMatchSearcher = searcher;
             } else {
-                indexService = indicesService.indexServiceSafe(request.shardId().getIndex());
-                if (canMatchAfterRewrite(request, indexService) == false) {
+                if (queryStillMatchesAfterRewrite(
+                    canMatchContext.request,
+                    canMatchContext.getQueryRewriteContext(canMatchContext.indexService)
+                ) == false) {
                     return new CanMatchShardResponse(false, null);
                 }
-                IndexShard indexShard = indexService.getShard(request.shardId().getId());
-                boolean needsWaitForRefresh = request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
+                boolean needsWaitForRefresh = canMatchContext.request.waitForCheckpoint() != UNASSIGNED_SEQ_NO;
                 // If this request wait_for_refresh behavior, it is safest to assume a refresh is pending. Theoretically,
                 // this can be improved in the future by manually checking that the requested checkpoint has already been refresh.
                 // However, this will request modifying the engine to surface that information.
+                IndexShard indexShard = canMatchContext.getShard();
                 hasRefreshPending = needsWaitForRefresh || (indexShard.hasRefreshPending() && checkRefreshPending);
                 canMatchSearcher = indexShard.acquireSearcher(Engine.CAN_MATCH_SEARCH_SOURCE);
             }
             try (canMatchSearcher) {
-                SearchExecutionContext context = indexService.newSearchExecutionContext(
-                    request.shardId().id(),
-                    0,
-                    canMatchSearcher,
-                    request::nowInMillis,
-                    request.getClusterAlias(),
-                    request.getRuntimeMappings()
-                );
-                final boolean canMatch = queryStillMatchesAfterRewrite(request, context);
-                final MinAndMax<?> minMax;
+                SearchExecutionContext context = canMatchContext.getSearchExecutionContext(canMatchSearcher);
+                final boolean canMatch = queryStillMatchesAfterRewrite(canMatchContext.request, context);
                 if (canMatch || hasRefreshPending) {
-                    FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(request.source());
-                    minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
-                } else {
-                    minMax = null;
+                    try {
+                        FieldSortBuilder sortBuilder = FieldSortBuilder.getPrimaryFieldSortOrNull(canMatchContext.request.source());
+                        final MinAndMax<?> minMax = sortBuilder != null ? FieldSortBuilder.getMinMaxOrNull(context, sortBuilder) : null;
+                        return new CanMatchShardResponse(true, minMax);
+                    } catch (Exception e) {
+                        return new CanMatchShardResponse(true, null);
+                    }
                 }
-                return new CanMatchShardResponse(canMatch || hasRefreshPending, minMax);
+                return new CanMatchShardResponse(false, null);
             }
         } finally {
             Releasables.close(releasable);
@@ -1730,15 +1787,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      * {@link MatchNoneQueryBuilder}. This allows us to avoid extra work for example making the shard search active and waiting for
      * refreshes.
      */
-    private static boolean canMatchAfterRewrite(final ShardSearchRequest request, final IndexService indexService) throws IOException {
-        final QueryRewriteContext queryRewriteContext = indexService.newQueryRewriteContext(
-            request::nowInMillis,
-            request.getRuntimeMappings(),
-            request.getClusterAlias()
-        );
-        return queryStillMatchesAfterRewrite(request, queryRewriteContext);
-    }
-
     @SuppressWarnings("unchecked")
     public static boolean queryStillMatchesAfterRewrite(ShardSearchRequest request, QueryRewriteContext context) throws IOException {
         Rewriteable.rewrite(request.getRewriteable(), context, false);

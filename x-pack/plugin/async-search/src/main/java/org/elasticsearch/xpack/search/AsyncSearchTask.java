@@ -447,10 +447,23 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         }
 
         /**
-         * onListShards is guaranteed to be the first SearchProgressListener method called and
+         * onSearchStart is guaranteed to be the first SearchProgressListener method called and
          * the search will not progress until this returns, so this is a safe place to initialize state
          * that is needed for handling subsequent callbacks.
          */
+        @Override
+        public void onSearchStart(Clusters clusters) {
+            checkCancellation();
+            assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
+            ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
+            if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
+                delegate = new CCSSingleCoordinatorSearchProgressListener();
+                delegate.onSearchStart(clusters);
+            }
+
+            searchResponse.set(new MutableSearchResponse(clusters, threadPool.getThreadContext()));
+        }
+
         @Override
         protected void onListShards(
             List<SearchShard> shards,
@@ -464,12 +477,10 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
             assert clusters.isCcsMinimizeRoundtrips() != null : "CCS minimize_roundtrips value must be set in this context";
             ccsMinimizeRoundtrips = clusters.isCcsMinimizeRoundtrips();
             if (ccsMinimizeRoundtrips == false && clusters.hasClusterObjects()) {
-                delegate = new CCSSingleCoordinatorSearchProgressListener();
                 delegate.onListShards(shards, skipped, clusters, fetchPhase, timeProvider);
             }
-            searchResponse.set(
-                new MutableSearchResponse(shards.size() + skipped.size(), skipped.size(), clusters, threadPool.getThreadContext())
-            );
+
+            searchResponse.get().updateShardsCount(shards.size() + skipped.size(), skipped.size());
             executeInitListeners();
         }
 
@@ -535,10 +546,12 @@ final class AsyncSearchTask extends SearchTask implements AsyncTask, Releasable 
         @Override
         public void onFailure(Exception exc) {
             // if the failure occurred before calling onListShards
-            var r = new MutableSearchResponse(-1, -1, null, threadPool.getThreadContext());
+            var r = new MutableSearchResponse(null, threadPool.getThreadContext());
             if (searchResponse.trySet(r) == false) {
+                r.updateShardsCount(-1, -1);
                 r.close();
             }
+
             searchResponse.get()
                 .updateWithFailure(new ElasticsearchStatusException("error while executing search", ExceptionsHelper.status(exc), exc));
             executeInitListeners();

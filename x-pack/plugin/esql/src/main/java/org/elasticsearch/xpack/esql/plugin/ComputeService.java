@@ -213,7 +213,6 @@ public class ComputeService {
             var exchangeSource = new ExchangeSourceHandler(
                 queryPragmas.exchangeBufferSize(),
                 transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-                true,
                 computeListener.acquireAvoid()
             );
             try (Releasable ignored = exchangeSource.addEmptySink()) {
@@ -350,7 +349,7 @@ public class ComputeService {
                         esqlExecutor,
                         refs.acquire().delegateFailureAndWrap((l, unused) -> {
                             var remoteSink = exchangeService.newRemoteSink(parentTask, childSessionId, transportService, node.connection);
-                            exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
+                            exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
                             ActionListener<ComputeResponse> computeResponseListener = computeListener.acquireCompute(clusterAlias);
                             var dataNodeListener = ActionListener.runBefore(computeResponseListener, () -> l.onResponse(null));
                             transportService.sendChildRequest(
@@ -399,7 +398,7 @@ public class ComputeService {
                     esqlExecutor,
                     refs.acquire().delegateFailureAndWrap((l, unused) -> {
                         var remoteSink = exchangeService.newRemoteSink(rootTask, childSessionId, transportService, cluster.connection);
-                        exchangeSource.addRemoteSink(remoteSink, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
+                        exchangeSource.addRemoteSink(remoteSink, true, queryPragmas.concurrentExchangeClients(), ActionListener.noop());
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
                         var clusterListener = ActionListener.runBefore(
@@ -742,8 +741,8 @@ public class ComputeService {
             // run the node-level reduction
             var externalSink = exchangeService.getSinkHandler(externalId);
             task.addListener(() -> exchangeService.finishSinkHandler(externalId, new TaskCancelledException(task.getReasonCancelled())));
-            var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, true, computeListener.acquireAvoid());
-            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, 1, ActionListener.noop());
+            var exchangeSource = new ExchangeSourceHandler(1, esqlExecutor, computeListener.acquireAvoid());
+            exchangeSource.addRemoteSink(internalSink::fetchPageAsync, true, 1, ActionListener.noop());
             ActionListener<ComputeResponse> reductionListener = computeListener.acquireCompute();
             runCompute(
                 task,
@@ -881,7 +880,6 @@ public class ComputeService {
         var exchangeSource = new ExchangeSourceHandler(
             configuration.pragmas().exchangeBufferSize(),
             transportService.getThreadPool().executor(ThreadPool.Names.SEARCH),
-            true,
             computeListener.acquireAvoid()
         );
         try (Releasable ignored = exchangeSource.addEmptySink()) {

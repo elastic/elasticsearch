@@ -535,12 +535,7 @@ public class CsvTests extends ESTestCase {
             bigArrays,
             ByteSizeValue.ofBytes(randomLongBetween(1, BlockFactory.DEFAULT_MAX_BLOCK_PRIMITIVE_ARRAY_SIZE.getBytes() * 2))
         );
-        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(
-            between(1, 64),
-            executor,
-            Randomness.get().nextBoolean(),
-            ActionListener.noop()
-        );
+        ExchangeSourceHandler exchangeSource = new ExchangeSourceHandler(between(1, 64), executor, ActionListener.noop());
         ExchangeSinkHandler exchangeSink = new ExchangeSinkHandler(blockFactory, between(1, 64), threadPool::relativeTimeInMillis);
 
         LocalExecutionPlanner executionPlanner = new LocalExecutionPlanner(
@@ -570,7 +565,14 @@ public class CsvTests extends ESTestCase {
             var physicalTestOptimizer = new TestLocalPhysicalPlanOptimizer(new LocalPhysicalOptimizerContext(configuration, searchStats));
 
             var csvDataNodePhysicalPlan = PlannerUtils.localPlan(dataNodePlan, logicalTestOptimizer, physicalTestOptimizer);
-            exchangeSource.addRemoteSink(exchangeSink::fetchPageAsync, randomIntBetween(1, 3), ActionListener.noop());
+            exchangeSource.addRemoteSink(
+                exchangeSink::fetchPageAsync,
+                Randomness.get().nextBoolean(),
+                randomIntBetween(1, 3),
+                ActionListener.<Void>noop().delegateResponse((l, e) -> {
+                    throw new AssertionError("expected no failure", e);
+                })
+            );
             LocalExecutionPlan dataNodeExecutionPlan = executionPlanner.plan(csvDataNodePhysicalPlan);
 
             drivers.addAll(dataNodeExecutionPlan.createDrivers(getTestName()));

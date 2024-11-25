@@ -292,10 +292,10 @@ public class EsqlSession {
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
             .collect(Collectors.toSet());
+        final List<TableInfo> indices = preAnalysis.indices;
+        // TODO: make a separate call for lookup indices
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
-            preAnalysis.indices.stream()
-                .flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index())))
-                .toArray(String[]::new)
+            indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
         enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API

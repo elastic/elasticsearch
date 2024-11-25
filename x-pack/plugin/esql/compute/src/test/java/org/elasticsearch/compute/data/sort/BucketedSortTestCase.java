@@ -363,6 +363,52 @@ public abstract class BucketedSortTestCase<T extends Releasable, V extends Compa
         }
     }
 
+    public final void testMergeOtherBigger() {
+        try (T sort = build(SortOrder.ASC, 3)) {
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 0);
+            collect(sort, values.get(2), 0);
+
+            try (T other = build(SortOrder.ASC, 3)) {
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 1);
+                collect(other, values.get(2), 2);
+
+                merge(sort, 0, other, 0);
+                merge(sort, 0, other, 1);
+                merge(sort, 0, other, 2);
+            }
+
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
+        }
+    }
+
+    public final void testMergeThisBigger() {
+        try (T sort = build(SortOrder.ASC, 3)) {
+            var values = threeSortedValues();
+
+            collect(sort, values.get(0), 0);
+            collect(sort, values.get(1), 1);
+            collect(sort, values.get(2), 2);
+
+            try (T other = build(SortOrder.ASC, 3)) {
+                collect(other, values.get(0), 0);
+                collect(other, values.get(1), 0);
+                collect(other, values.get(2), 0);
+
+                merge(sort, 0, other, 0);
+                merge(sort, 1, other, 0);
+                merge(sort, 2, other, 0);
+            }
+
+            assertBlock(sort, 0, List.of(values.get(0), values.get(0), values.get(1)));
+            assertBlock(sort, 1, List.of(values.get(0), values.get(1), values.get(1)));
+            assertBlock(sort, 2, values);
+        }
+    }
+
     protected void assertBlock(T sort, int groupId, List<V> values) {
         var blockFactory = TestBlockFactory.getNonBreakingInstance();
 

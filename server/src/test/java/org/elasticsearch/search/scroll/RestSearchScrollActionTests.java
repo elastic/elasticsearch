@@ -57,7 +57,7 @@ public class RestSearchScrollActionTests extends ESTestCase {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withParams(params)
                 .withContent(new BytesArray("{\"scroll_id\":\"BODY\", \"scroll\":\"1m\"}"), XContentType.JSON)
                 .build();
-            FakeRestChannel channel = new FakeRestChannel(request, true, 0);
+            FakeRestChannel channel = new FakeRestChannel(request, randomBoolean(), 0);
             action.handleRequest(request, channel, nodeClient);
 
             assertThat(scrollCalled.get(), equalTo(true));

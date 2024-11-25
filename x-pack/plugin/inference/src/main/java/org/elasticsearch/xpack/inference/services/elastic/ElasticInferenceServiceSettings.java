@@ -14,7 +14,10 @@ import java.util.List;
 
 public class ElasticInferenceServiceSettings {
 
-    static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
+    public static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString(
+        "xpack.inference.eis.gateway.url",
+        Setting.Property.NodeScope
+    );
 
     // Adjust this variable to be volatile, if the setting can be updated at some point in time
     private final String eisGatewayUrl;

@@ -59,6 +59,7 @@ import org.elasticsearch.xpack.inference.action.TransportPutInferenceModelAction
 import org.elasticsearch.xpack.inference.action.TransportUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter;
 import org.elasticsearch.xpack.inference.common.Truncator;
+import org.elasticsearch.xpack.inference.common.UpdateRateLimitsClusterService;
 import org.elasticsearch.xpack.inference.external.amazonbedrock.AmazonBedrockRequestSender;
 import org.elasticsearch.xpack.inference.external.http.HttpClientManager;
 import org.elasticsearch.xpack.inference.external.http.HttpSettings;
@@ -142,6 +143,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     private final SetOnce<ElasticInferenceServiceComponents> eisComponents = new SetOnce<>();
     private final SetOnce<InferenceServiceRegistry> inferenceServiceRegistry = new SetOnce<>();
     private final SetOnce<ShardBulkInferenceActionFilter> shardBulkInferenceActionFilter = new SetOnce<>();
+    private final SetOnce<UpdateRateLimitsClusterService> updateRateLimitsClusterService = new SetOnce<>();
     private List<InferenceServiceExtension> inferenceServiceExtensions;
 
     public InferencePlugin(Settings settings) {
@@ -188,6 +190,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public Collection<?> createComponents(PluginServices services) {
+        var clusterService = services.clusterService();
+
         var throttlerManager = new ThrottlerManager(settings, services.threadPool(), services.clusterService());
         var truncator = new Truncator(settings, services.clusterService());
         serviceComponents.set(new ServiceComponents(services.threadPool(), throttlerManager, settings, truncator));
@@ -238,7 +242,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         var meterRegistry = services.telemetryProvider().getMeterRegistry();
         var stats = new PluginComponentBinding<>(InferenceStats.class, InferenceStats.create(meterRegistry));
 
-        return List.of(modelRegistry, registry, httpClientManager, stats);
+        updateRateLimitsClusterService.set(new UpdateRateLimitsClusterService(clusterService, registry));
+
+        return List.of(modelRegistry, registry, httpClientManager, stats, updateRateLimitsClusterService.get());
     }
 
     @Override

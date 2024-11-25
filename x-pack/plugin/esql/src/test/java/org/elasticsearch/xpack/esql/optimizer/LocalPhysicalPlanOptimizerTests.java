@@ -781,7 +781,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             from test
             | where kql("last_name: Smith") and cidr_match(ip, "127.0.0.1/32")
             """;
-        var analyzer = makeAnalyzer("mapping-all-types.json");
+        var analyzer = makeAnalyzer("mapping-all-types.json", new EnrichResolution());
         var plan = plannerOptimizer.plan(queryText, IS_SV_STATS, analyzer);
 
         var limit = as(plan, LimitExec.class);

@@ -3,7 +3,7 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ multi_dense_vector_script_max_sim ]
+          capabilities: [ multi_dense_vector_script_max_sim_with_bugfix ]
       test_runner_features: capabilities
       reason: "Support for multi dense vector max-sim functions capability required"
   - skip:

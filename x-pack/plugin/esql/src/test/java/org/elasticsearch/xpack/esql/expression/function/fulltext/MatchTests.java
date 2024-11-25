@@ -18,8 +18,8 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
-import org.hamcrest.Matcher;
 
+import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Set;
@@ -36,56 +36,93 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() {
-        Set<DataType> supported = Set.of(DataType.KEYWORD, DataType.TEXT);
-        List<Set<DataType>> supportedPerPosition = List.of(supported, supported);
+        List<Set<DataType>> supportedPerPosition = supportedParams();
         List<TestCaseSupplier> suppliers = new LinkedList<>();
         for (DataType fieldType : DataType.stringTypes()) {
             for (DataType queryType : DataType.stringTypes()) {
-                suppliers.add(
-                    new TestCaseSupplier(
-                        "<" + fieldType + "-ES field, " + queryType + ">",
-                        List.of(fieldType, queryType),
-                        () -> testCase(fieldType, randomIdentifier(), queryType, randomAlphaOfLengthBetween(1, 10), equalTo(true))
-                    )
-                );
-                suppliers.add(
-                    new TestCaseSupplier(
-                        "<" + fieldType + "-non ES field, " + queryType + ">",
-                        List.of(fieldType, queryType),
-                        typeErrorSupplier(true, supportedPerPosition, List.of(fieldType, queryType), MatchTests::matchTypeErrorSupplier)
-                    )
-                );
+                addPositiveTestCase(List.of(fieldType, queryType), suppliers);
+                addNonFieldTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
             }
         }
-        List<TestCaseSupplier> errorsSuppliers = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
+
+        List<TestCaseSupplier> suppliersWithErrors = errorsForCasesWithoutExamples(suppliers, (v, p) -> "string");
+
         // Don't test null, as it is not allowed but the expected message is not a type error - so we check it separately in VerifierTests
-        return parameterSuppliersFromTypedData(errorsSuppliers.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList());
+        return parameterSuppliersFromTypedData(
+            suppliersWithErrors.stream().filter(s -> s.types().contains(DataType.NULL) == false).toList()
+        );
+    }
+
+    protected static List<Set<DataType>> supportedParams() {
+        Set<DataType> supportedTextParams = Set.of(DataType.KEYWORD, DataType.TEXT);
+        Set<DataType> supportedNumericParams = Set.of(DataType.DOUBLE, DataType.INTEGER);
+        Set<DataType> supportedFuzzinessParams = Set.of(DataType.INTEGER, DataType.KEYWORD, DataType.TEXT);
+        List<Set<DataType>> supportedPerPosition = List.of(
+            supportedTextParams,
+            supportedTextParams,
+            supportedNumericParams,
+            supportedFuzzinessParams
+        );
+        return supportedPerPosition;
+    }
+
+    protected static void addPositiveTestCase(List<DataType> paramDataTypes, List<TestCaseSupplier> suppliers) {
+
+        // Positive case - creates an ES field from the field parameter type
+        suppliers.add(
+            new TestCaseSupplier(
+                getTestCaseName(paramDataTypes, "-ES field"),
+                paramDataTypes,
+                () -> new TestCaseSupplier.TestCase(
+                    getTestParams(paramDataTypes),
+                    "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
+                    DataType.BOOLEAN,
+                    equalTo(true)
+                )
+            )
+        );
+    }
+
+    private static void addNonFieldTestCase(
+        List<DataType> paramDataTypes,
+        List<Set<DataType>> supportedPerPosition,
+        List<TestCaseSupplier> suppliers
+    ) {
+        // Negative case - use directly the field parameter type
+        suppliers.add(
+            new TestCaseSupplier(
+                getTestCaseName(paramDataTypes, "-non ES field"),
+                paramDataTypes,
+                typeErrorSupplier(true, supportedPerPosition, paramDataTypes, MatchTests::matchTypeErrorSupplier)
+            )
+        );
+    }
+
+    private static List<TestCaseSupplier.TypedData> getTestParams(List<DataType> paramDataTypes) {
+        String fieldName = randomIdentifier();
+        List<TestCaseSupplier.TypedData> params = new ArrayList<>();
+        params.add(
+            new TestCaseSupplier.TypedData(
+                new FieldExpression(fieldName, List.of(new FieldExpression.FieldValue(fieldName))),
+                paramDataTypes.get(0),
+                "field"
+            )
+        );
+        params.add(new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), paramDataTypes.get(1), "query"));
+        return params;
+    }
+
+    private static String getTestCaseName(List<DataType> paramDataTypes, String fieldType) {
+        StringBuilder sb = new StringBuilder();
+        sb.append("<");
+        sb.append(paramDataTypes.get(0)).append(fieldType).append(", ");
+        sb.append(paramDataTypes.get(1));
+        sb.append(">");
+        return sb.toString();
     }
 
     private static String matchTypeErrorSupplier(boolean includeOrdinal, List<Set<DataType>> validPerPosition, List<DataType> types) {
         return "[] cannot operate on [" + types.get(0).typeName() + "], which is not a field from an index mapping";
-    }
-
-    private static TestCaseSupplier.TestCase testCase(
-        DataType fieldType,
-        String field,
-        DataType queryType,
-        String query,
-        Matcher<Boolean> matcher
-    ) {
-        return new TestCaseSupplier.TestCase(
-            List.of(
-                new TestCaseSupplier.TypedData(
-                    new FieldExpression(field, List.of(new FieldExpression.FieldValue(field))),
-                    fieldType,
-                    "field"
-                ),
-                new TestCaseSupplier.TypedData(new BytesRef(query), queryType, "query")
-            ),
-            "EndsWithEvaluator[str=Attribute[channel=0], suffix=Attribute[channel=1]]",
-            DataType.BOOLEAN,
-            matcher
-        );
     }
 
     @Override

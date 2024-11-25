@@ -8,7 +8,7 @@ import org.elasticsearch.gradle.internal.info.BuildParams
  */
 
 apply plugin: 'elasticsearch.build'
-apply plugin: 'com.github.johnrengelman.shadow'
+apply plugin: 'com.gradleup.shadow'
 /* We don't use the 'application' plugin because it builds a zip and tgz which
  * we don't want. */
 
@@ -29,7 +29,7 @@ dependencies {
   api "org.jline:jline-style:${jlineVersion}"
 
   api project(':x-pack:plugin:sql:sql-client')
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   implementation "net.java.dev.jna:jna:${versions.jna}"
   testImplementation project(":test:framework")
 }

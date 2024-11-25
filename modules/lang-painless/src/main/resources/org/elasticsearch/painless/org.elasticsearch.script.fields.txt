@@ -132,6 +132,21 @@ class org.elasticsearch.script.field.SeqNoDocValuesField @dynamic_type {
 class org.elasticsearch.script.field.VersionDocValuesField @dynamic_type {
 }
 
+class org.elasticsearch.script.field.vectors.MultiDenseVector {
+    MultiDenseVector EMPTY
+    float[] getMagnitudes()
+
+    Iterator getVectors()
+    boolean isEmpty()
+    int getDims()
+    int size()
+}
+
+class org.elasticsearch.script.field.vectors.MultiDenseVectorDocValuesField {
+    MultiDenseVector get()
+    MultiDenseVector get(MultiDenseVector)
+}
+
 class org.elasticsearch.script.field.vectors.DenseVector {
     DenseVector EMPTY
     float getMagnitude()

@@ -755,6 +755,70 @@ public class CrossClusterSearchIT extends AbstractMultiClustersTestCase {
         assertNotNull(ee.getCause());
     }
 
+    public void testClusterDetailsWhenLocalClusterHasNoMatchingIndex() throws Exception {
+        Map<String, Object> testClusterInfo = setupTwoClusters();
+        String remoteIndex = (String) testClusterInfo.get("remote.index");
+        int remoteNumShards = (Integer) testClusterInfo.get("remote.num_shards");
+
+        SearchRequest searchRequest = new SearchRequest("nomatch*", REMOTE_CLUSTER + ":" + remoteIndex);
+        if (randomBoolean()) {
+            searchRequest = searchRequest.scroll(TimeValue.timeValueMinutes(1));
+        }
+
+        searchRequest.allowPartialSearchResults(false);
+        if (randomBoolean()) {
+            searchRequest.setBatchedReduceSize(randomIntBetween(3, 20));
+        }
+
+        boolean minimizeRoundtrips = false;
+        searchRequest.setCcsMinimizeRoundtrips(minimizeRoundtrips);
+
+        boolean dfs = randomBoolean();
+        if (dfs) {
+            searchRequest.searchType(SearchType.DFS_QUERY_THEN_FETCH);
+        }
+
+        if (randomBoolean()) {
+            searchRequest.setPreFilterShardSize(1);
+        }
+
+        searchRequest.source(new SearchSourceBuilder().query(new MatchAllQueryBuilder()).size(10));
+        assertResponse(client(LOCAL_CLUSTER).search(searchRequest), response -> {
+            assertNotNull(response);
+
+            Clusters clusters = response.getClusters();
+            assertFalse("search cluster results should BE successful", clusters.hasPartialResults());
+            assertThat(clusters.getTotal(), equalTo(2));
+            assertThat(clusters.getClusterStateCount(Cluster.Status.SUCCESSFUL), equalTo(2));
+            assertThat(clusters.getClusterStateCount(Cluster.Status.SKIPPED), equalTo(0));
+            assertThat(clusters.getClusterStateCount(Cluster.Status.RUNNING), equalTo(0));
+            assertThat(clusters.getClusterStateCount(Cluster.Status.PARTIAL), equalTo(0));
+            assertThat(clusters.getClusterStateCount(Cluster.Status.FAILED), equalTo(0));
+
+            Cluster localClusterSearchInfo = clusters.getCluster(RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY);
+            assertNotNull(localClusterSearchInfo);
+            assertThat(localClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(localClusterSearchInfo.getIndexExpression(), equalTo("nomatch*"));
+            assertThat(localClusterSearchInfo.getTotalShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getSuccessfulShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(localClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(localClusterSearchInfo.getTook().millis(), equalTo(0L));
+
+            Cluster remoteClusterSearchInfo = clusters.getCluster(REMOTE_CLUSTER);
+            assertNotNull(remoteClusterSearchInfo);
+            assertThat(remoteClusterSearchInfo.getStatus(), equalTo(Cluster.Status.SUCCESSFUL));
+            assertThat(remoteClusterSearchInfo.getIndexExpression(), equalTo(remoteIndex));
+            assertThat(remoteClusterSearchInfo.getTotalShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSuccessfulShards(), equalTo(remoteNumShards));
+            assertThat(remoteClusterSearchInfo.getSkippedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailedShards(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getFailures().size(), equalTo(0));
+            assertThat(remoteClusterSearchInfo.getTook().millis(), greaterThan(0L));
+        });
+    }
+
     private static void assertOneFailedShard(Cluster cluster, int totalShards) {
         assertNotNull(cluster);
         assertThat(cluster.getStatus(), equalTo(Cluster.Status.PARTIAL));

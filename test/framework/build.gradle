@@ -14,9 +14,9 @@ apply plugin: 'elasticsearch.publish'
 dependencies {
   api project(":client:rest")
   api project(':modules:transport-netty4')
-  api project(':libs:elasticsearch-ssl-config')
+  api project(':libs:ssl-config')
   api project(":server")
-  api project(":libs:elasticsearch-cli")
+  api project(":libs:cli")
   api "com.carrotsearch.randomizedtesting:randomizedtesting-runner:${versions.randomizedrunner}"
   api "junit:junit:${versions.junit}"
   api "org.hamcrest:hamcrest:${versions.hamcrest}"

@@ -16,6 +16,7 @@ import org.apache.lucene.search.TotalHits;
 import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
+import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.node.DiscoveryNode;
@@ -219,7 +220,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -258,17 +259,21 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         }
     }
 
-    public void testMinimumVersionSameAsNewVersion() throws Exception {
+    public void testMinimumVersionSameAsNewVersion() {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(newVersion.nodeVersion())
+            ),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
         testMixedVersionsShardsSearch(newVersion, oldVersion, newVersion.nodeVersion());
     }
 
-    public void testMinimumVersionBetweenNewAndOldVersion() throws Exception {
+    public void testMinimumVersionBetweenNewAndOldVersion() {
         var oldVersion = new VersionInformation(
             VersionUtils.getFirstVersion(),
             IndexVersions.MINIMUM_COMPATIBLE,
@@ -290,8 +295,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
         testMixedVersionsShardsSearch(newVersion, oldVersion, minVersion);
     }
 
-    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion)
-        throws Exception {
+    private void testMixedVersionsShardsSearch(VersionInformation oldVersion, VersionInformation newVersion, Version minVersion) {
         final TransportSearchAction.SearchTimeProvider timeProvider = new TransportSearchAction.SearchTimeProvider(
             0,
             System.nanoTime(),
@@ -372,7 +376,6 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                         responses.add(response);
                     }
 
-                ;
                 },
                 shardsIter,
                 timeProvider,
@@ -397,7 +400,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testMinimumVersionSameAsOldVersion() throws Exception {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(newVersion.nodeVersion())
+            ),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -530,7 +537,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -553,7 +560,11 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
     public void testMinimumVersionShardDuringPhaseExecution() throws Exception {
         var newVersion = VersionInformation.CURRENT;
         var oldVersion = new VersionInformation(
-            VersionUtils.randomCompatibleVersion(random(), VersionUtils.getPreviousVersion()),
+            VersionUtils.randomVersionBetween(
+                random(),
+                Version.CURRENT.minimumCompatibilityVersion(),
+                VersionUtils.getPreviousVersion(newVersion.nodeVersion())
+            ),
             IndexVersions.MINIMUM_COMPATIBLE,
             IndexVersionUtils.randomCompatibleVersion(random())
         );
@@ -690,7 +701,7 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
                 null
             ) {
                 @Override
-                protected SearchPhase getNextPhase(SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+                protected SearchPhase getNextPhase() {
                     return new SearchPhase("test") {
                         @Override
                         public void run() {
@@ -723,17 +734,20 @@ public class SearchQueryThenFetchAsyncActionTests extends ESTestCase {
             assertThat(phase.totalHits().relation, equalTo(TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO));
 
             SearchShardTarget searchShardTarget = new SearchShardTarget("node3", shardIt.shardId(), null);
+            final PlainActionFuture<Void> f = new PlainActionFuture<>();
             SearchActionListener<SearchPhaseResult> listener = new SearchActionListener<SearchPhaseResult>(searchShardTarget, 0) {
                 @Override
-                public void onFailure(Exception e) {}
+                public void onFailure(Exception e) {
+                    f.onFailure(e);
+                }
 
                 @Override
-                protected void innerOnResponse(SearchPhaseResult response) {}
+                protected void innerOnResponse(SearchPhaseResult response) {
+                    fail("should not be called");
+                }
             };
-            Exception e = expectThrows(
-                VersionMismatchException.class,
-                () -> action.executePhaseOnShard(shardIt, searchShardTarget, listener)
-            );
+            action.executePhaseOnShard(shardIt, searchShardTarget, listener);
+            Exception e = expectThrows(VersionMismatchException.class, f::actionGet);
             assertThat(e.getMessage(), equalTo("One of the shards is incompatible with the required minimum version [" + minVersion + "]"));
         }
     }

@@ -171,7 +171,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
         }
     }
 
-    private static void enableLogsdbByDefault() throws IOException {
+    static void enableLogsdbByDefault() throws IOException {
         var request = new Request("PUT", "/_cluster/settings");
         request.setJsonEntity("""
             {
@@ -214,7 +214,7 @@ public class LogsIndexModeRollingUpgradeIT extends AbstractRollingUpgradeTestCas
     }
 
     @SuppressWarnings("unchecked")
-    private static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
+    static String getWriteBackingIndex(final RestClient client, final String dataStreamName, int backingIndex) throws IOException {
         final Request request = new Request("GET", "_data_stream/" + dataStreamName);
         final List<Object> dataStreams = (List<Object>) entityAsMap(client.performRequest(request)).get("data_streams");
         final Map<String, Object> dataStream = (Map<String, Object>) dataStreams.get(0);

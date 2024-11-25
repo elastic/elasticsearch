@@ -13,6 +13,7 @@ import org.apache.lucene.tests.analysis.MockTokenFilter;
 import org.apache.lucene.tests.analysis.MockTokenizer;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
+import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.action.admin.indices.analyze.AnalyzeAction;
 import org.elasticsearch.action.admin.indices.analyze.TransportAnalyzeAction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -460,8 +461,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request, registry, null, maxTokenCount)
         );
         assertEquals(
@@ -477,8 +478,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         request2.text(text);
         request2.analyzer("standard");
         request2.explain(true);
-        IllegalStateException e2 = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e2 = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request2, registry, null, maxTokenCount)
         );
         assertEquals(
@@ -506,8 +507,8 @@ public class TransportAnalyzeActionTests extends ESTestCase {
         AnalyzeAction.Request request = new AnalyzeAction.Request();
         request.text(text);
         request.analyzer("standard");
-        IllegalStateException e = expectThrows(
-            IllegalStateException.class,
+        ElasticsearchStatusException e = expectThrows(
+            ElasticsearchStatusException.class,
             () -> TransportAnalyzeAction.analyze(request, registry, null, idxMaxTokenCount)
         );
         assertEquals(

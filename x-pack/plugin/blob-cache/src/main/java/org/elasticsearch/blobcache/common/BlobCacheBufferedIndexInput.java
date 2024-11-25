@@ -175,7 +175,7 @@ public abstract class BlobCacheBufferedIndexInput extends IndexInput implements 
 
     @Override
     public final long readVLong() throws IOException {
-        if (9 <= buffer.remaining()) {
+        if (10 <= buffer.remaining()) {
             return ByteBufferStreamInput.readVLong(buffer);
         } else {
             return super.readVLong();

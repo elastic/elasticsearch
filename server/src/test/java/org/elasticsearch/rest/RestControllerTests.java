@@ -158,7 +158,7 @@ public class RestControllerTests extends ESTestCase {
         final ThreadContext threadContext = client.threadPool().getThreadContext();
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         // the rest controller relies on the caller to stash the context, so we should expect these values here as we didn't stash the
         // context in this test
@@ -177,7 +177,7 @@ public class RestControllerTests extends ESTestCase {
         restHeaders.put("header.1", Collections.singletonList("boo"));
         restHeaders.put("header.2", List.of("foo", "bar"));
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).withHeaders(restHeaders).build();
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
     }
@@ -208,7 +208,7 @@ public class RestControllerTests extends ESTestCase {
                 });
             }
         });
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.OK);
         spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(requestsCounter).incrementBy(
             eq(1L),
@@ -232,7 +232,7 @@ public class RestControllerTests extends ESTestCase {
                 return null;
             }
         });
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
     }
@@ -254,7 +254,7 @@ public class RestControllerTests extends ESTestCase {
             }
         });
 
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
     }
@@ -277,7 +277,7 @@ public class RestControllerTests extends ESTestCase {
         }));
         when(spyRestController.getAllHandlers(any(), eq(fakeRequest.rawPath()))).thenAnswer(x -> handlers.iterator());
 
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.METHOD_NOT_ALLOWED);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.METHOD_NOT_ALLOWED);
         spyRestController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 405)));
     }
@@ -287,7 +287,7 @@ public class RestControllerTests extends ESTestCase {
         final RestController restController = new RestController(null, null, circuitBreakerService, usageService, telemetryProvider);
         RestRequest fakeRequest = new FakeRestRequest.Builder(xContentRegistry()).build();
 
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchBadRequest(channel, threadContext, new Exception());
         verify(requestsCounter).incrementBy(eq(1L), eq(Map.of(STATUS_CODE_KEY, 400)));
     }
@@ -311,7 +311,7 @@ public class RestControllerTests extends ESTestCase {
                 return new MethodHandlers("/").addMethod(GET, RestApiVersion.current(), (request, channel, client) -> {});
             }
         });
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.BAD_REQUEST);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.BAD_REQUEST);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         verify(tracer).startTrace(
             eq(threadContext),
@@ -337,7 +337,7 @@ public class RestControllerTests extends ESTestCase {
                 new RestResponse(RestStatus.OK, RestResponse.TEXT_CONTENT_TYPE, BytesArray.EMPTY)
             )
         );
-        AssertingChannel channel = new AssertingChannel(fakeRequest, false, RestStatus.OK);
+        AssertingChannel channel = new AssertingChannel(fakeRequest, true, RestStatus.OK);
         restController.dispatchRequest(fakeRequest, channel, threadContext);
         assertTrue(channel.getSendResponseCalled());
     }
@@ -801,7 +801,7 @@ public class RestControllerTests extends ESTestCase {
         final FakeRestRequest fakeRestRequest = new FakeRestRequest.Builder(NamedXContentRegistry.EMPTY).withMethod(GET)
             .withPath("/favicon.ico")
             .build();
-        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, false, RestStatus.OK);
+        final AssertingChannel channel = new AssertingChannel(fakeRestRequest, true, RestStatus.OK);
         restController.dispatchRequest(fakeRestRequest, channel, client.threadPool().getThreadContext());
         assertTrue(channel.getSendResponseCalled());
         assertThat(channel.getRestResponse().contentType(), containsString("image/x-icon"));
@@ -875,11 +875,6 @@ public class RestControllerTests extends ESTestCase {
 
             @Override
             public void release() {}
-
-            @Override
-            public HttpRequest releaseAndCopy() {
-                return this;
-            }
 
             @Override
             public Exception getInboundException() {
@@ -1085,7 +1080,7 @@ public class RestControllerTests extends ESTestCase {
         List<String> accessiblePaths = List.of("/public", "/internal", "/hidden");
         accessiblePaths.forEach(path -> {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
     }
@@ -1107,7 +1102,7 @@ public class RestControllerTests extends ESTestCase {
 
         final Consumer<List<String>> checkUnprotected = paths -> paths.forEach(path -> {
             RestRequest request = new FakeRestRequest.Builder(xContentRegistry()).withPath(path).build();
-            AssertingChannel channel = new AssertingChannel(request, false, RestStatus.OK);
+            AssertingChannel channel = new AssertingChannel(request, true, RestStatus.OK);
             restController.dispatchRequest(request, channel, new ThreadContext(Settings.EMPTY));
         });
         final Consumer<List<String>> checkProtected = paths -> paths.forEach(path -> {

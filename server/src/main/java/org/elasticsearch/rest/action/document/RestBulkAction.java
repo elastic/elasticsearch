@@ -10,6 +10,7 @@
 package org.elasticsearch.rest.action.document;
 
 import org.elasticsearch.ElasticsearchParseException;
+import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.DocWriteRequest;
 import org.elasticsearch.action.bulk.BulkRequest;
 import org.elasticsearch.action.bulk.BulkRequestParser;
@@ -39,9 +40,7 @@ import org.elasticsearch.transport.Transports;
 import java.io.IOException;
 import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.function.Supplier;
 
@@ -110,9 +109,11 @@ public class RestBulkAction extends BaseRestHandler {
             boolean defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
             bulkRequest.timeout(request.paramAsTime("timeout", BulkShardRequest.DEFAULT_TIMEOUT));
             bulkRequest.setRefreshPolicy(request.param("refresh"));
+            ReleasableBytesReference content = request.requiredReleasableContent();
+
             try {
                 bulkRequest.add(
-                    request.requiredContent(),
+                    content,
                     defaultIndex,
                     defaultRouting,
                     defaultFetchSourceContext,
@@ -127,8 +128,10 @@ public class RestBulkAction extends BaseRestHandler {
             } catch (Exception e) {
                 return channel -> new RestToXContentListener<>(channel).onFailure(parseFailureException(e));
             }
-
-            return channel -> client.bulk(bulkRequest, new RestRefCountedChunkedToXContentListener<>(channel));
+            return channel -> {
+                content.mustIncRef();
+                client.bulk(bulkRequest, ActionListener.releaseAfter(new RestRefCountedChunkedToXContentListener<>(channel), content));
+            };
         } else {
             if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
                 request.param("type");
@@ -152,19 +155,10 @@ public class RestBulkAction extends BaseRestHandler {
 
     static class ChunkHandler implements BaseRestHandler.RequestBodyChunkConsumer {
 
-        private final boolean allowExplicitIndex;
         private final RestRequest request;
 
-        private final Map<String, String> stringDeduplicator = new HashMap<>();
-        private final String defaultIndex;
-        private final String defaultRouting;
-        private final FetchSourceContext defaultFetchSourceContext;
-        private final String defaultPipeline;
-        private final boolean defaultListExecutedPipelines;
-        private final Boolean defaultRequireAlias;
-        private final boolean defaultRequireDataStream;
-        private final BulkRequestParser parser;
         private final Supplier<IncrementalBulkService.Handler> handlerSupplier;
+        private final BulkRequestParser.IncrementalParser parser;
         private IncrementalBulkService.Handler handler;
 
         private volatile RestChannel restChannel;
@@ -174,18 +168,22 @@ public class RestBulkAction extends BaseRestHandler {
         private final ArrayList<DocWriteRequest<?>> items = new ArrayList<>(4);
 
         ChunkHandler(boolean allowExplicitIndex, RestRequest request, Supplier<IncrementalBulkService.Handler> handlerSupplier) {
-            this.allowExplicitIndex = allowExplicitIndex;
             this.request = request;
-            this.defaultIndex = request.param("index");
-            this.defaultRouting = request.param("routing");
-            this.defaultFetchSourceContext = FetchSourceContext.parseFromRestRequest(request);
-            this.defaultPipeline = request.param("pipeline");
-            this.defaultListExecutedPipelines = request.paramAsBoolean("list_executed_pipelines", false);
-            this.defaultRequireAlias = request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false);
-            this.defaultRequireDataStream = request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false);
-            // TODO: Fix type deprecation logging
-            this.parser = new BulkRequestParser(false, request.getRestApiVersion());
             this.handlerSupplier = handlerSupplier;
+            this.parser = new BulkRequestParser(true, request.getRestApiVersion()).incrementalParser(
+                request.param("index"),
+                request.param("routing"),
+                FetchSourceContext.parseFromRestRequest(request),
+                request.param("pipeline"),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_ALIAS, false),
+                request.paramAsBoolean(DocWriteRequest.REQUIRE_DATA_STREAM, false),
+                request.paramAsBoolean("list_executed_pipelines", false),
+                allowExplicitIndex,
+                request.getXContentType(),
+                (indexRequest, type) -> items.add(indexRequest),
+                items::add,
+                items::add
+            );
         }
 
         @Override
@@ -221,23 +219,7 @@ public class RestBulkAction extends BaseRestHandler {
 
                     // TODO: Check that the behavior here vs. globalRouting, globalPipeline, globalRequireAlias, globalRequireDatsStream in
                     // BulkRequest#add is fine
-                    bytesConsumed = parser.incrementalParse(
-                        data,
-                        defaultIndex,
-                        defaultRouting,
-                        defaultFetchSourceContext,
-                        defaultPipeline,
-                        defaultRequireAlias,
-                        defaultRequireDataStream,
-                        defaultListExecutedPipelines,
-                        allowExplicitIndex,
-                        request.getXContentType(),
-                        (request, type) -> items.add(request),
-                        items::add,
-                        items::add,
-                        isLast == false,
-                        stringDeduplicator
-                    );
+                    bytesConsumed = parser.parse(data, isLast);
                     bytesParsed += bytesConsumed;
 
                 } catch (Exception e) {
@@ -264,7 +246,7 @@ public class RestBulkAction extends BaseRestHandler {
                 items.clear();
                 handler.addItems(toPass, () -> Releasables.close(releasables), () -> request.contentStream().next());
             } else {
-                assert releasables.isEmpty();
+                Releasables.close(releasables);
                 request.contentStream().next();
             }
         }
@@ -300,11 +282,6 @@ public class RestBulkAction extends BaseRestHandler {
 
     @Override
     public boolean supportsBulkContent() {
-        return true;
-    }
-
-    @Override
-    public boolean allowsUnsafeBuffers() {
         return true;
     }
 

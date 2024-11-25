@@ -1,5 +1,0 @@
-pr: 114264
-summary: "Fix analyzed wildcard query in simple_query_string when disjunctions is empty"
-area: Search
-type: bug
-issues: [114185]

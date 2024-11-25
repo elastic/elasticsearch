@@ -49,13 +49,12 @@ import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.VersionType;
-import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.plugins.IngestPlugin;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.script.MockScriptEngine;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.ScriptModule;
@@ -66,7 +65,6 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.MockLog;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.cbor.CborXContent;
 import org.junit.Before;
@@ -1170,70 +1168,6 @@ public class IngestServiceTests extends ESTestCase {
             argThat(iae -> "pipeline with id [does_not_exist] does not exist".equals(iae.getMessage()))
         );
         verify(completionHandler, times(1)).accept(Thread.currentThread(), null);
-    }
-
-    public void testExecuteBulkRequestCallsDocumentSizeObserver() {
-        /*
-         * This test makes sure that for both insert and upsert requests, when we call executeBulkRequest DocumentSizeObserver is
-         * called using a non-null index name.
-         */
-        AtomicInteger wrappedObserverWasUsed = new AtomicInteger(0);
-        AtomicInteger parsedValueWasUsed = new AtomicInteger(0);
-        DocumentParsingProvider documentParsingProvider = new DocumentParsingProvider() {
-            @Override
-            public <T> XContentMeteringParserDecorator newMeteringParserDecorator(DocWriteRequest<T> request) {
-                return new XContentMeteringParserDecorator() {
-                    @Override
-                    public ParsedDocument.DocumentSize meteredDocumentSize() {
-                        parsedValueWasUsed.incrementAndGet();
-                        return new ParsedDocument.DocumentSize(0, 0);
-                    }
-
-                    @Override
-                    public XContentParser decorate(XContentParser xContentParser) {
-                        wrappedObserverWasUsed.incrementAndGet();
-                        return xContentParser;
-                    }
-                };
-            }
-        };
-        IngestService ingestService = createWithProcessors(
-            Map.of("mock", (factories, tag, description, config) -> mockCompoundProcessor()),
-            documentParsingProvider
-        );
-
-        PutPipelineRequest putRequest = new PutPipelineRequest(
-            "_id",
-            new BytesArray("{\"processors\": [{\"mock\" : {}}]}"),
-            XContentType.JSON
-        );
-        ClusterState clusterState = ClusterState.builder(new ClusterName("_name")).build(); // Start empty
-        ClusterState previousClusterState = clusterState;
-        clusterState = executePut(putRequest, clusterState);
-        ingestService.applyClusterState(new ClusterChangedEvent("", clusterState, previousClusterState));
-
-        BulkRequest bulkRequest = new BulkRequest();
-        UpdateRequest updateRequest = new UpdateRequest("_index", "_id1").upsert("{}", "{}");
-        updateRequest.upsertRequest().setPipeline("_id");
-        bulkRequest.add(updateRequest);
-        IndexRequest indexRequest = new IndexRequest("_index").id("_id1").source(Map.of()).setPipeline("_id1");
-        bulkRequest.add(indexRequest);
-        @SuppressWarnings("unchecked")
-        BiConsumer<Integer, Exception> failureHandler = mock(BiConsumer.class);
-        @SuppressWarnings("unchecked")
-        final BiConsumer<Thread, Exception> completionHandler = mock(BiConsumer.class);
-        ingestService.executeBulkRequest(
-            bulkRequest.numberOfActions(),
-            bulkRequest.requests(),
-            indexReq -> {},
-            (s) -> false,
-            (slot, targetIndex, e) -> fail("Should not be redirecting failures"),
-            failureHandler,
-            completionHandler,
-            EsExecutors.DIRECT_EXECUTOR_SERVICE
-        );
-        assertThat(wrappedObserverWasUsed.get(), equalTo(2));
-        assertThat(parsedValueWasUsed.get(), equalTo(2));
     }
 
     public void testExecuteSuccess() {
@@ -2641,6 +2575,144 @@ public class IngestServiceTests extends ESTestCase {
             assertTrue(indexRequest.isPipelineResolved());
             assertThat(indexRequest.getPipeline(), equalTo("request-pipeline"));
             assertThat(indexRequest.getFinalPipeline(), equalTo("final-pipeline"));
+        }
+    }
+
+    public void testRolloverOnWrite() {
+        {   // false if not data stream
+            IndexMetadata.Builder builder = IndexMetadata.builder("idx")
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(0);
+            Metadata metadata = Metadata.builder().put(builder).build();
+            IndexRequest indexRequest = new IndexRequest("idx").setPipeline("request-pipeline");
+            assertFalse(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+
+        {   // false if not rollover on write
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "no-rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(false)
+                    .build()
+            ).build();
+
+            Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
+
+            IndexRequest indexRequest = new IndexRequest("no-rollover-data-stream");
+            assertFalse(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+
+        {   // true if rollover on write
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(true)
+                    .build()
+            ).build();
+
+            Metadata metadata = Metadata.builder().dataStreams(Map.of(dataStream.getName(), dataStream), Map.of()).build();
+
+            IndexRequest indexRequest = new IndexRequest("rollover-data-stream");
+            assertTrue(IngestService.isRolloverOnWrite(metadata, indexRequest));
+        }
+    }
+
+    public void testResolveFromTemplateIfRolloverOnWrite() {
+        {   // if rolloverOnWrite is false, get pipeline from metadata
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "no-rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(false)
+                    .build()
+            ).build();
+
+            IndexMetadata indexMetadata = IndexMetadata.builder(backingIndex)
+                .settings(
+                    settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "metadata-pipeline")
+                        .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+
+            Metadata metadata = Metadata.builder()
+                .indices(Map.of(backingIndex, indexMetadata))
+                .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+                .build();
+
+            IndexRequest indexRequest = new IndexRequest("no-rollover-data-stream");
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo("metadata-pipeline"));
+        }
+
+        {   // if rolloverOnWrite is true, get pipeline from template
+            var backingIndex = ".ds-data-stream-01";
+            var indexUUID = randomUUID();
+
+            var dataStream = DataStream.builder(
+                "rollover-data-stream",
+                DataStream.DataStreamIndices.backingIndicesBuilder(List.of(new Index(backingIndex, indexUUID)))
+                    .setRolloverOnWrite(true)
+                    .build()
+            ).build();
+
+            IndexMetadata indexMetadata = IndexMetadata.builder(backingIndex)
+                .settings(
+                    settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "metadata-pipeline")
+                        .put(IndexMetadata.SETTING_INDEX_UUID, indexUUID)
+                )
+                .numberOfShards(1)
+                .numberOfReplicas(0)
+                .build();
+
+            IndexTemplateMetadata.Builder templateBuilder = IndexTemplateMetadata.builder("name1")
+                .patterns(List.of("rollover*"))
+                .settings(settings(IndexVersion.current()).put(IndexSettings.DEFAULT_PIPELINE.getKey(), "template-pipeline"));
+
+            Metadata metadata = Metadata.builder()
+                .put(templateBuilder)
+                .indices(Map.of(backingIndex, indexMetadata))
+                .dataStreams(Map.of(dataStream.getName(), dataStream), Map.of())
+                .build();
+
+            IndexRequest indexRequest = new IndexRequest("rollover-data-stream");
+            IngestService.resolvePipelinesAndUpdateIndexRequest(indexRequest, indexRequest, metadata);
+            assertTrue(hasPipeline(indexRequest));
+            assertTrue(indexRequest.isPipelineResolved());
+            assertThat(indexRequest.getPipeline(), equalTo("template-pipeline"));
+        }
+    }
+
+    public void testSetPipelineOnRequest() {
+        {
+            // with request pipeline
+            var indexRequest = new IndexRequest("idx").setPipeline("request");
+            var pipelines = new IngestService.Pipelines("default", "final");
+            IngestService.setPipelineOnRequest(indexRequest, pipelines);
+            assertTrue(indexRequest.isPipelineResolved());
+            assertEquals(indexRequest.getPipeline(), "request");
+            assertEquals(indexRequest.getFinalPipeline(), "final");
+        }
+        {
+            // no request pipeline
+            var indexRequest = new IndexRequest("idx");
+            var pipelines = new IngestService.Pipelines("default", "final");
+            IngestService.setPipelineOnRequest(indexRequest, pipelines);
+            assertTrue(indexRequest.isPipelineResolved());
+            assertEquals(indexRequest.getPipeline(), "default");
+            assertEquals(indexRequest.getFinalPipeline(), "final");
         }
     }
 

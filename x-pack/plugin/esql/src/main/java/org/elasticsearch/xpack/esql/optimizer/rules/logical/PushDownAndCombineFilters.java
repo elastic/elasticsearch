@@ -15,8 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.expression.predicate.Predicates;
-import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
-import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
@@ -38,18 +36,13 @@ public final class PushDownAndCombineFilters extends OptimizerRules.OptimizerRul
         LogicalPlan child = filter.child();
         Expression condition = filter.condition();
 
+        // TODO: Push down past STATS if the filter is only on the groups; but take into account how `STATS ... BY field` handles
+        // multi-values: It seems to be equivalent to `EVAL field = MV_DEDUPE(field) | MV_EXPAND(field) | STATS ... BY field`, where the
+        // last `STATS ... BY field` can assume that `field` is single-valued (to be checked more thoroughly).
+        // https://github.com/elastic/elasticsearch/issues/115311
         if (child instanceof Filter f) {
             // combine nodes into a single Filter with updated ANDed condition
             plan = f.with(Predicates.combineAnd(List.of(f.condition(), condition)));
-        } else if (child instanceof Aggregate agg) { // TODO: re-evaluate along with multi-value support
-            // Only push [parts of] a filter past an agg if these/it operates on agg's grouping[s], not output.
-            plan = maybePushDownPastUnary(
-                filter,
-                agg,
-                e -> e instanceof Attribute && agg.output().contains(e) && agg.groupings().contains(e) == false
-                    || e instanceof AggregateFunction,
-                NO_OP
-            );
         } else if (child instanceof Eval eval) {
             // Don't push if Filter (still) contains references to Eval's fields.
             // Account for simple aliases in the Eval, though - these shouldn't stop us.

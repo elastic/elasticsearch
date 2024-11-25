@@ -91,6 +91,15 @@ public class MaxTests extends AbstractAggregationTestCase {
                     )
                 ),
                 new TestCaseSupplier(
+                    List.of(DataType.DATE_NANOS),
+                    () -> new TestCaseSupplier.TestCase(
+                        List.of(TestCaseSupplier.TypedData.multiRow(List.of(200L), DataType.DATE_NANOS, "field")),
+                        "Max[field=Attribute[channel=0]]",
+                        DataType.DATE_NANOS,
+                        equalTo(200L)
+                    )
+                ),
+                new TestCaseSupplier(
                     List.of(DataType.BOOLEAN),
                     () -> new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(true), DataType.BOOLEAN, "field")),
@@ -128,7 +137,7 @@ public class MaxTests extends AbstractAggregationTestCase {
                     return new TestCaseSupplier.TestCase(
                         List.of(TestCaseSupplier.TypedData.multiRow(List.of(value), DataType.TEXT, "field")),
                         "Max[field=Attribute[channel=0]]",
-                        DataType.TEXT,
+                        DataType.KEYWORD,
                         equalTo(value)
                     );
                 }),

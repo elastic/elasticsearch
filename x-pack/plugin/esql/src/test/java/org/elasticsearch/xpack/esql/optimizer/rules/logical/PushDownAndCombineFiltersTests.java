@@ -213,6 +213,7 @@ public class PushDownAndCombineFiltersTests extends ESTestCase {
 
     // from ... | where a > 1 | stats count(1) by b | where count(1) >= 3 and b < 2
     // => ... | where a > 1 and b < 2 | stats count(1) by b | where count(1) >= 3
+    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/115311")
     public void testSelectivelyPushDownFilterPastFunctionAgg() {
         EsRelation relation = relation();
         GreaterThan conditionA = greaterThanOf(getFieldAttribute("a"), ONE);

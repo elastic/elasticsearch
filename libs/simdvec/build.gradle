@@ -15,12 +15,12 @@ apply plugin: 'elasticsearch.build'
 apply plugin: 'elasticsearch.mrjar'
 
 dependencies {
-  implementation project(':libs:elasticsearch-native')
-  implementation project(':libs:elasticsearch-logging')
+  implementation project(':libs:native')
+  implementation project(':libs:logging')
   implementation "org.apache.lucene:lucene-core:${versions.lucene}"
 
   testImplementation(project(":test:framework")) {
-    exclude group: 'org.elasticsearch', module: 'elasticsearch-native'
+    exclude group: 'org.elasticsearch', module: 'native'
   }
 }
 

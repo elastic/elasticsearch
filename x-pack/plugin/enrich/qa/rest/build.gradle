@@ -32,3 +32,4 @@ testClusters.configureEach {
   setting 'xpack.security.enabled', 'false'
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.4.0")
 }
+

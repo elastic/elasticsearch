@@ -1,0 +1,33 @@
+[[release-notes-8.15.4]]
+== {es} version 8.15.4
+
+Also see <<breaking-changes-8.15,Breaking changes in 8.15>>.
+
+[[bug-8.15.4]]
+[float]
+=== Bug fixes
+
+Aggregations::
+* Always check the parent breaker with zero bytes in `PreallocatedCircuitBreakerService` {es-pull}115181[#115181]
+
+ES|QL::
+* ESQL: Disable pushdown of WHERE past STATS {es-pull}115308[#115308] (issue: {es-issue}115281[#115281])
+
+Geo::
+* Try to simplify geometries that fail with `TopologyException` {es-pull}115834[#115834]
+
+Infra/Core::
+* Guard blob store local directory creation with `doPrivileged` {es-pull}115459[#115459]
+
+License::
+* Fix lingering license warning header in IP filter {es-pull}115510[#115510] (issue: {es-issue}114865[#114865])
+
+Search::
+* Do not exclude empty arrays or empty objects in source filtering {es-pull}112250[#112250] (issue: {es-issue}109668[#109668])
+* Fix synthetic source handling for `bit` type in `dense_vector` field {es-pull}114407[#114407] (issue: {es-issue}114402[#114402])
+
+Vector Search::
+* Fix dim validation for bit `element_type` {es-pull}114533[#114533]
+* Support semantic_text in object fields {es-pull}114601[#114601] (issue: {es-issue}114401[#114401])
+
+

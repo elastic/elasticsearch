@@ -25,6 +25,9 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 * `alias`
 * `boolean`
 * `date`
+* `date_nanos` (Tech Preview)
+** The following functions don't yet support date nanos: `bucket`, `date_format`, `date_parse`, `date_diff`, `date_extract`
+** You can use `to_datetime` to cast to millisecond dates to use unsupported functions
 * `double` (`float`, `half_float`, `scaled_float` are represented as `double`)
 * `ip`
 * `keyword` family including `keyword`, `constant_keyword`, and `wildcard`
@@ -50,7 +53,6 @@ include::processing-commands/limit.asciidoc[tag=limitation]
 ** `position`
 ** `aggregate_metric_double`
 * Date/time
-** `date_nanos`
 ** `date_range`
 * Other types
 ** `binary`
@@ -102,11 +104,19 @@ is currently experimental.
 
 [discrete]
 [[esql-limitations-full-text-search]]
-=== Full-text search is not supported
+=== Full-text search
+
+experimental:[] {esql}'s support for <<esql-search-functions,full-text search>>
+is currently in Technical Preview. One limitation of full-text search is that
+it is necessary to use the search function, like <<esql-match>>, in a <<esql-where>> command
+directly after the <<esql-from>> source command, or close enough to it.
+Otherwise, the query will fail with a validation error.
+Another limitation is that any <<esql-where>> command containing a full-text search function
+cannot also use disjunctions (`OR`).
 
 Because of <<esql-limitations-text-fields,the way {esql} treats `text` values>>,
-full-text search is not yet supported. Queries on `text` fields are like queries
-on `keyword` fields: they are case-sensitive and need to match the full string.
+queries on `text` fields are like queries on `keyword` fields: they are
+case-sensitive and need to match the full string.
 
 For example, after indexing a field of type `text` with the value `Elasticsearch
 query language`, the following `WHERE` clause does not match because the `LIKE`

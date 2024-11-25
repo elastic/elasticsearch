@@ -21,7 +21,7 @@ public abstract class AbstractDocValuesForUtilBenchmark {
     protected final int blockSize;
 
     public AbstractDocValuesForUtilBenchmark() {
-        this.forUtil = new DocValuesForUtil();
+        this.forUtil = new DocValuesForUtil(ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE);
         this.blockSize = ES87TSDBDocValuesFormat.NUMERIC_BLOCK_SIZE;
     }
 

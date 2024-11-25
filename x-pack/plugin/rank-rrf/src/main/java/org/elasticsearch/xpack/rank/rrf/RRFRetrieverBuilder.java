@@ -83,7 +83,7 @@ public final class RRFRetrieverBuilder extends CompoundRetrieverBuilder<RRFRetri
             throw new ParsingException(parser.getTokenLocation(), "unknown retriever [" + NAME + "]");
         }
         if (context.clusterSupportsFeature(RRF_RETRIEVER_COMPOSITION_SUPPORTED) == false) {
-            throw new UnsupportedOperationException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
+            throw new IllegalArgumentException("[rrf] retriever composition feature is not supported by all nodes in the cluster");
         }
         if (RRFRankPlugin.RANK_RRF_FEATURE.check(XPackPlugin.getSharedLicenseState()) == false) {
             throw LicenseUtils.newComplianceException("Reciprocal Rank Fusion (RRF)");

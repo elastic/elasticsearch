@@ -19,7 +19,6 @@ public class InternalElasticsearchDistributionTypes {
     public static ElasticsearchDistributionType DOCKER = new DockerElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_UBI = new DockerUbiElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_IRONBANK = new DockerIronBankElasticsearchDistributionType();
-    public static ElasticsearchDistributionType DOCKER_CLOUD = new DockerCloudElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_CLOUD_ESS = new DockerCloudEssElasticsearchDistributionType();
     public static ElasticsearchDistributionType DOCKER_WOLFI = new DockerWolfiElasticsearchDistributionType();
 
@@ -29,7 +28,6 @@ public class InternalElasticsearchDistributionTypes {
         DOCKER,
         DOCKER_UBI,
         DOCKER_IRONBANK,
-        DOCKER_CLOUD,
         DOCKER_CLOUD_ESS,
         DOCKER_WOLFI
     );

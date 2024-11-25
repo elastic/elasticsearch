@@ -21,7 +21,7 @@ public class ByteBinaryDenseVector implements DenseVector {
     public static final int MAGNITUDE_BYTES = 4;
 
     private final BytesRef docVector;
-    private final byte[] vectorValue;
+    protected final byte[] vectorValue;
     protected final int dims;
 
     private float[] floatDocVector;

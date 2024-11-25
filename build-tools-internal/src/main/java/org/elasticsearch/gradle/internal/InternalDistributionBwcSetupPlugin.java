@@ -165,7 +165,12 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir.get(),
-                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
+                    relativeDir
+                        + "/build/distributions/elasticsearch-"
+                        + stableApiProject.getName()
+                        + "-"
+                        + bwcVersion.get()
+                        + "-SNAPSHOT.jar"
                 ),
                 null
             );
@@ -275,7 +280,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     private static List<Project> resolveStableProjects(Project project) {
-        Set<String> stableProjectNames = Set.of("elasticsearch-logging", "elasticsearch-plugin-api", "elasticsearch-plugin-analysis-api");
+        Set<String> stableProjectNames = Set.of("logging", "plugin-api", "plugin-analysis-api");
         return project.findProject(":libs")
             .getSubprojects()
             .stream()
@@ -312,7 +317,9 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 c.getOutputs().files(expectedOutputFile);
             }
             c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> BuildParams.isCi() == false);
-            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getArgs().add("-p");
+            c.getArgs().add(projectPath);
+            c.getArgs().add(assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }

@@ -39,7 +39,7 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
     public static final String DEPLOYMENT_ID = "deployment_id";
     public static final String ADAPTIVE_ALLOCATIONS = "adaptive_allocations";
 
-    private final Integer numAllocations;
+    private Integer numAllocations;
     private final int numThreads;
     private final String modelId;
     private final AdaptiveAllocationsSettings adaptiveAllocationsSettings;
@@ -170,6 +170,10 @@ public class ElasticsearchInternalServiceSettings implements ServiceSettings {
         this.deploymentId = in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT)
             ? in.readOptionalString()
             : null;
+    }
+
+    public void setNumAllocations(Integer numAllocations) {
+        this.numAllocations = numAllocations;
     }
 
     @Override

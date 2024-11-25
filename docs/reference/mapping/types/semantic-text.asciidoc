@@ -87,7 +87,7 @@ Trying to <<delete-inference-api,delete an {infer} endpoint>> that is used on a 
 
 [discrete]
 [[auto-text-chunking]]
-==== Automatic text chunking
+==== Text chunking
 
 {infer-cap} endpoints have a limit on the amount of text they can process.
 To allow for large amounts of text to be used in semantic search, `semantic_text` automatically generates smaller passages if needed, called _chunks_.
@@ -95,8 +95,7 @@ To allow for large amounts of text to be used in semantic search, `semantic_text
 Each chunk will include the text subpassage and the corresponding embedding generated from it.
 When querying, the individual passages will be automatically searched for each document, and the most relevant passage will be used to compute a score.
 
-Documents are split into 250-word sections with a 100-word overlap so that each section shares 100 words with the previous section.
-This overlap ensures continuity and prevents vital contextual information in the input text from being lost by a hard break.
+For more details on chunking and how to configure chunking settings, see <<infer-chunking-config, Configuring chunking>> in the Inference API documentation.
 
 
 [discrete]
@@ -221,4 +220,5 @@ Notice that both the `semantic_text` field and the source field are updated in t
 `semantic_text` field types have the following limitations:
 
 * `semantic_text` fields are not currently supported as elements of <<nested,nested fields>>.
+* `semantic_text` fields can't currently be set as part of <<dynamic-templates>>.
 * `semantic_text` fields can't be defined as <<multi-fields,multi-fields>> of another field, nor can they contain other fields as multi-fields.

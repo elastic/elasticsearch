@@ -169,10 +169,7 @@ public class DockerTests extends PackagingTestCase {
      * Checks that no plugins are initially active.
      */
     public void test020PluginsListWithNoPlugins() {
-        assumeTrue(
-            "Only applies to non-Cloud images",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
-        );
+        assumeTrue("Only applies to non-Cloud images", distribution().packaging != Packaging.DOCKER_CLOUD_ESS);
 
         final Installation.Executables bin = installation.executables();
         final Result r = sh.run(bin.pluginTool + " list");
@@ -1116,8 +1113,8 @@ public class DockerTests extends PackagingTestCase {
      */
     public void test171AdditionalCliOptionsAreForwarded() throws Exception {
         assumeTrue(
-            "Does not apply to Cloud and Cloud ESS images, because they don't use the default entrypoint",
-            distribution.packaging != Packaging.DOCKER_CLOUD && distribution().packaging != Packaging.DOCKER_CLOUD_ESS
+            "Does not apply to Cloud ESS images, because they don't use the default entrypoint",
+            distribution().packaging != Packaging.DOCKER_CLOUD_ESS
         );
 
         runContainer(distribution(), builder().runArgs("bin/elasticsearch", "-Ecluster.name=kimchy").envVar("ELASTIC_PASSWORD", PASSWORD));
@@ -1204,7 +1201,7 @@ public class DockerTests extends PackagingTestCase {
      * Check that the Cloud image contains the required Beats
      */
     public void test400CloudImageBundlesBeats() {
-        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD || distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
+        assumeTrue(distribution.packaging == Packaging.DOCKER_CLOUD_ESS);
 
         final List<String> contents = listContents("/opt");
         assertThat("Expected beats in /opt", contents, hasItems("filebeat", "metricbeat"));

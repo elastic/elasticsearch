@@ -193,7 +193,7 @@ public abstract class ElasticsearchTestBasePlugin implements Plugin<Project> {
              *  If this project builds a shadow JAR than any unit tests should test against that artifact instead of
              *  compiled class output and dependency jars. This better emulates the runtime environment of consumers.
              */
-            project.getPluginManager().withPlugin("com.github.johnrengelman.shadow", p -> {
+            project.getPluginManager().withPlugin("com.gradleup.shadow", p -> {
                 if (test.getName().equals(JavaPlugin.TEST_TASK_NAME)) {
                     // Remove output class files and any other dependencies from the test classpath, since the shadow JAR includes these
                     SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -8,6 +8,8 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.apache.lucene.search.TotalHits;
+import org.elasticsearch.ElasticsearchStatusException;
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.search.SearchRequestBuilder;
@@ -18,6 +20,7 @@ import org.elasticsearch.index.query.InnerHitBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.search.aggregations.AggregationBuilders;
 import org.elasticsearch.search.aggregations.bucket.terms.Terms;
 import org.elasticsearch.search.builder.SearchSourceBuilder;
@@ -47,7 +50,6 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResp
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.greaterThan;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 
@@ -589,11 +591,11 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
         });
     }
 
-    public void testRRFInnerRetrieverSearchError() {
+    public void testRRFInnerRetrieverAll4xxSearchErrors() {
         final int rankWindowSize = 100;
         final int rankConstant = 10;
         SearchSourceBuilder source = new SearchSourceBuilder();
-        // this will throw an error during evaluation
+        // this will throw a 4xx error during evaluation
         StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
             QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
         );
@@ -615,10 +617,57 @@ public class RRFRetrieverBuilderIT extends ESIntegTestCase {
             )
         );
         SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
-        Exception ex = expectThrows(IllegalStateException.class, req::get);
-        assertThat(ex, instanceOf(IllegalStateException.class));
-        assertThat(ex.getMessage(), containsString("Search failed - some nested retrievers returned errors"));
-        assertThat(ex.getSuppressed().length, greaterThan(0));
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "[rrf] search failed - retrievers '[standard]' returned errors. All failures are attached as suppressed exceptions."
+            )
+        );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.BAD_REQUEST));
+        assertThat(ex.getSuppressed().length, equalTo(1));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
+    }
+
+    public void testRRFInnerRetrieverMultipleErrorsOne5xx() {
+        final int rankWindowSize = 100;
+        final int rankConstant = 10;
+        SearchSourceBuilder source = new SearchSourceBuilder();
+        // this will throw a 4xx error during evaluation
+        StandardRetrieverBuilder standard0 = new StandardRetrieverBuilder(
+            QueryBuilders.constantScoreQuery(QueryBuilders.rangeQuery(VECTOR_FIELD).gte(10))
+        );
+        // this will throw a 5xx error
+        TestRetrieverBuilder testRetrieverBuilder = new TestRetrieverBuilder("val") {
+            @Override
+            public void extractToSearchSourceBuilder(SearchSourceBuilder searchSourceBuilder, boolean compoundUsed) {
+                searchSourceBuilder.aggregation(AggregationBuilders.avg("some_invalid_param"));
+            }
+        };
+        source.retriever(
+            new RRFRetrieverBuilder(
+                Arrays.asList(
+                    new CompoundRetrieverBuilder.RetrieverSource(standard0, null),
+                    new CompoundRetrieverBuilder.RetrieverSource(testRetrieverBuilder, null)
+                ),
+                rankWindowSize,
+                rankConstant
+            )
+        );
+        SearchRequestBuilder req = client().prepareSearch(INDEX).setSource(source);
+        Exception ex = expectThrows(ElasticsearchStatusException.class, req::get);
+        assertThat(ex, instanceOf(ElasticsearchStatusException.class));
+        assertThat(
+            ex.getMessage(),
+            containsString(
+                "[rrf] search failed - retrievers '[standard, test]' returned errors. All failures are attached as suppressed exceptions."
+            )
+        );
+        assertThat(ExceptionsHelper.status(ex), equalTo(RestStatus.INTERNAL_SERVER_ERROR));
+        assertThat(ex.getSuppressed().length, equalTo(2));
+        assertThat(ex.getSuppressed()[0].getCause().getCause(), instanceOf(IllegalArgumentException.class));
+        assertThat(ex.getSuppressed()[1].getCause().getCause(), instanceOf(IllegalStateException.class));
     }
 
     public void testRRFInnerRetrieverErrorWhenExtractingToSource() {

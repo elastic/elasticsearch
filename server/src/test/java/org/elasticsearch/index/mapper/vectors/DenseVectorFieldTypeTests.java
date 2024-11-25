@@ -21,6 +21,7 @@ import org.elasticsearch.index.mapper.FieldTypeTestCase;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.DenseVectorFieldType;
 import org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.VectorSimilarity;
+import org.elasticsearch.search.DocValueFormat;
 import org.elasticsearch.search.vectors.DenseVectorQuery;
 import org.elasticsearch.search.vectors.VectorData;
 
@@ -134,9 +135,9 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
 
     public void testDocValueFormat() {
         DenseVectorFieldType fft = createFloatFieldType();
-        expectThrows(IllegalArgumentException.class, () -> fft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, fft.docValueFormat(null, null));
         DenseVectorFieldType bft = createByteFieldType();
-        expectThrows(IllegalArgumentException.class, () -> bft.docValueFormat(null, null));
+        assertEquals(DocValueFormat.DENSE_VECTOR, bft.docValueFormat(null, null));
     }
 
     public void testFetchSourceValue() throws IOException {

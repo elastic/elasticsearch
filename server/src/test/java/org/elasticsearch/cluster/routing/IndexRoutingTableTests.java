@@ -20,7 +20,7 @@ import org.mockito.Mockito;
 
 import java.util.List;
 
-import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO;
+import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
 import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
@@ -43,7 +43,7 @@ public class IndexRoutingTableTests extends ESTestCase {
             Settings.builder().put(INDEX_FAST_REFRESH_SETTING.getKey(), fastRefresh).build()
         );
         when(clusterState.getMinTransportVersion()).thenReturn(
-            beforeFastRefreshRCO ? TransportVersion.fromId(FAST_REFRESH_RCO.id() - 1_00_0) : TransportVersion.current()
+            beforeFastRefreshRCO ? TransportVersion.fromId(FAST_REFRESH_RCO_2.id() - 1_00_0) : TransportVersion.current()
         );
         // 2 primaries that are search and index
         ShardId p1 = new ShardId(index, 0);

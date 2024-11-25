@@ -10,14 +10,12 @@
 package org.elasticsearch.health;
 
 import org.elasticsearch.cluster.node.DiscoveryNode;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContentBuilder;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ToXContent;
 
 import java.util.Collection;
-import java.util.Collections;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Objects;
@@ -78,22 +76,20 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
         }
 
         @Override
-        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-            final Iterator<? extends ToXContent> valuesIterator;
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            var builder = ChunkedToXContent.builder(params);
             if (nodes != null) {
-                valuesIterator = Iterators.map(nodes.iterator(), node -> (builder, params) -> {
-                    builder.startObject();
-                    builder.field(ID_FIELD, node.getId());
+                return builder.array(type.displayValue, nodes.iterator(), node -> (b, p) -> {
+                    b.startObject();
+                    b.field(ID_FIELD, node.getId());
                     if (node.getName() != null) {
-                        builder.field(NAME_FIELD, node.getName());
+                        b.field(NAME_FIELD, node.getName());
                     }
-                    builder.endObject();
-                    return builder;
+                    return b.endObject();
                 });
             } else {
-                valuesIterator = Iterators.map(values.iterator(), value -> (builder, params) -> builder.value(value));
+                return builder.array(type.displayValue, values.toArray(String[]::new));
             }
-            return ChunkedToXContentHelper.array(type.displayValue, valuesIterator);
         }
 
         @Override
@@ -144,30 +140,18 @@ public record Diagnosis(Definition definition, @Nullable List<Resource> affected
     }
 
     @Override
-    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params outerParams) {
-        final Iterator<? extends ToXContent> resourcesIterator;
-        if (affectedResources == null) {
-            resourcesIterator = Collections.emptyIterator();
-        } else {
-            resourcesIterator = Iterators.flatMap(affectedResources.iterator(), s -> s.toXContentChunked(outerParams));
-        }
-        return Iterators.concat(Iterators.single((ToXContent) (builder, params) -> {
-            builder.startObject();
-            builder.field("id", definition.getUniqueId());
-            builder.field("cause", definition.cause);
-            builder.field("action", definition.action);
-            builder.field("help_url", definition.helpURL);
-
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.startObject("affected_resources");
+    public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.append((b, p) -> {
+                b.field("id", definition.getUniqueId());
+                b.field("cause", definition.cause);
+                b.field("action", definition.action);
+                b.field("help_url", definition.helpURL);
+                return b;
+            });
+            if (affectedResources != null && affectedResources.isEmpty() == false) {
+                ob.object("affected_resources", affectedResources.iterator(), ChunkedToXContentBuilder::append);
             }
-            return builder;
-        }), resourcesIterator, Iterators.single((builder, params) -> {
-            if (affectedResources != null && affectedResources.size() > 0) {
-                builder.endObject();
-            }
-            builder.endObject();
-            return builder;
-        }));
+        });
     }
 }

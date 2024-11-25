@@ -21,6 +21,7 @@ import org.elasticsearch.index.IndexSettingProvider;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 
 import java.io.IOException;
 import java.time.Instant;
@@ -37,13 +38,22 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
     private final SyntheticSourceLicenseService syntheticSourceLicenseService;
     private final CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory;
+    private final LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider;
 
     SyntheticSourceIndexSettingsProvider(
         SyntheticSourceLicenseService syntheticSourceLicenseService,
-        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory
+        CheckedFunction<IndexMetadata, MapperService, IOException> mapperServiceFactory,
+        LogsdbIndexModeSettingsProvider logsdbIndexModeSettingsProvider
     ) {
         this.syntheticSourceLicenseService = syntheticSourceLicenseService;
         this.mapperServiceFactory = mapperServiceFactory;
+        this.logsdbIndexModeSettingsProvider = logsdbIndexModeSettingsProvider;
+    }
+
+    @Override
+    public boolean overrulesTemplateAndRequestSettings() {
+        // Indicates that the provider value takes precedence over any user setting.
+        return true;
     }
 
     @Override
@@ -56,13 +66,23 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
         Settings indexTemplateAndCreateRequestSettings,
         List<CompressedXContent> combinedTemplateMappings
     ) {
+        var logsdbSettings = logsdbIndexModeSettingsProvider.getLogsdbModeSetting(dataStreamName, indexTemplateAndCreateRequestSettings);
+        if (logsdbSettings != Settings.EMPTY) {
+            indexTemplateAndCreateRequestSettings = Settings.builder()
+                .put(logsdbSettings)
+                .put(indexTemplateAndCreateRequestSettings)
+                .build();
+        }
+
         // This index name is used when validating component and index templates, we should skip this check in that case.
         // (See MetadataIndexTemplateService#validateIndexTemplateV2(...) method)
         boolean isTemplateValidation = "validate-index-name".equals(indexName);
         if (newIndexHasSyntheticSourceUsage(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings, combinedTemplateMappings)
             && syntheticSourceLicenseService.fallbackToStoredSource(isTemplateValidation)) {
             LOGGER.debug("creation of index [{}] with synthetic source without it being allowed", indexName);
-            // TODO: handle falling back to stored source
+            return Settings.builder()
+                .put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), SourceFieldMapper.Mode.STORED.toString())
+                .build();
         }
         return Settings.EMPTY;
     }
@@ -81,6 +101,20 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
 
         try {
             var tmpIndexMetadata = buildIndexMetadataForMapperService(indexName, templateIndexMode, indexTemplateAndCreateRequestSettings);
+            var indexMode = tmpIndexMetadata.getIndexMode();
+            if (SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.exists(tmpIndexMetadata.getSettings())
+                || indexMode == IndexMode.LOGSDB
+                || indexMode == IndexMode.TIME_SERIES) {
+                // In case when index mode is tsdb or logsdb and only _source.mode mapping attribute is specified, then the default
+                // could be wrong. However, it doesn't really matter, because if the _source.mode mapping attribute is set to stored,
+                // then configuring the index.mapping.source.mode setting to stored has no effect. Additionally _source.mode can't be set
+                // to disabled, because that isn't allowed with logsdb/tsdb. In other words setting index.mapping.source.mode setting to
+                // stored when _source.mode mapping attribute is stored is fine as it has no effect, but avoids creating MapperService.
+                var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(tmpIndexMetadata.getSettings());
+                return sourceMode == SourceFieldMapper.Mode.SYNTHETIC;
+            }
+
+            // TODO: remove this when _source.mode attribute has been removed:
             try (var mapperService = mapperServiceFactory.apply(tmpIndexMetadata)) {
                 // combinedTemplateMappings can be null when creating system indices
                 // combinedTemplateMappings can be empty when creating a normal index that doesn't match any template and without mapping.
@@ -92,7 +126,8 @@ final class SyntheticSourceIndexSettingsProvider implements IndexSettingProvider
             }
         } catch (AssertionError | Exception e) {
             // In case invalid mappings or setting are provided, then mapper service creation can fail.
-            // In that case it is ok to return false here. The index creation will fail anyway later, so need to fallback to stored source.
+            // In that case it is ok to return false here. The index creation will fail anyway later, so no need to fallback to stored
+            // source.
             LOGGER.info(() -> Strings.format("unable to create mapper service for index [%s]", indexName), e);
             return false;
         }

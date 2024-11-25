@@ -820,7 +820,26 @@ public abstract class ESRestTestCase extends ESTestCase {
             ".fleet-file-tohost-meta-ilm-policy",
             ".deprecation-indexing-ilm-policy",
             ".monitoring-8-ilm-policy",
-            "behavioral_analytics-events-default_policy"
+            "behavioral_analytics-events-default_policy",
+            "logs-apm.app_logs-default_policy",
+            "logs-apm.error_logs-default_policy",
+            "metrics-apm.app_metrics-default_policy",
+            "metrics-apm.internal_metrics-default_policy",
+            "metrics-apm.service_destination_10m_metrics-default_policy",
+            "metrics-apm.service_destination_1m_metrics-default_policy",
+            "metrics-apm.service_destination_60m_metrics-default_policy",
+            "metrics-apm.service_summary_10m_metrics-default_policy",
+            "metrics-apm.service_summary_1m_metrics-default_policy",
+            "metrics-apm.service_summary_60m_metrics-default_policy",
+            "metrics-apm.service_transaction_10m_metrics-default_policy",
+            "metrics-apm.service_transaction_1m_metrics-default_policy",
+            "metrics-apm.service_transaction_60m_metrics-default_policy",
+            "metrics-apm.transaction_10m_metrics-default_policy",
+            "metrics-apm.transaction_1m_metrics-default_policy",
+            "metrics-apm.transaction_60m_metrics-default_policy",
+            "traces-apm.rum_traces-default_policy",
+            "traces-apm.sampled_traces-default_policy",
+            "traces-apm.traces-default_policy"
         );
     }
 
@@ -1151,6 +1170,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed" + (includeHidden ? ",hidden" : ""));
+            deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1161,6 +1181,30 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    // Make warnings handler that ignores the .async-search warning since .async-search may randomly appear when async requests are slow
+    // See: https://github.com/elastic/elasticsearch/issues/117099
+    protected static WarningsHandler ignoreAsyncSearchWarning() {
+        return new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                if (warnings.isEmpty()) {
+                    return false;
+                }
+                return warnings.equals(
+                    List.of(
+                        "this request accesses system indices: [.async-search], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                ) == false;
+            }
+
+            @Override
+            public String toString() {
+                return "ignore .async-search warning";
+            }
+        };
     }
 
     protected static void wipeDataStreams() throws IOException {

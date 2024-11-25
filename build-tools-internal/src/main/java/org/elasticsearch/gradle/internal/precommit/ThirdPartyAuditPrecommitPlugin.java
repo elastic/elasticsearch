@@ -27,7 +27,7 @@ import static org.elasticsearch.gradle.internal.util.DependenciesUtils.createFil
 public class ThirdPartyAuditPrecommitPlugin extends PrecommitPlugin {
 
     public static final String JDK_JAR_HELL_CONFIG_NAME = "jdkJarHell";
-    public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:elasticsearch-core";
+    public static final String LIBS_ELASTICSEARCH_CORE_PROJECT_PATH = ":libs:core";
 
     @Override
     public TaskProvider<? extends Task> createTask(Project project) {

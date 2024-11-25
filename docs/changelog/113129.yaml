@@ -1,6 +1,0 @@
-pr: 113129
-summary: Fix `needsScore` computation in `GlobalOrdCardinalityAggregator`
-area: Aggregations
-type: bug
-issues:
- - 112975

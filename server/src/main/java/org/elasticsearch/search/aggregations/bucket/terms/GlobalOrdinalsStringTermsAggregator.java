@@ -23,6 +23,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.common.util.ObjectArrayPriorityQueue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
@@ -190,7 +191,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return resultStrategy.buildAggregations(owningBucketOrds);
     }
 
@@ -692,61 +693,66 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         B extends InternalMultiBucketAggregation.InternalBucket,
         TB extends InternalMultiBucketAggregation.InternalBucket> implements Releasable {
 
-        private InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        private InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+
             if (valueCount == 0) { // no context in this reader
-                InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-                for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                    results[ordIdx] = buildNoValuesResult(owningBucketOrds[ordIdx]);
-                }
-                return results;
+                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildNoValuesResult(owningBucketOrds.get(ordIdx))
+                );
             }
+            try (
+                LongArray otherDocCount = bigArrays().newLongArray(owningBucketOrds.size(), true);
+                ObjectArray<B[]> topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.size())
+            ) {
+                GlobalOrdLookupFunction lookupGlobalOrd = valuesSupplier.get()::lookupOrd;
+                for (long ordIdx = 0; ordIdx < topBucketsPreOrd.size(); ordIdx++) {
+                    final int size;
+                    if (bucketCountThresholds.getMinDocCount() == 0) {
+                        // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
+                        size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
+                    } else {
+                        size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
+                    }
+                    try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
+                        final long finalOrdIdx = ordIdx;
+                        final long owningBucketOrd = owningBucketOrds.get(ordIdx);
+                        BucketUpdater<TB> updater = bucketUpdater(owningBucketOrd, lookupGlobalOrd);
+                        collectionStrategy.forEach(owningBucketOrd, new BucketInfoConsumer() {
+                            TB spare = null;
 
-            B[][] topBucketsPreOrd = buildTopBucketsPerOrd(owningBucketOrds.length);
-            long[] otherDocCount = new long[owningBucketOrds.length];
-            GlobalOrdLookupFunction lookupGlobalOrd = valuesSupplier.get()::lookupOrd;
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                final int size;
-                if (bucketCountThresholds.getMinDocCount() == 0) {
-                    // if minDocCount == 0 then we can end up with more buckets then maxBucketOrd() returns
-                    size = (int) Math.min(valueCount, bucketCountThresholds.getShardSize());
-                } else {
-                    size = (int) Math.min(maxBucketOrd(), bucketCountThresholds.getShardSize());
-                }
-                try (ObjectArrayPriorityQueue<TB> ordered = buildPriorityQueue(size)) {
-                    final int finalOrdIdx = ordIdx;
-                    BucketUpdater<TB> updater = bucketUpdater(owningBucketOrds[ordIdx], lookupGlobalOrd);
-                    collectionStrategy.forEach(owningBucketOrds[ordIdx], new BucketInfoConsumer() {
-                        TB spare = null;
-
-                        @Override
-                        public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
-                            otherDocCount[finalOrdIdx] += docCount;
-                            if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
-                                if (spare == null) {
-                                    spare = buildEmptyTemporaryBucket();
+                            @Override
+                            public void accept(long globalOrd, long bucketOrd, long docCount) throws IOException {
+                                otherDocCount.increment(finalOrdIdx, docCount);
+                                if (docCount >= bucketCountThresholds.getShardMinDocCount()) {
+                                    if (spare == null) {
+                                        checkRealMemoryCBForInternalBucket();
+                                        spare = buildEmptyTemporaryBucket();
+                                    }
+                                    updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
+                                    spare = ordered.insertWithOverflow(spare);
                                 }
-                                updater.updateBucket(spare, globalOrd, bucketOrd, docCount);
-                                spare = ordered.insertWithOverflow(spare);
                             }
-                        }
-                    });
+                        });
 
-                    // Get the top buckets
-                    topBucketsPreOrd[ordIdx] = buildBuckets((int) ordered.size());
-                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                        topBucketsPreOrd[ordIdx][i] = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
-                        otherDocCount[ordIdx] -= topBucketsPreOrd[ordIdx][i].getDocCount();
+                        // Get the top buckets
+                        topBucketsPreOrd.set(ordIdx, buildBuckets((int) ordered.size()));
+                        for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                            checkRealMemoryCBForInternalBucket();
+                            B bucket = convertTempBucketToRealBucket(ordered.pop(), lookupGlobalOrd);
+                            topBucketsPreOrd.get(ordIdx)[i] = bucket;
+                            otherDocCount.increment(ordIdx, -bucket.getDocCount());
+                        }
                     }
                 }
-            }
 
-            buildSubAggs(topBucketsPreOrd);
+                buildSubAggs(topBucketsPreOrd);
 
-            InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-            for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-                results[ordIdx] = buildResult(owningBucketOrds[ordIdx], otherDocCount[ordIdx], topBucketsPreOrd[ordIdx]);
+                return GlobalOrdinalsStringTermsAggregator.this.buildAggregations(
+                    Math.toIntExact(owningBucketOrds.size()),
+                    ordIdx -> buildResult(owningBucketOrds.get(ordIdx), otherDocCount.get(ordIdx), topBucketsPreOrd.get(ordIdx))
+                );
             }
-            return results;
         }
 
         /**
@@ -781,7 +787,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         /**
          * Build an array to hold the "top" buckets for each ordinal.
          */
-        abstract B[][] buildTopBucketsPerOrd(int size);
+        abstract ObjectArray<B[]> buildTopBucketsPerOrd(long size);
 
         /**
          * Build an array of buckets for a particular ordinal to collect the
@@ -798,7 +804,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Build the sub-aggregations into the buckets. This will usually
          * delegate to {@link #buildSubAggsForAllBuckets}.
          */
-        abstract void buildSubAggs(B[][] topBucketsPreOrd) throws IOException;
+        abstract void buildSubAggs(ObjectArray<B[]> topBucketsPreOrd) throws IOException;
 
         /**
          * Turn the buckets into an aggregation result.
@@ -837,8 +843,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        StringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new StringTerms.Bucket[size][];
+        ObjectArray<StringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -875,7 +881,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        void buildSubAggs(StringTerms.Bucket[][] topBucketsPreOrd) throws IOException {
+        void buildSubAggs(ObjectArray<StringTerms.Bucket[]> topBucketsPreOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPreOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 
@@ -969,8 +975,8 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        SignificantStringTerms.Bucket[][] buildTopBucketsPerOrd(int size) {
-            return new SignificantStringTerms.Bucket[size][];
+        ObjectArray<SignificantStringTerms.Bucket[]> buildTopBucketsPerOrd(long size) {
+            return bigArrays().newObjectArray(size);
         }
 
         @Override
@@ -1022,7 +1028,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
         }
 
         @Override
-        void buildSubAggs(SignificantStringTerms.Bucket[][] topBucketsPreOrd) throws IOException {
+        void buildSubAggs(ObjectArray<SignificantStringTerms.Bucket[]> topBucketsPreOrd) throws IOException {
             buildSubAggsForAllBuckets(topBucketsPreOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
         }
 

@@ -18,6 +18,7 @@ import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.settings.MockSecureSettings;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.settings.Settings;
@@ -236,7 +237,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Build.current().version(),
-                        TransportVersion.current(),
+                        new CompatibilityVersions(TransportVersion.current(), Map.of()),
                         IndexVersion.current(),
                         Map.of(),
                         null,
@@ -271,7 +272,7 @@ public class InternalEnrollmentTokenGeneratorTests extends ESTestCase {
                 List.of(
                     new NodeInfo(
                         Build.current().version(),
-                        TransportVersion.current(),
+                        new CompatibilityVersions(TransportVersion.current(), Map.of()),
                         IndexVersion.current(),
                         Map.of(),
                         null,

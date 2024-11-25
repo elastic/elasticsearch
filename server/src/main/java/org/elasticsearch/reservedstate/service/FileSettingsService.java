@@ -27,6 +27,8 @@ import java.io.IOException;
 import java.nio.file.Files;
 import java.util.concurrent.ExecutionException;
 
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_OR_SAME_VERSION;
+import static org.elasticsearch.reservedstate.service.ReservedStateVersionCheck.HIGHER_VERSION_ONLY;
 import static org.elasticsearch.xcontent.XContentType.JSON;
 
 /**
@@ -115,20 +117,34 @@ public class FileSettingsService extends MasterNodeFileWatchingService implement
      */
     @Override
     protected void processFileChanges() throws ExecutionException, InterruptedException, IOException {
-        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         logger.info("processing path [{}] for [{}]", watchedFile(), NAMESPACE);
+        processFileChanges(HIGHER_VERSION_ONLY);
+    }
+
+    /**
+     * Read settings and pass them to {@link ReservedClusterStateService} for application.
+     * Settings will be reprocessed even if the cluster-state version equals that found in the settings file.
+     */
+    @Override
+    protected void processFileOnServiceStart() throws IOException, ExecutionException, InterruptedException {
+        logger.info("processing path [{}] for [{}] on service start", watchedFile(), NAMESPACE);
+        processFileChanges(HIGHER_OR_SAME_VERSION);
+    }
+
+    private void processFileChanges(ReservedStateVersionCheck versionCheck) throws IOException, InterruptedException, ExecutionException {
+        PlainActionFuture<Void> completion = new PlainActionFuture<>();
         try (
             var fis = Files.newInputStream(watchedFile());
             var bis = new BufferedInputStream(fis);
             var parser = JSON.xContent().createParser(XContentParserConfiguration.EMPTY, bis)
         ) {
-            stateService.process(NAMESPACE, parser, (e) -> completeProcessing(e, completion));
+            stateService.process(NAMESPACE, parser, versionCheck, (e) -> completeProcessing(e, completion));
         }
         completion.get();
     }
 
     @Override
-    protected void processInitialFileMissing() throws ExecutionException, InterruptedException, IOException {
+    protected void processInitialFileMissing() throws ExecutionException, InterruptedException {
         PlainActionFuture<ActionResponse.Empty> completion = new PlainActionFuture<>();
         logger.info("setting file [{}] not found, initializing [{}] as empty", watchedFile(), NAMESPACE);
         stateService.initEmpty(NAMESPACE, completion);

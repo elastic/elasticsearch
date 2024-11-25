@@ -94,7 +94,7 @@ public class AbstractSearchAsyncActionTests extends ESTestCase {
             SearchResponse.Clusters.EMPTY
         ) {
             @Override
-            protected SearchPhase getNextPhase(final SearchPhaseResults<SearchPhaseResult> results, SearchPhaseContext context) {
+            protected SearchPhase getNextPhase() {
                 return null;
             }
 

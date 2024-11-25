@@ -40,7 +40,7 @@ public final class LongLongHash extends AbstractHash {
         super(capacity, maxLoadFactor, bigArrays);
         try {
             // `super` allocates a big array so we have to `close` if we fail here or we'll leak it.
-            keys = bigArrays.newLongArray(2 * capacity, false);
+            keys = bigArrays.newLongArray(2 * maxSize, false);
         } finally {
             if (keys == null) {
                 close();
@@ -99,7 +99,6 @@ public final class LongLongHash extends AbstractHash {
 
     private void append(long id, long key1, long key2) {
         long keyOffset = 2 * id;
-        keys = bigArrays.grow(keys, keyOffset + 2);
         keys.set(keyOffset, key1);
         keys.set(keyOffset + 1, key2);
     }
@@ -128,6 +127,7 @@ public final class LongLongHash extends AbstractHash {
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
+            keys = bigArrays.resize(keys, maxSize * 2);
         }
         assert size < maxSize;
         return set(key1, key2, size);

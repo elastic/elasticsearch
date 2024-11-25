@@ -81,7 +81,7 @@ Comma-separated list of services to fetch data from ServiceNow. If the value is 
 - link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html[Incident]
 - link:https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html[Requested Item]
 - link:https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.html[Knowledge]
-- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change Request]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change request]
 +
 [NOTE]
 ====
@@ -89,7 +89,7 @@ If you have configured a custom service, the `*` value will not fetch data from 
 ====
 Default value is `*`. Examples:
 +
-  - `User, Incident, Requested Item, Knowledge, Change Request`
+  - `User, Incident, Requested Item, Knowledge, Change request`
   - `*`
 
 Enable document level security::
@@ -139,7 +139,7 @@ For default services, connectors use the following roles to find users who have 
 
 | Knowledge | `admin`, `knowledge`, `knowledge_manager`, `knowledge_admin` 
 
-| Change Request | `admin`, `sn_change_read`, `itil` 
+| Change request | `admin`, `sn_change_read`, `itil` 
 |===
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.
@@ -305,7 +305,7 @@ Comma-separated list of services to fetch data from ServiceNow. If the value is 
 - link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/incident-management/concept/c_IncidentManagement.html[Incident]
 - link:https://docs.servicenow.com/bundle/tokyo-servicenow-platform/page/use/service-catalog-requests/task/t_AddNewRequestItems.html[Requested Item]
 - link:https://docs.servicenow.com/bundle/tokyo-customer-service-management/page/product/customer-service-management/task/t_SearchTheKnowledgeBase.html[Knowledge]
-- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change Request]
+- link:https://docs.servicenow.com/bundle/tokyo-it-service-management/page/product/change-management/task/t_CreateAChange.html[Change request]
 +
 [NOTE]
 ====
@@ -313,7 +313,7 @@ If you have configured a custom service, the `*` value will not fetch data from 
 ====
 Default value is `*`. Examples:
 +
-  - `User, Incident, Requested Item, Knowledge, Change Request`
+  - `User, Incident, Requested Item, Knowledge, Change request`
   - `*`
 
 `retry_count`::
@@ -374,7 +374,7 @@ For default services, connectors use the following roles to find users who have 
 
 | Knowledge | `admin`, `knowledge`, `knowledge_manager`, `knowledge_admin` 
 
-| Change Request | `admin`, `sn_change_read`, `itil` 
+| Change request | `admin`, `sn_change_read`, `itil` 
 |===
 
 For services other than these defaults, the connector iterates over access controls with `read` operations and finds the respective roles for those services.

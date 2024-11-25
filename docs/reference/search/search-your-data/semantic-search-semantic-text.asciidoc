@@ -90,6 +90,17 @@ It will be used to generate the embeddings based on the input text.
 Every time you ingest data into the related `semantic_text` field, this endpoint will be used for creating the vector representation of the text.
 
 
+[NOTE]
+====
+If you're using web crawlers or connectors to generate indices, you have to
+<<indices-put-mapping,update the index mappings>> for these indices to
+include the `semantic_text` field. Once the mapping is updated, you'll need to run
+a full web crawl or a full connector sync. This ensures that all existing
+documents are reprocessed and updated with the new semantic embeddings,
+enabling semantic search on the updated data.
+====
+
+
 [discrete]
 [[semantic-text-load-data]]
 ==== Load data

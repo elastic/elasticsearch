@@ -29,10 +29,6 @@ import static org.elasticsearch.gradle.util.GradleUtils.maybeConfigure
 
 buildscript {
   repositories {
-    maven {
-      url 'https://jitpack.io'
-    }
-
     mavenCentral()
   }
 }
@@ -407,6 +403,10 @@ gradle.projectsEvaluated {
       )
     }
   }
+}
+
+tasks.named("validateChangelogs") {
+  onlyIf { project.gradle.startParameter.taskNames.any { it.startsWith("checkPart") || it == 'functionalTests' } == false }
 }
 
 tasks.named("precommit") {

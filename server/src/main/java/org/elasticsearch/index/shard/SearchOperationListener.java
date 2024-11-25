@@ -108,11 +108,11 @@ public interface SearchOperationListener {
      * A Composite listener that multiplexes calls to each of the listeners methods.
      */
     final class CompositeListener implements SearchOperationListener {
-        private final List<SearchOperationListener> listeners;
+        private final SearchOperationListener[] listeners;
         private final Logger logger;
 
         CompositeListener(List<SearchOperationListener> listeners, Logger logger) {
-            this.listeners = listeners;
+            this.listeners = listeners.toArray(new SearchOperationListener[0]);
             this.logger = logger;
         }
 

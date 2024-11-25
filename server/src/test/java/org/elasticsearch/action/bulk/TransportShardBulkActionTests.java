@@ -53,7 +53,6 @@ import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.threadpool.TestThreadPool;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.threadpool.ThreadPool.Names;
-import org.mockito.ArgumentCaptor;
 import org.mockito.MockingDetails;
 import org.mockito.Mockito;
 import org.mockito.stubbing.Stubbing;
@@ -600,9 +599,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
             .retryOnConflict(retries);
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id")
-            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            .setNormalisedBytesParsed(0);// let's pretend this was modified by a script
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         Exception err = new VersionConflictEngineException(shardId, "id", "I'm conflicted <(;_;)>");
@@ -655,11 +652,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(failure.getCause(), equalTo(err));
         assertThat(failure.getStatus(), equalTo(RestStatus.CONFLICT));
 
-        // we have set 0 value on normalisedBytesParsed on the IndexRequest, like it happens with updates by script.
-        ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(argument.capture());
-        IndexRequest value = argument.getValue();
-        assertThat(value.getNormalisedBytesParsed(), equalTo(0L));
+        verify(documentParsingProvider, times(retries + 1)).newMeteringParserDecorator(any());
     }
 
     @SuppressWarnings("unchecked")
@@ -668,9 +661,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         DocWriteRequest<UpdateRequest> writeRequest = new UpdateRequest("index", "id").doc(Requests.INDEX_CONTENT_TYPE, "field", "value");
         BulkItemRequest primaryRequest = new BulkItemRequest(0, writeRequest);
 
-        IndexRequest updateResponse = new IndexRequest("index").id("id")
-            .source(Requests.INDEX_CONTENT_TYPE, "field", "value")
-            .setNormalisedBytesParsed(100L);
+        IndexRequest updateResponse = new IndexRequest("index").id("id").source(Requests.INDEX_CONTENT_TYPE, "field", "value");
         DocumentParsingProvider documentParsingProvider = mock(DocumentParsingProvider.class);
 
         boolean created = randomBoolean();
@@ -721,10 +712,7 @@ public class TransportShardBulkActionTests extends IndexShardTestCase {
         assertThat(response.status(), equalTo(created ? RestStatus.CREATED : RestStatus.OK));
         assertThat(response.getSeqNo(), equalTo(13L));
 
-        ArgumentCaptor<IndexRequest> argument = ArgumentCaptor.forClass(IndexRequest.class);
-        verify(documentParsingProvider, times(1)).newMeteringParserDecorator(argument.capture());
-        IndexRequest value = argument.getValue();
-        assertThat(value.getNormalisedBytesParsed(), equalTo(100L));
+        verify(documentParsingProvider).newMeteringParserDecorator(updateResponse);
     }
 
     public void testUpdateWithDelete() throws Exception {

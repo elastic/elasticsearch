@@ -20,7 +20,17 @@ import java.util.Objects;
  *
  * @param assignments a set of the (persistent) node IDs to which each {@link ShardId} should be allocated
  */
-public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
+public record DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments, ComputationFinishReason finishReason) {
+
+    enum ComputationFinishReason {
+        CONVERGED,
+        YIELD_TO_NEW_INPUT,
+        STOP_EARLY
+    }
+
+    public DesiredBalance(long lastConvergedIndex, Map<ShardId, ShardAssignment> assignments) {
+        this(lastConvergedIndex, assignments, ComputationFinishReason.CONVERGED);
+    }
 
     public static final DesiredBalance INITIAL = new DesiredBalance(-1, Map.of());
 

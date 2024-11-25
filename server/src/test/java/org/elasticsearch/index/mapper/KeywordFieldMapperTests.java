@@ -663,10 +663,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
      * Test that we track the synthetic source if field is neither indexed nor has doc values nor stored
      */
     public void testSyntheticSourceForDisabledField() throws Exception {
-        MapperService mapper = createMapperService(
-            syntheticSourceFieldMapping(
-                b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false)
-            )
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("index", false).field("doc_values", false).field("store", false))
         );
         String value = randomAlphaOfLengthBetween(1, 20);
         assertEquals("{\"field\":\"" + value + "\"}", syntheticSource(mapper.documentMapper(), b -> b.field("field", value)));
@@ -767,8 +765,8 @@ public class KeywordFieldMapperTests extends MapperTestCase {
     }
 
     public void testDocValuesLoadedFromStoredSynthetic() throws IOException {
-        MapperService mapper = createMapperService(
-            syntheticSourceFieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
+        MapperService mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "keyword").field("doc_values", false).field("store", true))
         );
         assertScriptDocValues(mapper, "foo", equalTo(List.of("foo")));
     }

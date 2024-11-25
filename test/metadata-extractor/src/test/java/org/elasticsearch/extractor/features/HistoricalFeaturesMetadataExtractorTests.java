@@ -31,6 +31,7 @@ import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasEntry;
+import static org.hamcrest.Matchers.hasItem;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.not;
 
@@ -49,6 +50,7 @@ public class HistoricalFeaturesMetadataExtractorTests extends ESTestCase {
         });
         assertThat(nodeFeatureVersionMap, not(anEmptyMap()));
         assertThat(featureNamesSet, not(empty()));
+        assertThat(featureNamesSet, hasItem("test_features_enabled"));
 
         Path outputFile = temporaryFolder.newFile().toPath();
         extractor.generateMetadataFile(outputFile);

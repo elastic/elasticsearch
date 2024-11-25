@@ -45,7 +45,9 @@ include::_connectors-create-native.asciidoc[]
 To use this connector as a *managed connector*, use the *Connector* workflow.
 See <<es-native-connectors>>.
 
-Users require the `sysadmin` server role.
+Users require the `sysadmin` SQL Server role.
+Note that SQL Server Authentication is required.
+Windows Authentication is not supported.
 
 For additional operations, see <<es-connectors-usage>>.
 
@@ -75,10 +77,10 @@ Port::
 The port where the Microsoft SQL Server is hosted. Default value is `1433`.
 
 Username::
-The username of the account for Microsoft SQL Server.
+The username of the account for Microsoft SQL Server (SQL Server Authentication only).
 
 Password::
-The password of the account to be used for the Microsoft SQL Server.
+The password of the account to be used for the Microsoft SQL Server (SQL Server Authentication only).
 
 Database::
 Name of the Microsoft SQL Server database.
@@ -310,6 +312,8 @@ include::_connectors-create-client.asciidoc[]
 ===== Usage
 
 Users require the `sysadmin` server role.
+Note that SQL Server Authentication is required.
+Windows Authentication is not supported.
 
 To use this connector as a *self-managed connector*, see <<es-build-connector>>
 For additional usage operations, see <<es-connectors-usage>>.
@@ -350,10 +354,10 @@ Examples:
 The port where the Microsoft SQL Server is hosted. Default value is `9090`.
 
 `username`::
-The username of the account for Microsoft SQL Server.
+The username of the account for Microsoft SQL Server. (SQL Server Authentication only)
 
 `password`::
-The password of the account to be used for the Microsoft SQL Server.
+The password of the account to be used for the Microsoft SQL Server. (SQL Server Authentication only)
 
 `database`::
 Name of the Microsoft SQL Server database.

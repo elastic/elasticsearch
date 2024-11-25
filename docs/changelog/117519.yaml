@@ -1,0 +1,11 @@
+pr: 117519
+summary: Deprecating `data_frame_transforms` roles
+area: Machine Learning
+type: deprecation
+issues: []
+deprecation:
+  title: Deprecating `data_frame_transforms` roles
+  area: Machine Learning
+  details: Please describe the details of this change for the release notes. You can
+    use asciidoc.
+  impact: Please describe the impact of this change to users

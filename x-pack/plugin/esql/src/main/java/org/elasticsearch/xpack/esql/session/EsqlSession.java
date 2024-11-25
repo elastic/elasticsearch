@@ -24,6 +24,7 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.action.EsqlQueryRequest;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
@@ -72,6 +73,7 @@ import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
 
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
@@ -154,7 +156,8 @@ public class EsqlSession {
                 public void onResponse(LogicalPlan analyzedPlan) {
                     executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(analyzedPlan), listener);
                 }
-            }
+            },
+            request.filter()
         );
     }
 
@@ -266,28 +269,13 @@ public class EsqlSession {
         return parsed;
     }
 
-    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener) {
+    public void analyzedPlan(LogicalPlan parsed, EsqlExecutionInfo executionInfo, ActionListener<LogicalPlan> listener,
+                             QueryBuilder requestFilter) {
         if (parsed.analyzed()) {
             listener.onResponse(parsed);
             return;
         }
 
-        preAnalyze(parsed, executionInfo, (indices, policies) -> {
-            planningMetrics.gatherPreAnalysisMetrics(parsed);
-            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
-            var plan = analyzer.analyze(parsed);
-            plan.setAnalyzed();
-            LOGGER.debug("Analyzed plan:\n{}", plan);
-            return plan;
-        }, listener);
-    }
-
-    private <T> void preAnalyze(
-        LogicalPlan parsed,
-        EsqlExecutionInfo executionInfo,
-        BiFunction<IndexResolution, EnrichResolution, T> action,
-        ActionListener<T> listener
-    ) {
         PreAnalyzer.PreAnalysis preAnalysis = preAnalyzer.preAnalyze(parsed);
         var unresolvedPolicies = preAnalysis.enriches.stream()
             .map(e -> new EnrichPolicyResolver.UnresolvedPolicy((String) e.policyName().fold(), e.mode()))
@@ -297,7 +285,28 @@ public class EsqlSession {
         final Set<String> targetClusters = enrichPolicyResolver.groupIndicesPerCluster(
             indices.stream().flatMap(t -> Arrays.stream(Strings.commaDelimitedListToStringArray(t.id().index()))).toArray(String[]::new)
         ).keySet();
-        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, listener.delegateFailureAndWrap((l, enrichResolution) -> {
+
+        preAnalyze(parsed, executionInfo, (indices, policies) -> {
+            planningMetrics.gatherPreAnalysisMetrics(parsed);
+            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
+
+            LogicalPlan plan = analyzer.analyze(parsed);
+            plan.setAnalyzed();
+            LOGGER.debug("Analyzed plan (first phase):\n{}", plan);
+            return plan;
+        }, listener, requestFilter, targetClusters, unresolvedPolicies);
+    }
+
+    private <T> void preAnalyze(
+        LogicalPlan parsed,
+        EsqlExecutionInfo executionInfo,
+        BiFunction<IndexResolution, EnrichResolution, T> action,
+        ActionListener<T> listener,
+        QueryBuilder requestFilter,
+        Collection<String> targetClusters,
+        Collection<EnrichPolicyResolver.UnresolvedPolicy> unresolvedPolicies
+    ) {
+        enrichPolicyResolver.resolvePolicies(targetClusters, unresolvedPolicies, requestFilter, listener.delegateFailureAndWrap((l, enrichResolution) -> {
             // first we need the match_fields names from enrich policies and THEN, with an updated list of fields, we call field_caps API
             var matchFields = enrichResolution.resolvedEnrichPolicies()
                 .stream()
@@ -330,13 +339,42 @@ public class EsqlSession {
                         enrichPolicyResolver.resolvePolicies(
                             newClusters,
                             unresolvedPolicies,
+                            requestFilter,
                             ll.map(newEnrichResolution -> action.apply(indexResolution, newEnrichResolution))
                         );
                         return;
                     }
                 }
-                ll.onResponse(action.apply(indexResolution, enrichResolution));
-            }), matchFields);
+
+                if (requestFilter == null) {
+                    // we are not interested in any kind of failures if the request doesn't have a filter, because:
+                    // 1. either this is the second attempt to make Analysis work by excluding any potential filter
+                    // 2. the ES|QL query didn't have a filter in the first place and there was no second try
+                    ll.onResponse(action.apply(indexResolution, enrichResolution));
+                } else {
+                    // "reset" execution information for all ccs or non-ccs (local) clusters, since we are performing the indices
+                    // resolving one more time
+                    for (String clusterAlias : executionInfo.clusterAliases()) {
+                        executionInfo.swapCluster(clusterAlias, (k, v) -> null);
+                    }
+
+                    T plan = null;
+                    try {
+                        plan = action.apply(indexResolution, enrichResolution);
+                    } catch (VerificationException ve) {
+                        // interested only in a VerificationException, but this time we are taking out the index filter
+                        // to try and make the index resolution work without any index filtering
+                        preAnalyzeIndices(parsed,
+                            executionInfo,
+                            unavailableClusters,
+                            ll.map(ir -> action.apply(ir, enrichResolution)),
+                            matchFields,
+                            null);
+                        return;
+                    }
+                    ll.onResponse(plan);
+                }
+            }), matchFields, requestFilter);
         }));
     }
 
@@ -345,7 +383,8 @@ public class EsqlSession {
         EsqlExecutionInfo executionInfo,
         Map<String, Exception> unavailableClusters,  // known to be unavailable from the enrich policy API call
         ActionListener<IndexResolution> listener,
-        Set<String> enrichPolicyMatchFields
+        Set<String> enrichPolicyMatchFields,
+        QueryBuilder requestFilter
     ) {
         PreAnalyzer.PreAnalysis preAnalysis = new PreAnalyzer().preAnalyze(parsed);
         // TODO we plan to support joins in the future when possible, but for now we'll just fail early if we see one
@@ -389,7 +428,7 @@ public class EsqlSession {
                 listener.onResponse(IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())));
             } else {
                 // call the EsqlResolveFieldsAction (field-caps) to resolve indices and get field types
-                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, listener);
+                indexResolver.resolveAsMergedMapping(indexExpressionToResolve, fieldNames, requestFilter, listener);
             }
         } else {
             try {

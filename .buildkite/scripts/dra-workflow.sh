@@ -94,7 +94,7 @@ docker run --rm \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
   --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
 2>&1 | tee release-manager.log
-EXIT_CODE="${PIPESTATUS[0]}"
+EXIT_CODE=$?
 set -e
 
 # This failure is just generating a ton of noise right now, so let's just ignore it

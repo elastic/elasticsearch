@@ -56,6 +56,8 @@ public class CsvTestsDataLoader {
     private static final TestsDataset APPS = new TestsDataset("apps");
     private static final TestsDataset APPS_SHORT = APPS.withIndex("apps_short").withTypeMapping(Map.of("id", "short"));
     private static final TestsDataset LANGUAGES = new TestsDataset("languages");
+    private static final TestsDataset LANGUAGES_LOOKUP = LANGUAGES.withIndex("languages_lookup")
+        .withSetting("languages_lookup-settings.json");
     private static final TestsDataset ALERTS = new TestsDataset("alerts");
     private static final TestsDataset UL_LOGS = new TestsDataset("ul_logs");
     private static final TestsDataset SAMPLE_DATA = new TestsDataset("sample_data");
@@ -94,14 +96,13 @@ public class CsvTestsDataLoader {
     private static final TestsDataset BOOKS = new TestsDataset("books");
     private static final TestsDataset SEMANTIC_TEXT = new TestsDataset("semantic_text").withInferenceEndpoint(true);
 
-    private static final String LOOKUP_INDEX_SUFFIX = "_lookup";
-
     public static final Map<String, TestsDataset> CSV_DATASET_MAP = Map.ofEntries(
         Map.entry(EMPLOYEES.indexName, EMPLOYEES),
         Map.entry(HOSTS.indexName, HOSTS),
         Map.entry(APPS.indexName, APPS),
         Map.entry(APPS_SHORT.indexName, APPS_SHORT),
         Map.entry(LANGUAGES.indexName, LANGUAGES),
+        Map.entry(LANGUAGES_LOOKUP.indexName, LANGUAGES_LOOKUP),
         Map.entry(UL_LOGS.indexName, UL_LOGS),
         Map.entry(SAMPLE_DATA.indexName, SAMPLE_DATA),
         Map.entry(SAMPLE_DATA_MV.indexName, SAMPLE_DATA_MV),
@@ -132,9 +133,7 @@ public class CsvTestsDataLoader {
         Map.entry(DISTANCES.indexName, DISTANCES),
         Map.entry(ADDRESSES.indexName, ADDRESSES),
         Map.entry(BOOKS.indexName, BOOKS),
-        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT),
-        // JOIN LOOKUP alias
-        Map.entry(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX, LANGUAGES.withIndex(LANGUAGES.indexName + LOOKUP_INDEX_SUFFIX))
+        Map.entry(SEMANTIC_TEXT.indexName, SEMANTIC_TEXT)
     );
 
     private static final EnrichConfig LANGUAGES_ENRICH = new EnrichConfig("languages_policy", "enrich-policy-languages.json");

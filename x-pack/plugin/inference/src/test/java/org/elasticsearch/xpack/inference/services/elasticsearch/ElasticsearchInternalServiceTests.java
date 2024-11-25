@@ -1086,7 +1086,6 @@ public class ElasticsearchInternalServiceTests extends ESTestCase {
             List.of("foo", "bar"),
             Map.of(),
             InputType.SEARCH,
-            null,
             InferenceAction.Request.DEFAULT_TIMEOUT,
             ActionListener.wrap(r -> fail("unexpected result"), e -> fail(e.getMessage()))
         );

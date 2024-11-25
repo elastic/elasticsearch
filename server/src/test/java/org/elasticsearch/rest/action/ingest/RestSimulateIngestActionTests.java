@@ -228,6 +228,7 @@ public class RestSimulateIngestActionTests extends ESTestCase {
                 BytesReference.fromByteBuffers(sourceByteBuffer),
                 XContentType.JSON,
                 List.of("pipeline1", "pipeline2"),
+                List.of(),
                 null
             )
         );

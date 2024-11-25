@@ -65,7 +65,6 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.PathUtils;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.features.FeatureSpecification;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.index.IndexSettings;
@@ -402,29 +401,11 @@ public abstract class ESRestTestCase extends ESTestCase {
         assert nodesVersions != null;
     }
 
-    /**
-     * Override to provide additional test-only historical features.
-     *
-     * Note: This extension point cannot be used to add cluster features. The provided {@link FeatureSpecification}s
-     * must contain only historical features, otherwise an assertion error is thrown.
-     */
-    protected List<FeatureSpecification> additionalTestOnlyHistoricalFeatures() {
-        return List.of();
-    }
-
     protected final TestFeatureService createTestFeatureService(
         Map<String, Set<String>> clusterStateFeatures,
         Set<Version> semanticNodeVersions
     ) {
-        // Historical features information is unavailable when using legacy test plugins
-        if (ESRestTestFeatureService.hasFeatureMetadata() == false) {
-            logger.warn(
-                "This test is running on the legacy test framework; historical features from production code will not be available. "
-                    + "You need to port the test to the new test plugins in order to use historical features from production code. "
-                    + "If this is a legacy feature used only in tests, you can add it to a test-only FeatureSpecification."
-            );
-        }
-        return new ESRestTestFeatureService(additionalTestOnlyHistoricalFeatures(), semanticNodeVersions, clusterStateFeatures.values());
+        return new ESRestTestFeatureService(semanticNodeVersions, clusterStateFeatures.values());
     }
 
     protected static boolean has(ProductFeature feature) {
@@ -1135,6 +1116,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             final Request deleteRequest = new Request("DELETE", Strings.collectionToCommaDelimitedString(indexPatterns));
             deleteRequest.addParameter("expand_wildcards", "open,closed,hidden");
+<<<<<<< HEAD
 
             // If system index warning, ignore but log
             deleteRequest.setOptions(RequestOptions.DEFAULT.toBuilder().setWarningsHandler(warnings -> {
@@ -1149,6 +1131,9 @@ public abstract class ESRestTestCase extends ESTestCase {
                 return false;
             }));
 
+=======
+            deleteRequest.setOptions(deleteRequest.getOptions().toBuilder().setWarningsHandler(ignoreAsyncSearchWarning()).build());
+>>>>>>> b0c49766f6a2301f8938629bfdadf76459329b8d
             final Response response = adminClient().performRequest(deleteRequest);
             try (InputStream is = response.getEntity().getContent()) {
                 assertTrue((boolean) XContentHelper.convertToMap(XContentType.JSON.xContent(), is, true).get("acknowledged"));
@@ -1159,6 +1144,30 @@ public abstract class ESRestTestCase extends ESTestCase {
                 throw e;
             }
         }
+    }
+
+    // Make warnings handler that ignores the .async-search warning since .async-search may randomly appear when async requests are slow
+    // See: https://github.com/elastic/elasticsearch/issues/117099
+    protected static WarningsHandler ignoreAsyncSearchWarning() {
+        return new WarningsHandler() {
+            @Override
+            public boolean warningsShouldFailRequest(List<String> warnings) {
+                if (warnings.isEmpty()) {
+                    return false;
+                }
+                return warnings.equals(
+                    List.of(
+                        "this request accesses system indices: [.async-search], "
+                            + "but in a future major version, direct access to system indices will be prevented by default"
+                    )
+                ) == false;
+            }
+
+            @Override
+            public String toString() {
+                return "ignore .async-search warning";
+            }
+        };
     }
 
     protected static void wipeDataStreams() throws IOException {

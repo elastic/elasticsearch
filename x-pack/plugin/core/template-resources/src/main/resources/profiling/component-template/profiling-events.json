@@ -9,6 +9,7 @@
         "sort": {
           "field": [
             "profiling.project.id",
+            "k8s.namespace.name",
             "orchestrator.resource.name",
             "host.name",
             "container.name",
@@ -79,6 +80,9 @@
           "type": "keyword"
         },
         "container.id": {
+          "type": "keyword"
+        },
+        "k8s.namespace.name": {
           "type": "keyword"
         }
       }

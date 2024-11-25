@@ -108,7 +108,7 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ byte_float_bit_dot_product ]
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
       reason: Capability required to run test
   - do:
       catch: bad_request
@@ -399,7 +399,7 @@ setup:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ byte_float_bit_dot_product ]
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
       test_runner_features: [capabilities, close_to]
       reason: Capability required to run test
   - do:
@@ -419,13 +419,13 @@ setup:
   - match: { hits.total: 3 }
 
   - match: {hits.hits.0._id: "2"}
-  - close_to: {hits.hits.0._score: {value: 35.999, error: 0.01}}
+  - close_to: {hits.hits.0._score: {value: 33.78, error: 0.01}}
 
   - match: {hits.hits.1._id: "3"}
-  - close_to: {hits.hits.1._score:{value: 27.23, error: 0.01}}
+  - close_to: {hits.hits.1._score:{value: 22.579, error: 0.01}}
 
   - match: {hits.hits.2._id: "1"}
-  - close_to: {hits.hits.2._score: {value: 16.57, error: 0.01}}
+  - close_to: {hits.hits.2._score: {value: 11.919, error: 0.01}}
 
   - do:
       headers:
@@ -444,20 +444,20 @@ setup:
   - match: { hits.total: 3 }
 
   - match: {hits.hits.0._id: "2"}
-  - close_to: {hits.hits.0._score: {value: 35.999, error: 0.01}}
+  - close_to: {hits.hits.0._score: {value: 33.78, error: 0.01}}
 
   - match: {hits.hits.1._id: "3"}
-  - close_to: {hits.hits.1._score:{value: 27.23, error: 0.01}}
+  - close_to: {hits.hits.1._score:{value: 22.579, error: 0.01}}
 
   - match: {hits.hits.2._id: "1"}
-  - close_to: {hits.hits.2._score: {value: 16.57, error: 0.01}}
+  - close_to: {hits.hits.2._score: {value: 11.919, error: 0.01}}
 ---
 "Dot product with byte":
   - requires:
       capabilities:
         - method: POST
           path: /_search
-          capabilities: [ byte_float_bit_dot_product ]
+          capabilities: [ byte_float_bit_dot_product_with_bugfix ]
       test_runner_features: capabilities
       reason: Capability required to run test
   - do:
@@ -476,14 +476,14 @@ setup:
 
   - match: { hits.total: 3 }
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0._score: 248}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 415}
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1._score: 136}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 168}
 
-  - match: {hits.hits.2._id: "3"}
-  - match: {hits.hits.2._score: 20}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 126}
 
   - do:
       headers:
@@ -501,11 +501,11 @@ setup:
 
   - match: { hits.total: 3 }
 
-  - match: {hits.hits.0._id: "1"}
-  - match: {hits.hits.0._score: 248}
+  - match: {hits.hits.0._id: "3"}
+  - match: {hits.hits.0._score: 415}
 
-  - match: {hits.hits.1._id: "2"}
-  - match: {hits.hits.1._score: 136}
+  - match: {hits.hits.1._id: "1"}
+  - match: {hits.hits.1._score: 168}
 
-  - match: {hits.hits.2._id: "3"}
-  - match: {hits.hits.2._score: 20}
+  - match: {hits.hits.2._id: "2"}
+  - match: {hits.hits.2._score: 126}

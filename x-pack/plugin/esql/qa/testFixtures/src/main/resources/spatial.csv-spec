@@ -133,9 +133,8 @@ ROW wkt = ["POINT (0 0)", "POINT (1 0)", "POINT (0 1)"]
 ;
 
 extent:geo_point
-BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+BBOX (0.0, 1.0, 1.0, 0.0)
 ;
-
 
 stExtentMultipleGeoPoints
 required_capability: st_extent_agg

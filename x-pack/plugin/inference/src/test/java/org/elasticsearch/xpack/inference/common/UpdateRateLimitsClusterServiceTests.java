@@ -62,7 +62,7 @@ public class UpdateRateLimitsClusterServiceTests extends ESIntegTestCase {
         );
 
         // This expectation works
-        final String publishAddressMessage = "publish_addresssss";
+        final String publishAddressMessage = "publish_address";
         final MockLog.LoggingExpectation publishAddressExpectation = new MockLog.SeenEventExpectation(
                 "publish_address",
                 TransportService.class.getCanonicalName(),

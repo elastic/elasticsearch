@@ -40,6 +40,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
@@ -431,15 +432,16 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     @Nullable
     public BytesReference applyFilters(
-        @Nullable MappingLookup mappingLookup,
+        MappingLookup mappingLookup,
         @Nullable BytesReference originalSource,
         @Nullable XContentType contentType
     ) throws IOException {
+        Objects.requireNonNull(mappingLookup);
         if (stored() == false || originalSource == null) {
             return null;
         }
         var modSourceFilter = sourceFilter;
-        if (mappingLookup != null && mappingLookup.inferenceFields().isEmpty() == false) {
+        if (mappingLookup.inferenceFields().isEmpty() == false) {
             String[] modExcludes = new String[excludes != null ? excludes.length + 1 : 1];
             if (excludes != null) {
                 System.arraycopy(excludes, 0, modExcludes, 0, excludes.length);

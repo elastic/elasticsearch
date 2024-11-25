@@ -2579,7 +2579,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         threadPool,
                         allocationService,
                         actionFilters,
-                        indexNameExpressionResolver
+                        indexNameExpressionResolver,
+                        TestProjectResolvers.singleProjectOnly()
                     )
                 );
                 actions.put(

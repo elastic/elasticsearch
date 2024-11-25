@@ -957,7 +957,8 @@ class NodeConstruction {
                 dataStreamGlobalRetentionSettings
             ),
             pluginsService.loadSingletonServiceProvider(RestExtension.class, RestExtension::allowAll),
-            incrementalBulkService
+            incrementalBulkService,
+            projectResolver
         );
         modules.add(actionModule);
 

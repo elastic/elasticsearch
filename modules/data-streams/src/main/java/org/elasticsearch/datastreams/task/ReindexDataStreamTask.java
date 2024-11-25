@@ -78,9 +78,6 @@ public class ReindexDataStreamTask extends AllocatedPersistentTask {
     }
 
     public void reindexFailed(String index, Exception error) {
-        System.out.println("****************** In ReindexDataStreamTask *************************** ");
-        error.printStackTrace(System.out);
-        new RuntimeException("****************** In ReindexDataStreamTask ***************************").printStackTrace(System.out);
         this.errors.add(Tuple.tuple(index, error));
         inProgress.decrementAndGet();
     }

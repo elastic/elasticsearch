@@ -52,6 +52,16 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       index:
         index: test-index
@@ -76,6 +86,16 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with integer value":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       index:
         index: test-index
@@ -98,6 +118,16 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with boolean value":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       index:
         index: test-index
@@ -120,6 +150,16 @@ setup:
 
 ---
 "Calculates sparse embedding and text embedding results for new documents with a collection of mixed data types":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       index:
         index: test-index
@@ -183,6 +223,16 @@ setup:
 
 ---
 "Sparse vector results are indexed as nested chunks and searchable":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       bulk:
         index: test-index
@@ -242,6 +292,16 @@ setup:
 
 ---
 "Dense vector results are indexed as nested chunks and searchable":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       bulk:
         index: test-index
@@ -304,6 +364,16 @@ setup:
 
 ---
 "Reindex works for semantic_text fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       index:
         index: test-index
@@ -395,6 +465,16 @@ setup:
 
 ---
 "semantic_text copy_to calculates embeddings for source fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       indices.create:
         index: test-copy-to-index
@@ -436,6 +516,16 @@ setup:
 
 ---
 "Calculates embeddings for bulk operations - index":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       bulk:
         body:
@@ -460,6 +550,15 @@ setup:
 
 ---
 "Update by query picks up new semantic_text fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.create:
@@ -517,6 +616,15 @@ setup:
 
 ---
 "Update by query works for scripts":
+  - requires:
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       index:
@@ -558,6 +666,13 @@ setup:
           path: /_inference
           capabilities: [default_elser_2]
 
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
   - do:
       indices.create:
         index: test-elser-2-default-index
@@ -588,6 +703,14 @@ setup:
   - requires:
       cluster_features: "semantic_text.in_object_field_fix"
       reason: object field fix added in 8.16.0 & 8.15.4
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       indices.create:
@@ -630,6 +753,14 @@ setup:
   - requires:
       cluster_features: semantic_text.delete_fix
       reason: Delete operations are properly applied when subsequent operations include a semantic text field.
+      test_runner_features: [ capabilities ]
+
+  - skip:
+      reason: Test targets semantic text without inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
 
   - do:
       bulk:

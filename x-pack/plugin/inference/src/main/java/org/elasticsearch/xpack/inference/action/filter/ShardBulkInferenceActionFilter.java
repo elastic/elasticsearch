@@ -78,7 +78,7 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
     private final int batchSize;
 
     public ShardBulkInferenceActionFilter(
-        ClusterService clusterService,
+        ClusterService clusterService,  // TODO: Pass metadata instead?
         InferenceServiceRegistry inferenceServiceRegistry,
         ModelRegistry modelRegistry
     ) {

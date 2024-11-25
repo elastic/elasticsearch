@@ -77,7 +77,7 @@ public class TermIT extends AbstractEsqlIntegTestCase {
         try (var resp = run(query)) {
             assertColumnNames(resp.columns(), List.of("id"));
             assertColumnTypes(resp.columns(), List.of("integer"));
-            assertValues(resp.values(), List.of(List.of(5)));
+            assertValues(resp.values(), List.of(List.of(3)));
         }
     }
 

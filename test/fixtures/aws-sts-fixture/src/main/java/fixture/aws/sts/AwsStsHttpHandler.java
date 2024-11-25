@@ -43,7 +43,7 @@ public class AwsStsHttpHandler implements HttpHandler {
 
     public AwsStsHttpHandler(BiConsumer<String, String> newCredentialsConsumer, String webIdentityToken) {
         this.newCredentialsConsumer = Objects.requireNonNull(newCredentialsConsumer);
-        this.webIdentityToken = webIdentityToken;
+        this.webIdentityToken = Objects.requireNonNull(webIdentityToken);
     }
 
     @Override

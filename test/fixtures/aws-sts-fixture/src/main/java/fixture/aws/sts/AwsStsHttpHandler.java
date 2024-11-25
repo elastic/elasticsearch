@@ -30,9 +30,9 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.test.ESTestCase.randomIdentifier;
 
 /**
- * Minimal HTTP handler that emulates the EC2 IMDS server
+ * Minimal HTTP handler that emulates the AWS STS server
  */
-@SuppressForbidden(reason = "this test uses a HttpServer to emulate the EC2 IMDS endpoint")
+@SuppressForbidden(reason = "this test uses a HttpServer to emulate the AWS STS endpoint")
 public class AwsStsHttpHandler implements HttpHandler {
 
     static final String ROLE_ARN = "arn:aws:iam::123456789012:role/FederatedWebIdentityRole";

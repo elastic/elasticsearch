@@ -235,6 +235,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.single_node.FieldExtractorIT
   method: testConstantKeywordField
   issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117524
 
 # Examples:
 #

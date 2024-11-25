@@ -61,6 +61,7 @@ import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Dat
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.In;
 import org.elasticsearch.xpack.esql.index.EsIndex;
+import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.TableIdentifier;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
@@ -105,7 +106,6 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
@@ -198,11 +198,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
 
         @Override
         protected LogicalPlan rule(UnresolvedRelation plan, AnalyzerContext context) {
-            if (plan.indexMode().equals(IndexMode.LOOKUP)) {
-                return hackLookupMapping(plan);
-            }
-            if (context.indexResolution().isValid() == false) {
-                return plan.unresolvedMessage().equals(context.indexResolution().toString())
+            return resolveIndex(plan, plan.indexMode().equals(IndexMode.LOOKUP) ? context.lookupResolution() : context.indexResolution());
+        }
+
+        private LogicalPlan resolveIndex(UnresolvedRelation plan, IndexResolution indexResolution) {
+            if (indexResolution.isValid() == false) {
+                return plan.unresolvedMessage().equals(indexResolution.toString())
                     ? plan
                     : new UnresolvedRelation(
                         plan.source(),
@@ -210,12 +211,12 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                         plan.frozen(),
                         plan.metadataFields(),
                         plan.indexMode(),
-                        context.indexResolution().toString(),
+                        indexResolution.toString(),
                         plan.commandName()
                     );
             }
             TableIdentifier table = plan.table();
-            if (context.indexResolution().matches(table.index()) == false) {
+            if (indexResolution.matches(table.index()) == false) {
                 // TODO: fix this (and tests), or drop check (seems SQL-inherited, where's also defective)
                 new UnresolvedRelation(
                     plan.source(),
@@ -223,31 +224,15 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
                     plan.frozen(),
                     plan.metadataFields(),
                     plan.indexMode(),
-                    "invalid [" + table + "] resolution to [" + context.indexResolution() + "]",
+                    "invalid [" + table + "] resolution to [" + indexResolution + "]",
                     plan.commandName()
                 );
             }
 
-            EsIndex esIndex = context.indexResolution().get();
+            EsIndex esIndex = indexResolution.get();
             var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
             attributes.addAll(plan.metadataFields());
             return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
-        }
-
-        private LogicalPlan hackLookupMapping(UnresolvedRelation plan) {
-            if (plan.table().index().toLowerCase(Locale.ROOT).equals("languages_lookup")) {
-                EsIndex esIndex = new EsIndex(
-                    "languages_lookup",
-                    Map.ofEntries(
-                        Map.entry("language_code", new EsField("language_code", DataType.LONG, Map.of(), true)),
-                        Map.entry("language_name", new EsField("language", DataType.KEYWORD, Map.of(), true))
-                    ),
-                    Map.of("languages_lookup", IndexMode.LOOKUP)
-                );
-                var attributes = mappingAsAttributes(plan.source(), esIndex.mapping());
-                return new EsRelation(plan.source(), esIndex, attributes.isEmpty() ? NO_FIELDS : attributes, plan.indexMode());
-            }
-            return plan;
         }
     }
 

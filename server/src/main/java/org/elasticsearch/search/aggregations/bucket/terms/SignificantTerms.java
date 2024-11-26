@@ -17,6 +17,18 @@ import java.util.List;
  */
 public interface SignificantTerms extends MultiBucketsAggregation, Iterable<SignificantTerms.Bucket> {
 
+    /**
+     * @return The numbers of docs in the subset (also known as "foreground set").
+     * This number is equal to the document count of the containing aggregation.
+     */
+    long getSubsetSize();
+
+    /**
+     * @return The numbers of docs in the superset (ordinarily the background count
+     * of the containing aggregation).
+     */
+    long getSupersetSize();
+
     interface Bucket extends MultiBucketsAggregation.Bucket {
 
         /**

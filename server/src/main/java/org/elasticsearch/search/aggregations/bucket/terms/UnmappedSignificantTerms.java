@@ -138,12 +138,12 @@ public class UnmappedSignificantTerms extends InternalSignificantTerms<UnmappedS
     }
 
     @Override
-    protected long getSubsetSize() {
+    public long getSubsetSize() {
         return 0;
     }
 
     @Override
-    protected long getSupersetSize() {
+    public long getSupersetSize() {
         return 0;
     }
 }

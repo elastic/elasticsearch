@@ -310,10 +310,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
      */
     protected abstract B[] createBucketsArray(int size);
 
-    protected abstract long getSubsetSize();
-
-    protected abstract long getSupersetSize();
-
     protected abstract SignificanceHeuristic getSignificanceHeuristic();
 
     @Override

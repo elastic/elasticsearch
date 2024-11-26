@@ -91,12 +91,12 @@ public abstract class InternalMappedSignificantTerms<
     }
 
     @Override
-    protected long getSubsetSize() {
+    public long getSubsetSize() {
         return subsetSize;
     }
 
     @Override
-    protected long getSupersetSize() {
+    public long getSupersetSize() {
         return supersetSize;
     }
 

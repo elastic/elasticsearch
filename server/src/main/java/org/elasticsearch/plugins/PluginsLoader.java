@@ -286,7 +286,15 @@ public class PluginsLoader {
             );
         } else {
             logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
-            return LayerAndLoader.ofLoader(URLClassLoader.newInstance(bundle.urls.toArray(URL[]::new), pluginParentLoader));
+            return LayerAndLoader.ofLoader(
+                UberModuleClassLoader.getInstance(
+                    pluginParentLoader,
+                    ModuleLayer.boot(),
+                    "synthetic." + toModuleName(plugin.getName()),
+                    bundle.urls,
+                    Set.of()
+                )
+            );
         }
     }
 

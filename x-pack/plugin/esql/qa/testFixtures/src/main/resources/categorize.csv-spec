@@ -90,6 +90,20 @@ COUNT():long | category:keyword
            7 | .*?Bread.*?
 ;
 
+mv via eval const without aliases
+required_capability: categorize
+
+FROM sample_data
+  | EVAL message = ["Banana", "Bread"]
+  | STATS COUNT() BY CATEGORIZE(message)
+  | SORT `CATEGORIZE(message)`
+;
+
+COUNT():long | CATEGORIZE(message):keyword
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
 on TO_UPPER
 required_capability: categorize
 

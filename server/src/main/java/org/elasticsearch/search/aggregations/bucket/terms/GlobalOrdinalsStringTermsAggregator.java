@@ -876,7 +876,6 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
             BytesRef term = BytesRef.deepCopyOf(lookupGlobalOrd.apply(temp.globalOrd));
             StringTerms.Bucket result = new StringTerms.Bucket(term, temp.docCount, null, showTermDocCountError, 0, format);
             result.bucketOrd = temp.bucketOrd;
-            result.docCountError = 0;
             return result;
         }
 

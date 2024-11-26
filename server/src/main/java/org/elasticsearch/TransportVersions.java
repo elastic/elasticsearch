@@ -200,8 +200,14 @@ public class TransportVersions {
     public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
     public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_00_0);
     public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_00_0);
-    public static final TransportVersion ML_INFERENCE_UNIFIED_COMPLETIONS_API = def(8_794_00_0);
-
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS_REVERT = def(8_794_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
+    public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_00_0);
+    public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
+    public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
+    public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_00_0);
+    public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_00_0);
+    public static final TransportVersion ML_INFERENCE_UNIFIED_COMPLETIONS_API = def(8_801_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

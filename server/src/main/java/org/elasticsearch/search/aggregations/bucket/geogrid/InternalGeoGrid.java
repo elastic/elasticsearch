@@ -152,7 +152,7 @@ public abstract class InternalGeoGrid<B extends InternalGeoGridBucket> extends I
     public XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
         builder.startArray(CommonFields.BUCKETS.getPreferredName());
         for (InternalGeoGridBucket bucket : buckets) {
-            bucket.toXContent(builder, params);
+            bucket.bucketToXContent(builder, params);
         }
         builder.endArray();
         return builder;

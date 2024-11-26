@@ -64,6 +64,7 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwUnsup
 public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
+    public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
 
@@ -72,10 +73,10 @@ public class ElasticInferenceService extends SenderService {
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents eisComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = eisComponents;
+        this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
     }
 
     @Override

@@ -18,6 +18,6 @@ public class IndicesStatsFeatures implements FeatureSpecification {
 
     @Override
     public Set<NodeFeature> getFeatures() {
-        return Set.of(IndexStats.TIER_CREATION_DATE);
+        return Set.of(IndexStats.REVERTED_TIER_CREATION_DATE);
     }
 }

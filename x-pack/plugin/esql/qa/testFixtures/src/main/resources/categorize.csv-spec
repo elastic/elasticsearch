@@ -60,6 +60,39 @@ COUNT():long | category:keyword
            1 | .*?disconnected.*?
 ;
 
+mv with multiple indices
+required_capability: categorize
+required_capability: union_types
+
+FROM sample_data*
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | .*?Banana.*?
+           15 | .*?Connected.+?to.*?
+           15 | .*?Connection.+?error.*?
+           5 | .*?Disconnected.*?
+;
+
+mv with many values
+required_capability: categorize
+
+FROM employees
+  | STATS COUNT() BY category=CATEGORIZE(job_positions)
+  | SORT category
+  | LIMIT 5
+;
+
+COUNT():long | category:keyword
+           18 | .*?Accountant.*?
+           13 | .*?Architect.*?
+           11 | .*?Business.+?Analyst.*?
+           13 | .*?Data.+?Scientist.*?
+           10 | .*?Head.+?Human.+?Resources.*?
+;
+
 mv via eval
 required_capability: categorize
 
@@ -161,7 +194,7 @@ COUNT():long | category:keyword
            3 | .*?😊👍🏽.+?rorre.+?noitcennoC.*?
 ;
 
-and then TO_LOWER-Ignore
+and then TO_LOWER
 required_capability: categorize
 
 FROM sample_data

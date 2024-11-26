@@ -187,11 +187,14 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
     /***
      * Creates a standard layout for intermediate aggregations, typically used across exchanges.
      * Puts the group first, followed by each aggregation.
-     *
-     * It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
+     * <p>
+     *     It's similar to the code above (groupingPhysicalOperation) but ignores the factory creation.
+     * </p>
      */
     public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
-        // TODO: needs to take CATEGORIZE into account: the intermediate agg's output is BytesRef, unlike the final keyword output.
+        // TODO: This should take CATEGORIZE into account:
+        //       it currently works because the CATEGORIZE intermediate state is just 1 block with the same type as the function return,
+        //       so the attribute generated here is the expected one
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();

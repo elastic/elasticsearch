@@ -27,6 +27,9 @@ import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 
 import java.io.IOException;
 
+/**
+ * Base BlockHash implementation for {@code Categorize} grouping function.
+ */
 public abstract class AbstractCategorizeBlockHash extends BlockHash {
     // TODO: this should probably also take an emitBatchSize
     private final int channel;
@@ -68,6 +71,9 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
         throw new UnsupportedOperationException();
     }
 
+    /**
+     * Serializes the intermediate state into a single BytesRef block, or a Null block if there are no categories.
+     */
     private Block buildIntermediateBlock() {
         if (categorizer.getCategoryCount() == 0) {
             return blockFactory.newConstantNullBlock(categorizer.getCategoryCount());

@@ -61,7 +61,7 @@ public class InsertFieldExtraction extends Rule<PhysicalPlan, PhysicalPlan> {
              */
             if (p instanceof AggregateExec agg && agg.groupings().size() == 1) {
                 // CATEGORIZE requires the standard hash aggregator as well.
-                if ((agg.groupings().get(0) instanceof Alias as && as.child() instanceof Categorize) == false) {
+                if (agg.groupings().get(0).anyMatch(e -> e instanceof Categorize) == false) {
                     var leaves = new LinkedList<>();
                     // TODO: this seems out of place
                     agg.aggregates()

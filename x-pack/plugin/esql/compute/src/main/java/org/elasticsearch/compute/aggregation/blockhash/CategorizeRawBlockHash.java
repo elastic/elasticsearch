@@ -26,6 +26,12 @@ import org.elasticsearch.index.analysis.TokenizerFactory;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategorizer;
 import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
+/**
+ * BlockHash implementation for {@code Categorize} grouping function.
+ * <p>
+ *     This implementation expects rows, and can't deserialize intermediate states coming from other nodes.
+ * </p>
+ */
 public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
     private final CategorizeEvaluator evaluator;
 

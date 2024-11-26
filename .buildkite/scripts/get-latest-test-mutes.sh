@@ -1,5 +1,9 @@
 #!/bin/bash
 
+if [[ ! "${BUILDKITE_PULL_REQUEST:-}" || "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" == "k8s" ]]; then
+  exit 0
+fi
+
 testMuteBranch="${BUILDKITE_PULL_REQUEST_BASE_BRANCH:-main}"
 testMuteFile="$(mktemp)"
 
@@ -12,7 +16,9 @@ testMuteFile="$(mktemp)"
   cat "$testMuteFile"
 
   if [[ -s "$testMuteFile" ]]; then
-    export GRADLE_OPTS="${GRADLE_OPTS:-} -Dorg.gradle.project.org.elasticsearch.additional.muted.tests=$testMuteFile"
-    echo "GRADLE_OPTS='$GRADLE_OPTS'"
+    mkdir -p ~/.gradle
+    # This is using gradle.properties instead of an env var so that it's easily compatible with the Windows pre-command hook
+    echo "org.gradle.project.org.elasticsearch.additional.muted.tests=$testMuteFile" >> ~/.gradle/gradle.properties
+    cat ~/.gradle/gradle.properties
   fi
 # fi

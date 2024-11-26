@@ -120,6 +120,6 @@ if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
   sudo systemctl restart dnsmasq.service
 fi
 
-if [[ "${BUILDKITE_PULL_REQUEST:-}" && "${BUILDKITE_LABEL:-}" != *"Pipeline upload"* && "${BUILDKITE_LABEL:-}" != *"Upload Pipeline"* ]]; then
-  source .buildkite/scripts/get-latest-test-mutes.sh
+if [[ "${BUILDKITE_PULL_REQUEST:-}" && "${BUILDKITE_AGENT_META_DATA_PROVIDER:-}" != "k8s" ]]; then
+  .buildkite/scripts/get-latest-test-mutes.sh
 fi

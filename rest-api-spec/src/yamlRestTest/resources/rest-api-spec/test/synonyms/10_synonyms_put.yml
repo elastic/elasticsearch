@@ -16,6 +16,13 @@ setup:
   - match: { result: "created" }
 
   - do:
+      cluster.health:
+        index: .synonyms-2
+        timeout: 2s
+        wait_for_status: green
+        ignore: 408
+
+  - do:
       synonyms.get_synonym:
         id: test-update-synonyms
 
@@ -57,6 +64,13 @@ setup:
           synonyms_set: []
 
   - match: { result: "created" }
+
+  - do:
+      cluster.health:
+        index: .synonyms-2
+        timeout: 2s
+        wait_for_status: green
+        ignore: 408
 
   - do:
       synonyms.get_synonym:

@@ -1,0 +1,5 @@
+pr: 117576
+summary: Fix enrich cache size setting name
+area: Ingest Node
+type: bug
+issues: []

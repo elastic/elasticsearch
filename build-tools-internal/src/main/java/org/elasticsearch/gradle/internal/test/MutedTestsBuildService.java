@@ -27,39 +27,41 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.ArrayList;
-import java.util.Collections;
 import java.util.List;
+import java.util.LinkedHashSet;
+import java.util.Collections;
+import java.util.Set;
 
 public abstract class MutedTestsBuildService implements BuildService<MutedTestsBuildService.Params> {
-    private final List<String> excludePatterns = new ArrayList<>();
+    private final Set<String> excludePatterns = new LinkedHashSet<>();
     private final ObjectMapper objectMapper = new ObjectMapper(new YAMLFactory());
 
     public MutedTestsBuildService() {
         File infoPath = getParameters().getInfoPath().get().getAsFile();
         File mutedTestsFile = new File(infoPath, "muted-tests.yml");
-        addExcludes(buildExcludePatterns(mutedTestsFile));
+        excludePatterns.addAll(buildExcludePatterns(mutedTestsFile));
         for (RegularFile regularFile : getParameters().getAdditionalFiles().get()) {
-            addExcludes(buildExcludePatterns(regularFile.getAsFile()));
+            excludePatterns.addAll(buildExcludePatterns(regularFile.getAsFile()));
         }
     }
 
-    public List<String> getExcludePatterns() {
+    public Set<String> getExcludePatterns() {
         return excludePatterns;
     }
 
-    private List<String> buildExcludePatterns(File file) {
+    private Set<String> buildExcludePatterns(File file) {
         List<MutedTest> mutedTests;
 
         try (InputStream is = new BufferedInputStream(new FileInputStream(file))) {
             mutedTests = objectMapper.readValue(is, MutedTests.class).getTests();
             if (mutedTests == null) {
-                return Collections.emptyList();
+                return Collections.emptySet();
             }
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
 
-        List<String> excludes = new ArrayList<>();
+        Set<String> excludes = new LinkedHashSet<>();
         if (mutedTests.isEmpty() == false) {
             for (MutedTestsBuildService.MutedTest mutedTest : mutedTests) {
                 if (mutedTest.getClassName() != null && mutedTest.getMethods().isEmpty() == false) {
@@ -92,16 +94,6 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         }
 
         return excludes;
-    }
-
-    private void addExcludes(List<String> excludes) {
-        // Don't add the same exclude multiple times
-        for (String exclude : excludes) {
-            if (excludePatterns.stream().noneMatch(e -> e.equals(exclude))) {
-                excludePatterns.add(exclude);
-            }
-        }
-
     }
 
     public interface Params extends BuildServiceParameters {

@@ -178,8 +178,8 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
             prototype.term,
             prototype.docCount,
             aggregations,
-            prototype.showDocCountError,
-            prototype.docCountError,
+            showTermDocCountError,
+            prototype.getDocCountError(),
             prototype.format
         );
     }
@@ -260,7 +260,7 @@ public class LongTerms extends InternalMappedTerms<LongTerms, LongTerms.Bucket> 
 
     @Override
     protected Bucket createBucket(long docCount, InternalAggregations aggs, long docCountError, LongTerms.Bucket prototype) {
-        return new Bucket(prototype.term, docCount, aggs, prototype.showDocCountError, docCountError, format);
+        return new Bucket(prototype.term, docCount, aggs, showTermDocCountError, docCountError, format);
     }
 
     /**

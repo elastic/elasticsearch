@@ -32,6 +32,8 @@ import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
@@ -114,13 +116,14 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isType(
+        return isNotNull(field, sourceText(), FIRST)
+            .and(isType(
             field,
             DATA_TYPES::contains,
-            functionName(),
+            sourceText(),
             FIRST,
             "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        );
+        ));
     }
 
     @Override
@@ -131,7 +134,7 @@ public class Match extends FullTextFunction implements Validatable {
             functionName(),
             queryParamOrdinal(),
             "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        );
+        ).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
     @Override

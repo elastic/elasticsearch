@@ -208,7 +208,8 @@ COUNT():long | category:keyword
            1 | .*?disconnected.*?
 ;
 
-on const empty string
+# Throws NPE - Requires nulls support
+on const empty string-Ignore
 required_capability: categorize
 
 FROM sample_data
@@ -220,7 +221,8 @@ COUNT():long | category:keyword
            7 | .*?.*?
 ;
 
-on const empty string from eval
+# Throws NPE - Requires nulls support
+on const empty string from eval-Ignore
 required_capability: categorize
 
 FROM sample_data

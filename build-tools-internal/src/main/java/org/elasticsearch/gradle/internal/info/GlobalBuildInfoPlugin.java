@@ -122,8 +122,9 @@ public class GlobalBuildInfoPlugin implements Plugin<Project> {
         );
         BuildParameterExtension buildParams = project.getExtensions()
             .create(
-                "buildParams",
                 BuildParameterExtension.class,
+                BuildParameterExtension.EXTENSION_NAME,
+                DefaultBuildParameterExtension.class,
                 providers,
                 actualRuntimeJavaHome,
                 resolveToolchainSpecFromEnv(),

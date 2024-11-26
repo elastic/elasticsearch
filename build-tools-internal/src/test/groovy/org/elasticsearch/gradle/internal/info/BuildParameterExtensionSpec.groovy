@@ -72,7 +72,7 @@ class BuildParameterExtensionSpec extends Specification {
 
     private BuildParameterExtension extension(Project project, ProviderFactory providers) {
         return project.getExtensions().create(
-            "buildParameters", BuildParameterExtension.class,
+                BuildParameterExtension.class, "buildParameters", DefaultBuildParameterExtension.class,
             providers,
             providerMock(),
             providerMock(),

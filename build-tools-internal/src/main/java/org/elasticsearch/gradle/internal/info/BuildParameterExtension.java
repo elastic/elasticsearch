@@ -13,198 +13,66 @@ import org.elasticsearch.gradle.internal.BwcVersions;
 import org.gradle.api.Action;
 import org.gradle.api.JavaVersion;
 import org.gradle.api.Task;
-import org.gradle.api.provider.Property;
 import org.gradle.api.provider.Provider;
-import org.gradle.api.provider.ProviderFactory;
 import org.gradle.jvm.toolchain.JavaToolchainSpec;
 
 import java.io.File;
-import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.atomic.AtomicReference;
-import java.util.function.Supplier;
 
-public abstract class BuildParameterExtension {
-    private final Provider<Boolean> inFipsJvm;
-    private final Provider<File> runtimeJavaHome;
-    private final Boolean isRuntimeJavaHomeSet;
-    private final List<JavaHome> javaVersions;
-    private final JavaVersion minimumCompilerVersion;
-    private final JavaVersion minimumRuntimeVersion;
-    private final JavaVersion gradleJavaVersion;
-    private final Provider<JavaVersion> runtimeJavaVersion;
-    private final Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec;
-    private final Provider<String> runtimeJavaDetails;
-    private final String gitRevision;
-    private transient AtomicReference<ZonedDateTime> buildDate = new AtomicReference<>();
-    private final String testSeed;
-    private final Boolean isCi;
-    private final Integer defaultParallel;
-    private final Boolean isSnapshotBuild;
+public interface BuildParameterExtension {
+    String EXTENSION_NAME = "buildParams";
 
-    public BuildParameterExtension(
-        ProviderFactory providers,
-        Provider<File> runtimeJavaHome,
-        Provider<? extends Action<JavaToolchainSpec>> javaToolChainSpec,
-        Provider<JavaVersion> runtimeJavaVersion,
-        boolean isRuntimeJavaHomeSet,
-        Provider<String> runtimeJavaDetails,
-        List<JavaHome> javaVersions,
-        JavaVersion minimumCompilerVersion,
-        JavaVersion minimumRuntimeVersion,
-        JavaVersion gradleJavaVersion,
-        String gitRevision,
-        String gitOrigin,
-        String testSeed,
-        boolean isCi,
-        int defaultParallel,
-        final boolean isSnapshotBuild,
-        Provider<BwcVersions> bwcVersions
-    ) {
-        this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean);
-        this.runtimeJavaHome = cache(providers, runtimeJavaHome);
-        this.javaToolChainSpec = cache(providers, javaToolChainSpec);
-        this.runtimeJavaVersion = cache(providers, runtimeJavaVersion);
-        this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        this.runtimeJavaDetails = cache(providers, runtimeJavaDetails);
-        this.javaVersions = javaVersions;
-        this.minimumCompilerVersion = minimumCompilerVersion;
-        this.minimumRuntimeVersion = minimumRuntimeVersion;
-        this.gradleJavaVersion = gradleJavaVersion;
-        this.gitRevision = gitRevision;
-        this.testSeed = testSeed;
-        this.isCi = isCi;
-        this.defaultParallel = defaultParallel;
-        this.isSnapshotBuild = isSnapshotBuild;
-        this.getBwcVersionsProperty().set(bwcVersions);
-        this.getGitOriginProperty().set(gitOrigin);
-    }
+    boolean getInFipsJvm();
 
+<<<<<<< HEAD
     // This is a workaround for https://github.com/gradle/gradle/issues/25550
     private <T> Provider<T> cache(ProviderFactory providerFactory, Provider<T> incomingProvider) {
         SingleObjectCache<T> cache = new SingleObjectCache<>();
         return providerFactory.provider(() -> cache.computeIfAbsent(() -> incomingProvider.getOrNull()));
     }
+=======
+    Provider<File> getRuntimeJavaHome();
+>>>>>>> bcdddaba338 (Extract BuildParameterExtension public api into interface)
 
-    private static boolean parseBoolean(String s) {
-        if (s == null) {
-            return false;
-        }
-        return Boolean.parseBoolean(s);
-    }
+    void withFipsEnabledOnly(Task task);
 
-    public boolean getInFipsJvm() {
-        return inFipsJvm.getOrElse(false);
-    }
+    Boolean getIsRuntimeJavaHomeSet();
 
-    public Provider<File> getRuntimeJavaHome() {
-        return runtimeJavaHome;
-    }
+    List<JavaHome> getJavaVersions();
 
-    public void withFipsEnabledOnly(Task task) {
-        task.onlyIf("FIPS mode disabled", task1 -> getInFipsJvm() == false);
-    }
+    JavaVersion getMinimumCompilerVersion();
 
-    public Boolean getIsRuntimeJavaHomeSet() {
-        return isRuntimeJavaHomeSet;
-    }
+    JavaVersion getMinimumRuntimeVersion();
 
-    public List<JavaHome> getJavaVersions() {
-        return javaVersions;
-    }
+    JavaVersion getGradleJavaVersion();
 
-    public JavaVersion getMinimumCompilerVersion() {
-        return minimumCompilerVersion;
-    }
+    Provider<JavaVersion> getRuntimeJavaVersion();
 
-    public JavaVersion getMinimumRuntimeVersion() {
-        return minimumRuntimeVersion;
-    }
+    Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec();
 
-    public JavaVersion getGradleJavaVersion() {
-        return gradleJavaVersion;
-    }
+    Provider<String> getRuntimeJavaDetails();
 
-    public Provider<JavaVersion> getRuntimeJavaVersion() {
-        return runtimeJavaVersion;
-    }
+    String getGitRevision();
 
-    public Provider<? extends Action<JavaToolchainSpec>> getJavaToolChainSpec() {
-        return javaToolChainSpec;
-    }
+    String getGitOrigin();
 
-    public Provider<String> getRuntimeJavaDetails() {
-        return runtimeJavaDetails;
-    }
+    ZonedDateTime getBuildDate();
 
-    public String getGitRevision() {
-        return gitRevision;
-    }
+    String getTestSeed();
 
-    public String getGitOrigin() {
-        return getGitOriginProperty().get();
-    }
+    Boolean isCi();
 
-    public ZonedDateTime getBuildDate() {
-        ZonedDateTime value = buildDate.get();
-        if (value == null) {
-            value = ZonedDateTime.now(ZoneOffset.UTC);
-            if (buildDate.compareAndSet(null, value) == false) {
-                // If another thread initialized it first, return the initialized value
-                value = buildDate.get();
-            }
-        }
-        return value;
-    }
+    Integer getDefaultParallel();
 
-    public String getTestSeed() {
-        return testSeed;
-    }
+    Boolean isSnapshotBuild();
 
-    public Boolean isCi() {
-        return isCi;
-    }
+    BwcVersions getBwcVersions();
 
-    public Integer getDefaultParallel() {
-        return defaultParallel;
-    }
+    Provider<BwcVersions> getBwcVersionsProvider();
 
-    public Boolean isSnapshotBuild() {
-        return isSnapshotBuild;
-    }
+    Random getRandom();
 
-    public BwcVersions getBwcVersions() {
-        return getBwcVersionsProperty().get();
-    }
-
-    public abstract Property<BwcVersions> getBwcVersionsProperty();
-
-    public abstract Property<String> getGitOriginProperty();
-
-    public Random getRandom() {
-        return new Random(Long.parseUnsignedLong(testSeed.split(":")[0], 16));
-    }
-
-    public Boolean isGraalVmRuntime() {
-        return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
-    }
-
-    private static class SingleObjectCache<T> {
-        private T instance;
-
-        public T computeIfAbsent(Supplier<T> supplier) {
-            synchronized (this) {
-                if (instance == null) {
-                    instance = supplier.get();
-                }
-                return instance;
-            }
-        }
-
-        public T get() {
-            return instance;
-        }
-    }
+    Boolean isGraalVmRuntime();
 }

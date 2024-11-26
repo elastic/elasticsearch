@@ -26,9 +26,9 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.RoutingNode;
+import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.RoutingTable;
 import org.elasticsearch.cluster.routing.ShardRouting;
-import org.elasticsearch.cluster.routing.allocation.NodeAllocationStats;
 import org.elasticsearch.cluster.routing.allocation.NodeAllocationStatsProvider;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
 import org.elasticsearch.cluster.routing.allocation.WriteLoadForecaster;
@@ -134,11 +134,13 @@ public class StatelessDesiredBalanceReconcilerTests extends ESAllocationTestCase
     }
 
     private static final NodeAllocationStatsProvider EMPTY_NODE_ALLOCATION_STATS = new NodeAllocationStatsProvider(
-        WriteLoadForecaster.DEFAULT
+        WriteLoadForecaster.DEFAULT,
+        createBuiltInClusterSettings()
     ) {
         @Override
-        public Map<String, NodeAllocationStats> stats(
-            ClusterState clusterState,
+        public Map<String, NodeAllocationAndClusterBalanceStats> stats(
+            Metadata metadata,
+            RoutingNodes routingNodes,
             ClusterInfo clusterInfo,
             @Nullable DesiredBalance desiredBalance
         ) {

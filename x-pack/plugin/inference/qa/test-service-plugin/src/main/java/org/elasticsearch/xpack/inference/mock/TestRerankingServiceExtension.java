@@ -30,6 +30,7 @@ import org.elasticsearch.inference.ServiceSettings;
 import org.elasticsearch.inference.SettingsConfiguration;
 import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
 import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
@@ -119,6 +120,16 @@ public class TestRerankingServiceExtension implements InferenceServiceExtension 
                     )
                 );
             }
+        }
+
+        @Override
+        public void unifiedCompletionInfer(
+            Model model,
+            UnifiedCompletionRequest request,
+            TimeValue timeout,
+            ActionListener<InferenceServiceResults> listener
+        ) {
+            listener.onFailure(new UnsupportedOperationException("unifiedCompletionInfer not supported"));
         }
 
         @Override

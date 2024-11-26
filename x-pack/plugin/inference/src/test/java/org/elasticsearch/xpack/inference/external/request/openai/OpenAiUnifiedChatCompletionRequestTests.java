@@ -12,6 +12,7 @@ import org.apache.http.client.methods.HttpPost;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModelTests;
 
 import java.io.IOException;
@@ -20,13 +21,13 @@ import java.util.List;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.external.http.Utils.entityAsMap;
-import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiChatCompletionRequest.buildDefaultUri;
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequest.buildDefaultUri;
 import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUtils.ORGANIZATION_HEADER;
 import static org.hamcrest.Matchers.aMapWithSize;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 
-public class OpenAiChatCompletionRequestTests extends ESTestCase {
+public class OpenAiUnifiedChatCompletionRequestTests extends ESTestCase {
 
     public void testCreateRequest_WithUrlOrganizationUserDefined() throws IOException {
         var request = createRequest("www.google.com", "org", "secret", "abc", "model", "user");
@@ -75,7 +76,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
         var httpPost = (HttpPost) httpRequest.httpRequestBase();
 
-        assertThat(httpPost.getURI().toString(), is(OpenAiChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(httpPost.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
         assertThat(httpPost.getLastHeader(HttpHeaders.CONTENT_TYPE).getValue(), is(XContentType.JSON.mediaType()));
         assertThat(httpPost.getLastHeader(HttpHeaders.AUTHORIZATION).getValue(), is("Bearer secret"));
         assertNull(httpPost.getLastHeader(ORGANIZATION_HEADER));
@@ -101,7 +102,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
     public void testTruncate_DoesNotReduceInputTextSize() throws URISyntaxException, IOException {
         var request = createRequest(null, null, "secret", "abcd", "model", null);
         var truncatedRequest = request.truncate();
-        assertThat(request.getURI().toString(), is(OpenAiChatCompletionRequest.buildDefaultUri().toString()));
+        assertThat(request.getURI().toString(), is(OpenAiUnifiedChatCompletionRequest.buildDefaultUri().toString()));
 
         var httpRequest = truncatedRequest.createHttpRequest();
         assertThat(httpRequest.httpRequestBase(), instanceOf(HttpPost.class));
@@ -121,7 +122,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         assertNull(request.getTruncationInfo());
     }
 
-    public static OpenAiChatCompletionRequest createRequest(
+    public static OpenAiUnifiedChatCompletionRequest createRequest(
         @Nullable String url,
         @Nullable String org,
         String apiKey,
@@ -132,7 +133,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         return createRequest(url, org, apiKey, input, model, user, false);
     }
 
-    public static OpenAiChatCompletionRequest createRequest(
+    public static OpenAiUnifiedChatCompletionRequest createRequest(
         @Nullable String url,
         @Nullable String org,
         String apiKey,
@@ -142,7 +143,7 @@ public class OpenAiChatCompletionRequestTests extends ESTestCase {
         boolean stream
     ) {
         var chatCompletionModel = OpenAiChatCompletionModelTests.createChatCompletionModel(url, org, apiKey, model, user);
-        return new OpenAiChatCompletionRequest(List.of(input), chatCompletionModel, stream);
+        return new OpenAiUnifiedChatCompletionRequest(UnifiedChatInput.of(List.of(input), stream), chatCompletionModel);
     }
 
 }

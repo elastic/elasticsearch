@@ -41,7 +41,7 @@ import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenc
 import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.SSL_CONFIGURATION_SETTINGS;
 
 public class ElasticInferenceServiceHttpClientManager implements Closeable {
-    private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
+    private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceHttpClientManager.class);
     /**
      * The maximum number of total connections the connection pool can lease to all routes.
      * From googling around the connection pools maxTotal value should be close to the number of available threads.
@@ -151,7 +151,7 @@ public class ElasticInferenceServiceHttpClientManager implements Closeable {
             var configBuilder = IOReactorConfig.custom().setSoKeepAlive(true);
             ioReactor = new DefaultConnectingIOReactor(configBuilder.build());
         } catch (IOReactorException e) {
-            var message = "Failed to initialize the inference http client manager";
+            var message = "Failed to initialize the elastic inference service http client manager";
             logger.error(message, e);
             throw new ElasticsearchException(message, e);
         }

@@ -196,27 +196,15 @@ category:keyword
 text field
 required_capability: categorize
 
-FROM semantic_text
-  | STATS COUNT() BY category=CATEGORIZE(description)
+FROM hosts
+  | STATS COUNT() BY category=CATEGORIZE(host_group)
   | SORT category
 ;
 
 COUNT():long | category:keyword
-           3 | .*?some.*?
-;
-
-semantic text field
-required_capability: categorize
-
-FROM semantic_text
-  | STATS COUNT() BY category=CATEGORIZE(semantic_text_field)
-  | SORT category
-;
-
-COUNT():long | category:keyword
-           1 | .*?all.+?we.+?have.+?to.+?decide.+?is.+?what.+?to.+?do.+?with.+?the.+?time.+?that.+?is.+?given.+?to.+?us.*?
-           1 | .*?be.+?excellent.+?to.+?each.+?other.*?
-           1 | .*?live.+?long.+?and.+?prosper.*?
+           2 | .*?DB.+?servers.*?
+           2 | .*?Gateway.+?instances.*?
+           5 | .*?Kubernetes.+?cluster.*?
 ;
 
 on TO_UPPER

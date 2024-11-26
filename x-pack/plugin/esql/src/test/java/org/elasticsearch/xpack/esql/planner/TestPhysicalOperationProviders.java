@@ -372,8 +372,14 @@ public class TestPhysicalOperationProviders extends AbstractPhysicalOperationPro
                     if (count == 0) {
                         builder.appendNull();
                     } else {
+                        if (count > 1) {
+                            builder.beginPositionEntry();
+                        }
                         for (int v = 0; v < count; v++) {
-                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i, scratch)));
+                            builder.appendLong(encode(bytesRefBlock.getBytesRef(i + v, scratch)));
+                        }
+                        if (count > 1) {
+                            builder.endPositionEntry();
                         }
                     }
                 }

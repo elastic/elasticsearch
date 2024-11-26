@@ -6,19 +6,19 @@
  */
 package org.elasticsearch.xpack.sql.cli;
 
-import org.elasticsearch.Version;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.UUIDs;
-import org.elasticsearch.test.VersionUtils;
 import org.elasticsearch.xpack.sql.cli.command.CliSession;
 import org.elasticsearch.xpack.sql.client.ClientException;
 import org.elasticsearch.xpack.sql.client.ClientVersion;
 import org.elasticsearch.xpack.sql.client.HttpClient;
 import org.elasticsearch.xpack.sql.proto.MainResponse;
 import org.elasticsearch.xpack.sql.proto.SqlVersion;
+import org.elasticsearch.xpack.sql.proto.SqlVersions;
 
 import java.sql.SQLException;
 
+import static org.elasticsearch.xpack.sql.proto.VersionCompatibility.INTRODUCING_VERSION_COMPATIBILITY;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -55,8 +55,11 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testWrongServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        Version v = VersionUtils.randomVersionBetween(random(), null, VersionUtils.getPreviousVersion(Version.V_7_7_0));
-        SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
+        var preVersionCompat = SqlVersions.getAllVersions()
+            .stream()
+            .filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY) == false)
+            .toList();
+        SqlVersion version = preVersionCompat.get(random().nextInt(preVersionCompat.size()));
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );
@@ -66,7 +69,7 @@ public class CliSessionTests extends SqlCliTestCase {
             "This version of the CLI is only compatible with Elasticsearch version "
                 + ClientVersion.CURRENT.majorMinorToString()
                 + " or newer; attempting to connect to a server version "
-                + version.toString(),
+                + version,
             throwable.getMessage()
         );
         verify(httpClient, times(1)).serverInfo();
@@ -75,8 +78,8 @@ public class CliSessionTests extends SqlCliTestCase {
 
     public void testHigherServerVersion() throws Exception {
         HttpClient httpClient = mock(HttpClient.class);
-        Version v = VersionUtils.randomVersionBetween(random(), Version.V_7_7_0, null);
-        SqlVersion version = new SqlVersion(v.major, v.minor, v.revision);
+        var postVersionCompat = SqlVersions.getAllVersions().stream().filter(v -> v.onOrAfter(INTRODUCING_VERSION_COMPATIBILITY)).toList();
+        SqlVersion version = postVersionCompat.get(random().nextInt(postVersionCompat.size()));
         when(httpClient.serverInfo()).thenReturn(
             new MainResponse(randomAlphaOfLength(5), version.toString(), ClusterName.DEFAULT.value(), UUIDs.randomBase64UUID())
         );

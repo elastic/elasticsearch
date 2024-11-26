@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.shard;
 
@@ -194,7 +195,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         waitNoPendingTasksOnAll();
 
         String nodeId = null;
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -350,7 +351,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         });
 
         String primaryNodeId = null;
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             final String name = cursor.getValue().getName();
@@ -524,7 +525,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         final Map<String, String> nodeNameToNodeId = new HashMap<>();
-        final ClusterState state = clusterAdmin().prepareState().get().getState();
+        final ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final DiscoveryNodes nodes = state.nodes();
         for (Map.Entry<String, DiscoveryNode> cursor : nodes.getNodes().entrySet()) {
             nodeNameToNodeId.put(cursor.getValue().getName(), cursor.getKey());
@@ -569,7 +570,7 @@ public class RemoveCorruptedShardDataCommandIT extends ESIntegTestCase {
     }
 
     private Path getPathToShardData(String indexName, String dirSuffix) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { indexName }, false);
         List<ShardIterator> iterators = iterableAsArrayList(shardIterators);

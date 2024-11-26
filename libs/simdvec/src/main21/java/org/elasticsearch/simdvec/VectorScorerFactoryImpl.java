@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.simdvec;
@@ -14,7 +15,7 @@ import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorer;
 import org.elasticsearch.simdvec.internal.Int7SQVectorScorerSupplier.DotProductSupplier;
@@ -37,7 +38,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     public Optional<RandomVectorScorerSupplier> getInt7SQVectorScorerSupplier(
         VectorSimilarityType similarityType,
         IndexInput input,
-        RandomAccessQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float scoreCorrectionConstant
     ) {
         input = FilterIndexInput.unwrapOnlyTest(input);
@@ -56,7 +57,7 @@ final class VectorScorerFactoryImpl implements VectorScorerFactory {
     @Override
     public Optional<RandomVectorScorer> getInt7SQVectorScorer(
         VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
+        QuantizedByteVectorValues values,
         float[] queryVector
     ) {
         return Int7SQVectorScorer.create(sim, values, queryVector);

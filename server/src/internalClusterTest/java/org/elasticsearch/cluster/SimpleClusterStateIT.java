@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -76,13 +77,16 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testRoutingTable() throws Exception {
-        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState().clear().setRoutingTable(true).get();
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setRoutingTable(true)
+            .get();
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("foo"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("fuu"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("baz"), is(true));
         assertThat(clusterStateResponseUnfiltered.getState().routingTable().hasIndex("non-existent"), is(false));
 
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("foo"), is(false));
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("fuu"), is(false));
         assertThat(clusterStateResponse.getState().routingTable().hasIndex("baz"), is(false));
@@ -90,43 +94,49 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testNodes() throws Exception {
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setNodes(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setNodes(true).get();
         assertThat(clusterStateResponse.getState().nodes().getNodes().size(), is(cluster().size()));
 
-        ClusterStateResponse clusterStateResponseFiltered = clusterAdmin().prepareState().clear().get();
+        ClusterStateResponse clusterStateResponseFiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
         assertThat(clusterStateResponseFiltered.getState().nodes().getNodes().size(), is(0));
     }
 
     public void testMetadata() throws Exception {
-        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState().clear().setMetadata(true).get();
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .get();
         assertThat(clusterStateResponseUnfiltered.getState().metadata().indices().size(), is(3));
 
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(0));
     }
 
     public void testMetadataVersion() {
         createIndex("index-1");
         createIndex("index-2");
-        long baselineVersion = clusterAdmin().prepareState().get().getState().metadata().version();
+        long baselineVersion = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().version();
         assertThat(baselineVersion, greaterThan(0L));
         assertThat(
-            clusterAdmin().prepareState().setIndices("index-1").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-1").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin().prepareState().setIndices("index-2").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("index-2").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin().prepareState().setIndices("*").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("*").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
         assertThat(
-            clusterAdmin().prepareState().setIndices("not-found").get().getState().metadata().version(),
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setIndices("not-found").get().getState().metadata().version(),
             greaterThanOrEqualTo(baselineVersion)
         );
-        assertThat(clusterAdmin().prepareState().clear().setMetadata(false).get().getState().metadata().version(), equalTo(0L));
+        assertThat(
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(false).get().getState().metadata().version(),
+            equalTo(0L)
+        );
     }
 
     public void testIndexTemplates() throws Exception {
@@ -170,7 +180,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
             )
             .get();
 
-        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState().get();
+        ClusterStateResponse clusterStateResponseUnfiltered = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         assertThat(clusterStateResponseUnfiltered.getState().metadata().templates().size(), is(greaterThanOrEqualTo(2)));
 
         GetIndexTemplatesResponse getIndexTemplatesResponse = indicesAdmin().prepareGetTemplates("foo_template").get();
@@ -198,7 +208,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
      * that the cluster state returns coherent data for both routing table and metadata.
      */
     private void testFilteringByIndexWorks(String[] indices, String[] expected) {
-        ClusterStateResponse clusterState = clusterAdmin().prepareState()
+        ClusterStateResponse clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setRoutingTable(true)
@@ -262,19 +272,23 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     }
 
     public void testIndicesOptions() throws Exception {
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).setIndices("f*").get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+            .clear()
+            .setMetadata(true)
+            .setIndices("f*")
+            .get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(2));
         ensureGreen("fuu");
 
         // close one index
         assertAcked(indicesAdmin().close(new CloseIndexRequest("fuu")).get());
-        clusterStateResponse = clusterAdmin().prepareState().clear().setMetadata(true).setIndices("f*").get();
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).clear().setMetadata(true).setIndices("f*").get();
         assertThat(clusterStateResponse.getState().metadata().indices().size(), is(1));
         assertThat(clusterStateResponse.getState().metadata().index("foo").getState(), equalTo(IndexMetadata.State.OPEN));
 
         // expand_wildcards_closed should toggle return only closed index fuu
         IndicesOptions expandCloseOptions = IndicesOptions.fromOptions(false, true, false, true);
-        clusterStateResponse = clusterAdmin().prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("f*")
@@ -285,7 +299,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
 
         // ignore_unavailable set to true should not raise exception on fzzbzz
         IndicesOptions ignoreUnavailabe = IndicesOptions.fromOptions(true, true, true, false);
-        clusterStateResponse = clusterAdmin().prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("fzzbzz")
@@ -296,7 +310,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // empty wildcard expansion result should work when allowNoIndices is
         // turned on
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
-        clusterStateResponse = clusterAdmin().prepareState()
+        clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
             .clear()
             .setMetadata(true)
             .setIndices("a*")
@@ -309,7 +323,12 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // empty wildcard expansion throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, false, true, false);
         try {
-            clusterAdmin().prepareState().clear().setMetadata(true).setIndices("a*").setIndicesOptions(allowNoIndices).get();
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setIndices("a*")
+                .setIndicesOptions(allowNoIndices)
+                .get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [a*]"));
@@ -320,7 +339,12 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
         // ignore_unavailable set to false throws exception when allowNoIndices is turned off
         IndicesOptions allowNoIndices = IndicesOptions.fromOptions(false, true, true, false);
         try {
-            clusterAdmin().prepareState().clear().setMetadata(true).setIndices("fzzbzz").setIndicesOptions(allowNoIndices).get();
+            clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT)
+                .clear()
+                .setMetadata(true)
+                .setIndices("fzzbzz")
+                .setIndicesOptions(allowNoIndices)
+                .get();
             fail("Expected IndexNotFoundException");
         } catch (IndexNotFoundException e) {
             assertThat(e.getMessage(), is("no such index [fzzbzz]"));
@@ -330,7 +354,7 @@ public class SimpleClusterStateIT extends ESIntegTestCase {
     public void testPrivateCustomsAreExcluded() throws Exception {
         // ensure that the custom is injected into the cluster state
         assertBusy(() -> assertTrue(clusterService().state().customs().containsKey("test")));
-        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState().setCustoms(true).get();
+        ClusterStateResponse clusterStateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).setCustoms(true).get();
         assertFalse(clusterStateResponse.getState().customs().containsKey("test"));
     }
 

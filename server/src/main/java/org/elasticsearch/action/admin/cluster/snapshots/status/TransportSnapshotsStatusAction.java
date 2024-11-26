@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.snapshots.status;
@@ -140,10 +141,11 @@ public class TransportSnapshotsStatusAction extends TransportMasterNodeAction<Sn
             for (int i = 0; i < currentSnapshots.size(); i++) {
                 snapshots[i] = currentSnapshots.get(i).snapshot();
             }
+            final var snapshotStatusRequest = new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY), snapshots);
+            snapshotStatusRequest.setTimeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout());
             client.executeLocally(
                 TransportNodesSnapshotsStatus.TYPE,
-                new TransportNodesSnapshotsStatus.Request(nodesIds.toArray(Strings.EMPTY_ARRAY)).snapshots(snapshots)
-                    .timeout(request.masterNodeTimeout().millis() < 0 ? null : request.masterNodeTimeout()),
+                snapshotStatusRequest,
                 // fork to snapshot meta since building the response is expensive for large snapshots
                 new RefCountAwareThreadedActionListener<>(
                     threadPool.executor(ThreadPool.Names.SNAPSHOT_META),

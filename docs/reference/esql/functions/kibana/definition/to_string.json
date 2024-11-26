@@ -56,6 +56,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Input value. The input can be a single- or multi-valued column or an expression."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "keyword"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : "Input value. The input can be a single- or multi-valued column or an expression."
@@ -176,5 +188,7 @@
   "examples" : [
     "ROW a=10\n| EVAL j = TO_STRING(a)",
     "ROW a=[10, 9, 8]\n| EVAL j = TO_STRING(a)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

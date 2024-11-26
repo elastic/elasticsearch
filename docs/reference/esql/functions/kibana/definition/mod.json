@@ -184,5 +184,7 @@
       "variadic" : false,
       "returnType" : "unsigned_long"
     }
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

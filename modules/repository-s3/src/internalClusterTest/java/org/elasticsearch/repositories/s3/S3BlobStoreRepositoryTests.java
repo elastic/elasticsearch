@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.s3;
 
@@ -85,6 +86,7 @@ import java.util.stream.Collectors;
 import java.util.stream.StreamSupport;
 
 import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
+import static org.elasticsearch.repositories.blobstore.BlobStoreRepository.getRepositoryDataBlobName;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomNonDataPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -186,7 +188,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
     }
 
     @Override
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/88841", value = "com.amazonaws.request:DEBUG")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/88841",
+        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
+    )
     public void testRequestStats() throws Exception {
         super.testRequestStats();
     }
@@ -232,8 +237,10 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         assertEquals(assertionErrorMsg, mockCalls, sdkRequestCounts);
     }
 
-    @TestIssueLogging(issueUrl = "https://github.com/elastic/elasticsearch/issues/101608", value = "com.amazonaws.request:DEBUG")
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/101608")
+    @TestIssueLogging(
+        issueUrl = "https://github.com/elastic/elasticsearch/issues/101608",
+        value = "com.amazonaws.request:DEBUG,com.amazonaws.http.AmazonHttpClient:TRACE"
+    )
     public void testMetrics() throws Exception {
         // Create the repository and perform some activities
         final String repository = createRepository(randomRepositoryName(), false);
@@ -426,14 +433,21 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
         final BytesReference serialized = BytesReference.bytes(
             modifiedRepositoryData.snapshotsToXContent(XContentFactory.jsonBuilder(), SnapshotsService.OLD_SNAPSHOT_FORMAT)
         );
-        repository.blobStore()
-            .blobContainer(repository.basePath())
-            .writeBlobAtomic(
-                randomNonDataPurpose(),
-                BlobStoreRepository.INDEX_FILE_PREFIX + modifiedRepositoryData.getGenId(),
-                serialized,
-                true
-            );
+        if (randomBoolean()) {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(randomNonDataPurpose(), getRepositoryDataBlobName(modifiedRepositoryData.getGenId()), serialized, true);
+        } else {
+            repository.blobStore()
+                .blobContainer(repository.basePath())
+                .writeBlobAtomic(
+                    randomNonDataPurpose(),
+                    getRepositoryDataBlobName(modifiedRepositoryData.getGenId()),
+                    serialized.streamInput(),
+                    serialized.length(),
+                    true
+                );
+        }
 
         final String newSnapshotName = "snapshot-new";
         final long beforeThrottledSnapshot = repository.threadPool().relativeTimeInNanos();

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.geoip;
@@ -12,7 +13,6 @@ import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.service.ClusterService;
-import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.index.VersionType;
@@ -32,6 +32,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static org.elasticsearch.ingest.geoip.GeoIpProcessor.GEOIP_TYPE;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDefaultDatabases;
 import static org.hamcrest.Matchers.equalTo;
@@ -66,7 +67,7 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(ClusterState.EMPTY_STATE);
         DatabaseNodeService databaseNodeService = createRegistry(geoIpConfigDir, geoIpTmpDir, clusterService);
-        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(databaseNodeService);
+        GeoIpProcessor.Factory factory = new GeoIpProcessor.Factory(GEOIP_TYPE, databaseNodeService);
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
         copyDatabase("GeoLite2-City-Test.mmdb", geoIpTmpDir.resolve("GeoLite2-City-Test.mmdb"));
         databaseNodeService.updateDatabase("GeoLite2-City.mmdb", "md5", geoIpTmpDir.resolve("GeoLite2-City.mmdb"));
@@ -205,10 +206,10 @@ public class ReloadingDatabasesWhilePerformingGeoLookupsIT extends ESTestCase {
     private static void lazyLoadReaders(DatabaseNodeService databaseNodeService) throws IOException {
         if (databaseNodeService.get("GeoLite2-City.mmdb") != null) {
             databaseNodeService.get("GeoLite2-City.mmdb").getDatabaseType();
-            databaseNodeService.get("GeoLite2-City.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+            databaseNodeService.get("GeoLite2-City.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
         }
         databaseNodeService.get("GeoLite2-City-Test.mmdb").getDatabaseType();
-        databaseNodeService.get("GeoLite2-City-Test.mmdb").getCity(InetAddresses.forString("2.125.160.216"));
+        databaseNodeService.get("GeoLite2-City-Test.mmdb").getResponse("2.125.160.216", GeoIpTestUtils::getCity);
     }
 
 }

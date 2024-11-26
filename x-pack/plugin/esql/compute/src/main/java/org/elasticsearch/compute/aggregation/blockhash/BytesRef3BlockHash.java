@@ -85,7 +85,6 @@ final class BytesRef3BlockHash extends BlockHash {
     private void addVectors(BytesRefVector v1, BytesRefVector v2, BytesRefVector v3, GroupingAggregatorFunction.AddInput addInput) {
         final int positionCount = v1.getPositionCount();
         try (IntVector.FixedBuilder ordsBuilder = blockFactory.newIntVectorFixedBuilder(positionCount)) {
-            // TODO: enable ordinal vectors in BytesRefBlockHash
             try (IntVector k1 = hash1.add(v1); IntVector k2 = hash2.add(v2); IntVector k3 = hash3.add(v3)) {
                 for (int p = 0; p < positionCount; p++) {
                     long ord = hashOrdToGroup(finalHash.add(k1.getInt(p), k2.getInt(p), k3.getInt(p)));
@@ -98,7 +97,7 @@ final class BytesRef3BlockHash extends BlockHash {
         }
     }
 
-    private class AddWork extends AbstractAddBlock {
+    private class AddWork extends AddPage {
         final IntBlock b1;
         final IntBlock b2;
         final IntBlock b3;
@@ -121,11 +120,9 @@ final class BytesRef3BlockHash extends BlockHash {
                 int first3 = b3.getFirstValueIndex(i);
                 if (v1 == 1 && v2 == 1 && v3 == 1) {
                     long ord = hashOrdToGroup(finalHash.add(b1.getInt(first1), b2.getInt(first2), b3.getInt(first3)));
-                    ords.appendInt(Math.toIntExact(ord));
-                    addedValue(i);
+                    appendOrdSv(i, Math.toIntExact(ord));
                     continue;
                 }
-                ords.beginPositionEntry();
                 for (int i1 = 0; i1 < v1; i1++) {
                     int k1 = b1.getInt(first1 + i1);
                     for (int i2 = 0; i2 < v2; i2++) {
@@ -133,14 +130,13 @@ final class BytesRef3BlockHash extends BlockHash {
                         for (int i3 = 0; i3 < v3; i3++) {
                             int k3 = b3.getInt(first3 + i3);
                             long ord = hashOrdToGroup(finalHash.add(k1, k2, k3));
-                            ords.appendInt(Math.toIntExact(ord));
-                            addedValueInMultivaluePosition(i);
+                            appendOrdInMv(i, Math.toIntExact(ord));
                         }
                     }
                 }
-                ords.endPositionEntry();
+                finishMv();
             }
-            emitOrds();
+            flushRemaining();
         }
     }
 
@@ -151,6 +147,7 @@ final class BytesRef3BlockHash extends BlockHash {
 
     @Override
     public Block[] getKeys() {
+        // TODO Build Ordinals blocks #114010
         final int positions = (int) finalHash.size();
         final BytesRef scratch = new BytesRef();
         final BytesRefBlock[] outputBlocks = new BytesRefBlock[3];

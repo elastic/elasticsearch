@@ -67,6 +67,10 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
 
     public AlibabaCloudSearchRerankTaskSettings() {}
 
+    public boolean isEmpty() {
+        return true;
+    }
+
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
@@ -97,5 +101,11 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash();
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchRerankTaskSettings updatedSettings = new AlibabaCloudSearchRerankTaskSettings();
+        return of(this, updatedSettings);
     }
 }

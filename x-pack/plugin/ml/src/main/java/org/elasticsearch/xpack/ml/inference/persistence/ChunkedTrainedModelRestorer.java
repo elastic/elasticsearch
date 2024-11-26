@@ -196,7 +196,7 @@ public class ChunkedTrainedModelRestorer {
                 numDocsWritten += searchResponse.getHits().getHits().length;
 
                 boolean endOfSearch = searchResponse.getHits().getHits().length < searchSize
-                    || searchResponse.getHits().getTotalHits().value == numDocsWritten;
+                    || searchResponse.getHits().getTotalHits().value() == numDocsWritten;
 
                 if (endOfSearch) {
                     successConsumer.accept(Boolean.TRUE);

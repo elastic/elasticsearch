@@ -2,4 +2,4 @@
 
 *Description*
 
-Returns the {wikipedia}/Hyperbolic_functions[Tangent] hyperbolic function of an angle.
+Returns the {wikipedia}/Hyperbolic_functions[hyperbolic tangent] of a number.

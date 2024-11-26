@@ -26,10 +26,12 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     }
   ],
   "examples" : [
     "ROW message = \"Some Text\"\n| EVAL message_lower = TO_LOWER(message)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.snapshots;
@@ -183,6 +184,10 @@ public class IndexShardSnapshotStatus {
         }
     }
 
+    public Stage getStage() {
+        return stage.get();
+    }
+
     public void addAbortListener(ActionListener<AbortStatus> listener) {
         abortListeners.addListener(listener);
     }
@@ -240,7 +245,11 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        switch (stage.get()) {
+        ensureNotAborted(stage.get());
+    }
+
+    public static void ensureNotAborted(Stage shardSnapshotStage) {
+        switch (shardSnapshotStage) {
             case ABORTED -> throw new AbortedSnapshotException();
             case PAUSING -> throw new PausedSnapshotException();
         }
@@ -427,5 +436,32 @@ public class IndexShardSnapshotStatus {
                 + '\''
                 + ')';
         }
+    }
+
+    @Override
+    public String toString() {
+        return "index shard snapshot status ("
+            + "stage="
+            + stage
+            + ", startTime="
+            + startTime
+            + ", totalTime="
+            + totalTime
+            + ", incrementalFileCount="
+            + incrementalFileCount
+            + ", totalFileCount="
+            + totalFileCount
+            + ", processedFileCount="
+            + processedFileCount
+            + ", incrementalSize="
+            + incrementalSize
+            + ", totalSize="
+            + totalSize
+            + ", processedSize="
+            + processedSize
+            + ", failure='"
+            + failure
+            + '\''
+            + ')';
     }
 }

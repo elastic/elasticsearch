@@ -21,7 +21,6 @@ import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.transport.TransportRequest;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.session.Configuration;
@@ -37,7 +36,6 @@ import java.util.Objects;
  * will poll pages from this sink. Internally, this compute will trigger sub-computes on data nodes via {@link DataNodeRequest}.
  */
 final class ClusterComputeRequest extends TransportRequest implements IndicesRequest.Replaceable {
-    private static final PlanNameRegistry planNameRegistry = new PlanNameRegistry();
     private final String clusterAlias;
     private final String sessionId;
     private final Configuration configuration;
@@ -69,7 +67,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
             // TODO make EsqlConfiguration Releasable
             new BlockStreamInput(in, new BlockFactory(new NoopCircuitBreaker(CircuitBreaker.REQUEST), BigArrays.NON_RECYCLING_INSTANCE))
         );
-        this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, planNameRegistry, in.namedWriteableRegistry(), configuration));
+        this.plan = RemoteClusterPlan.from(new PlanStreamInput(in, in.namedWriteableRegistry(), configuration));
         this.indices = plan.originalIndices().indices();
     }
 
@@ -79,7 +77,7 @@ final class ClusterComputeRequest extends TransportRequest implements IndicesReq
         out.writeString(clusterAlias);
         out.writeString(sessionId);
         configuration.writeTo(out);
-        plan.writeTo(new PlanStreamOutput(out, planNameRegistry, configuration));
+        plan.writeTo(new PlanStreamOutput(out, configuration));
     }
 
     @Override

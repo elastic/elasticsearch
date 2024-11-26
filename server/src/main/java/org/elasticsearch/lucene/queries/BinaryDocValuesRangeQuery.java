@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.lucene.queries;
@@ -17,7 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
-import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.BytesRef;
@@ -60,7 +61,7 @@ public final class BinaryDocValuesRangeQuery extends Query {
         return new ConstantScoreWeight(this, boost) {
 
             @Override
-            public Scorer scorer(LeafReaderContext context) throws IOException {
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
                 final BinaryDocValues values = context.reader().getBinaryDocValues(fieldName);
                 if (values == null) {
                     return null;
@@ -105,7 +106,8 @@ public final class BinaryDocValuesRangeQuery extends Query {
                         return 4; // at most 4 comparisons
                     }
                 };
-                return new ConstantScoreScorer(this, score(), scoreMode, iterator);
+
+                return new DefaultScorerSupplier(new ConstantScoreScorer(score(), scoreMode, iterator));
             }
 
             @Override

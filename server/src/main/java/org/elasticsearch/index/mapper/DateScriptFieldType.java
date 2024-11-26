@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -68,7 +69,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             (n, c, o) -> o == null ? null : LocaleUtils.parse(o.toString()),
             RuntimeField.initializerNotSupported(),
             (b, n, v) -> {
-                if (v != null && false == v.equals(Locale.ROOT)) {
+                if (v != null && false == v.equals(DateFieldMapper.DEFAULT_LOCALE)) {
                     b.field(n, v.toString());
                 }
             },
@@ -96,7 +97,7 @@ public class DateScriptFieldType extends AbstractScriptFieldType<DateFieldScript
             OnScriptError onScriptError
         ) {
             String pattern = format.getValue() == null ? DateFieldMapper.DEFAULT_DATE_TIME_FORMATTER.pattern() : format.getValue();
-            Locale locale = this.locale.getValue() == null ? Locale.ROOT : this.locale.getValue();
+            Locale locale = this.locale.getValue() == null ? DateFieldMapper.DEFAULT_LOCALE : this.locale.getValue();
             DateFormatter dateTimeFormatter = DateFormatter.forPattern(pattern, supportedVersion).withLocale(locale);
             return new DateScriptFieldType(name, factory, dateTimeFormatter, script, meta, onScriptError);
         }

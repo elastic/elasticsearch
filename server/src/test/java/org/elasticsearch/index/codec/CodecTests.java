@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.codec;
@@ -18,7 +19,6 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.IndexWriter;
 import org.apache.lucene.store.Directory;
 import org.apache.lucene.tests.util.LuceneTestCase.SuppressCodecs;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.BigArrays;
@@ -29,7 +29,6 @@ import org.elasticsearch.index.cache.bitset.BitsetFilterCache;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.plugins.MapperPlugin;
 import org.elasticsearch.script.ScriptCompiler;
@@ -51,7 +50,7 @@ public class CodecTests extends ESTestCase {
         assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         CodecService codecService = createCodecService();
         assertThat(codecService.codec("default"), instanceOf(PerFieldMapperCodec.class));
-        assertThat(codecService.codec("default"), instanceOf(Elasticsearch814Codec.class));
+        assertThat(codecService.codec("default"), instanceOf(Elasticsearch900Codec.class));
     }
 
     public void testDefault() throws Exception {
@@ -64,7 +63,6 @@ public class CodecTests extends ESTestCase {
     }
 
     public void testBestCompression() throws Exception {
-        assumeTrue("Only when zstd_stored_fields feature flag is enabled", CodecService.ZSTD_STORED_FIELDS_FEATURE_FLAG.isEnabled());
         Codec codec = createCodecService().codec("best_compression");
         assertEquals(
             "Zstd814StoredFieldsFormat(compressionMode=ZSTD(level=3), chunkSize=245760, maxDocsPerChunk=2048, blockShift=10)",
@@ -132,13 +130,7 @@ public class CodecTests extends ESTestCase {
             Collections.emptyMap(),
             MapperPlugin.NOOP_FIELD_FILTER
         );
-        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, new BitsetFilterCache.Listener() {
-            @Override
-            public void onCache(ShardId shardId, Accountable accountable) {}
-
-            @Override
-            public void onRemoval(ShardId shardId, Accountable accountable) {}
-        });
+        BitsetFilterCache bitsetFilterCache = new BitsetFilterCache(settings, BitsetFilterCache.Listener.NOOP);
         MapperService service = new MapperService(
             () -> TransportVersion.current(),
             settings,

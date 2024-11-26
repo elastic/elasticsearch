@@ -444,7 +444,6 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
      * Exercise SharedBlobCacheService#get in multiple threads to trigger any assertion errors.
      * @throws IOException
      */
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/112305")
     public void testGetMultiThreaded() throws IOException {
         final int threads = between(2, 10);
         final int regionCount = between(1, 20);
@@ -494,11 +493,11 @@ public class SharedBlobCacheServiceTests extends ESTestCase {
                                     assert allowAlreadyClosed || e.getMessage().equals("evicted during free region allocation") : e;
                                     throw e;
                                 }
+                                assertTrue(cacheFileRegion.testOnlyNonVolatileIO() != null || cacheFileRegion.isEvicted());
                                 if (incRef && cacheFileRegion.tryIncRef()) {
                                     if (yield[i] == 0) {
                                         Thread.yield();
                                     }
-                                    assertNotNull(cacheFileRegion.testOnlyNonVolatileIO());
                                     cacheFileRegion.decRef();
                                 }
                                 if (evict[i] == 0) {

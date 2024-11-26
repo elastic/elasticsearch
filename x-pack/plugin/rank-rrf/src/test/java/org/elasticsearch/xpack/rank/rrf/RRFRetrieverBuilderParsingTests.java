@@ -8,18 +8,26 @@
 package org.elasticsearch.xpack.rank.rrf;
 
 import org.elasticsearch.action.search.SearchRequest;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.search.builder.SearchSourceBuilder;
 import org.elasticsearch.search.retriever.RetrieverBuilder;
 import org.elasticsearch.search.retriever.RetrieverParserContext;
 import org.elasticsearch.search.retriever.TestRetrieverBuilder;
 import org.elasticsearch.test.AbstractXContentTestCase;
 import org.elasticsearch.usage.SearchUsage;
+import org.elasticsearch.usage.SearchUsageHolder;
+import org.elasticsearch.usage.UsageService;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xcontent.json.JsonXContent;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
+
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
 
 public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RRFRetrieverBuilder> {
 
@@ -29,25 +37,21 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
      * for x-content testing.
      */
     public static RRFRetrieverBuilder createRandomRRFRetrieverBuilder() {
-        RRFRetrieverBuilder rrfRetrieverBuilder = new RRFRetrieverBuilder();
-
+        int rankWindowSize = RRFRankBuilder.DEFAULT_RANK_WINDOW_SIZE;
         if (randomBoolean()) {
-            rrfRetrieverBuilder.rankWindowSize = randomIntBetween(1, 10000);
+            rankWindowSize = randomIntBetween(1, 10000);
         }
-
+        int rankConstant = RRFRetrieverBuilder.DEFAULT_RANK_CONSTANT;
         if (randomBoolean()) {
-            rrfRetrieverBuilder.rankConstant = randomIntBetween(1, 1000000);
+            rankConstant = randomIntBetween(1, 1000000);
         }
-
+        var ret = new RRFRetrieverBuilder(rankWindowSize, rankConstant);
         int retrieverCount = randomIntBetween(2, 50);
-        rrfRetrieverBuilder.retrieverBuilders = new ArrayList<>(retrieverCount);
-
         while (retrieverCount > 0) {
-            rrfRetrieverBuilder.retrieverBuilders.add(TestRetrieverBuilder.createRandomTestRetrieverBuilder());
+            ret.addChild(TestRetrieverBuilder.createRandomTestRetrieverBuilder());
             --retrieverCount;
         }
-
-        return rrfRetrieverBuilder;
+        return ret;
     }
 
     @Override
@@ -57,7 +61,10 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
 
     @Override
     protected RRFRetrieverBuilder doParseInstance(XContentParser parser) throws IOException {
-        return RRFRetrieverBuilder.PARSER.apply(parser, new RetrieverParserContext(new SearchUsage(), nf -> true));
+        return (RRFRetrieverBuilder) RetrieverBuilder.parseTopLevelRetrieverBuilder(
+            parser,
+            new RetrieverParserContext(new SearchUsage(), nf -> true)
+        );
     }
 
     @Override
@@ -84,5 +91,49 @@ public class RRFRetrieverBuilderParsingTests extends AbstractXContentTestCase<RR
             )
         );
         return new NamedXContentRegistry(entries);
+    }
+
+    public void testRRFRetrieverParsing() throws IOException {
+        String restContent = "{"
+            + "  \"retriever\": {"
+            + "    \"rrf\": {"
+            + "      \"retrievers\": ["
+            + "        {"
+            + "          \"test\": {"
+            + "            \"value\": \"foo\""
+            + "          }"
+            + "        },"
+            + "        {"
+            + "          \"test\": {"
+            + "            \"value\": \"bar\""
+            + "          }"
+            + "        }"
+            + "      ],"
+            + "      \"rank_window_size\": 100,"
+            + "      \"rank_constant\": 10,"
+            + "      \"min_score\": 20.0,"
+            + "      \"_name\": \"foo_rrf\""
+            + "    }"
+            + "  }"
+            + "}";
+        SearchUsageHolder searchUsageHolder = new UsageService().getSearchUsageHolder();
+        try (XContentParser jsonParser = createParser(JsonXContent.jsonXContent, restContent)) {
+            SearchSourceBuilder source = new SearchSourceBuilder().parseXContent(jsonParser, true, searchUsageHolder, nf -> true);
+            assertThat(source.retriever(), instanceOf(RRFRetrieverBuilder.class));
+            RRFRetrieverBuilder parsed = (RRFRetrieverBuilder) source.retriever();
+            assertThat(parsed.minScore(), equalTo(20f));
+            assertThat(parsed.retrieverName(), equalTo("foo_rrf"));
+            try (XContentParser parseSerialized = createParser(JsonXContent.jsonXContent, Strings.toString(source))) {
+                SearchSourceBuilder deserializedSource = new SearchSourceBuilder().parseXContent(
+                    parseSerialized,
+                    true,
+                    searchUsageHolder,
+                    nf -> true
+                );
+                assertThat(deserializedSource.retriever(), instanceOf(RRFRetrieverBuilder.class));
+                RRFRetrieverBuilder deserialized = (RRFRetrieverBuilder) source.retriever();
+                assertThat(parsed, equalTo(deserialized));
+            }
+        }
     }
 }

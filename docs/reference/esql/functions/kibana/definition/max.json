@@ -32,6 +32,18 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : ""
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "double",
           "optional" : false,
           "description" : ""
@@ -98,7 +110,7 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -116,5 +128,7 @@
   "examples" : [
     "FROM employees\n| STATS MAX(languages)",
     "FROM employees\n| STATS max_avg_salary_change = MAX(MV_AVG(salary_change))"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

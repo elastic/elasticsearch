@@ -98,6 +98,7 @@ public class DownsampleDataStreamTests extends ESSingleNodeTestCase {
         // WHEN (simulate downsampling as done by an ILM action)
         final String downsampleTargetIndex = DataStream.BACKING_INDEX_PREFIX + dataStreamName + "-downsample-1h";
         final DownsampleAction.Request downsampleRequest = new DownsampleAction.Request(
+            TEST_REQUEST_TIMEOUT,
             rolloverResponse.getOldIndex(),
             downsampleTargetIndex,
             TIMEOUT,

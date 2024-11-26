@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.template;
 
@@ -49,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -178,7 +180,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
     }
 
     public void testDeleteIndexTemplate() throws Exception {
-        final int existingTemplates = admin().cluster().prepareState().get().getState().metadata().templates().size();
+        final int existingTemplates = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size();
         logger.info("--> put template_1 and template_2");
         indicesAdmin().preparePutTemplate("template_1")
             .setPatterns(Collections.singletonList("te*"))
@@ -223,7 +225,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         logger.info("--> explicitly delete template_1");
         indicesAdmin().prepareDeleteTemplate("template_1").get();
 
-        ClusterState state = admin().cluster().prepareState().get().getState();
+        ClusterState state = admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
 
         assertThat(state.metadata().templates().size(), equalTo(1 + existingTemplates));
         assertThat(state.metadata().templates().containsKey("template_2"), equalTo(true));
@@ -254,11 +256,14 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         logger.info("--> delete template*");
         indicesAdmin().prepareDeleteTemplate("template*").get();
-        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(existingTemplates));
+        assertThat(
+            admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(),
+            equalTo(existingTemplates)
+        );
 
         logger.info("--> delete * with no templates, make sure we don't get a failure");
         indicesAdmin().prepareDeleteTemplate("*").get();
-        assertThat(admin().cluster().prepareState().get().getState().metadata().templates().size(), equalTo(0));
+        assertThat(admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().templates().size(), equalTo(0));
     }
 
     public void testThatGetIndexTemplatesWorks() throws Exception {
@@ -683,7 +688,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().addIndices("test").get();
+        GetAliasesResponse getAliasesResponse = indicesAdmin().prepareGetAliases().setIndices("test").get();
         assertThat(getAliasesResponse.getAliases().get("test").size(), equalTo(4));
 
         for (AliasMetadata aliasMetadata : getAliasesResponse.getAliases().get("test")) {
@@ -839,24 +844,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        // ax -> matches template
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1);
+            assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+            assertNull(response.getHits().getAt(0).field("field2"));
+        },
             prepareSearch("ax").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
-        );
-
-        // bx -> matches template
-        assertResponse(
-            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
+            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2")
         );
     }
 
@@ -877,7 +871,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(
             eBadSettings.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // provide an invalid mapping for a partitioned index
@@ -909,7 +903,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         assertThat(
             eBadIndex.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // finally, create a valid index

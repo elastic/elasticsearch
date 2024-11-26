@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -18,7 +19,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.cluster.AckedClusterStateUpdateTask;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.ack.AckedRequest;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
@@ -101,22 +101,9 @@ public class RestClusterInfoActionCancellationIT extends HttpSmokeTestCase {
 
     private void updateClusterState(Function<ClusterState, ClusterState> transformationFn) {
         final TimeValue timeout = TimeValue.timeValueSeconds(10);
-
-        final AckedRequest ackedRequest = new AckedRequest() {
-            @Override
-            public TimeValue ackTimeout() {
-                return timeout;
-            }
-
-            @Override
-            public TimeValue masterNodeTimeout() {
-                return timeout;
-            }
-        };
-
         PlainActionFuture<AcknowledgedResponse> future = new PlainActionFuture<>();
         internalCluster().getAnyMasterNodeInstance(ClusterService.class)
-            .submitUnbatchedStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(ackedRequest, future) {
+            .submitUnbatchedStateUpdateTask("get_mappings_cancellation_test", new AckedClusterStateUpdateTask(timeout, timeout, future) {
                 @Override
                 public ClusterState execute(ClusterState currentState) throws Exception {
                     return transformationFn.apply(currentState);

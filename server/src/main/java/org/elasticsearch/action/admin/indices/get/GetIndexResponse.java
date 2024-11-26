@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.get;
@@ -18,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ToXContent;
 
@@ -28,9 +28,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
-import static org.elasticsearch.rest.BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER;
 
 /**
  * A response for a get index action.
@@ -199,14 +196,7 @@ public class GetIndexResponse extends ActionResponse implements ChunkedToXConten
                 if (indexMappings == null) {
                     builder.startObject("mappings").endObject();
                 } else {
-                    if (builder.getRestApiVersion() == RestApiVersion.V_7
-                        && params.paramAsBoolean(INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                        builder.startObject("mappings");
-                        builder.field(MapperService.SINGLE_MAPPING_NAME, indexMappings.sourceAsMap());
-                        builder.endObject();
-                    } else {
-                        builder.field("mappings", indexMappings.sourceAsMap());
-                    }
+                    builder.field("mappings", indexMappings.sourceAsMap());
                 }
 
                 builder.startObject("settings");

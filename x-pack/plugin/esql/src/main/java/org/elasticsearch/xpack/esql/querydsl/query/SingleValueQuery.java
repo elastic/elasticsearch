@@ -16,6 +16,8 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.compute.operator.DriverContext;
+import org.elasticsearch.compute.operator.Warnings;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.MatchNoneQueryBuilder;
@@ -26,7 +28,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.tree.Location;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.expression.function.Warnings;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
@@ -173,7 +174,12 @@ public class SingleValueQuery extends Query {
             }
             SingleValueMatchQuery singleValueQuery = new SingleValueMatchQuery(
                 context.getForField(ft, MappedFieldType.FielddataOperation.SEARCH),
-                new Warnings(source)
+                Warnings.createWarnings(
+                    DriverContext.WarningsMode.COLLECT,
+                    source.source().getLineNumber(),
+                    source.source().getColumnNumber(),
+                    source.text()
+                )
             );
             org.apache.lucene.search.Query rewrite = singleValueQuery.rewrite(context.searcher());
             if (rewrite instanceof MatchAllDocsQuery) {

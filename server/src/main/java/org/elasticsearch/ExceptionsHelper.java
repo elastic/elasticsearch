@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch;
@@ -18,6 +19,9 @@ import org.elasticsearch.common.util.concurrent.EsRejectedExecutionException;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.transport.ConnectTransportException;
+import org.elasticsearch.transport.NoSeedNodeLeftException;
+import org.elasticsearch.transport.NoSuchRemoteClusterException;
 import org.elasticsearch.xcontent.XContentParseException;
 
 import java.io.IOException;
@@ -471,7 +475,7 @@ public final class ExceptionsHelper {
     }
 
     /**
-     * Utility method useful for determine whether to log an Exception or perhaps
+     * Utility method useful for determining whether to log an Exception or perhaps
      * avoid logging a stacktrace if the caller/logger is not interested in these
      * types of node/shard issues.
      *
@@ -487,6 +491,27 @@ public final class ExceptionsHelper {
             || t instanceof org.elasticsearch.discovery.MasterNotDiscoveredException
             || t instanceof org.elasticsearch.transport.NodeNotConnectedException
             || t instanceof org.elasticsearch.cluster.block.ClusterBlockException);
+    }
+
+    /**
+     * Checks the exception against a known list of exceptions that indicate a remote cluster
+     * cannot be connected to.
+     *
+     * @param e Exception to inspect
+     * @return true if the Exception is known to indicate that a remote cluster
+     *         is unavailable (cannot be connected to by the transport layer)
+     */
+    public static boolean isRemoteUnavailableException(Exception e) {
+        Throwable unwrap = unwrap(e, ConnectTransportException.class, NoSuchRemoteClusterException.class, NoSeedNodeLeftException.class);
+        if (unwrap != null) {
+            return true;
+        }
+        Throwable ill = unwrap(e, IllegalStateException.class, IllegalArgumentException.class);
+        if (ill != null && (ill.getMessage().contains("Unable to open any connections") || ill.getMessage().contains("unknown host"))) {
+            return true;
+        }
+        // doesn't look like any of the known remote exceptions
+        return false;
     }
 
     private static class GroupBy {

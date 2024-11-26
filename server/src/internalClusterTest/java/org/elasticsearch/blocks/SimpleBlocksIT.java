@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.blocks;
@@ -298,7 +299,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
         );
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
@@ -393,7 +394,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
 
         final List<Thread> threads = new ArrayList<>();
         final CountDownLatch latch = new CountDownLatch(1);
@@ -434,7 +435,7 @@ public class SimpleBlocksIT extends ESIntegTestCase {
     }
 
     static void assertIndexHasBlock(APIBlock block, final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
             final Settings indexSettings = indexMetadata.getSettings();

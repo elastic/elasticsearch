@@ -38,6 +38,42 @@
       "params" : [
         {
           "name" : "first",
+          "type" : "date",
+          "optional" : false,
+          "description" : "First of the columns to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date",
+          "optional" : true,
+          "description" : "The rest of the columns to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "First of the columns to evaluate."
+        },
+        {
+          "name" : "rest",
+          "type" : "date_nanos",
+          "optional" : true,
+          "description" : "The rest of the columns to evaluate."
+        }
+      ],
+      "variadic" : true,
+      "returnType" : "date_nanos"
+    },
+    {
+      "params" : [
+        {
+          "name" : "first",
           "type" : "double",
           "optional" : false,
           "description" : "First of the columns to evaluate."
@@ -170,7 +206,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -188,7 +224,7 @@
         }
       ],
       "variadic" : true,
-      "returnType" : "text"
+      "returnType" : "keyword"
     },
     {
       "params" : [
@@ -211,5 +247,7 @@
   ],
   "examples" : [
     "ROW a = 10, b = 20\n| EVAL l = LEAST(a, b)"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

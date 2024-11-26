@@ -15,7 +15,6 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.plan.logical.Dissect;
 
 import java.io.IOException;
@@ -45,7 +44,7 @@ public class DissectExec extends RegexExtractExec {
     private DissectExec(StreamInput in) throws IOException {
         this(
             Source.readFrom((PlanStreamInput) in),
-            ((PlanStreamInput) in).readPhysicalPlanNode(),
+            in.readNamedWriteable(PhysicalPlan.class),
             in.readNamedWriteable(Expression.class),
             Dissect.Parser.readFrom(in),
             in.readNamedWriteableCollectionAsList(Attribute.class)
@@ -55,7 +54,7 @@ public class DissectExec extends RegexExtractExec {
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         Source.EMPTY.writeTo(out);
-        ((PlanStreamOutput) out).writePhysicalPlanNode(child());
+        out.writeNamedWriteable(child());
         out.writeNamedWriteable(inputExpression());
         parser().writeTo(out);
         out.writeNamedWriteableCollection(extractedFields());

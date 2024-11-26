@@ -8,7 +8,6 @@
 package org.elasticsearch.xpack.constantkeyword.mapper;
 
 import org.apache.lucene.index.IndexReader;
-import org.apache.lucene.index.LeafReader;
 import org.apache.lucene.index.TermsEnum;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MatchNoDocsQuery;
@@ -19,6 +18,7 @@ import org.apache.lucene.util.UnicodeUtil;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CharacterRunAutomaton;
 import org.apache.lucene.util.automaton.LevenshteinAutomata;
+import org.apache.lucene.util.automaton.Operations;
 import org.apache.lucene.util.automaton.RegExp;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.logging.DeprecationCategory;
@@ -57,7 +57,6 @@ import java.util.Collections;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
-import java.util.stream.Stream;
 
 /**
  * A {@link FieldMapper} that assigns every document the same value.
@@ -111,7 +110,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
             }
             return new ConstantKeywordFieldMapper(
                 leafName(),
-                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue())
+                new ConstantKeywordFieldType(context.buildFullName(leafName()), value.getValue(), meta.getValue()),
+                builderParams(this, context)
             );
         }
     }
@@ -290,7 +290,10 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
                 return new MatchNoDocsQuery();
             }
 
-            final Automaton automaton = new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(maxDeterminizedStates);
+            final Automaton automaton = Operations.determinize(
+                new RegExp(regexp, syntaxFlags, matchFlags).toAutomaton(),
+                maxDeterminizedStates
+            );
             final CharacterRunAutomaton runAutomaton = new CharacterRunAutomaton(automaton);
             if (runAutomaton.run(this.value)) {
                 return new MatchAllDocsQuery();
@@ -301,8 +304,8 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
     }
 
-    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType) {
-        super(simpleName, mappedFieldType, MultiFields.empty(), CopyTo.empty());
+    ConstantKeywordFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams) {
+        super(simpleName, mappedFieldType, builderParams);
     }
 
     @Override
@@ -321,7 +324,7 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
 
         if (fieldType().value == null) {
             ConstantKeywordFieldType newFieldType = new ConstantKeywordFieldType(fieldType().name(), value, fieldType().meta());
-            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType);
+            Mapper update = new ConstantKeywordFieldMapper(leafName(), newFieldType, builderParams);
             boolean dynamicMapperAdded = context.addDynamicMapper(update);
             // the mapper is already part of the mapping, we're just updating it with the new value
             assert dynamicMapperAdded;
@@ -344,44 +347,21 @@ public class ConstantKeywordFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
-
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
+    protected SyntheticSourceSupport syntheticSourceSupport() {
         String value = fieldType().value();
-        ;
+
         if (value == null) {
-            return SourceLoader.SyntheticFieldLoader.NOTHING;
+            return new SyntheticSourceSupport.Native(SourceLoader.SyntheticFieldLoader.NOTHING);
         }
-        return new SourceLoader.SyntheticFieldLoader() {
-            @Override
-            public Stream<Map.Entry<String, StoredFieldLoader>> storedFieldLoaders() {
-                return Stream.of();
-            }
 
-            @Override
-            public DocValuesLoader docValuesLoader(LeafReader reader, int[] docIdsInLeaf) {
-                return docId -> true;
-            }
+        /*
+        If there was no value in the document, synthetic source should not have the value too.
+        This is consistent with stored source behavior and is important for scenarios
+        like reindexing into an index that has a different value of this value in the mapping.
 
-            @Override
-            public boolean hasValue() {
-                return true;
-            }
-
-            @Override
-            public void write(XContentBuilder b) throws IOException {
-                if (fieldType().value != null) {
-                    b.field(leafName(), fieldType().value);
-                }
-            }
-
-            @Override
-            public String fieldName() {
-                return fullPath();
-            }
-        };
+        In order to do that we use fallback logic which implements exactly such logic (_source only contains value
+        if it was in the original document).
+         */
+        return new SyntheticSourceSupport.Fallback();
     }
 }

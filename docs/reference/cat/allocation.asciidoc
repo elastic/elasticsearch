@@ -7,10 +7,11 @@
 [IMPORTANT]
 ====
 cat APIs are only intended for human consumption using the command line or {kib}
-console. They are _not_ intended for use by applications.
+console. They are _not_ intended for use by applications. For application 
+consumption, use the <<cluster-nodes-stats,node stats API>>.
 ====
 
-Provides a snapshot of the number of shards allocated to each data node
+Provides a snapshot of the number of shards <<shard-allocation-relocation-recovery,allocated>> to each data node
 and their disk space.
 
 

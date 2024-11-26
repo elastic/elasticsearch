@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster;
@@ -46,6 +47,7 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.xcontent.ToXContent;
@@ -240,9 +242,7 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
     }
 
     private boolean assertEventIngestedIsUnknownInMixedClusters(Metadata metadata, CompatibilityVersions compatibilityVersions) {
-        if (compatibilityVersions.transportVersion().before(TransportVersions.EVENT_INGESTED_RANGE_IN_CLUSTER_STATE)
-            && metadata != null
-            && metadata.indices() != null) {
+        if (compatibilityVersions.transportVersion().before(TransportVersions.V_8_15_0) && metadata != null && metadata.indices() != null) {
             for (IndexMetadata indexMetadata : metadata.indices().values()) {
                 assert indexMetadata.getEventIngestedRange() == IndexLongFieldRange.UNKNOWN
                     : "event.ingested range should be UNKNOWN but is "
@@ -758,10 +758,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
             // customs
             metrics.contains(Metric.CUSTOMS)
-                ? Iterators.flatMap(
-                    customs.entrySet().iterator(),
-                    cursor -> ChunkedToXContentHelper.wrapWithObject(cursor.getKey(), cursor.getValue().toXContentChunked(outerParams))
-                )
+                ? ChunkedToXContent.builder(outerParams)
+                    .forEach(customs.entrySet().iterator(), (b, e) -> b.xContentObject(e.getKey(), e.getValue()))
                 : Collections.emptyIterator()
         );
     }
@@ -984,7 +982,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
                 routingTable,
                 nodes,
                 compatibilityVersions,
-                new ClusterFeatures(nodeFeatures),
+                previous != null && getNodeFeatures(previous.clusterFeatures).equals(nodeFeatures)
+                    ? previous.clusterFeatures
+                    : new ClusterFeatures(nodeFeatures),
                 blocks,
                 customs.build(),
                 fromDiff,
@@ -1026,28 +1026,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         builder.metadata = Metadata.readFrom(in);
         builder.routingTable = RoutingTable.readFrom(in);
         builder.nodes = DiscoveryNodes.readFrom(in, localNode);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
-        } else {
-            // this clusterstate is from a pre-8.8.0 node
-            // infer the versions from discoverynodes for now
-            // leave mappings versions empty
-            builder.nodes()
-                .getNodes()
-                .values()
-                .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
-        }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            builder.nodeFeatures(ClusterFeatures.readFrom(in));
-        }
+        builder.nodeIdsToCompatibilityVersions(in.readMap(CompatibilityVersions::readVersion));
+        builder.nodeFeatures(ClusterFeatures.readFrom(in));
         builder.blocks = ClusterBlocks.readFrom(in);
         int customSize = in.readVInt();
         for (int i = 0; i < customSize; i++) {
             Custom customIndexMetadata = in.readNamedWriteable(Custom.class);
             builder.putCustom(customIndexMetadata.getWriteableName(), customIndexMetadata);
-        }
-        if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
         }
         return builder.build();
     }
@@ -1056,21 +1041,9 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
      * If the cluster state does not contain transport version information, this is the version
      * that is inferred for all nodes on version 8.8.0 or above.
      */
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     public static final TransportVersion INFERRED_TRANSPORT_VERSION = TransportVersions.V_8_8_0;
-
     public static final Version VERSION_INTRODUCING_TRANSPORT_VERSIONS = Version.V_8_8_0;
-
-    private static TransportVersion inferTransportVersion(DiscoveryNode node) {
-        TransportVersion tv;
-        if (node.getVersion().before(VERSION_INTRODUCING_TRANSPORT_VERSIONS)) {
-            // 1-to-1 mapping between Version and TransportVersion
-            tv = TransportVersion.fromId(node.getPre811VersionId().getAsInt());
-        } else {
-            // use the lowest value it could be for now
-            tv = INFERRED_TRANSPORT_VERSION;
-        }
-        return tv;
-    }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
@@ -1080,17 +1053,10 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
         metadata.writeTo(out);
         routingTable.writeTo(out);
         nodes.writeTo(out);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-            out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-            clusterFeatures.writeTo(out);
-        }
+        out.writeMap(compatibilityVersions, StreamOutput::writeWriteable);
+        clusterFeatures.writeTo(out);
         blocks.writeTo(out);
         VersionedNamedWriteable.writeVersionedWritables(out, customs);
-        if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-            out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
-        }
     }
 
     private static class ClusterStateDiff implements Diff<ClusterState> {
@@ -1107,7 +1073,6 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
 
         private final Diff<DiscoveryNodes> nodes;
 
-        @Nullable
         private final Diff<Map<String, CompatibilityVersions>> versions;
         private final Diff<ClusterFeatures> features;
 
@@ -1143,26 +1108,13 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             toVersion = in.readLong();
             routingTable = RoutingTable.readDiffFrom(in);
             nodes = DiscoveryNodes.readDiffFrom(in, localNode);
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0) && in.readBoolean()) {
-                versions = DiffableUtils.readJdkMapDiff(
-                    in,
-                    DiffableUtils.getStringKeySerializer(),
-                    COMPATIBILITY_VERSIONS_VALUE_SERIALIZER
-                );
-            } else {
-                versions = null;   // infer at application time
-            }
-            if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                features = ClusterFeatures.readDiffFrom(in);
-            } else {
-                features = null;    // fill in when nodes re-register with a master that understands features
-            }
+            boolean versionPresent = in.readBoolean();
+            if (versionPresent == false) throw new IOException("ClusterStateDiff stream must have versions");
+            versions = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), COMPATIBILITY_VERSIONS_VALUE_SERIALIZER);
+            features = ClusterFeatures.readDiffFrom(in);
             metadata = Metadata.readDiffFrom(in);
             blocks = ClusterBlocks.readDiffFrom(in);
             customs = DiffableUtils.readJdkMapDiff(in, DiffableUtils.getStringKeySerializer(), CUSTOM_VALUE_SERIALIZER);
-            if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                in.readVInt(); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
-            }
         }
 
         @Override
@@ -1173,18 +1125,12 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             out.writeLong(toVersion);
             routingTable.writeTo(out);
             nodes.writeTo(out);
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_8_0)) {
-                out.writeOptionalWriteable(versions);
-            }
-            if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_12_0)) {
-                features.writeTo(out);
-            }
+            out.writeBoolean(true);
+            versions.writeTo(out);
+            features.writeTo(out);
             metadata.writeTo(out);
             blocks.writeTo(out);
             customs.writeTo(out);
-            if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
-                out.writeVInt(-1); // used to be minimumMasterNodesOnPublishingMaster, which was used in 7.x for BWC with 6.x
-            }
         }
 
         @Override
@@ -1201,19 +1147,8 @@ public class ClusterState implements ChunkedToXContent, Diffable<ClusterState> {
             builder.version(toVersion);
             builder.routingTable(routingTable.apply(state.routingTable));
             builder.nodes(nodes.apply(state.nodes));
-            if (versions != null) {
-                builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
-            } else {
-                // infer the versions from discoverynodes for now
-                // leave mappings versions empty
-                builder.nodes()
-                    .getNodes()
-                    .values()
-                    .forEach(n -> builder.putCompatibilityVersions(n.getId(), inferTransportVersion(n), Map.of()));
-            }
-            if (features != null) {
-                builder.nodeFeatures(this.features.apply(state.clusterFeatures));
-            }
+            builder.nodeIdsToCompatibilityVersions(this.versions.apply(state.compatibilityVersions));
+            builder.nodeFeatures(this.features.apply(state.clusterFeatures));
             builder.metadata(metadata.apply(state.metadata));
             builder.blocks(blocks.apply(state.blocks));
             builder.customs(customs.apply(state.customs));

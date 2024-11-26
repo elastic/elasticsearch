@@ -11,6 +11,7 @@ import org.elasticsearch.common.Rounding;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
+import org.elasticsearch.common.time.DateUtils;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -31,13 +32,14 @@ import java.time.Period;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.TimeUnit;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isDate;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
 
 public class DateTrunc extends EsqlScalarFunction {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
@@ -46,12 +48,21 @@ public class DateTrunc extends EsqlScalarFunction {
         DateTrunc::new
     );
 
+    @FunctionalInterface
+    public interface DateTruncFactoryProvider {
+        ExpressionEvaluator.Factory apply(Source source, ExpressionEvaluator.Factory lhs, Rounding.Prepared rounding);
+    }
+
+    private static final Map<DataType, DateTruncFactoryProvider> evaluatorMap = Map.ofEntries(
+        Map.entry(DATETIME, DateTruncDatetimeEvaluator.Factory::new),
+        Map.entry(DATE_NANOS, DateTruncDateNanosEvaluator.Factory::new)
+    );
     private final Expression interval;
     private final Expression timestampField;
     protected static final ZoneId DEFAULT_TZ = ZoneOffset.UTC;
 
     @FunctionInfo(
-        returnType = "date",
+        returnType = { "date", "date_nanos" },
         description = "Rounds down a date to the closest interval.",
         examples = {
             @Example(file = "date", tag = "docsDateTrunc"),
@@ -72,7 +83,7 @@ public class DateTrunc extends EsqlScalarFunction {
             type = { "date_period", "time_duration" },
             description = "Interval; expressed using the timespan literal syntax."
         ) Expression interval,
-        @Param(name = "date", type = { "date" }, description = "Date expression") Expression field
+        @Param(name = "date", type = { "date", "date_nanos" }, description = "Date expression") Expression field
     ) {
         super(source, List.of(interval, field));
         this.interval = interval;
@@ -109,18 +120,26 @@ public class DateTrunc extends EsqlScalarFunction {
             return new TypeResolution("Unresolved children");
         }
 
+        String operationName = sourceText();
         return isType(interval, DataType::isTemporalAmount, sourceText(), FIRST, "dateperiod", "timeduration").and(
-            isDate(timestampField, sourceText(), SECOND)
+            isType(timestampField, evaluatorMap::containsKey, operationName, SECOND, "date_nanos or datetime")
         );
     }
 
     public DataType dataType() {
-        return DataType.DATETIME;
+        // Default to DATETIME in the case of nulls. This mimics the behavior before DATE_NANOS support
+        return timestampField.dataType() == DataType.NULL ? DATETIME : timestampField.dataType();
     }
 
-    @Evaluator
-    static long process(long fieldVal, @Fixed Rounding.Prepared rounding) {
+    @Evaluator(extraName = "Datetime")
+    static long processDatetime(long fieldVal, @Fixed Rounding.Prepared rounding) {
         return rounding.round(fieldVal);
+    }
+
+    @Evaluator(extraName = "DateNanos")
+    static long processDateNanos(long fieldVal, @Fixed Rounding.Prepared rounding) {
+        // Currently, ES|QL doesn't support rounding to sub-millisecond values, so it's safe to cast before rounding.
+        return DateUtils.toNanoSeconds(rounding.round(DateUtils.toMilliSeconds(fieldVal)));
     }
 
     @Override
@@ -199,7 +218,7 @@ public class DateTrunc extends EsqlScalarFunction {
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var fieldEvaluator = toEvaluator.apply(timestampField);
         if (interval.foldable() == false) {
             throw new IllegalArgumentException("Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "].");
@@ -215,14 +234,15 @@ public class DateTrunc extends EsqlScalarFunction {
                 "Function [" + sourceText() + "] has invalid interval [" + interval.sourceText() + "]. " + e.getMessage()
             );
         }
-        return evaluator(source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
+        return evaluator(dataType(), source(), fieldEvaluator, DateTrunc.createRounding(foldedInterval, DEFAULT_TZ));
     }
 
     public static ExpressionEvaluator.Factory evaluator(
+        DataType forType,
         Source source,
         ExpressionEvaluator.Factory fieldEvaluator,
         Rounding.Prepared rounding
     ) {
-        return new DateTruncEvaluator.Factory(source, fieldEvaluator, rounding);
+        return evaluatorMap.get(forType).apply(source, fieldEvaluator, rounding);
     }
 }

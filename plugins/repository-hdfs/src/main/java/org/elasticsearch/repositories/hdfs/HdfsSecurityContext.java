@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.repositories.hdfs;
 
@@ -46,7 +47,8 @@ class HdfsSecurityContext {
             // 2) allow hadoop to add credentials to our Subject
             new AuthPermission("modifyPrivateCredentials"),
             // 3) RPC Engine requires this for re-establishing pooled connections over the lifetime of the client
-            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read") };
+            new PrivateCredentialPermission("org.apache.hadoop.security.Credentials * \"*\"", "read"),
+            new RuntimePermission("getClassLoader") };
 
         // If Security is enabled, we need all the following elevated permissions:
         KERBEROS_AUTH_PERMISSIONS = new Permission[] {

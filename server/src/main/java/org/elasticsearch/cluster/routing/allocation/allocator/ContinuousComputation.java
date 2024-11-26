@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.allocator;
@@ -49,6 +50,16 @@ public abstract class ContinuousComputation<T> {
     }
 
     /**
+     * enqueues {@code input} if {@code expectedLatestKnownInput} is the latest known input.
+     * Neither of the parameters can be null.
+     */
+    protected boolean compareAndEnqueue(T expectedLatestKnownInput, T input) {
+        assert expectedLatestKnownInput != null;
+        assert input != null;
+        return enqueuedInput.compareAndSet(Objects.requireNonNull(expectedLatestKnownInput), Objects.requireNonNull(input));
+    }
+
+    /**
      * @return {@code false} iff there are no active/enqueued computations
      */
     // exposed for tests
@@ -66,7 +77,7 @@ public abstract class ContinuousComputation<T> {
     /**
      * Process the given input.
      *
-     * @param input the value that was last received by {@link #onNewInput} before invocation.
+     * @param input the value that was last received by {@link #onNewInput} or {@link #compareAndEnqueue} before invocation.
      */
     protected abstract void processInput(T input);
 

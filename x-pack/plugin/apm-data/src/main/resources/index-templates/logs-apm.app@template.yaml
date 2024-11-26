@@ -12,12 +12,14 @@ composed_of:
 - apm@settings
 - apm-10d@lifecycle
 - logs-apm@settings
+- logs-apm.app-fallback@ilm
 - logs@custom
 - logs-apm.app@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - logs@custom
 - logs-apm.app@custom
+- logs-apm.app-fallback@ilm
 template:
   settings:
     index:

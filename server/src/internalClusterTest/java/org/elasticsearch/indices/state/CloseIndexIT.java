@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.indices.state;
 
@@ -162,7 +163,7 @@ public class CloseIndexIT extends ESIntegTestCase {
                 .setSettings(Settings.builder().put("index.routing.allocation.include._name", "nothing").build())
         );
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         assertThat(clusterState.metadata().indices().get(indexName).getState(), is(IndexMetadata.State.OPEN));
         assertThat(clusterState.routingTable().allShards().allMatch(ShardRouting::unassigned), is(true));
 
@@ -182,7 +183,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             IntStream.range(0, nbDocs).mapToObj(i -> prepareIndex(indexName).setId(String.valueOf(i)).setSource("num", i)).collect(toList())
         );
 
-        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(indexName)
+        ClusterHealthResponse healthResponse = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName)
             .setWaitForYellowStatus()
             .setWaitForEvents(Priority.LANGUID)
             .setWaitForNoRelocatingShards(true)
@@ -243,7 +244,7 @@ public class CloseIndexIT extends ESIntegTestCase {
             }
             indices[i] = indexName;
         }
-        assertThat(clusterAdmin().prepareState().get().getState().metadata().indices().size(), equalTo(indices.length));
+        assertThat(clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata().indices().size(), equalTo(indices.length));
 
         startInParallel(indices.length * 2, i -> {
             final String index = indices[i % indices.length];
@@ -285,7 +286,7 @@ public class CloseIndexIT extends ESIntegTestCase {
 
         indexer.stopAndAwaitStopped();
 
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         if (clusterState.metadata().indices().get(indexName).getState() == IndexMetadata.State.CLOSE) {
             assertIndexIsClosed(indexName);
             assertAcked(indicesAdmin().prepareOpen(indexName));
@@ -310,7 +311,7 @@ public class CloseIndexIT extends ESIntegTestCase {
         ensureGreen(indexName);
 
         final CloseIndexResponse closeIndexResponse = indicesAdmin().prepareClose(indexName).get();
-        assertThat(clusterAdmin().prepareHealth(indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
+        assertThat(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, indexName).get().getStatus(), is(ClusterHealthStatus.GREEN));
         assertTrue(closeIndexResponse.isAcknowledged());
         assertTrue(closeIndexResponse.isShardsAcknowledged());
         assertThat(closeIndexResponse.getIndices().get(0), notNullValue());
@@ -532,7 +533,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     static void assertIndexIsClosed(final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.CLOSE));
@@ -555,7 +556,7 @@ public class CloseIndexIT extends ESIntegTestCase {
     }
 
     static void assertIndexIsOpened(final String... indices) {
-        final ClusterState clusterState = clusterAdmin().prepareState().get().getState();
+        final ClusterState clusterState = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         for (String index : indices) {
             final IndexMetadata indexMetadata = clusterState.metadata().indices().get(index);
             assertThat(indexMetadata.getState(), is(IndexMetadata.State.OPEN));

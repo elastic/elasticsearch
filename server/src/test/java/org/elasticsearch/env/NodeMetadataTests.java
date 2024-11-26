@@ -1,15 +1,17 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.env;
 
 import org.elasticsearch.Build;
 import org.elasticsearch.Version;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
@@ -78,6 +80,8 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    @AwaitsFix(bugUrl = "as mentioned in the comment below, the behavior here is changing for 9.0 so this test needs updating")
     public void testReadsFormatWithoutVersion() throws IOException {
         // the behaviour tested here is only appropriate if the current version is compatible with versions 7 and earlier
         assertTrue(IndexVersions.MINIMUM_COMPATIBLE.onOrBefore(IndexVersions.V_7_0_0));
@@ -151,6 +155,8 @@ public class NodeMetadataTests extends ESTestCase {
         );
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
+    @AwaitsFix(bugUrl = "Needs to be updated for 9.0 version bump")
     public void testUpgradeMarksPreviousVersion() {
         final String nodeId = randomAlphaOfLength(10);
         final Version version = VersionUtils.randomVersionBetween(random(), Version.CURRENT.minimumCompatibilityVersion(), Version.V_8_0_0);
@@ -161,20 +167,12 @@ public class NodeMetadataTests extends ESTestCase {
         assertThat(nodeMetadata.previousNodeVersion(), equalTo(buildVersion));
     }
 
-    public static Version tooNewVersion() {
-        return Version.fromId(between(Version.CURRENT.id + 1, 99999999));
-    }
-
     public static IndexVersion tooNewIndexVersion() {
         return IndexVersion.fromId(between(IndexVersion.current().id() + 1, 99999999));
     }
 
     public static BuildVersion tooNewBuildVersion() {
         return BuildVersion.fromVersionId(between(Version.CURRENT.id() + 1, 99999999));
-    }
-
-    public static Version tooOldVersion() {
-        return Version.fromId(between(1, Version.CURRENT.minimumCompatibilityVersion().id - 1));
     }
 
     public static BuildVersion tooOldBuildVersion() {

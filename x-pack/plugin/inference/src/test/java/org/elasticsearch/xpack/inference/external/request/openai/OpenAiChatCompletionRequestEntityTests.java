@@ -21,7 +21,7 @@ import static org.hamcrest.CoreMatchers.is;
 public class OpenAiChatCompletionRequestEntityTests extends ESTestCase {
 
     public void testXContent_WritesUserWhenDefined() throws IOException {
-        var entity = new OpenAiChatCompletionRequestEntity(List.of("abc"), "model", "user");
+        var entity = new OpenAiChatCompletionRequestEntity(List.of("abc"), "model", "user", false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -33,7 +33,7 @@ public class OpenAiChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_DoesNotWriteUserWhenItIsNull() throws IOException {
-        var entity = new OpenAiChatCompletionRequestEntity(List.of("abc"), "model", null);
+        var entity = new OpenAiChatCompletionRequestEntity(List.of("abc"), "model", null, false);
 
         XContentBuilder builder = XContentFactory.contentBuilder(XContentType.JSON);
         entity.toXContent(builder, null);
@@ -44,10 +44,10 @@ public class OpenAiChatCompletionRequestEntityTests extends ESTestCase {
     }
 
     public void testXContent_ThrowsIfModelIsNull() {
-        assertThrows(NullPointerException.class, () -> new OpenAiChatCompletionRequestEntity(List.of("abc"), null, "user"));
+        assertThrows(NullPointerException.class, () -> new OpenAiChatCompletionRequestEntity(List.of("abc"), null, "user", false));
     }
 
     public void testXContent_ThrowsIfMessagesAreNull() {
-        assertThrows(NullPointerException.class, () -> new OpenAiChatCompletionRequestEntity(null, "model", "user"));
+        assertThrows(NullPointerException.class, () -> new OpenAiChatCompletionRequestEntity(null, "model", "user", false));
     }
 }

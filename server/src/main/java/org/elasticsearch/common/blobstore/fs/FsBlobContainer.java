@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.blobstore.fs;
@@ -302,6 +303,32 @@ public class FsBlobContainer extends AbstractBlobContainer {
     }
 
     @Override
+    public void writeBlobAtomic(
+        OperationPurpose purpose,
+        String blobName,
+        InputStream inputStream,
+        long blobSize,
+        boolean failIfAlreadyExists
+    ) throws IOException {
+        assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
+        final String tempBlob = tempBlobName(blobName);
+        final Path tempBlobPath = path.resolve(tempBlob);
+        try {
+            writeToPath(inputStream, tempBlobPath, blobSize);
+            moveBlobAtomic(purpose, tempBlob, blobName, failIfAlreadyExists);
+        } catch (IOException ex) {
+            try {
+                deleteBlobsIgnoringIfNotExists(purpose, Iterators.single(tempBlob));
+            } catch (IOException e) {
+                ex.addSuppressed(e);
+            }
+            throw ex;
+        } finally {
+            IOUtils.fsync(path, true);
+        }
+    }
+
+    @Override
     public void writeBlobAtomic(OperationPurpose purpose, final String blobName, BytesReference bytes, boolean failIfAlreadyExists)
         throws IOException {
         assert purpose != OperationPurpose.SNAPSHOT_DATA && BlobContainer.assertPurposeConsistency(purpose, blobName) : purpose;
@@ -332,11 +359,12 @@ public class FsBlobContainer extends AbstractBlobContainer {
     private void writeToPath(InputStream inputStream, Path tempBlobPath, long blobSize) throws IOException {
         try (OutputStream outputStream = Files.newOutputStream(tempBlobPath, StandardOpenOption.CREATE_NEW)) {
             final int bufferSize = blobStore.bufferSizeInBytes();
-            org.elasticsearch.core.Streams.copy(
+            long bytesWritten = org.elasticsearch.core.Streams.copy(
                 inputStream,
                 outputStream,
                 new byte[blobSize < bufferSize ? Math.toIntExact(blobSize) : bufferSize]
             );
+            assert bytesWritten == blobSize : "expected [" + blobSize + "] bytes but wrote [" + bytesWritten + "]";
         }
         IOUtils.fsync(tempBlobPath, false);
     }

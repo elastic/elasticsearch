@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.health.node.selection;
@@ -22,7 +23,6 @@ import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.health.HealthFeatures;
 import org.elasticsearch.node.NodeClosedException;
 import org.elasticsearch.persistent.AllocatedPersistentTask;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -156,31 +156,27 @@ public final class HealthNodeTaskExecutor extends PersistentTasksExecutor<Health
 
     // visible for testing
     void startTask(ClusterChangedEvent event) {
-        // Wait until every node in the cluster supports health checks
-        if (event.state().clusterRecovered() && featureService.clusterHasFeature(event.state(), HealthFeatures.SUPPORTS_HEALTH)) {
-            boolean healthNodeTaskExists = HealthNode.findTask(event.state()) != null;
-            boolean isElectedMaster = event.localNodeMaster();
-            if (isElectedMaster && healthNodeTaskExists == false) {
-                persistentTasksService.sendStartRequest(
-                    TASK_NAME,
-                    TASK_NAME,
-                    new HealthNodeTaskParams(),
-                    null,
-                    ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
-                        if (e instanceof NodeClosedException) {
-                            logger.debug("Failed to create health node task because node is shutting down", e);
-                            return;
+        // Wait until master is stable before starting health task
+        if (event.localNodeMaster() && event.state().clusterRecovered() && HealthNode.findTask(event.state()) == null) {
+            persistentTasksService.sendStartRequest(
+                TASK_NAME,
+                TASK_NAME,
+                new HealthNodeTaskParams(),
+                null,
+                ActionListener.wrap(r -> logger.debug("Created the health node task"), e -> {
+                    if (e instanceof NodeClosedException) {
+                        logger.debug("Failed to create health node task because node is shutting down", e);
+                        return;
+                    }
+                    Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
+                    if (t instanceof ResourceAlreadyExistsException == false) {
+                        logger.error("Failed to create the health node task", e);
+                        if (enabled) {
+                            clusterService.addListener(taskStarter);
                         }
-                        Throwable t = e instanceof RemoteTransportException ? e.getCause() : e;
-                        if (t instanceof ResourceAlreadyExistsException == false) {
-                            logger.error("Failed to create the health node task", e);
-                            if (enabled) {
-                                clusterService.addListener(taskStarter);
-                            }
-                        }
-                    })
-                );
-            }
+                    }
+                })
+            );
         }
     }
 

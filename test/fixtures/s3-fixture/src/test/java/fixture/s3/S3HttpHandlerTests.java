@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package fixture.s3;
@@ -30,6 +31,8 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Objects;
 
+import static org.hamcrest.Matchers.allOf;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.greaterThan;
 
 public class S3HttpHandlerTests extends ESTestCase {
@@ -260,7 +263,7 @@ public class S3HttpHandlerTests extends ESTestCase {
             <Delimiter /><Prefix>path/blob</Prefix><MaxUploads>10000</MaxUploads><IsTruncated>false</IsTruncated>\
             </ListMultipartUploadsResult>"""), handleRequest(handler, "GET", "/bucket/?uploads&prefix=path/blob"));
 
-        assertEquals(RestStatus.NOT_FOUND, handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, Strings.format("""
+        final var completeUploadResponse = handleRequest(handler, "POST", "/bucket/path/blob?uploadId=" + uploadId, Strings.format("""
             <?xml version="1.0" encoding="UTF-8"?>
             <CompleteMultipartUpload xmlns="http://s3.amazonaws.com/doc/2006-03-01/">
                <Part>
@@ -271,7 +274,13 @@ public class S3HttpHandlerTests extends ESTestCase {
                   <ETag>%s</ETag>
                   <PartNumber>2</PartNumber>
                </Part>
-            </CompleteMultipartUpload>""", part1Etag, part2Etag)).status());
+            </CompleteMultipartUpload>""", part1Etag, part2Etag));
+        if (completeUploadResponse.status() == RestStatus.OK) {
+            // possible, but rare, indicating that S3 started processing the upload before returning an error
+            assertThat(completeUploadResponse.body().utf8ToString(), allOf(containsString("<Error>"), containsString("NoSuchUpload")));
+        } else {
+            assertEquals(RestStatus.NOT_FOUND, completeUploadResponse.status());
+        }
     }
 
     private static String getUploadId(BytesReference createUploadResponseBody) {

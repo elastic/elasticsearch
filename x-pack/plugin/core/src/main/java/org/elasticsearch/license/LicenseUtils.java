@@ -8,7 +8,6 @@ package org.elasticsearch.license;
 
 import org.elasticsearch.ElasticsearchSecurityException;
 import org.elasticsearch.common.hash.MessageDigests;
-import org.elasticsearch.common.time.DateFormatter;
 import org.elasticsearch.license.License.LicenseType;
 import org.elasticsearch.license.internal.XPackLicenseStatus;
 import org.elasticsearch.protocol.xpack.license.LicenseStatus;
@@ -16,6 +15,9 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.nio.charset.StandardCharsets;
 import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.HashMap;
 import java.util.Locale;
 import java.util.Map;
@@ -25,7 +27,13 @@ import java.util.concurrent.TimeUnit;
 public class LicenseUtils {
 
     public static final String EXPIRED_FEATURE_METADATA = "es.license.expired.feature";
-    public static final DateFormatter DATE_FORMATTER = DateFormatter.forPattern("EEEE, MMMM dd, yyyy");
+
+    public static String formatMillis(long millis) {
+        // DateFormatters logs a warning about the pattern on COMPAT
+        // this will be confusing to users, so call DateTimeFormatter directly instead
+        return DateTimeFormatter.ofPattern("EEEE, MMMM dd, yyyy", Locale.ENGLISH)
+            .format(Instant.ofEpochMilli(millis).atOffset(ZoneOffset.UTC));
+    }
 
     /**
      * Exception to be thrown when a feature action requires a valid license, but license
@@ -155,7 +163,7 @@ public class LicenseUtils {
                 ? "expires today"
                 : (diff > 0
                     ? String.format(Locale.ROOT, "will expire in [%d] days", days)
-                    : String.format(Locale.ROOT, "expired on [%s]", LicenseUtils.DATE_FORMATTER.formatMillis(licenseExpiryDate)));
+                    : String.format(Locale.ROOT, "expired on [%s]", formatMillis(licenseExpiryDate)));
             return "Your license "
                 + expiryMessage
                 + ". "

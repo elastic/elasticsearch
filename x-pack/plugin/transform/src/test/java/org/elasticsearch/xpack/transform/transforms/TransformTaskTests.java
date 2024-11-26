@@ -19,6 +19,7 @@ import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.ClusterSettings;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.concurrent.ThreadContext;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.HealthStatus;
 import org.elasticsearch.persistent.PersistentTaskParams;
@@ -107,6 +108,7 @@ public class TransformTaskTests extends ESTestCase {
     public void testStopOnFailedTaskWithStoppedIndexer() {
         Clock clock = Clock.systemUTC();
         ThreadPool threadPool = mock(ThreadPool.class);
+        when(threadPool.getThreadContext()).thenReturn(new ThreadContext(Settings.EMPTY));
         when(threadPool.executor("generic")).thenReturn(mock(ExecutorService.class));
 
         TransformConfig transformConfig = TransformConfigTests.randomTransformConfigWithoutHeaders();
@@ -193,8 +195,8 @@ public class TransformTaskTests extends ESTestCase {
             new ClusterService(
                 Settings.EMPTY,
                 new ClusterSettings(Settings.EMPTY, ClusterSettings.BUILT_IN_CLUSTER_SETTINGS),
-                null,
-                (TaskManager) null
+                threadPool,
+                null
             ),
             transformsConfigManager,
             auditor

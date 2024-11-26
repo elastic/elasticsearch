@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.snapshots;
 
@@ -25,6 +26,7 @@ import org.elasticsearch.cluster.RestoreInProgress.ShardRestoreStatus;
 import org.elasticsearch.cluster.SnapshotDeletionsInProgress;
 import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
+import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
@@ -51,6 +53,7 @@ import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.collect.ImmutableOpenMap;
+import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.ClusterSettings;
@@ -64,9 +67,11 @@ import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexSortConfig;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.Mapping;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
@@ -152,7 +157,13 @@ public final class RestoreService implements ClusterStateApplier {
         SETTING_VERSION_CREATED,
         SETTING_INDEX_UUID,
         SETTING_CREATION_DATE,
-        SETTING_HISTORY_UUID
+        SETTING_HISTORY_UUID,
+        IndexSettings.MODE.getKey(),
+        SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_FIELD_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_ORDER_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MODE_SETTING.getKey(),
+        IndexSortConfig.INDEX_SORT_MISSING_SETTING.getKey()
     );
 
     // It's OK to change some settings, but we shouldn't allow simply removing them
@@ -397,6 +408,8 @@ public final class RestoreService implements ClusterStateApplier {
         Map<String, DataStream> dataStreamsToRestore = result.v1();
         Map<String, DataStreamAlias> dataStreamAliasesToRestore = result.v2();
 
+        validateDataStreamTemplatesExistAndWarnIfMissing(dataStreamsToRestore, snapshotInfo, globalMetadata);
+
         // Remove the data streams from the list of requested indices
         requestIndices.removeAll(dataStreamsToRestore.keySet());
 
@@ -507,6 +520,35 @@ public final class RestoreService implements ClusterStateApplier {
                 listener
             )
         );
+    }
+
+    private void validateDataStreamTemplatesExistAndWarnIfMissing(
+        Map<String, DataStream> dataStreamsToRestore,
+        SnapshotInfo snapshotInfo,
+        Metadata globalMetadata
+    ) {
+
+        Stream<ComposableIndexTemplate> streams = Stream.concat(
+            clusterService.state().metadata().templatesV2().values().stream(),
+            globalMetadata == null ? Stream.empty() : globalMetadata.templatesV2().values().stream()
+        );
+
+        Set<String> templatePatterns = streams.filter(cit -> cit.getDataStreamTemplate() != null)
+            .flatMap(cit -> cit.indexPatterns().stream())
+            .collect(Collectors.toSet());
+
+        for (String name : dataStreamsToRestore.keySet()) {
+            if (templatePatterns.stream().noneMatch(pattern -> Regex.simpleMatch(pattern, name))) {
+                String warningMessage = format(
+                    "Snapshot [%s] contains data stream [%s] but custer does not have a matching index template. This will cause"
+                        + " rollover to fail until a matching index template is created",
+                    snapshotInfo.snapshotId(),
+                    name
+                );
+                logger.warn(() -> warningMessage);
+                HeaderWarning.addWarning(warningMessage);
+            }
+        }
     }
 
     @SuppressForbidden(reason = "legacy usage of unbatched task") // TODO add support for batching here
@@ -1343,8 +1385,12 @@ public final class RestoreService implements ClusterStateApplier {
                 if (currentIndexMetadata == null) {
                     // Index doesn't exist - create it and start recovery
                     // Make sure that the index we are about to create has a valid name
-                    ensureValidIndexName(currentState, snapshotIndexMetadata, renamedIndexName);
-                    shardLimitValidator.validateShardLimit(snapshotIndexMetadata.getSettings(), currentState);
+                    ensureValidIndexName(currentState.metadata(), currentState.routingTable(), snapshotIndexMetadata, renamedIndexName);
+                    shardLimitValidator.validateShardLimit(
+                        snapshotIndexMetadata.getSettings(),
+                        currentState.nodes(),
+                        currentState.metadata()
+                    );
 
                     final IndexMetadata.Builder indexMdBuilder = restoreToCreateNewIndex(
                         snapshotIndexMetadata,
@@ -1789,9 +1835,14 @@ public final class RestoreService implements ClusterStateApplier {
         return indexMdBuilder;
     }
 
-    private void ensureValidIndexName(ClusterState currentState, IndexMetadata snapshotIndexMetadata, String renamedIndexName) {
+    private void ensureValidIndexName(
+        Metadata metadata,
+        RoutingTable routingTable,
+        IndexMetadata snapshotIndexMetadata,
+        String renamedIndexName
+    ) {
         final boolean isHidden = snapshotIndexMetadata.isHidden();
-        MetadataCreateIndexService.validateIndexName(renamedIndexName, currentState);
+        MetadataCreateIndexService.validateIndexName(renamedIndexName, metadata, routingTable);
         createIndexService.validateDotIndex(renamedIndexName, isHidden);
         createIndexService.validateIndexSettings(renamedIndexName, snapshotIndexMetadata.getSettings(), false);
     }

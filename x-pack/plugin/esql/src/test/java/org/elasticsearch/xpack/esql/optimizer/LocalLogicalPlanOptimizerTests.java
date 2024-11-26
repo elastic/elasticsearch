@@ -16,6 +16,7 @@ import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
@@ -28,11 +29,13 @@ import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.scalar.conditional.Case;
 import org.elasticsearch.xpack.esql.expression.function.scalar.nulls.Coalesce;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.StartsWith;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.local.InferIsNotNull;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.EsRelation;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
@@ -53,21 +56,24 @@ import org.junit.BeforeClass;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Collections.emptyMap;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.L;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.ONE;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_SEARCH_STATS;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.TEST_VERIFIER;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.THREE;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.TWO;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.as;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.getFieldAttribute;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.greaterThanOf;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.loadMapping;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForExistingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
-import static org.elasticsearch.xpack.esql.optimizer.LogicalPlanOptimizerTests.greaterThanOf;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -80,16 +86,12 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
     private static LogicalPlanOptimizer logicalOptimizer;
     private static Map<String, EsField> mapping;
 
-    private static final Literal ONE = L(1);
-    private static final Literal TWO = L(2);
-    private static final Literal THREE = L(3);
-
     @BeforeClass
     public static void init() {
         parser = new EsqlParser();
 
         mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 
@@ -192,11 +194,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#6]]
-     * \_Limit[1000[INTEGER]]
-     *   \_MvExpand[last_name{f}#9,last_name{r}#15]
-     *     \_Limit[1000[INTEGER]]
-     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * EsqlProject[[first_name{f}#9, last_name{r}#18]]
+     * \_MvExpand[last_name{f}#12,last_name{r}#18,1000]
+     *   \_Limit[1000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -212,11 +213,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
-        var limit = as(project.child(), Limit.class);
-        // MvExpand cannot be optimized (yet) because the target NamedExpression cannot be replaced with a NULL literal
-        // https://github.com/elastic/elasticsearch/issues/109974
-        // See LocalLogicalPlanOptimizer.ReplaceMissingFieldWithNull
-        var mvExpand = as(limit.child(), MvExpand.class);
+        var mvExpand = as(project.child(), MvExpand.class);
+        assertThat(mvExpand.limit(), equalTo(1000));
         var limit2 = as(mvExpand.child(), Limit.class);
         as(limit2.child(), EsRelation.class);
     }
@@ -230,6 +228,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         }
 
         @Override
+        protected AttributeSet computeReferences() {
+            return AttributeSet.EMPTY;
+        }
+
         public void writeTo(StreamOutput out) {
             throw new UnsupportedOperationException("not serialized");
         }
@@ -242,6 +244,11 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         @Override
         public UnaryPlan replaceChild(LogicalPlan newChild) {
             return new MockFieldAttributeCommand(source(), newChild, field);
+        }
+
+        @Override
+        public String commandName() {
+            return "MOCK";
         }
 
         @Override
@@ -376,38 +383,6 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         );
     }
 
-    public void testIsNotNullOnCoalesce() {
-        var plan = localPlan("""
-              from test
-            | where coalesce(emp_no, salary) is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        var coalesce = as(inn.children().get(0), Coalesce.class);
-        assertThat(Expressions.names(coalesce.children()), contains("emp_no", "salary"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
-    public void testIsNotNullOnExpression() {
-        var plan = localPlan("""
-              from test
-            | eval x = emp_no + 1
-            | where x is not null
-            """);
-
-        var limit = as(plan, Limit.class);
-        var filter = as(limit.child(), Filter.class);
-        var inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.names(inn.children()), contains("x"));
-        var eval = as(filter.child(), Eval.class);
-        filter = as(eval.child(), Filter.class);
-        inn = as(filter.condition(), IsNotNull.class);
-        assertThat(Expressions.names(inn.children()), contains("emp_no"));
-        var source = as(filter.child(), EsRelation.class);
-    }
-
     public void testSparseDocument() throws Exception {
         var query = """
             from large
@@ -424,7 +399,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
         SearchStats searchStats = statsForExistingField("field000", "field001", "field002", "field003", "field004");
 
-        EsIndex index = new EsIndex("large", large, Set.of("large"));
+        EsIndex index = new EsIndex("large", large, Map.of("large", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(index);
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
 
@@ -458,7 +433,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Expression inn = isNotNull(fieldA);
         Filter f = new Filter(EMPTY, relation, inn);
 
-        assertEquals(f, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(f, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithOneField() {
@@ -468,7 +443,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnOperatorWithTwoFields() {
@@ -479,7 +454,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithOneField() {
@@ -491,7 +466,7 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, isNotNull(fieldA), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
     }
 
     public void testIsNotNullOnFunctionWithTwoFields() {
@@ -503,7 +478,67 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         Filter f = new Filter(EMPTY, relation, inn);
         Filter expected = new Filter(EMPTY, relation, new And(EMPTY, new And(EMPTY, isNotNull(fieldA), isNotNull(fieldB)), inn));
 
-        assertEquals(expected, new LocalLogicalPlanOptimizer.InferIsNotNull().apply(f));
+        assertEquals(expected, new InferIsNotNull().apply(f));
+    }
+
+    public void testIsNotNullOnCoalesce() {
+        var plan = localPlan("""
+              from test
+            | where coalesce(emp_no, salary) is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        var coalesce = as(inn.children().get(0), Coalesce.class);
+        assertThat(Expressions.names(coalesce.children()), contains("emp_no", "salary"));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNotNullOnExpression() {
+        var plan = localPlan("""
+              from test
+            | eval x = emp_no + 1
+            | where x is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.names(inn.children()), contains("x"));
+        var eval = as(filter.child(), Eval.class);
+        filter = as(eval.child(), Filter.class);
+        inn = as(filter.condition(), IsNotNull.class);
+        assertThat(Expressions.names(inn.children()), contains("emp_no"));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNotNullOnCase() {
+        var plan = localPlan("""
+              from test
+            | where case(emp_no > 10000, "1", salary < 50000, "2", first_name) is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        var caseF = as(inn.children().get(0), Case.class);
+        assertThat(Expressions.names(caseF.children()), contains("emp_no > 10000", "\"1\"", "salary < 50000", "\"2\"", "first_name"));
+        var source = as(filter.child(), EsRelation.class);
+    }
+
+    public void testIsNotNullOnCase_With_IS_NULL() {
+        var plan = localPlan("""
+              from test
+            | where case(emp_no IS NULL, "1", salary IS NOT NULL, "2", first_name) is not null
+            """);
+
+        var limit = as(plan, Limit.class);
+        var filter = as(limit.child(), Filter.class);
+        var inn = as(filter.condition(), IsNotNull.class);
+        var caseF = as(inn.children().get(0), Case.class);
+        assertThat(Expressions.names(caseF.children()), contains("emp_no IS NULL", "\"1\"", "salary IS NOT NULL", "\"2\"", "first_name"));
+        var source = as(filter.child(), EsRelation.class);
     }
 
     private IsNotNull isNotNull(Expression field) {

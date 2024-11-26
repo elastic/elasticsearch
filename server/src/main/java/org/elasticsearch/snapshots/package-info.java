@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 /**
@@ -112,7 +113,7 @@
  *     snapshots, we load the {@link org.elasticsearch.snapshots.SnapshotInfo} for the source snapshot and check for shard snapshot
  *     failures of the relevant indices.</li>
  *     <li>Once all shard counts are known and the health of all source indices data has been verified, we populate the
- *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the the relevant shard clone tasks.</li>
+ *     {@code SnapshotsInProgress.Entry#clones} map for the clone operation with the relevant shard clone tasks.</li>
  *     <li>After the clone tasks have been added to the {@code SnapshotsInProgress.Entry}, master executes them on its snapshot thread-pool
  *     by invoking {@link org.elasticsearch.repositories.Repository#cloneShardSnapshot} for each shard that is to be cloned. Each completed
  *     shard snapshot triggers a call to the {@link org.elasticsearch.snapshots.SnapshotsService#masterServiceTaskQueue} which updates the

@@ -1,16 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.ingest.useragent;
 
-import org.elasticsearch.common.logging.DeprecationCategory;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.util.Maps;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.ingest.AbstractProcessor;
 import org.elasticsearch.ingest.IngestDocument;
 import org.elasticsearch.ingest.Processor;
@@ -30,8 +30,6 @@ import static org.elasticsearch.ingest.ConfigurationUtils.readOptionalList;
 import static org.elasticsearch.ingest.ConfigurationUtils.readStringProperty;
 
 public class UserAgentProcessor extends AbstractProcessor {
-
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(UserAgentProcessor.class);
 
     public static final String TYPE = "user_agent";
 
@@ -197,21 +195,13 @@ public class UserAgentProcessor extends AbstractProcessor {
             String processorTag,
             String description,
             Map<String, Object> config
-        ) throws Exception {
+        ) {
             String field = readStringProperty(TYPE, processorTag, config, "field");
             String targetField = readStringProperty(TYPE, processorTag, config, "target_field", "user_agent");
             String regexFilename = readStringProperty(TYPE, processorTag, config, "regex_file", IngestUserAgentPlugin.DEFAULT_PARSER_NAME);
             List<String> propertyNames = readOptionalList(TYPE, processorTag, config, "properties");
             boolean extractDeviceType = readBooleanProperty(TYPE, processorTag, config, "extract_device_type", false);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
-            Object ecsValue = config.remove("ecs");
-            if (ecsValue != null) {
-                deprecationLogger.warn(
-                    DeprecationCategory.SETTINGS,
-                    "ingest_useragent_ecs_settings",
-                    "setting [ecs] is deprecated as ECS format is the default and only option"
-                );
-            }
 
             UserAgentParser parser = userAgentParsers.get(regexFilename);
             if (parser == null) {
@@ -270,5 +260,15 @@ public class UserAgentProcessor extends AbstractProcessor {
                 );
             }
         }
+    }
+
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    // This can be removed in V10. It's not possible to create an instance with the ecs property in V9, and all instances created by V8 or
+    // earlier will have been fixed when upgraded to V9.
+    static boolean maybeUpgradeConfig(Map<String, Object> config) {
+        // Instances created using ES 8.x (or earlier) may have the 'ecs' config entry.
+        // This was ignored in 8.x and is unsupported in 9.0.
+        // In 9.x, we should remove it from any existing processors on startup.
+        return config.remove("ecs") != null;
     }
 }

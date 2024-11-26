@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal
@@ -17,7 +18,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
 
     def setup() {
         // required for JarHell to work
-        subProject(":libs:elasticsearch-core") << "apply plugin:'java'"
+        subProject(":libs:core") << "apply plugin:'java'"
 
         configurationCacheCompatible = false
     }
@@ -69,6 +70,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
       <distribution>repo</distribution>
     </license>
     <license>
+      <name>GNU Affero General Public License Version 3</name>
+      <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+      <distribution>repo</distribution>
+    </license>
+    <license>
       <name>Server Side Public License, v 1</name>
       <url>https://www.mongodb.com/licensing/server-side-public-license</url>
       <distribution>repo</distribution>
@@ -90,7 +96,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.java'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             repositories {
@@ -111,7 +117,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             }
             version = "1.0"
             group = 'org.acme'
-            description = 'some description'
+            description = 'shadowed project'
         """
 
         when:
@@ -131,7 +137,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>some description</description>
+              <description>shadowed project</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -141,6 +147,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
@@ -175,7 +186,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.java'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             dependencies {
@@ -195,7 +206,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 group = 'org.acme'
             }
 
-            description = 'some description'
+            description = 'with shadowed dependencies'
         """
 
         when:
@@ -215,7 +226,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>some description</description>
+              <description>with shadowed dependencies</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -225,6 +236,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
@@ -261,13 +277,13 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
             plugins {
                 id 'elasticsearch.internal-es-plugin'
                 id 'elasticsearch.publish'
-                id 'com.github.johnrengelman.shadow'
+                id 'com.gradleup.shadow'
             }
 
             esplugin {
                 name = 'hello-world-plugin'
                 classname 'org.acme.HelloWorldPlugin'
-                description = "custom project description"
+                description = "shadowed es plugin"
             }
 
             publishing {
@@ -287,7 +303,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateHistoricalFeaturesMetadata').build()
+        def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateClusterFeaturesMetadata').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS
@@ -308,7 +324,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
               <artifactId>hello-world-plugin</artifactId>
               <version>1.0</version>
               <name>hello-world</name>
-              <description>custom project description</description>
+              <description>shadowed es plugin</description>
               <url>unknown</url>
               <scm>
                 <url>unknown</url>
@@ -318,6 +334,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                 <license>
                   <name>Elastic License 2.0</name>
                   <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v1.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
                   <distribution>repo</distribution>
                 </license>
                 <license>
@@ -332,7 +353,6 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <url>https://www.elastic.co</url>
                 </developer>
               </developers>
-              <dependencies/>
             </project>"""
         )
     }
@@ -394,6 +414,11 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
                   <distribution>repo</distribution>
                 </license>
                 <license>
+                  <name>GNU Affero General Public License Version 3</name>
+                  <url>https://raw.githubusercontent.com/elastic/elasticsearch/v2.0/licenses/AGPL-3.0+SSPL-1.0+ELASTIC-LICENSE-2.0.txt</url>
+                  <distribution>repo</distribution>
+                </license>
+                <license>
                   <name>Server Side Public License, v 1</name>
                   <url>https://www.mongodb.com/licensing/server-side-public-license</url>
                   <distribution>repo</distribution>
@@ -414,8 +439,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         // scm info only added for internal builds
         internalBuild()
         buildFile << """
-            BuildParams.init { it.setGitOrigin("https://some-repo.com/repo.git") }
-
+            buildParams.getGitOriginProperty().set("https://some-repo.com/repo.git")
             apply plugin:'elasticsearch.java'
             apply plugin:'elasticsearch.publish'
 

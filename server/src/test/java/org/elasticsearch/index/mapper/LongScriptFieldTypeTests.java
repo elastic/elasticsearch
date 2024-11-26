@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -13,6 +14,7 @@ import org.apache.lucene.index.DirectoryReader;
 import org.apache.lucene.index.LeafReaderContext;
 import org.apache.lucene.index.NoMergePolicy;
 import org.apache.lucene.index.SortedNumericDocValues;
+import org.apache.lucene.index.StoredFields;
 import org.apache.lucene.search.Collector;
 import org.apache.lucene.search.FieldDoc;
 import org.apache.lucene.search.IndexSearcher;
@@ -131,9 +133,19 @@ public class LongScriptFieldTypeTests extends AbstractNonTextScriptFieldTypeTest
                 LongScriptFieldData ifd = simpleMappedFieldType().fielddataBuilder(mockFielddataContext()).build(null, null);
                 SortField sf = ifd.sortField(null, MultiValueMode.MIN, null, false);
                 TopFieldDocs docs = searcher.search(new MatchAllDocsQuery(), 3, new Sort(sf));
-                assertThat(reader.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [1]}"));
-                assertThat(reader.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [2]}"));
-                assertThat(reader.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(), equalTo("{\"foo\": [4]}"));
+                StoredFields storedFields = reader.storedFields();
+                assertThat(
+                    storedFields.document(docs.scoreDocs[0].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [1]}")
+                );
+                assertThat(
+                    storedFields.document(docs.scoreDocs[1].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [2]}")
+                );
+                assertThat(
+                    storedFields.document(docs.scoreDocs[2].doc).getBinaryValue("_source").utf8ToString(),
+                    equalTo("{\"foo\": [4]}")
+                );
             }
         }
     }

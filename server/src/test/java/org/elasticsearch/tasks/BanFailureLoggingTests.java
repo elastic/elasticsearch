@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.tasks;
@@ -156,13 +157,13 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
 
             parentTransportService.addSendBehavior(sendRequestBehavior);
 
-            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalDiscoNode());
+            AbstractSimpleTransportTestCase.connectToNode(parentTransportService, childTransportService.getLocalNode());
 
             final CancellableTask parentTask = (CancellableTask) parentTransportService.getTaskManager()
                 .register("transport", "internal:testAction", new ParentRequest());
 
             parentTransportService.sendChildRequest(
-                childTransportService.getLocalDiscoNode(),
+                childTransportService.getLocalNode(),
                 "internal:testAction[c]",
                 new EmptyRequest(),
                 parentTask,
@@ -171,7 +172,7 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
             );
 
             try (MockLog mockLog = MockLog.capture(TaskCancellationService.class)) {
-                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalDiscoNode())) {
+                for (MockLog.LoggingExpectation expectation : expectations.apply(childTransportService.getLocalNode())) {
                     mockLog.addExpectation(expectation);
                 }
 
@@ -183,8 +184,8 @@ public class BanFailureLoggingTests extends TaskManagerTestCase {
                     // acceptable; we mostly ignore the result of cancellation anyway
                 }
 
-                // assert busy since failure to remove a ban may be logged after cancellation completed
-                assertBusy(mockLog::assertAllExpectationsMatched);
+                // await since failure to remove a ban may be logged after cancellation completed
+                mockLog.awaitAllExpectationsMatched();
             }
 
             assertTrue("child tasks did not finish in time", childTaskLock.tryLock(15, TimeUnit.SECONDS));

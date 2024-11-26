@@ -77,6 +77,10 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
         public void add(int positionOffset, IntVector groupIds) {
           addRawInput(positionOffset, groupIds, valuesBlock);
         }
+
+        @Override
+        public void close() {
+        }
       };
     }
     return new GroupingAggregatorFunction.AddInput() {
@@ -88,6 +92,10 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
       @Override
       public void add(int positionOffset, IntVector groupIds) {
         addRawInput(positionOffset, groupIds, valuesVector);
+      }
+
+      @Override
+      public void close() {
       }
     };
   }
@@ -146,6 +154,11 @@ public final class TopIntGroupingAggregatorFunction implements GroupingAggregato
         TopIntAggregator.combine(state, groupId, values.getInt(groupPosition + positionOffset));
       }
     }
+  }
+
+  @Override
+  public void selectedMayContainUnseenGroups(SeenGroupIds seenGroupIds) {
+    state.enableGroupIdTracking(seenGroupIds);
   }
 
   @Override

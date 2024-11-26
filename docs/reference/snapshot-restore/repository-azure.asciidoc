@@ -181,7 +181,7 @@ is running.
 
 When running {es} in
 https://azure.microsoft.com/en-gb/products/kubernetes-service[Azure Kubernetes
-Service], for instance using {eck-ref}[{eck}], you should use
+Service], for instance using {eck-ref}/k8s-snapshots.html#k8s-azure-workload-identity[{eck}], you should use
 https://azure.github.io/azure-workload-identity/docs/introduction.html[Azure
 Workload Identity] to provide credentials to {es}. To use Azure Workload
 Identity, mount the `azure-identity-token` volume as a subdirectory of the
@@ -258,6 +258,15 @@ include::repository-shared-settings.asciidoc[]
 
     `primary_only` or `secondary_only`. Defaults to `primary_only`. Note that if you set it
     to `secondary_only`, it will force `readonly` to true.
+
+`delete_objects_max_size`::
+
+    (integer) Sets the maxmimum batch size, betewen 1 and 256, used for `BlobBatch` requests. Defaults to 256 which is the maximum
+    number supported by the https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#remarks[Azure blob batch API].
+
+`max_concurrent_batch_deletes`::
+
+    (integer) Sets the maximum number of concurrent batch delete requests that will be submitted for any individual bulk delete with `BlobBatch`. Note that the effective number of concurrent deletes is further limited by the Azure client connection and event loop thread limits. Defaults to 10, minimum is 1, maximum is 100.
 
 [[repository-azure-validation]]
 ==== Repository validation rules

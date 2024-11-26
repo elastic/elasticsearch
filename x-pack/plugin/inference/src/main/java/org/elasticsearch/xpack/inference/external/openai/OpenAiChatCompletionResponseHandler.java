@@ -14,7 +14,7 @@ import org.elasticsearch.xpack.inference.external.request.Request;
 
 public class OpenAiChatCompletionResponseHandler extends OpenAiResponseHandler {
     public OpenAiChatCompletionResponseHandler(String requestType, ResponseParser parseFunction) {
-        super(requestType, parseFunction);
+        super(requestType, parseFunction, true);
     }
 
     @Override

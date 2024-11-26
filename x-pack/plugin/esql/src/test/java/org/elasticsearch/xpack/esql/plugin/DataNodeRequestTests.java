@@ -12,6 +12,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.Index;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.search.SearchModule;
@@ -31,13 +32,12 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
-import org.elasticsearch.xpack.esql.planner.Mapper;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomTables;
@@ -262,7 +262,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     static LogicalPlan parse(String query) {
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         var logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(TEST_CFG));
         var analyzer = new Analyzer(
@@ -274,8 +274,7 @@ public class DataNodeRequestTests extends AbstractWireSerializingTestCase<DataNo
 
     static PhysicalPlan mapAndMaybeOptimize(LogicalPlan logicalPlan) {
         var physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(TEST_CFG));
-        EsqlFunctionRegistry functionRegistry = new EsqlFunctionRegistry();
-        var mapper = new Mapper(functionRegistry);
+        var mapper = new Mapper();
         var physical = mapper.map(logicalPlan);
         if (randomBoolean()) {
             physical = physicalPlanOptimizer.optimize(physical);

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.bytes;
@@ -70,6 +71,29 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
         } catch (IOException e) {
             // this is really an error since we don't do IO in our bytesreferences
             throw new AssertionError("won't happen", e);
+        }
+    }
+
+    /**
+     * Allocates new buffer and copy bytes from given BytesReference.
+     *
+     * @deprecated copying bytes is a right place for performance regression and unnecessary allocations.
+     * This method exists to serve very few places that struggle to handle reference counted buffers.
+     */
+    @Deprecated(forRemoval = true)
+    static BytesReference copyBytes(BytesReference bytesReference) {
+        byte[] arr = new byte[bytesReference.length()];
+        int offset = 0;
+        final BytesRefIterator iterator = bytesReference.iterator();
+        try {
+            BytesRef slice;
+            while ((slice = iterator.next()) != null) {
+                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
+                offset += slice.length;
+            }
+            return new BytesArray(arr);
+        } catch (IOException e) {
+            throw new AssertionError(e);
         }
     }
 

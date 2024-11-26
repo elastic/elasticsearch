@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.migration;
 
 import org.apache.lucene.util.SetOnce;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusAction;
 import org.elasticsearch.action.admin.cluster.migration.GetFeatureUpgradeStatusRequest;
@@ -176,7 +176,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
             hooksCalled.countDown();
         });
 
-        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest();
+        PostFeatureUpgradeRequest migrationRequest = new PostFeatureUpgradeRequest(TEST_REQUEST_TIMEOUT);
         PostFeatureUpgradeResponse migrationResponse = client().execute(PostFeatureUpgradeAction.INSTANCE, migrationRequest).get();
         assertThat(migrationResponse.getReason(), nullValue());
         assertThat(migrationResponse.getElasticsearchException(), nullValue());
@@ -189,7 +189,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // wait for all the plugin methods to have been called before assertBusy since that will exponentially backoff
         assertThat(hooksCalled.await(30, TimeUnit.SECONDS), is(true));
 
-        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest();
+        GetFeatureUpgradeStatusRequest getStatusRequest = new GetFeatureUpgradeStatusRequest(TEST_REQUEST_TIMEOUT);
         assertBusy(() -> {
             GetFeatureUpgradeStatusResponse statusResponse = client().execute(GetFeatureUpgradeStatusAction.INSTANCE, getStatusRequest)
                 .get();
@@ -203,7 +203,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         assertTrue("the second plugin's pre-migration hook wasn't actually called", secondPluginPreMigrationHookCalled.get());
         assertTrue("the second plugin's post-migration hook wasn't actually called", secondPluginPostMigrationHookCalled.get());
 
-        Metadata finalMetadata = clusterAdmin().prepareState().get().getState().metadata();
+        Metadata finalMetadata = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         // Check that the results metadata is what we expect
         FeatureMigrationResults currentResults = finalMetadata.custom(FeatureMigrationResults.TYPE);
         assertThat(currentResults, notNullValue());
@@ -218,7 +218,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         // Finally, verify that all the indices exist and have the properties we expect.
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-man-old-reindexed-for-8",
+            ".int-man-old-reindexed-for-9",
             INTERNAL_MANAGED_FLAG_VALUE,
             true,
             true,
@@ -226,7 +226,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".int-unman-old-reindexed-for-8",
+            ".int-unman-old-reindexed-for-9",
             INTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             true,
@@ -234,7 +234,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-man-old-reindexed-for-8",
+            ".ext-man-old-reindexed-for-9",
             EXTERNAL_MANAGED_FLAG_VALUE,
             true,
             false,
@@ -242,7 +242,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         );
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".ext-unman-old-reindexed-for-8",
+            ".ext-unman-old-reindexed-for-9",
             EXTERNAL_UNMANAGED_FLAG_VALUE,
             false,
             false,
@@ -251,7 +251,7 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
 
         assertIndexHasCorrectProperties(
             finalMetadata,
-            ".second-int-man-old-reindexed-for-8",
+            ".second-int-man-old-reindexed-for-9",
             SECOND_FEATURE_IDX_FLAG_VALUE,
             true,
             true,
@@ -264,12 +264,10 @@ public class MultiFeatureMigrationIT extends AbstractFeatureMigrationIntegTest {
         .setAliasName(".second-internal-managed-alias")
         .setPrimaryIndex(".second-int-man-old")
         .setType(SystemIndexDescriptor.Type.INTERNAL_MANAGED)
-        .setSettings(createSettings(IndexVersions.V_7_0_0, 0))
+        .setSettings(createSettings(IndexVersions.MINIMUM_COMPATIBLE, 0))
         .setMappings(createMapping(true, true))
         .setOrigin(ORIGIN)
-        .setVersionMetaKey(VERSION_META_KEY)
         .setAllowedElasticProductOrigins(Collections.emptyList())
-        .setMinimumNodeVersion(Version.V_7_0_0)
         .setPriorSystemIndexDescriptors(Collections.emptyList())
         .build();
 

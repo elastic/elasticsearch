@@ -67,7 +67,7 @@ public class MultiNodesStatsTests extends MonitoringIntegTestCase {
         final int nbNodes = nodes;
         assertBusy(() -> {
             assertThat(cluster().size(), equalTo(nbNodes));
-            assertNoTimeout(clusterAdmin().prepareHealth().setWaitForNodes(Integer.toString(nbNodes)).get());
+            assertNoTimeout(clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(Integer.toString(nbNodes)).get());
         });
 
         enableMonitoringCollection();

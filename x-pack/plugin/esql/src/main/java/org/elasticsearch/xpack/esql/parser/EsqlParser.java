@@ -98,7 +98,7 @@ public class EsqlParser {
         @Override
         public void exitFunctionExpression(EsqlBaseParser.FunctionExpressionContext ctx) {
             // TODO remove this at some point
-            EsqlBaseParser.IdentifierContext identifier = ctx.identifier();
+            EsqlBaseParser.FunctionNameContext identifier = ctx.functionName();
             if (identifier.getText().equalsIgnoreCase("is_null")) {
                 throw new ParsingException(
                     source(ctx),

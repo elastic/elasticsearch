@@ -68,6 +68,7 @@ public class RedactProcessorFactoryTests extends ESTestCase {
         config.put("patterns", List.of("%{MY_PATTERN:name}!"));
         config.put("pattern_definitions", Map.of("MY_PATTERN", "foo"));
         config.put("ignore_missing", true);
+        config.put("trace_redact", true);
         config.put("extra", "unused");
 
         factory.create(null, null, null, config);

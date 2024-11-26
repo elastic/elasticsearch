@@ -6,7 +6,7 @@ setup:
           parameters: [method, path, parameters, capabilities]
           capabilities: [union_types, union_types_remove_fields, casting_operator]
       reason: "Union types and casting operator introduced in 8.15.0"
-      test_runner_features: [capabilities, allowed_warnings_regex]
+      test_runner_features: [capabilities, allowed_warnings_regex, warnings_regex]
 
   - do:
       indices.create:
@@ -830,3 +830,65 @@ load four indices with multiple conversion functions TO_LONG and TO_IP:
   - match: { values.21.2: "172.21.3.15" }
   - match: { values.21.3: 1756467 }
   - match: { values.21.4: "Connected to 10.1.0.1" }
+
+---
+CASE:
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [method, path, parameters, capabilities]
+          capabilities: [case_mv]
+      reason: "CASE support for multivalue conditions introduced in 8.16.0"
+
+  - do:
+      indices.create:
+        index: b1
+        body:
+          mappings:
+            properties:
+              f:
+                type: keyword
+  - do:
+      indices.create:
+        index: b2
+        body:
+          mappings:
+            properties:
+              f:
+                type: boolean
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{"index": {"_index": "b1"}}'
+          - '{"a": 1, "f": false}'
+          - '{"index": {"_index": "b1"}}'
+          - '{"a": 2, "f": [true, false]}'
+          - '{"index": {"_index": "b2"}}'
+          - '{"a": 3, "f": true}'
+
+  - do:
+      warnings_regex:
+        - ".+evaluation of \\[f?\\] failed, treating result as false. Only first 20 failures recorded."
+        - ".+java.lang.IllegalArgumentException: CASE expects a single-valued boolean"
+      esql.query:
+        body:
+          query: 'FROM b* | EVAL c = CASE(f::BOOLEAN, "a", "b") | SORT a ASC | LIMIT 10'
+
+  - match: { columns.0.name: "a" }
+  - match: { columns.0.type: "long" }
+  - match: { columns.1.name: "f" }
+  - match: { columns.1.type: "unsupported" }
+  - match: { columns.2.name: "c" }
+  - match: { columns.2.type: "keyword" }
+  - length: { values: 3 }
+  - match: { values.0.0: 1 }
+  - match: { values.0.1: null }
+  - match: { values.0.2: "b" }
+  - match: { values.1.0: 2 }
+  - match: { values.1.1: null }
+  - match: { values.1.2: "b" }
+  - match: { values.2.0: 3 }
+  - match: { values.2.1: null }
+  - match: { values.2.2: "a" }

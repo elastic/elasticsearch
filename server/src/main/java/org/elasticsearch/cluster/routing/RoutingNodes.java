@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing;
@@ -15,6 +16,7 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
 import org.elasticsearch.cluster.routing.UnassignedInfo.AllocationStatus;
 import org.elasticsearch.cluster.routing.allocation.ExistingShardsAllocator;
+import org.elasticsearch.cluster.routing.allocation.allocator.DesiredBalanceMetrics;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.core.Assertions;
@@ -75,6 +77,8 @@ public class RoutingNodes implements Iterable<RoutingNode> {
     private final Map<String, Set<String>> attributeValuesByAttribute;
     private final Map<String, Recoveries> recoveriesPerNode;
 
+    private Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> balanceWeightStatsPerNode;
+
     /**
      * Creates an immutable instance from the {@link RoutingTable} and {@link DiscoveryNodes} found in a cluster state. Used to initialize
      * the routing nodes in {@link ClusterState#getRoutingNodes()}. This method should not be used directly, use
@@ -88,6 +92,14 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         return new RoutingNodes(routingTable, discoveryNodes, false);
     }
 
+    public void setBalanceWeightStatsPerNode(Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> weightStatsPerNode) {
+        this.balanceWeightStatsPerNode = weightStatsPerNode;
+    }
+
+    public Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getBalanceWeightStatsPerNode() {
+        return balanceWeightStatsPerNode;
+    }
+
     private RoutingNodes(RoutingTable routingTable, DiscoveryNodes discoveryNodes, boolean readOnly) {
         this.readOnly = readOnly;
         this.recoveriesPerNode = new HashMap<>();
@@ -96,6 +108,7 @@ public class RoutingNodes implements Iterable<RoutingNode> {
         this.unassignedShards = new UnassignedShards(this);
         this.attributeValuesByAttribute = Collections.synchronizedMap(new HashMap<>());
 
+        balanceWeightStatsPerNode = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         nodesToShards = Maps.newMapWithExpectedSize(discoveryNodes.getDataNodes().size());
         // fill in the nodeToShards with the "live" nodes
         var dataNodes = discoveryNodes.getDataNodes().keySet();

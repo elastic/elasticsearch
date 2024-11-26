@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -119,7 +120,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
             assertThat(clientStats.lastUri(), equalTo(httpRequest1.uri()));
             assertThat(clientStats.requestCount(), equalTo(1L));
-            requestLength += httpRequest1.content().length();
+            requestLength += httpRequest1.body().asFull().bytes().length();
             assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
             assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
             assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));
@@ -149,7 +150,7 @@ public class HttpClientStatsTrackerTests extends ESTestCase {
             assertThat(clientStats.remoteAddress(), equalTo(NetworkAddress.format(httpChannel.getRemoteAddress())));
             assertThat(clientStats.lastUri(), equalTo(httpRequest2.uri()));
             assertThat(clientStats.requestCount(), equalTo(2L));
-            requestLength += httpRequest2.content().length();
+            requestLength += httpRequest2.body().asFull().bytes().length();
             assertThat(clientStats.requestSizeBytes(), equalTo(requestLength));
             assertThat(clientStats.closedTimeMillis(), equalTo(-1L));
             assertThat(clientStats.openedTimeMillis(), equalTo(openTimeMillis));

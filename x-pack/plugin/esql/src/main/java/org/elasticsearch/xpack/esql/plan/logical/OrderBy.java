@@ -64,6 +64,11 @@ public class OrderBy extends UnaryPlan {
     }
 
     @Override
+    public String commandName() {
+        return "SORT";
+    }
+
+    @Override
     public boolean expressionsResolved() {
         return Resolvables.resolved(order);
     }

@@ -5,8 +5,6 @@
  * 2.0.
  */
 
-import org.elasticsearch.gradle.internal.info.BuildParams
-
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
 
@@ -34,7 +32,7 @@ dependencies {
 tasks.named("javaRestTest").configure {
   usesDefaultDistribution()
   description = "Runs rest tests against an elasticsearch cluster with HDFS."
-  BuildParams.withFipsEnabledOnly(it)
+  buildParams.withFipsEnabledOnly(it)
   // required for krb5kdc-fixture to work
   jvmArgs '--add-exports', 'java.security.jgss/sun.security.krb5=ALL-UNNAMED'
 }

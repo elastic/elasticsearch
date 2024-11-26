@@ -1,15 +1,15 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.hotthreads;
 
 import org.elasticsearch.ElasticsearchException;
-import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionType;
 import org.elasticsearch.action.FailedNodeException;
 import org.elasticsearch.action.support.ActionFilters;
@@ -38,7 +38,8 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
     NodesHotThreadsRequest,
     NodesHotThreadsResponse,
     TransportNodesHotThreadsAction.NodeRequest,
-    NodeHotThreads> {
+    NodeHotThreads,
+    Void> {
 
     public static final ActionType<NodesHotThreadsResponse> TYPE = new ActionType<>("cluster:monitor/nodes/hot_threads");
 
@@ -115,14 +116,12 @@ public class TransportNodesHotThreadsAction extends TransportNodesAction<
 
         NodeRequest(StreamInput in) throws IOException {
             super(in);
-            skipLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, in);
             requestOptions = HotThreads.RequestOptions.readFrom(in);
         }
 
         @Override
         public void writeTo(StreamOutput out) throws IOException {
             super.writeTo(out);
-            sendLegacyNodesRequestHeader(TransportVersions.MORE_LIGHTER_NODES_REQUESTS, out);
             requestOptions.writeTo(out);
         }
     }

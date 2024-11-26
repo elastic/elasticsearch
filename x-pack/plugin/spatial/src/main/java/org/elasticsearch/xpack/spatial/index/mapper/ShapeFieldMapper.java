@@ -122,7 +122,7 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
                 parser,
                 meta.get()
             );
-            return new ShapeFieldMapper(leafName(), ft, multiFieldsBuilder.build(this, context), copyTo, parser, this);
+            return new ShapeFieldMapper(leafName(), ft, builderParams(this, context), parser, this);
         }
     }
 
@@ -192,20 +192,18 @@ public class ShapeFieldMapper extends AbstractShapeGeometryFieldMapper<Geometry>
     public ShapeFieldMapper(
         String simpleName,
         MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
+        BuilderParams builderParams,
         Parser<Geometry> parser,
         Builder builder
     ) {
         super(
             simpleName,
             mappedFieldType,
+            builderParams,
             builder.ignoreMalformed.get(),
             builder.coerce.get(),
             builder.ignoreZValue.get(),
             builder.orientation.get(),
-            multiFields,
-            copyTo,
             parser
         );
         this.builder = builder;

@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptySecretSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.InferenceResults;
@@ -25,7 +26,12 @@ import org.elasticsearch.xpack.core.inference.results.InferenceTextEmbeddingFloa
 import org.elasticsearch.xpack.core.inference.results.LegacyTextEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.RankedDocsResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
+import org.elasticsearch.xpack.inference.action.task.StreamingTaskManager;
+import org.elasticsearch.xpack.inference.chunking.SentenceBoundaryChunkingSettings;
+import org.elasticsearch.xpack.inference.chunking.WordBoundaryChunkingSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionServiceSettings;
+import org.elasticsearch.xpack.inference.services.alibabacloudsearch.completion.AlibabaCloudSearchCompletionTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.embeddings.AlibabaCloudSearchEmbeddingsTaskSettings;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.rerank.AlibabaCloudSearchRerankServiceSettings;
@@ -57,10 +63,11 @@ import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServic
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandInternalTextEmbeddingServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.CustomElandRerankTaskSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticRerankerServiceSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.ElasticsearchInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserInternalServiceSettings;
+import org.elasticsearch.xpack.inference.services.elasticsearch.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.elasticsearch.MultilingualE5SmallInternalServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserInternalServiceSettings;
-import org.elasticsearch.xpack.inference.services.elser.ElserMlNodeTaskSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.googleaistudio.embeddings.GoogleAiStudioEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.googlevertexai.GoogleVertexAiSecretSettings;
@@ -70,6 +77,7 @@ import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVe
 import org.elasticsearch.xpack.inference.services.googlevertexai.rerank.GoogleVertexAiRerankTaskSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.HuggingFaceServiceSettings;
 import org.elasticsearch.xpack.inference.services.huggingface.elser.HuggingFaceElserServiceSettings;
+import org.elasticsearch.xpack.inference.services.ibmwatsonx.embeddings.IbmWatsonxEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.mistral.embeddings.MistralEmbeddingsServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionServiceSettings;
 import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionTaskSettings;
@@ -104,6 +112,8 @@ public class InferenceNamedWriteablesProvider {
         // Empty default task settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(TaskSettings.class, EmptyTaskSettings.NAME, EmptyTaskSettings::new));
 
+        addChunkingSettingsNamedWriteables(namedWriteables);
+
         // Empty default secret settings
         namedWriteables.add(new NamedWriteableRegistry.Entry(SecretSettings.class, EmptySecretSettings.NAME, EmptySecretSettings::new));
 
@@ -118,6 +128,7 @@ public class InferenceNamedWriteablesProvider {
         addAzureOpenAiNamedWriteables(namedWriteables);
         addAzureAiStudioNamedWriteables(namedWriteables);
         addGoogleAiStudioNamedWritables(namedWriteables);
+        addIbmWatsonxNamedWritables(namedWriteables);
         addGoogleVertexAiNamedWriteables(namedWriteables);
         addMistralNamedWriteables(namedWriteables);
         addCustomElandWriteables(namedWriteables);
@@ -125,6 +136,8 @@ public class InferenceNamedWriteablesProvider {
         addAmazonBedrockNamedWriteables(namedWriteables);
         addEisNamedWriteables(namedWriteables);
         addAlibabaCloudSearchNamedWriteables(namedWriteables);
+
+        namedWriteables.addAll(StreamingTaskManager.namedWriteables());
 
         return namedWriteables;
     }
@@ -334,6 +347,16 @@ public class InferenceNamedWriteablesProvider {
         );
     }
 
+    private static void addIbmWatsonxNamedWritables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                IbmWatsonxEmbeddingsServiceSettings.NAME,
+                IbmWatsonxEmbeddingsServiceSettings::new
+            )
+        );
+    }
+
     private static void addGoogleVertexAiNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
         namedWriteables.add(
             new NamedWriteableRegistry.Entry(SecretSettings.class, GoogleVertexAiSecretSettings.NAME, GoogleVertexAiSecretSettings::new)
@@ -393,7 +416,13 @@ public class InferenceNamedWriteablesProvider {
                 MultilingualE5SmallInternalServiceSettings::new
             )
         );
-
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                ElasticRerankerServiceSettings.NAME,
+                ElasticRerankerServiceSettings::new
+            )
+        );
     }
 
     private static void addChunkedInferenceResultsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
@@ -423,6 +452,19 @@ public class InferenceNamedWriteablesProvider {
                 InferenceServiceResults.class,
                 InferenceChunkedTextEmbeddingByteResults.NAME,
                 InferenceChunkedTextEmbeddingByteResults::new
+            )
+        );
+    }
+
+    private static void addChunkingSettingsNamedWriteables(List<NamedWriteableRegistry.Entry> namedWriteables) {
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(ChunkingSettings.class, WordBoundaryChunkingSettings.NAME, WordBoundaryChunkingSettings::new)
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ChunkingSettings.class,
+                SentenceBoundaryChunkingSettings.NAME,
+                SentenceBoundaryChunkingSettings::new
             )
         );
     }
@@ -538,6 +580,20 @@ public class InferenceNamedWriteablesProvider {
                 TaskSettings.class,
                 AlibabaCloudSearchRerankTaskSettings.NAME,
                 AlibabaCloudSearchRerankTaskSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                ServiceSettings.class,
+                AlibabaCloudSearchCompletionServiceSettings.NAME,
+                AlibabaCloudSearchCompletionServiceSettings::new
+            )
+        );
+        namedWriteables.add(
+            new NamedWriteableRegistry.Entry(
+                TaskSettings.class,
+                AlibabaCloudSearchCompletionTaskSettings.NAME,
+                AlibabaCloudSearchCompletionTaskSettings::new
             )
         );
 

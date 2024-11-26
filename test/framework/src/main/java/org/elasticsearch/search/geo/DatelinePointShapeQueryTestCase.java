@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.geo;
@@ -67,7 +68,7 @@ public class DatelinePointShapeQueryTestCase {
         GeoShapeQueryBuilder geoShapeQueryBuilder = QueryBuilders.geoShapeQuery(defaultFieldName, rectangle);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("1", searchHits.getAt(0).getId());
             assertNotEquals("1", searchHits.getAt(1).getId());
         });
@@ -111,7 +112,7 @@ public class DatelinePointShapeQueryTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("1", searchHits.getAt(0).getId());
             assertNotEquals("4", searchHits.getAt(0).getId());
             assertNotEquals("1", searchHits.getAt(1).getId());
@@ -154,7 +155,7 @@ public class DatelinePointShapeQueryTestCase {
         geoShapeQueryBuilder.relation(ShapeRelation.INTERSECTS);
         assertResponse(tests.client().prepareSearch(defaultIndexName).setQuery(geoShapeQueryBuilder), response -> {
             SearchHits searchHits = response.getHits();
-            assertEquals(2, searchHits.getTotalHits().value);
+            assertEquals(2, searchHits.getTotalHits().value());
             assertNotEquals("3", searchHits.getAt(0).getId());
             assertNotEquals("3", searchHits.getAt(1).getId());
         });

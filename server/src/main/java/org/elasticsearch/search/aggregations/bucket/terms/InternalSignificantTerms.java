@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.terms;
 
@@ -44,7 +45,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
     public static final String BG_COUNT = "bg_count";
 
     @SuppressWarnings("PMD.ConstructorCallsOverridableMethod")
-    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucket
+    public abstract static class Bucket<B extends Bucket<B>> extends InternalMultiBucketAggregation.InternalBucketWritable
         implements
             SignificantTerms.Bucket {
         /**
@@ -61,7 +62,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
         long supersetSize;
         /**
          * Ordinal of the bucket while it is being built. Not used after it is
-         * returned from {@link Aggregator#buildAggregations(long[])} and not
+         * returned from {@link Aggregator#buildAggregations(org.elasticsearch.common.util.LongArray)} and not
          * serialized.
          */
         transient long bucketOrd;
@@ -156,8 +157,7 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             return Objects.hash(getClass(), aggregations, score, format);
         }
 
-        @Override
-        public final XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        final void bucketToXContent(XContentBuilder builder, Params params) throws IOException {
             builder.startObject();
             keyToXContent(builder);
             builder.field(CommonFields.DOC_COUNT.getPreferredName(), getDocCount());
@@ -165,7 +165,6 @@ public abstract class InternalSignificantTerms<A extends InternalSignificantTerm
             builder.field(BG_COUNT, supersetDf);
             aggregations.toXContentInternal(builder, params);
             builder.endObject();
-            return builder;
         }
 
         protected abstract XContentBuilder keyToXContent(XContentBuilder builder) throws IOException;

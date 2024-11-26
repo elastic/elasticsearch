@@ -14,6 +14,7 @@ import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.network.NetworkAddress;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.CheckedConsumer;
 import org.elasticsearch.geo.GeometryTestUtils;
 import org.elasticsearch.index.mapper.BlockLoader;
@@ -22,10 +23,12 @@ import org.elasticsearch.logging.LogManager;
 import org.elasticsearch.logging.Logger;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.ListMatcher;
+import org.elasticsearch.test.MapMatcher;
 import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
 import org.elasticsearch.xcontent.json.JsonXContent;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.hamcrest.Matcher;
 import org.junit.Before;
 
@@ -48,6 +51,7 @@ import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.entityToMap;
 import static org.elasticsearch.xpack.esql.qa.rest.RestEsqlTestCase.runEsqlSync;
 import static org.hamcrest.Matchers.closeTo;
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.greaterThanOrEqualTo;
 
 /**
  * Creates indices with many different mappings and fetches values from them to make sure
@@ -220,7 +224,8 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
     public void testScaledFloat() throws IOException {
         double value = randomBoolean() ? randomDoubleBetween(-Double.MAX_VALUE, Double.MAX_VALUE, true) : randomFloat();
-        double scalingFactor = randomDoubleBetween(0, Double.MAX_VALUE, false);
+        // Scale factors less than about 5.6e-309 will result in NaN (due to 1/scaleFactor being infinity)
+        double scalingFactor = randomDoubleBetween(1e-308, Double.MAX_VALUE, false);
         new Test("scaled_float").expectedType("double")
             .randomIgnoreMalformedUnlessSynthetic()
             .randomDocValuesUnlessSynthetic()
@@ -301,7 +306,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("flattened", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("flattened", "unsupported")))
                 .entry("values", List.of(matchesList().item(null)))
         );
     }
@@ -343,8 +348,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.raw", "keyword"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -367,8 +374,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(Integer.toString(value)).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(Integer.toString(value)).item(value)))
         );
     }
 
@@ -391,8 +400,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -415,8 +426,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -439,8 +452,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("text_field", "text"), columnInfo("text_field.ip", "ip"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -464,7 +479,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry(
+            matchesMapWithOptionalTook(result.get("took")).entry(
                 "columns",
                 List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
             ).entry("values", List.of(matchesList().item(value).item(Integer.toString(value))))
@@ -491,7 +506,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry(
+            matchesMapWithOptionalTook(result.get("took")).entry(
                 "columns",
                 List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.str", text ? "text" : "keyword"))
             ).entry("values", List.of(matchesList().item(null).item(value)))
@@ -518,8 +533,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
-                .entry("values", List.of(matchesList().item(value).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(value).item(value)))
         );
     }
 
@@ -543,8 +560,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword")))
-                .entry("values", List.of(matchesList().item(null).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("ip_field", "ip"), columnInfo("ip_field.str", text ? "text" : "keyword"))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
 
@@ -568,8 +587,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
-                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer"))
+            ).entry("values", List.of(matchesList().item((int) value).item((int) value)))
         );
     }
 
@@ -595,8 +616,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer")))
-                .entry("values", List.of(matchesList().item(value).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("integer_field", "integer"), columnInfo("integer_field.byte", "integer"))
+            ).entry("values", List.of(matchesList().item(value).item(null)))
         );
     }
 
@@ -620,9 +643,19 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
-                .entry("values", List.of(matchesList().item((int) value).item((int) value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item((int) value).item((int) value)))
         );
+    }
+
+    static MapMatcher matchesMapWithOptionalTook(Object tookTimeValue) {
+        MapMatcher mapMatcher = matchesMap();
+        if (tookTimeValue instanceof Number) {
+            mapMatcher = mapMatcher.entry("took", greaterThanOrEqualTo(0));
+        }
+        return mapMatcher;
     }
 
     /**
@@ -645,8 +678,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
 
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer")))
-                .entry("values", List.of(matchesList().item(null).item(value)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("byte_field", "integer"), columnInfo("byte_field.int", "integer"))
+            ).entry("values", List.of(matchesList().item(null).item(value)))
         );
     }
 
@@ -675,7 +710,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test*");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("f", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
         );
         ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT f | LIMIT 3"));
@@ -713,8 +748,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT file, other");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword")))
-                .entry("values", List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2")))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("file", "keyword"), columnInfo("other", "keyword"))
+            ).entry("values", List.of(matchesList().item("f1").item(null), matchesList().item(null).item("o2")))
         );
     }
 
@@ -777,8 +814,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT file.raw | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword")))
-                .entry("values", List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("file", "unsupported"), columnInfo("file.raw", "keyword"))
+            ).entry("values", List.of(matchesList().item(null).item("o2"), matchesList().item(null).item(null)))
         );
     }
 
@@ -822,8 +861,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
-                .entry("values", List.of(matchesList().item(null).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported"))
+            ).entry("values", List.of(matchesList().item(null).item(null)))
         );
     }
 
@@ -885,8 +926,10 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported")))
-                .entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item(null)))
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("f", "unsupported"), columnInfo("f.raw", "unsupported"))
+            ).entry("values", List.of(matchesList().item(null).item(null), matchesList().item(null).item(null)))
         );
     }
 
@@ -920,7 +963,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | SORT emp_no | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "integer")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "integer")))
                 .entry("values", List.of(matchesList().item(1), matchesList().item(2)))
         );
     }
@@ -966,7 +1009,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
         );
     }
@@ -1012,7 +1055,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
         Map<String, Object> result = runEsql("FROM test* | LIMIT 2");
         assertMap(
             result,
-            matchesMap().entry("columns", List.of(columnInfo("emp_no", "unsupported")))
+            matchesMapWithOptionalTook(result.get("took")).entry("columns", List.of(columnInfo("emp_no", "unsupported")))
                 .entry("values", List.of(matchesList().item(null), matchesList().item(null)))
         );
     }
@@ -1062,6 +1105,323 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 "Cannot use field [foo.emp_no] due to ambiguities being "
                     + "mapped as [2] incompatible types: [integer] in [test1], [keyword] in [test2]"
             )
+        );
+    }
+
+    /**
+     * Test for https://github.com/elastic/elasticsearch/issues/117054 fix
+     */
+    public void testOneNestedSubField_AndSameNameSupportedField() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+
+        Map<String, Object> result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", Collections.EMPTY_LIST)
+        );
+
+        index("test", """
+            {"Responses.process.pid": 123,"process.parent.command_line":"run.bat"}""");
+
+        result = runEsql("FROM test");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:18: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    public void testOneNestedSubField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+                  "properties": {
+                    "Responses": {
+                      "properties": {
+                        "process": {
+                          "type": "nested",
+                          "properties": {
+                            "pid": {
+                              "type": "long"
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+                  "properties": {
+                    "process": {
+                      "properties": {
+                        "parent": {
+                          "properties": {
+                            "command_line": {
+                              "type": "wildcard",
+                              "fields": {
+                                "text": {
+                                  "type": "text"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 123}""");
+        index("test2", """
+            {"process.parent.command_line":"run.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line ASC NULLS FIRST");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item(null).item(null), matchesList().item("run.bat").item("run.bat")))
+        );
+
+        result = runEsql("""
+            FROM test* | where process.parent.command_line == "run.bat"
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(columnInfo("process.parent.command_line", "keyword"), columnInfo("process.parent.command_line.text", "text"))
+            ).entry("values", List.of(matchesList().item("run.bat").item("run.bat")))
+        );
+
+        ResponseException e = expectThrows(ResponseException.class, () -> runEsql("FROM test* | SORT Responses.process.pid"));
+        String err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 1:19: Unknown column [Responses.process.pid]"));
+
+        e = expectThrows(ResponseException.class, () -> runEsql("""
+            FROM test*
+            | SORT Responses.process.pid
+            | WHERE Responses.process IS NULL
+            """));
+        err = EntityUtils.toString(e.getResponse().getEntity());
+        assertThat(err, containsString("line 2:8: Unknown column [Responses.process.pid]"));
+    }
+
+    public void testOneNestedField_AndSameNameSupportedField_TwoIndices() throws IOException {
+        assumeIndexResolverNestedFieldsNameClashFixed();
+        ESRestTestCase.createIndex("test1", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "nested",
+                    "properties": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        ESRestTestCase.createIndex("test2", Settings.EMPTY, """
+            "properties": {
+              "Responses": {
+                "properties": {
+                  "process": {
+                    "type": "integer",
+                    "fields": {
+                      "pid": {
+                        "type": "long"
+                      }
+                    }
+                  }
+                }
+              },
+              "process": {
+                "properties": {
+                  "parent": {
+                    "properties": {
+                      "command_line": {
+                        "type": "wildcard",
+                        "fields": {
+                          "text": {
+                            "type": "text"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+            """);
+        index("test1", """
+            {"Responses.process.pid": 111,"process.parent.command_line":"run1.bat"}""");
+        index("test2", """
+            {"Responses.process": 222,"process.parent.command_line":"run2.bat"}""");
+
+        Map<String, Object> result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test* | where Responses.process.pid == 111
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of())
+        );
+
+        result = runEsql("FROM test* | SORT process.parent.command_line");
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            )
+                .entry(
+                    "values",
+                    List.of(
+                        matchesList().item(null).item(null).item("run1.bat").item("run1.bat"),
+                        matchesList().item(222).item(222).item("run2.bat").item("run2.bat")
+                    )
+                )
+        );
+
+        result = runEsql("""
+            FROM test*
+            | SORT process.parent.command_line
+            | WHERE Responses.process IS NULL
+            """);
+        assertMap(
+            result,
+            matchesMapWithOptionalTook(result.get("took")).entry(
+                "columns",
+                List.of(
+                    columnInfo("Responses.process", "integer"),
+                    columnInfo("Responses.process.pid", "long"),
+                    columnInfo("process.parent.command_line", "keyword"),
+                    columnInfo("process.parent.command_line.text", "text")
+                )
+            ).entry("values", List.of(matchesList().item(null).item(null).item("run1.bat").item("run1.bat")))
+        );
+    }
+
+    private void assumeIndexResolverNestedFieldsNameClashFixed() throws IOException {
+        // especially for BWC tests but also for regular tests
+        var capsName = EsqlCapabilities.Cap.FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER.name().toLowerCase(Locale.ROOT);
+        boolean requiredClusterCapability = clusterHasCapability("POST", "/_query", List.of(), List.of(capsName)).orElse(false);
+        assumeTrue(
+            "This test makes sense for versions that have the fix for https://github.com/elastic/elasticsearch/issues/117054",
+            requiredClusterCapability
         );
     }
 
@@ -1311,7 +1671,7 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
                 values = values.item(expectedValue);
             }
 
-            assertMap(result, matchesMap().entry("columns", columns).entry("values", List.of(values)));
+            assertMap(result, matchesMapWithOptionalTook(result.get("took")).entry("columns", columns).entry("values", List.of(values)));
         }
 
         void createIndex(String name, String fieldName) throws IOException {
@@ -1415,16 +1775,12 @@ public abstract class FieldExtractorTestCase extends ESRestTestCase {
     }
 
     private static void createIndex(String name, CheckedConsumer<XContentBuilder, IOException> mapping) throws IOException {
-        Request request = new Request("PUT", "/" + name);
         XContentBuilder index = JsonXContent.contentBuilder().prettyPrint().startObject();
-        index.startObject("mappings");
         mapping.accept(index);
-        index.endObject();
         index.endObject();
         String configStr = Strings.toString(index);
         logger.info("index: {} {}", name, configStr);
-        request.setJsonEntity(configStr);
-        client().performRequest(request);
+        ESRestTestCase.createIndex(name, Settings.EMPTY, configStr);
     }
 
     /**

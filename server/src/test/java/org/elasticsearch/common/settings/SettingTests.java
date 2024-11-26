@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.settings;
 
@@ -1519,6 +1520,40 @@ public class SettingTests extends ESTestCase {
         expectThrows(
             IllegalArgumentException.class,
             () -> Setting.boolSetting("a.bool.setting", true, Property.DeprecatedWarning, Property.IndexSettingDeprecatedInV7AndRemovedInV8)
+        );
+    }
+
+    public void testIntSettingBounds() {
+        Setting<Integer> setting = Setting.intSetting("int.setting", 0, Integer.MIN_VALUE, Integer.MAX_VALUE);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("int.setting", "2147483648").build())
+        );
+        assertThat(e.getMessage(), equalTo("Failed to parse value [2147483648] for setting [int.setting] must be <= 2147483647"));
+        var e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("int.setting", "-2147483649").build())
+        );
+        assertThat(e2.getMessage(), equalTo("Failed to parse value [-2147483649] for setting [int.setting] must be >= -2147483648"));
+    }
+
+    public void testLongSettingBounds() {
+        Setting<Long> setting = Setting.longSetting("long.setting", 0, Long.MIN_VALUE);
+        var e = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("long.setting", "9223372036854775808").build())
+        );
+        assertThat(
+            e.getMessage(),
+            equalTo("Failed to parse value [9223372036854775808] for setting [long.setting] must be <= 9223372036854775807")
+        );
+        var e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> setting.get(Settings.builder().put("long.setting", "-9223372036854775809").build())
+        );
+        assertThat(
+            e2.getMessage(),
+            equalTo("Failed to parse value [-9223372036854775809] for setting [long.setting] must be >= -9223372036854775808")
         );
     }
 }

@@ -81,7 +81,7 @@ public class AllocationStatus implements Writeable, ToXContentObject {
     }
 
     public State calculateState() {
-        if (allocationCount == 0) {
+        if (allocationCount == 0 && targetAllocationCount > 0) {
             return State.STARTING;
         }
         if (allocationCount < targetAllocationCount) {

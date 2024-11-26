@@ -27,15 +27,48 @@ import java.util.Set;
  */
 public class EsqlCapabilities {
     public enum Cap {
+
+        /**
+         * Support for function {@code BIT_LENGTH}. Done in #115792
+         */
+        FN_BIT_LENGTH,
+
+        /**
+         * Support for function {@code BYTE_LENGTH}.
+         */
+        FN_BYTE_LENGTH,
+
+        /**
+         * Support for function {@code REVERSE}.
+         */
+        FN_REVERSE,
+
+        /**
+         * Support for reversing whole grapheme clusters. This is not supported
+         * on JDK versions less than 20 which are not supported in ES 9.0.0+ but this
+         * exists to keep the {@code 8.x} branch similar to the {@code main} branch.
+         */
+        FN_REVERSE_GRAPHEME_CLUSTERS,
+
         /**
          * Support for function {@code CBRT}. Done in #108574.
          */
         FN_CBRT,
 
         /**
+         * Support for function {@code HYPOT}.
+         */
+        FN_HYPOT,
+
+        /**
          * Support for {@code MV_APPEND} function. #107001
          */
         FN_MV_APPEND,
+
+        /**
+         * Support for {@code MV_MEDIAN_ABSOLUTE_DEVIATION} function.
+         */
+        FN_MV_MEDIAN_ABSOLUTE_DEVIATION,
 
         /**
          * Support for {@code MV_PERCENTILE} function.
@@ -51,6 +84,11 @@ public class EsqlCapabilities {
          * Fix on function {@code SUBSTRING} that makes it not return null on empty strings.
          */
         FN_SUBSTRING_EMPTY_NULL,
+
+        /**
+         * All functions that take TEXT should never emit TEXT, only KEYWORD. #114334
+         */
+        FUNCTIONS_NEVER_EMIT_TEXT,
 
         /**
          * Support for the {@code INLINESTATS} syntax.
@@ -93,6 +131,22 @@ public class EsqlCapabilities {
         AGG_TOP_IP_SUPPORT,
 
         /**
+         * Support for {@code keyword} and {@code text} fields in {@code TOP} aggregation.
+         */
+        AGG_TOP_STRING_SUPPORT,
+
+        /**
+         * {@code CASE} properly handling multivalue conditions.
+         */
+        CASE_MV,
+
+        /**
+         * Support for loading values over enrich. This is supported by all versions of ESQL but not
+         * the unit test CsvTests.
+         */
+        ENRICH_LOAD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -108,7 +162,7 @@ public class EsqlCapabilities {
          * - fixed variable shadowing
          * - fixed Join.references(), requiring breaking change to Join serialization
          */
-        LOOKUP_V4(true),
+        LOOKUP_V4(Build.current().isSnapshot()),
 
         /**
          * Support for requesting the "REPEAT" command.
@@ -139,6 +193,26 @@ public class EsqlCapabilities {
          * Fix determination of CRS types in spatial functions when folding.
          */
         SPATIAL_FUNCTIONS_FIX_CRSTYPE_FOLDING,
+
+        /**
+         * Enable spatial predicate functions to support multi-values. Done in #112063.
+         */
+        SPATIAL_PREDICATES_SUPPORT_MULTIVALUES,
+
+        /**
+         * Enable spatial distance function to support multi-values. Done in #114836.
+         */
+        SPATIAL_DISTANCE_SUPPORTS_MULTIVALUES,
+
+        /**
+         * Support a number of fixes and enhancements to spatial distance pushdown. Done in #112938.
+         */
+        SPATIAL_DISTANCE_PUSHDOWN_ENHANCEMENTS,
+
+        /**
+         * Fix for spatial centroid when no records are found.
+         */
+        SPATIAL_CENTROID_NO_RECORDS,
 
         /**
          * Fix to GROK and DISSECT that allows extracting attributes with the same name as the input
@@ -189,6 +263,11 @@ public class EsqlCapabilities {
         UNION_TYPES_MISSING_FIELD,
 
         /**
+         * Fix for widening of short numeric types in union-types. Done in #112610
+         */
+        UNION_TYPES_NUMERIC_WIDENING,
+
+        /**
          * Fix a parsing issue where numbers below Long.MIN_VALUE threw an exception instead of parsing as doubles.
          * see <a href="https://github.com/elastic/elasticsearch/issues/104323"> Parsing large numbers is inconsistent #104323 </a>
          */
@@ -204,6 +283,11 @@ public class EsqlCapabilities {
          * Use RangeQuery for BinaryComparison on DateTime fields.
          */
         RANGEQUERY_FOR_DATETIME,
+
+        /**
+         * Enforce strict type checking on ENRICH range types, and warnings for KEYWORD parsing at runtime. Done in #115091.
+         */
+        ENRICH_STRICT_RANGE_TYPES,
 
         /**
          * Fix for non-unique attribute names in ROW and logical plans.
@@ -227,9 +311,14 @@ public class EsqlCapabilities {
         MV_PSERIES_WEIGHTED_SUM,
 
         /**
-         * Support for match operator
+         * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR(true),
+        MATCH_OPERATOR_COLON,
+
+        /**
+         * Removing support for the {@code META} keyword.
+         */
+        NO_META,
 
         /**
          * Add CombineBinaryComparisons rule.
@@ -237,14 +326,39 @@ public class EsqlCapabilities {
         COMBINE_BINARY_COMPARISONS,
 
         /**
-         * MATCH command support
-         */
-        MATCH_COMMAND(true),
-
-        /**
          * Support for nanosecond dates as a data type
          */
-        DATE_NANOS_TYPE(EsqlCorePlugin.DATE_NANOS_FEATURE_FLAG),
+        DATE_NANOS_TYPE(),
+
+        /**
+         * Support for to_date_nanos function
+         */
+        TO_DATE_NANOS(),
+
+        /**
+         * Support for date nanos type in binary comparisons
+         */
+        DATE_NANOS_BINARY_COMPARISON(),
+
+        /**
+         * Support Least and Greatest functions on Date Nanos type
+         */
+        LEAST_GREATEST_FOR_DATENANOS(),
+
+        /**
+         * Support for date_trunc function on date nanos type
+         */
+        DATE_TRUNC_DATE_NANOS(),
+
+        /**
+         * support aggregations on date nanos
+         */
+        DATE_NANOS_AGGREGATIONS(),
+
+        /**
+         * Support for datetime in least and greatest functions
+         */
+        LEAST_GREATEST_FOR_DATES,
 
         /**
          * Support CIDRMatch in CombineDisjunctions rule.
@@ -274,34 +388,167 @@ public class EsqlCapabilities {
         /**
          * Allow mixed numeric types in coalesce
          */
-        MIXED_NUMERIC_TYPES_IN_COALESCE;
+        MIXED_NUMERIC_TYPES_IN_COALESCE,
 
-        private final boolean snapshotOnly;
-        private final FeatureFlag featureFlag;
+        /**
+         * Support for requesting the "SPACE" function.
+         */
+        SPACE,
+
+        /**
+         * Support explicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        CAST_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * Supported the text categorization function "CATEGORIZE".
+         */
+        CATEGORIZE(Build.current().isSnapshot()),
+
+        /**
+         * QSTR function
+         */
+        QSTR_FUNCTION,
+
+        /**
+         * MATCH function
+         */
+        MATCH_FUNCTION,
+
+        /**
+         * KQL function
+         */
+        KQL_FUNCTION(Build.current().isSnapshot()),
+
+        /**
+         * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
+         * https://github.com/elastic/elasticsearch/issues/112704
+         */
+        FIXED_WRONG_IS_NOT_NULL_CHECK_ON_CASE,
+
+        /**
+         * Compute year differences in full calendar years.
+         */
+        DATE_DIFF_YEAR_CALENDARIAL,
+
+        /**
+         * Fix sorting not allowed on _source and counters.
+         */
+        SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
+
+        /**
+         * Fix {@code SORT} when the {@code _source} field is not a sort key but
+         * <strong>is</strong> being returned.
+         */
+        SORT_RETURNING_SOURCE_OK,
+
+        /**
+         * Allow filter per individual aggregation.
+         */
+        PER_AGG_FILTERING,
+
+        /**
+         * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
+         */
+        PER_AGG_FILTERING_ORDS,
+
+        /**
+         * Support for {@code STD_DEV} aggregation.
+         */
+        STD_DEV,
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION,
+
+        /**
+         * Adding stats for functions (stack telemetry)
+         */
+        FUNCTION_STATS,
+        /**
+         * Support for semantic_text field mapping
+         */
+        SEMANTIC_TEXT_TYPE(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+        /**
+         * Fix for an optimization that caused wrong results
+         * https://github.com/elastic/elasticsearch/issues/115281
+         */
+        FIX_FILTER_PUSHDOWN_PAST_STATS,
+
+        /**
+         * Send warnings on STATS alias collision
+         * https://github.com/elastic/elasticsearch/issues/114970
+         */
+        STATS_ALIAS_COLLISION_WARNINGS,
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....snapshot" version test. See also the next capability.
+         */
+        SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot()),
+
+        /**
+         * This enables 60_usage.yml "Basic ESQL usage....non-snapshot" version test. See also the previous capability.
+         */
+        NON_SNAPSHOT_TEST_FOR_TELEMETRY(Build.current().isSnapshot() == false),
+
+        /**
+         * Support simplified syntax for named parameters for field and function names.
+         */
+        NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX(Build.current().isSnapshot()),
+
+        /**
+         * Fix pushdown of LIMIT past MV_EXPAND
+         */
+        ADD_LIMIT_INSIDE_MV_EXPAND,
+
+        DELAY_DEBUG_FN(Build.current().isSnapshot()),
+
+        /** Capability for remote metadata test */
+        METADATA_FIELDS_REMOTE_TEST(false),
+        /**
+         * WIP on Join planning
+         * - Introduce BinaryPlan and co
+         * - Refactor INLINESTATS and LOOKUP as a JOIN block
+         */
+        JOIN_PLANNING_V1(Build.current().isSnapshot()),
+
+        /**
+         * Support implicit casting from string literal to DATE_PERIOD or TIME_DURATION.
+         */
+        IMPLICIT_CASTING_STRING_LITERAL_TO_TEMPORAL_AMOUNT,
+
+        /**
+         * LOOKUP JOIN
+         */
+        JOIN_LOOKUP(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+
+        private final boolean enabled;
 
         Cap() {
-            this(false, null);
+            this.enabled = true;
         };
 
-        Cap(boolean snapshotOnly) {
-            this(snapshotOnly, null);
+        Cap(boolean enabled) {
+            this.enabled = enabled;
         };
 
         Cap(FeatureFlag featureFlag) {
-            this(false, featureFlag);
-        }
-
-        Cap(boolean snapshotOnly, FeatureFlag featureFlag) {
-            assert featureFlag == null || snapshotOnly == false;
-            this.snapshotOnly = snapshotOnly;
-            this.featureFlag = featureFlag;
+            this.enabled = featureFlag.isEnabled();
         }
 
         public boolean isEnabled() {
-            if (featureFlag == null) {
-                return Build.current().isSnapshot() || this.snapshotOnly == false;
-            }
-            return featureFlag.isEnabled();
+            return enabled;
         }
 
         public String capabilityName() {
@@ -309,12 +556,17 @@ public class EsqlCapabilities {
         }
     }
 
-    public static final Set<String> CAPABILITIES = capabilities();
+    public static final Set<String> CAPABILITIES = capabilities(false);
 
-    private static Set<String> capabilities() {
+    /**
+     * Get a {@link Set} of all capabilities. If the {@code all} parameter is {@code false}
+     * then only <strong>enabled</strong> capabilities are returned - otherwise <strong>all</strong>
+     * known capabilities are returned.
+     */
+    public static Set<String> capabilities(boolean all) {
         List<String> caps = new ArrayList<>();
         for (Cap cap : Cap.values()) {
-            if (cap.isEnabled()) {
+            if (all || cap.isEnabled()) {
                 caps.add(cap.capabilityName());
             }
         }
@@ -323,9 +575,6 @@ public class EsqlCapabilities {
          * Add all of our cluster features without the leading "esql."
          */
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
         return Set.copyOf(caps);

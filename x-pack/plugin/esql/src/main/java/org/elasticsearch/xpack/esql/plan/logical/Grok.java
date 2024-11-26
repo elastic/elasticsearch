@@ -149,6 +149,11 @@ public class Grok extends RegexExtract {
     }
 
     @Override
+    public String commandName() {
+        return "GROK";
+    }
+
+    @Override
     public int hashCode() {
         return Objects.hash(super.hashCode(), parser);
     }

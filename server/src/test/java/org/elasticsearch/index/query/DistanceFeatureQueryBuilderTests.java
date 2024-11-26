@@ -1,15 +1,16 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
 
 import org.apache.lucene.document.LatLonPoint;
-import org.apache.lucene.document.LongPoint;
+import org.apache.lucene.document.LongField;
 import org.apache.lucene.search.Query;
 import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.GeoUtils;
@@ -80,7 +81,7 @@ public class DistanceFeatureQueryBuilderTests extends AbstractQueryTestCase<Dist
             } else { // NANOSECONDS
                 pivotLong = pivotVal.getNanos();
             }
-            expectedQuery = LongPoint.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
+            expectedQuery = LongField.newDistanceFeatureQuery(fieldName, 1.0f, originLong, pivotLong);
         }
         assertEquals(expectedQuery, query);
     }

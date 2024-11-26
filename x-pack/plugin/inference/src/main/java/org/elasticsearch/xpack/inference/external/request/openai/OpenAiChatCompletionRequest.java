@@ -32,11 +32,13 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
     private final OpenAiAccount account;
     private final List<String> input;
     private final OpenAiChatCompletionModel model;
+    private final boolean stream;
 
-    public OpenAiChatCompletionRequest(List<String> input, OpenAiChatCompletionModel model) {
+    public OpenAiChatCompletionRequest(List<String> input, OpenAiChatCompletionModel model, boolean stream) {
         this.account = OpenAiAccount.of(model, OpenAiChatCompletionRequest::buildDefaultUri);
         this.input = Objects.requireNonNull(input);
         this.model = Objects.requireNonNull(model);
+        this.stream = stream;
     }
 
     @Override
@@ -45,7 +47,7 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
             Strings.toString(
-                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user())
+                new OpenAiChatCompletionRequestEntity(input, model.getServiceSettings().modelId(), model.getTaskSettings().user(), stream)
             ).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
@@ -81,6 +83,11 @@ public class OpenAiChatCompletionRequest implements OpenAiRequest {
     @Override
     public String getInferenceEntityId() {
         return model.getInferenceEntityId();
+    }
+
+    @Override
+    public boolean isStreaming() {
+        return stream;
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {

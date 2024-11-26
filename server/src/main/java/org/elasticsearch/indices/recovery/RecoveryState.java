@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -292,9 +293,9 @@ public class RecoveryState implements ToXContentFragment, Writeable {
         builder.field(Fields.TYPE, recoverySource.getType());
         builder.field(Fields.STAGE, stage.toString());
         builder.field(Fields.PRIMARY, primary);
-        builder.timeField(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
+        builder.timestampFieldsFromUnixEpochMillis(Fields.START_TIME_IN_MILLIS, Fields.START_TIME, timer.startTime);
         if (timer.stopTime > 0) {
-            builder.timeField(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
+            builder.timestampFieldsFromUnixEpochMillis(Fields.STOP_TIME_IN_MILLIS, Fields.STOP_TIME, timer.stopTime);
         }
         builder.humanReadableField(Fields.TOTAL_TIME_IN_MILLIS, Fields.TOTAL_TIME, new TimeValue(timer.time()));
 

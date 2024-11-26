@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.snapshots;
@@ -54,7 +55,6 @@ import org.elasticsearch.action.search.SearchExecutionStatsCollector;
 import org.elasticsearch.action.search.SearchPhaseController;
 import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.action.search.SearchResponse;
-import org.elasticsearch.action.search.SearchTransportAPMMetrics;
 import org.elasticsearch.action.search.SearchTransportService;
 import org.elasticsearch.action.search.TransportSearchAction;
 import org.elasticsearch.action.support.ActionFilters;
@@ -146,7 +146,6 @@ import org.elasticsearch.index.seqno.GlobalCheckpointSyncAction;
 import org.elasticsearch.index.seqno.RetentionLeaseSyncer;
 import org.elasticsearch.index.shard.PrimaryReplicaSyncer;
 import org.elasticsearch.indices.EmptySystemIndices;
-import org.elasticsearch.indices.IndicesFeatures;
 import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.IndicesServiceBuilder;
@@ -371,7 +370,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         final AtomicBoolean documentCountVerified = new AtomicBoolean();
         continueOrDie(searchResponseListener, r -> {
-            assertEquals(documents, Objects.requireNonNull(r.getHits().getTotalHits()).value);
+            assertEquals(documents, Objects.requireNonNull(r.getHits().getTotalHits()).value());
             documentCountVerified.set(true);
         });
 
@@ -815,7 +814,10 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         var response = safeResult(searchResponseListener);
         try {
-            assertEquals(documentsFirstSnapshot + documentsSecondSnapshot, Objects.requireNonNull(response.getHits().getTotalHits()).value);
+            assertEquals(
+                documentsFirstSnapshot + documentsSecondSnapshot,
+                Objects.requireNonNull(response.getHits().getTotalHits()).value()
+            );
         } finally {
             response.decRef();
         }
@@ -1036,7 +1038,9 @@ public class SnapshotResiliencyTests extends ESTestCase {
 
         continueOrDie(
             createRepoAndIndex(repoName, index, shards),
-            createIndexResponse -> client().admin().cluster().state(new ClusterStateRequest(), clusterStateResponseStepListener)
+            createIndexResponse -> client().admin()
+                .cluster()
+                .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), clusterStateResponseStepListener)
         );
 
         continueOrDie(clusterStateResponseStepListener, clusterStateResponse -> {
@@ -1048,7 +1052,8 @@ public class SnapshotResiliencyTests extends ESTestCase {
                 @Override
                 public void run() {
                     final SubscribableListener<ClusterStateResponse> updatedClusterStateResponseStepListener = new SubscribableListener<>();
-                    masterAdminClient.cluster().state(new ClusterStateRequest(), updatedClusterStateResponseStepListener);
+                    masterAdminClient.cluster()
+                        .state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT), updatedClusterStateResponseStepListener);
                     continueOrDie(updatedClusterStateResponseStepListener, updatedClusterState -> {
                         final ShardRouting shardRouting = updatedClusterState.getState()
                             .routingTable()
@@ -1173,7 +1178,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
         final AtomicBoolean documentCountVerified = new AtomicBoolean();
 
         continueOrDie(searchResponseStepListener, r -> {
-            final long hitCount = r.getHits().getTotalHits().value;
+            final long hitCount = r.getHits().getTotalHits().value();
             assertThat(
                 "Documents were restored but the restored index mapping was older than some documents and misses some of their fields",
                 (int) hitCount,
@@ -1846,8 +1851,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
             Settings.builder()
                 .put(NODE_NAME_SETTING.getKey(), nodeName)
                 .put(PATH_HOME_SETTING.getKey(), tempDir.resolve(nodeName).toAbsolutePath())
-                // test uses the same executor service for all thread pools, search worker would need to be a different one
-                .put(SearchService.SEARCH_WORKER_THREADS_ENABLED.getKey(), false)
                 .put(Environment.PATH_REPO_SETTING.getKey(), tempDir.resolve("repo").toAbsolutePath())
                 .putList(
                     ClusterBootstrapService.INITIAL_MASTER_NODES_SETTING.getKey(),
@@ -2241,7 +2244,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     .scriptService(scriptService)
                     .clusterService(clusterService)
                     .client(client)
-                    .featureService(new FeatureService(List.of(new IndicesFeatures())))
+                    .featureService(new FeatureService(List.of()))
                     .metaStateService(new MetaStateService(nodeEnv, namedXContentRegistry))
                     .mapperMetrics(MapperMetrics.NOOP)
                     .build();
@@ -2400,7 +2403,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                             Collections.emptyList(),
                             client,
                             null,
-                            DocumentParsingProvider.EMPTY_INSTANCE,
                             FailureStoreMetrics.NOOP
                         ),
                         mockFeatureService,
@@ -2420,7 +2422,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     threadPool,
                     shardStateAction,
                     mappingUpdatedAction,
-                    new UpdateHelper(scriptService, DocumentParsingProvider.EMPTY_INSTANCE),
+                    new UpdateHelper(scriptService),
                     actionFilters,
                     indexingMemoryLimits,
                     EmptySystemIndices.INSTANCE,
@@ -2488,7 +2490,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         indexNameExpressionResolver,
                         namedWriteableRegistry,
                         EmptySystemIndices.INSTANCE.getExecutorSelector(),
-                        new SearchTransportAPMMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         new SearchResponseMetrics(TelemetryProvider.NOOP.getMeterRegistry()),
                         client,
                         usageService

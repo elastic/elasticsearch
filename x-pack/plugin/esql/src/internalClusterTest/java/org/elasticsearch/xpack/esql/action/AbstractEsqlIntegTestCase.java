@@ -26,16 +26,21 @@ import org.elasticsearch.indices.breaker.HierarchyCircuitBreakerService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.junit.annotations.TestLogging;
+import org.elasticsearch.xpack.core.esql.action.ColumnInfo;
 import org.elasticsearch.xpack.esql.plugin.EsqlPlugin;
 import org.elasticsearch.xpack.esql.plugin.QueryPragmas;
 import org.elasticsearch.xpack.esql.plugin.TransportEsqlQueryAction;
 import org.junit.After;
 
+import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
+import static org.elasticsearch.xpack.esql.EsqlTestUtils.getValuesList;
+import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.equalTo;
 
 @TestLogging(value = "org.elasticsearch.xpack.esql.session:DEBUG", reason = "to better understand planning")
@@ -118,14 +123,14 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
     protected void setRequestCircuitBreakerLimit(ByteSizeValue limit) {
         if (limit != null) {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().put(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey(), limit).build()
                     )
             );
         } else {
             assertAcked(
-                clusterAdmin().prepareUpdateSettings()
+                clusterAdmin().prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
                     .setPersistentSettings(
                         Settings.builder().putNull(HierarchyCircuitBreakerService.REQUEST_CIRCUIT_BREAKER_LIMIT_SETTING.getKey()).build()
                     )
@@ -203,5 +208,29 @@ public abstract class AbstractEsqlIntegTestCase extends ESIntegTestCase {
 
     protected static boolean canUseQueryPragmas() {
         return Build.current().isSnapshot();
+    }
+
+    protected static void assertColumnNames(List<? extends ColumnInfo> actualColumns, List<String> expectedNames) {
+        assertThat(actualColumns.stream().map(ColumnInfo::name).toList(), equalTo(expectedNames));
+    }
+
+    protected static void assertColumnTypes(List<? extends ColumnInfo> actualColumns, List<String> expectedTypes) {
+        assertThat(actualColumns.stream().map(ColumnInfo::outputType).toList(), equalTo(expectedTypes));
+    }
+
+    protected static void assertValues(Iterator<Iterator<Object>> actualValues, Iterable<Iterable<Object>> expectedValues) {
+        assertThat(getValuesList(actualValues), equalTo(getValuesList(expectedValues)));
+    }
+
+    protected static void assertValuesInAnyOrder(Iterator<Iterator<Object>> actualValues, Iterable<Iterable<Object>> expectedValues) {
+        List<List<Object>> items = new ArrayList<>();
+        for (Iterable<Object> outter : expectedValues) {
+            var item = new ArrayList<>();
+            for (var inner : outter) {
+                item.add(inner);
+            }
+            items.add(item);
+        }
+        assertThat(getValuesList(actualValues), containsInAnyOrder(items.toArray()));
     }
 }

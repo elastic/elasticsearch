@@ -19,7 +19,6 @@ import org.elasticsearch.xpack.inference.external.request.googleaistudio.GoogleA
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioCompletionResponseEntity;
 import org.elasticsearch.xpack.inference.services.googleaistudio.completion.GoogleAiStudioCompletionModel;
 
-import java.util.List;
 import java.util.Objects;
 import java.util.function.Supplier;
 
@@ -32,7 +31,12 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
     private final GoogleAiStudioCompletionModel model;
 
     private static ResponseHandler createCompletionHandler() {
-        return new GoogleAiStudioResponseHandler("google ai studio completion", GoogleAiStudioCompletionResponseEntity::fromResponse);
+        return new GoogleAiStudioResponseHandler(
+            "google ai studio completion",
+            GoogleAiStudioCompletionResponseEntity::fromResponse,
+            true,
+            GoogleAiStudioCompletionResponseEntity::content
+        );
     }
 
     public GoogleAiStudioCompletionRequestManager(GoogleAiStudioCompletionModel model, ThreadPool threadPool) {
@@ -47,8 +51,7 @@ public class GoogleAiStudioCompletionRequestManager extends GoogleAiStudioReques
         Supplier<Boolean> hasRequestCompletedFunction,
         ActionListener<InferenceServiceResults> listener
     ) {
-        List<String> docsInput = DocumentsOnlyInput.of(inferenceInputs).getInputs();
-        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(docsInput, model);
+        GoogleAiStudioCompletionRequest request = new GoogleAiStudioCompletionRequest(DocumentsOnlyInput.of(inferenceInputs), model);
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }
 }

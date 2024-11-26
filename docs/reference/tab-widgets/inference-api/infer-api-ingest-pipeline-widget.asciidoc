@@ -39,6 +39,12 @@
     </button>
     <button role="tab"
             aria-selected="false"
+            aria-controls="infer-api-ingest-google-vertex-ai-tab"
+            id="infer-api-ingest-google-vertex-ai">
+      Google Vertex AI
+    </button>
+    <button role="tab"
+            aria-selected="false"
             aria-controls="infer-api-ingest-mistral-tab"
             id="infer-api-ingest-mistral">
       Mistral
@@ -118,6 +124,17 @@ include::infer-api-ingest-pipeline.asciidoc[tag=azure-openai]
 ++++
 
 include::infer-api-ingest-pipeline.asciidoc[tag=azure-ai-studio]
+
+++++
+  </div>
+  <div tabindex="0"
+       role="tabpanel"
+       id="infer-api-ingest-google-vertex-ai-tab"
+       aria-labelledby="infer-api-ingest-google-vertex-ai"
+       hidden="">
+++++
+
+include::infer-api-ingest-pipeline.asciidoc[tag=google-vertex-ai]
 
 ++++
   </div>

@@ -1716,6 +1716,10 @@ See <<disk-based-shard-allocation>> for more information about disk watermarks a
 
 `io_stats` (Linux only)::
 (objects) Contains I/O statistics for the node.
+
+NOTE: These statistics are derived from the `/proc/diskstats` kernel interface.
+This interface accounts for IO performed by all processes on the system, even
+if you are running {es} within a container.
 +
 .Properties of `io_stats`
 [%collapsible%open]

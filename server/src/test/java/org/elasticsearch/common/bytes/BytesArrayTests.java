@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.common.bytes;
 
@@ -105,5 +106,11 @@ public class BytesArrayTests extends AbstractBytesReferenceTestCase {
         assertThat(ref.getDoubleLE(8), equalTo(1.4));
         Exception e = expectThrows(ArrayIndexOutOfBoundsException.class, () -> ref.getDoubleLE(9));
         assertThat(e.getMessage(), equalTo("Index 9 out of bounds for length 9"));
+    }
+
+    public void testCopyBytes() {
+        var data = randomByteArrayOfLength(between(1024, 1024 * 1024 * 50));
+        var copy = BytesReference.copyBytes(new BytesArray(data));
+        assertArrayEquals(data, BytesReference.toBytes(copy));
     }
 }

@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.core.rest.action;
 
 import org.elasticsearch.client.internal.node.NodeClient;
+import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.protocol.xpack.XPackUsageRequest;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -17,12 +18,13 @@ import org.elasticsearch.rest.ServerlessScope;
 import org.elasticsearch.rest.action.RestBuilderListener;
 import org.elasticsearch.rest.action.RestCancellableNodeClient;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.XPackFeatureSet;
+import org.elasticsearch.xpack.core.XPackFeatureUsage;
 import org.elasticsearch.xpack.core.action.XPackUsageAction;
 import org.elasticsearch.xpack.core.action.XPackUsageResponse;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.Set;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
 import static org.elasticsearch.rest.RestStatus.OK;
@@ -50,7 +52,7 @@ public class RestXPackUsageAction extends BaseRestHandler {
                 @Override
                 public RestResponse buildResponse(XPackUsageResponse response, XContentBuilder builder) throws Exception {
                     builder.startObject();
-                    for (XPackFeatureSet.Usage usage : response.getUsages()) {
+                    for (XPackFeatureUsage usage : response.getUsages()) {
                         builder.field(usage.name(), usage);
                     }
                     builder.endObject();
@@ -58,5 +60,10 @@ public class RestXPackUsageAction extends BaseRestHandler {
                 }
             }
         );
+    }
+
+    @Override
+    public Set<String> supportedCapabilities() {
+        return Sets.union(super.supportedCapabilities(), Set.of("global_retention_telemetry"));
     }
 }

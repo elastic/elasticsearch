@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.vectors;
@@ -124,7 +125,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
         this(fieldName, VectorData.fromFloats(queryVector), null, null, k, numCands, vectorSimilarity);
     }
 
-    protected KnnVectorQueryBuilder(
+    public KnnVectorQueryBuilder(
         String fieldName,
         QueryVectorBuilder queryVectorBuilder,
         Integer k,
@@ -191,7 +192,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
     public KnnVectorQueryBuilder(StreamInput in) throws IOException {
         super(in);
         this.fieldName = in.readString();
-        if (in.getTransportVersion().onOrAfter(TransportVersions.K_FOR_KNN_QUERY_ADDED)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.k = in.readOptionalVInt();
         } else {
             this.k = null;
@@ -278,7 +279,7 @@ public class KnnVectorQueryBuilder extends AbstractQueryBuilder<KnnVectorQueryBu
             throw new IllegalStateException("missing a rewriteAndFetch?");
         }
         out.writeString(fieldName);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.K_FOR_KNN_QUERY_ADDED)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeOptionalVInt(k);
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_13_0)) {

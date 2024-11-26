@@ -465,7 +465,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(
                 client.admin()
                     .cluster()
-                    .prepareState()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
                     .clear()
                     .setIndices("copy-*")
                     .setMetadata(true)
@@ -564,7 +564,12 @@ public class AutoFollowIT extends CcrIntegTestCase {
 
         // check that all leader indices have been correctly auto followed
         List<String> matchingPrefixes = Arrays.stream(prefixes).map(prefix -> prefix + "*").collect(Collectors.toList());
-        for (IndexMetadata leaderIndexMetadata : leaderClient().admin().cluster().prepareState().get().getState().metadata()) {
+        for (IndexMetadata leaderIndexMetadata : leaderClient().admin()
+            .cluster()
+            .prepareState(TEST_REQUEST_TIMEOUT)
+            .get()
+            .getState()
+            .metadata()) {
             final String leaderIndex = leaderIndexMetadata.getIndex().getName();
             if (Regex.simpleMatch(matchingPrefixes, leaderIndex)) {
                 String followingIndex = "copy-" + leaderIndex;
@@ -690,7 +695,7 @@ public class AutoFollowIT extends CcrIntegTestCase {
             assertThat(autoFollowStats.getNumberOfSuccessfulFollowIndices(), equalTo(3L));
         });
 
-        final Metadata metadata = followerClient().admin().cluster().prepareState().get().getState().metadata();
+        final Metadata metadata = followerClient().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().metadata();
         final DataStream dataStream = metadata.dataStreams().get(datastream);
         assertTrue(dataStream.getIndices().stream().anyMatch(i -> i.getName().equals(indexInDatastream)));
         assertEquals(IndexMetadata.State.OPEN, metadata.index(indexInDatastream).getState());

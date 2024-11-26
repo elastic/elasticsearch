@@ -14,7 +14,6 @@ import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.injection.guice.Inject;
 import org.elasticsearch.tasks.Task;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -31,9 +30,8 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
     EsqlStatsRequest,
     EsqlStatsResponse,
     EsqlStatsRequest.NodeStatsRequest,
-    EsqlStatsResponse.NodeStatsResponse> {
-
-    static final NodeFeature ESQL_STATS_FEATURE = new NodeFeature("esql.stats_node");
+    EsqlStatsResponse.NodeStatsResponse,
+    Void> {
 
     // the plan executor holds the metrics
     private final FeatureService featureService;
@@ -62,13 +60,7 @@ public class TransportEsqlStatsAction extends TransportNodesAction<
 
     @Override
     protected DiscoveryNode[] resolveRequest(EsqlStatsRequest request, ClusterState clusterState) {
-        if (featureService.clusterHasFeature(clusterState, ESQL_STATS_FEATURE)) {
-            // use the whole cluster
-            return super.resolveRequest(request, clusterState);
-        } else {
-            // not all nodes in the cluster have upgraded to esql - just use this node for now
-            return new DiscoveryNode[] { clusterService.localNode() };
-        }
+        return super.resolveRequest(request, clusterState);
     }
 
     @Override

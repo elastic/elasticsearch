@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.service;
@@ -35,6 +36,9 @@ public interface MasterServiceTaskQueue<T extends ClusterStateTaskListener> {
      *                ?master_timeout}, which is typically available from {@link MasterNodeRequest#masterNodeTimeout()}. Tasks that
      *                correspond with internal actions should normally have no timeout since it is usually better to wait patiently in the
      *                queue until processed rather than to fail, especially if the only reasonable reaction to a failure is to retry.
+     *                <p>
+     *                The values {@code null} and {@link MasterNodeRequest#INFINITE_MASTER_NODE_TIMEOUT} (i.e. {@link TimeValue#MINUS_ONE})
+     *                both indicate that the task should never time out.
      */
     void submitTask(String source, T task, @Nullable TimeValue timeout);
 }

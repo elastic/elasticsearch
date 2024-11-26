@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.bootstrap;
@@ -29,6 +30,8 @@ import org.elasticsearch.common.util.concurrent.RunOnce;
 import org.elasticsearch.core.AbstractRefCounted;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.SuppressForbidden;
+import org.elasticsearch.core.Tuple;
+import org.elasticsearch.entitlement.bootstrap.EntitlementBootstrap;
 import org.elasticsearch.env.Environment;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.jdk.JarHell;
@@ -39,6 +42,9 @@ import org.elasticsearch.monitor.process.ProcessProbe;
 import org.elasticsearch.nativeaccess.NativeAccess;
 import org.elasticsearch.node.Node;
 import org.elasticsearch.node.NodeValidationException;
+import org.elasticsearch.plugins.PluginBundle;
+import org.elasticsearch.plugins.PluginsLoader;
+import org.elasticsearch.plugins.PluginsUtils;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -48,8 +54,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.security.Permission;
 import java.security.Security;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
@@ -197,12 +205,33 @@ class Elasticsearch {
             VectorUtil.class
         );
 
-        // install SM after natives, shutdown hooks, etc.
-        org.elasticsearch.bootstrap.Security.configure(
-            nodeEnv,
-            SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
-            args.pidFile()
-        );
+        // load the plugin Java modules and layers now for use in entitlements
+        var pluginsLoader = new PluginsLoader(nodeEnv.modulesFile(), nodeEnv.pluginsFile());
+        bootstrap.setPluginsLoader(pluginsLoader);
+
+        if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
+            logger.info("Bootstrapping Entitlements");
+
+            List<Tuple<Path, Boolean>> pluginData = new ArrayList<>();
+            Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
+            for (PluginBundle moduleBundle : moduleBundles) {
+                pluginData.add(Tuple.tuple(moduleBundle.getDir(), moduleBundle.pluginDescriptor().isModular()));
+            }
+            Set<PluginBundle> pluginBundles = PluginsUtils.getPluginBundles(nodeEnv.pluginsFile());
+            for (PluginBundle pluginBundle : pluginBundles) {
+                pluginData.add(Tuple.tuple(pluginBundle.getDir(), pluginBundle.pluginDescriptor().isModular()));
+            }
+            // TODO: add a functor to map module to plugin name
+            EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
+        } else {
+            // install SM after natives, shutdown hooks, etc.
+            logger.info("Bootstrapping java SecurityManager");
+            org.elasticsearch.bootstrap.Security.configure(
+                nodeEnv,
+                SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),
+                args.pidFile()
+            );
+        }
     }
 
     private static void ensureInitialized(Class<?>... classes) {
@@ -236,7 +265,7 @@ class Elasticsearch {
     private static void initPhase3(Bootstrap bootstrap) throws IOException, NodeValidationException {
         checkLucene();
 
-        Node node = new Node(bootstrap.environment()) {
+        Node node = new Node(bootstrap.environment(), bootstrap.pluginsLoader()) {
             @Override
             protected void validateNodeBeforeAcceptingRequests(
                 final BootstrapContext context,

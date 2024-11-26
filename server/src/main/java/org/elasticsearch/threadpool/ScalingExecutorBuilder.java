@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.threadpool;
@@ -103,7 +104,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         final String prefix,
         final EsExecutors.TaskTrackingConfig trackingConfig
     ) {
-        super(name);
+        super(name, false);
         this.coreSetting = Setting.intSetting(settingsKey(prefix, "core"), core, Setting.Property.NodeScope);
         this.maxSetting = Setting.intSetting(settingsKey(prefix, "max"), max, Setting.Property.NodeScope);
         this.keepAliveSetting = Setting.timeSetting(settingsKey(prefix, "keep_alive"), keepAlive, Setting.Property.NodeScope);
@@ -130,7 +131,7 @@ public final class ScalingExecutorBuilder extends ExecutorBuilder<ScalingExecuto
         int core = settings.core;
         int max = settings.max;
         final ThreadPool.Info info = new ThreadPool.Info(name(), ThreadPool.ThreadPoolType.SCALING, core, max, keepAlive, null);
-        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(EsExecutors.threadName(settings.nodeName, name()));
+        final ThreadFactory threadFactory = EsExecutors.daemonThreadFactory(settings.nodeName, name());
         ExecutorService executor;
         executor = EsExecutors.newScaling(
             settings.nodeName + "/" + name(),

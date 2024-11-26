@@ -156,7 +156,7 @@ public class TransportPutShutdownNodeAction extends AcknowledgedTransportMasterN
             clusterService,
             threadPool,
             actionFilters,
-            Request::readFrom,
+            Request::new,
             indexNameExpressionResolver,
             EsExecutors.DIRECT_EXECUTOR_SERVICE
         );

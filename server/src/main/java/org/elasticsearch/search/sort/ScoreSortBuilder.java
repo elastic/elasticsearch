@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.sort;
@@ -125,7 +126,6 @@ public final class ScoreSortBuilder extends SortBuilder<ScoreSortBuilder> {
 
                     @Override
                     protected boolean advanceExact(int doc) throws IOException {
-                        assert doc == scorer.docID() : "expected scorer to be on [" + doc + "] but was on [" + scorer.docID() + "]";
                         /* We will never be called by documents that don't match the
                          * query and they'll all have a score, thus `true`. */
                         score = scorer.score();

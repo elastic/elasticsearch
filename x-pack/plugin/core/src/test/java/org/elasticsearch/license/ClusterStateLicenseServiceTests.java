@@ -65,11 +65,6 @@ import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
-/**
- * Due to changes in JDK9 where locale data is used from CLDR, the licence message will differ in jdk 8 and jdk9+
- * https://openjdk.java.net/jeps/252
- * We run ES with -Djava.locale.providers=SPI,COMPAT and same option has to be applied when running this test from IDE
- */
 public class ClusterStateLicenseServiceTests extends ESTestCase {
 
     // must use member mock for generic

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.http;
@@ -31,6 +32,24 @@ public interface HttpPreRequest {
      * The uri with the query string.
      */
     String uri();
+
+    /**
+     * The uri without the query string.
+     */
+    default String rawPath() {
+        String uri = uri();
+        final int index = uri.indexOf('?');
+        if (index >= 0) {
+            return uri.substring(0, index);
+        } else {
+            final int index2 = uri.indexOf('#');
+            if (index2 >= 0) {
+                return uri.substring(0, index2);
+            } else {
+                return uri;
+            }
+        }
+    }
 
     /**
      * Get all of the headers and values associated with the HTTP headers.

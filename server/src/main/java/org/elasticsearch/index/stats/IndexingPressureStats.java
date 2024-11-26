@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.stats;
@@ -34,6 +35,12 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
     private final long replicaRejections;
     private final long primaryDocumentRejections;
     private final long memoryLimit;
+
+    /* Count number of splits due to SPLIT_BULK_LOW_WATERMARK and SPLIT_BULK_HIGH_WATERMARK
+       These 2 stats are not serialized via X content yet.
+     */
+    private final long lowWaterMarkSplits;
+    private final long highWaterMarkSplits;
 
     // These fields will be used for additional back-pressure and metrics in the future
     private final long totalCoordinatingOps;
@@ -79,10 +86,18 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             primaryDocumentRejections = -1L;
         }
 
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             totalCoordinatingRequests = in.readVLong();
         } else {
             totalCoordinatingRequests = -1L;
+        }
+
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+            lowWaterMarkSplits = in.readVLong();
+            highWaterMarkSplits = in.readVLong();
+        } else {
+            lowWaterMarkSplits = -1L;
+            highWaterMarkSplits = -1L;
         }
     }
 
@@ -106,7 +121,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
         long currentPrimaryOps,
         long currentReplicaOps,
         long primaryDocumentRejections,
-        long totalCoordinatingRequests
+        long totalCoordinatingRequests,
+        long lowWaterMarkSplits,
+        long highWaterMarkSplits
     ) {
         this.totalCombinedCoordinatingAndPrimaryBytes = totalCombinedCoordinatingAndPrimaryBytes;
         this.totalCoordinatingBytes = totalCoordinatingBytes;
@@ -130,6 +147,9 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
         this.primaryDocumentRejections = primaryDocumentRejections;
         this.totalCoordinatingRequests = totalCoordinatingRequests;
+
+        this.lowWaterMarkSplits = lowWaterMarkSplits;
+        this.highWaterMarkSplits = highWaterMarkSplits;
     }
 
     @Override
@@ -156,8 +176,13 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
             out.writeVLong(primaryDocumentRejections);
         }
 
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_REQUEST_REJECTIONS_COUNT)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeVLong(totalCoordinatingRequests);
+        }
+
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEXING_PRESSURE_THROTTLING_STATS)) {
+            out.writeVLong(lowWaterMarkSplits);
+            out.writeVLong(highWaterMarkSplits);
         }
     }
 
@@ -239,6 +264,14 @@ public class IndexingPressureStats implements Writeable, ToXContentFragment {
 
     public long getTotalCoordinatingRequests() {
         return totalCoordinatingRequests;
+    }
+
+    public long getHighWaterMarkSplits() {
+        return highWaterMarkSplits;
+    }
+
+    public long getLowWaterMarkSplits() {
+        return lowWaterMarkSplits;
     }
 
     private static final String COMBINED = "combined_coordinating_and_primary";

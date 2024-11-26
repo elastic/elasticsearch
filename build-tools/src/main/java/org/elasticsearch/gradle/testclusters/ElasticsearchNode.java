@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -123,6 +124,8 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final String name;
     transient private final Project project;
     private final Provider<ReaperService> reaperServiceProvider;
+    private final Provider<TestClustersRegistry> testClustersRegistryProvider;
+
     private final FileSystemOperations fileSystemOperations;
     private final ArchiveOperations archiveOperations;
     private final ExecOperations execOperations;
@@ -163,7 +166,6 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     private final List<ElasticsearchDistribution> distributions = new ArrayList<>();
     private int currentDistro = 0;
     private TestDistribution testDistribution;
-    private volatile Process esProcess;
     private Function<String, String> nameCustomization = s -> s;
     private boolean isWorkingDirConfigured = false;
     private String httpPort = "0";
@@ -178,6 +180,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         String name,
         Project project,
         Provider<ReaperService> reaperServiceProvider,
+        Provider<TestClustersRegistry> testClustersRegistryProvider,
         FileSystemOperations fileSystemOperations,
         ArchiveOperations archiveOperations,
         ExecOperations execOperations,
@@ -190,6 +193,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         this.name = name;
         this.project = project;
         this.reaperServiceProvider = reaperServiceProvider;
+        this.testClustersRegistryProvider = testClustersRegistryProvider;
         this.fileSystemOperations = fileSystemOperations;
         this.archiveOperations = archiveOperations;
         this.execOperations = execOperations;
@@ -891,11 +895,13 @@ public class ElasticsearchNode implements TestClusterConfiguration {
             }
         }
         LOGGER.info("Running `{}` in `{}` for {} env: {}", command, workingDir, this, environment);
+        Process esProcess;
         try {
             esProcess = processBuilder.start();
         } catch (IOException e) {
             throw new TestClustersException("Failed to start ES process for " + this, e);
         }
+        testClustersRegistryProvider.get().storeProcess(id(), esProcess);
         reaperServiceProvider.get().registerPid(toString(), esProcess.pid());
     }
 
@@ -981,6 +987,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         } catch (IOException e) {
             throw new UncheckedIOException(e);
         }
+        Process esProcess = testClustersRegistryProvider.get().getProcess(id());
         if (esProcess == null && tailLogs) {
             // This is a special case. If start() throws an exception the plugin will still call stop
             // Another exception here would eat the orriginal.
@@ -1573,6 +1580,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
     @Override
     @Internal
     public boolean isProcessAlive() {
+        Process esProcess = testClustersRegistryProvider.get().getProcess(id());
         requireNonNull(esProcess, "Can't wait for `" + this + "` as it's not started. Does the task have `useCluster` ?");
         return esProcess.isAlive();
     }
@@ -1601,6 +1609,10 @@ public class ElasticsearchNode implements TestClusterConfiguration {
 
     @Override
     public String toString() {
+        return id() + " (" + System.identityHashCode(this) + ")";
+    }
+
+    private String id() {
         return "node{" + path + ":" + name + "}";
     }
 
@@ -1701,7 +1713,7 @@ public class ElasticsearchNode implements TestClusterConfiguration {
         }
     }
 
-    private record FeatureFlag(String feature, Version from, Version until) {
+    public record FeatureFlag(String feature, Version from, Version until) {
 
         @Input
         public String getFeature() {

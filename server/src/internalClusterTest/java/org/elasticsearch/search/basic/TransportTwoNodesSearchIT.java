@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.basic;
@@ -125,7 +126,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -168,7 +169,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -207,7 +208,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -236,7 +237,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             client().search(new SearchRequest("test").source(source.from(0).size(60)).searchType(QUERY_THEN_FETCH)),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(60));
                 for (int i = 0; i < 60; i++) {
                     SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -247,7 +248,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             client().search(new SearchRequest("test").source(source.from(60).size(60)).searchType(QUERY_THEN_FETCH)),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
                 assertThat(searchResponse.getHits().getHits().length, equalTo(40));
                 for (int i = 0; i < 40; i++) {
                     SearchHit hit = searchResponse.getHits().getHits()[i];
@@ -270,7 +271,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .get();
         while (true) {
             assertNoFailures(searchResponse);
-            assertThat(searchResponse.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(100L));
             SearchHit[] hits = searchResponse.getHits().getHits();
             if (hits.length == 0) {
                 break; // finished
@@ -300,7 +301,7 @@ public class TransportTwoNodesSearchIT extends ESIntegTestCase {
             .aggregation(AggregationBuilders.filter("test1", termQuery("name", "test1")));
 
         assertNoFailuresAndResponse(client().search(new SearchRequest("test").source(sourceBuilder)), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(100L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(100L));
 
             Global global = response.getAggregations().get("global");
             Filter all = global.getAggregations().get("all");

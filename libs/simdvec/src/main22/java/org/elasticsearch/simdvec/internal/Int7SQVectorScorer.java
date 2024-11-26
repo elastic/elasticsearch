@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.simdvec.internal;
@@ -14,7 +15,7 @@ import org.apache.lucene.store.FilterIndexInput;
 import org.apache.lucene.store.IndexInput;
 import org.apache.lucene.store.MemorySegmentAccessInput;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
+import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 
 import java.io.IOException;
@@ -34,11 +35,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     byte[] scratch;
 
     /** Return an optional whose value, if present, is the scorer. Otherwise, an empty optional is returned. */
-    public static Optional<RandomVectorScorer> create(
-        VectorSimilarityFunction sim,
-        RandomAccessQuantizedByteVectorValues values,
-        float[] queryVector
-    ) {
+    public static Optional<RandomVectorScorer> create(VectorSimilarityFunction sim, QuantizedByteVectorValues values, float[] queryVector) {
         checkDimensions(queryVector.length, values.dimension());
         var input = values.getSlice();
         if (input == null) {
@@ -62,12 +59,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
         };
     }
 
-    Int7SQVectorScorer(
-        MemorySegmentAccessInput input,
-        RandomAccessQuantizedByteVectorValues values,
-        byte[] queryVector,
-        float queryCorrection
-    ) {
+    Int7SQVectorScorer(MemorySegmentAccessInput input, QuantizedByteVectorValues values, byte[] queryVector, float queryCorrection) {
         super(values);
         this.input = input;
         assert queryVector.length == values.getVectorByteLength();
@@ -104,7 +96,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class DotProductScorer extends Int7SQVectorScorer {
-        public DotProductScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float correction) {
+        public DotProductScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -121,7 +113,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class EuclideanScorer extends Int7SQVectorScorer {
-        public EuclideanScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float correction) {
+        public EuclideanScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float correction) {
             super(in, values, query, correction);
         }
 
@@ -135,7 +127,7 @@ public abstract sealed class Int7SQVectorScorer extends RandomVectorScorer.Abstr
     }
 
     public static final class MaxInnerProductScorer extends Int7SQVectorScorer {
-        public MaxInnerProductScorer(MemorySegmentAccessInput in, RandomAccessQuantizedByteVectorValues values, byte[] query, float corr) {
+        public MaxInnerProductScorer(MemorySegmentAccessInput in, QuantizedByteVectorValues values, byte[] query, float corr) {
             super(in, values, query, corr);
         }
 

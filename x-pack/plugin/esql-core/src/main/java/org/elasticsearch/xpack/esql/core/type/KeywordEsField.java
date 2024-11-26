@@ -15,6 +15,8 @@ import java.util.Map;
 import java.util.Objects;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamInput.readCachedStringWithVersionCheck;
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * Information about a field in an ES index with the {@code keyword} type.
@@ -59,7 +61,7 @@ public class KeywordEsField extends EsField {
 
     public KeywordEsField(StreamInput in) throws IOException {
         this(
-            in.readString(),
+            readCachedStringWithVersionCheck(in),
             KEYWORD,
             in.readImmutableMap(EsField::readFrom),
             in.readBoolean(),
@@ -70,8 +72,8 @@ public class KeywordEsField extends EsField {
     }
 
     @Override
-    protected void writeContent(StreamOutput out) throws IOException {
-        out.writeString(getName());
+    public void writeContent(StreamOutput out) throws IOException {
+        writeCachedStringWithVersionCheck(out, getName());
         out.writeMap(getProperties(), (o, x) -> x.writeTo(out));
         out.writeBoolean(isAggregatable());
         out.writeInt(precision);

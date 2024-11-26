@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fetch.subphase.highlight;
@@ -24,6 +25,7 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.MapperBuilderContext;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MappingLookup;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.index.mapper.TextFieldMapper;
 import org.elasticsearch.index.query.IdsQueryBuilder;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
@@ -322,7 +324,7 @@ public class HighlightBuilderTests extends ESTestCase {
                 TextFieldMapper.Builder builder = new TextFieldMapper.Builder(
                     name,
                     createDefaultIndexAnalyzers(),
-                    idxSettings.getMode().isSyntheticSourceEnabled()
+                    SourceFieldMapper.isSynthetic(idxSettings)
                 );
                 return builder.build(MapperBuilderContext.root(false, false)).fieldType();
             }
@@ -603,17 +605,6 @@ public class HighlightBuilderTests extends ESTestCase {
                 assertThat(in.readVInt(), equalTo(1));
             }
         }
-    }
-
-    public void testForceSourceDeprecation() throws IOException {
-        String highlightJson = """
-            { "fields" : { }, "force_source" : true }
-            """;
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, highlightJson)) {
-            HighlightBuilder.fromXContent(parser);
-        }
-
-        assertWarnings("Deprecated field [force_source] used, this field is unused and will be removed entirely");
     }
 
     protected static XContentBuilder toXContent(HighlightBuilder highlight, XContentType contentType) throws IOException {

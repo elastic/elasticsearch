@@ -1,9 +1,8 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * 2.0; you may not use this file except in compliance with the Elastic License
+ * 2.0.
  */
 
 grant {
@@ -22,4 +21,9 @@ grant {
   // gcs client opens socket connections for to access repository
   // also, AWS Bedrock client opens socket connections and needs resolve for to access to resources
   permission java.net.SocketPermission "*", "connect,resolve";
+
+  // AWS Clients always try to access the credentials and config files, even if we configure otherwise
+  permission java.io.FilePermission "${user.home}/.aws/credentials", "read";
+  permission java.io.FilePermission "${user.home}/.aws/config", "read";
+  permission java.util.PropertyPermission "http.proxyHost", "read";
 };

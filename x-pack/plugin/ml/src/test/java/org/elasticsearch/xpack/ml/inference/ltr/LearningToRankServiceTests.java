@@ -241,7 +241,7 @@ public class LearningToRankServiceTests extends ESTestCase {
     }
 
     private ScriptService getTestScriptService() {
-        ScriptEngine scriptEngine = new MustacheScriptEngine();
+        ScriptEngine scriptEngine = new MustacheScriptEngine(Settings.EMPTY);
         return new ScriptService(Settings.EMPTY, Map.of(DEFAULT_TEMPLATE_LANG, scriptEngine), ScriptModule.CORE_CONTEXTS, () -> 1L);
     }
 }

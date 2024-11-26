@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
 
-import org.apache.lucene.index.PrefixCodedTerms;
 import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanClause.Occur;
 import org.apache.lucene.search.BooleanQuery;
@@ -52,12 +52,9 @@ public final class NestedHelper {
             // We only handle term(s) queries and range queries, which should already
             // cover a high majority of use-cases
             return mightMatchNestedDocs(((TermQuery) query).getTerm().field());
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNestedDocs(it.field());
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNestedDocs(tis.getField());
             } else {
                 return false;
             }
@@ -71,13 +68,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(this::mightMatchNestedDocs);
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(this::mightMatchNestedDocs);
             }
         } else if (query instanceof ESToParentBlockJoinQuery) {
@@ -117,12 +114,9 @@ public final class NestedHelper {
             return false;
         } else if (query instanceof TermQuery) {
             return mightMatchNonNestedDocs(((TermQuery) query).getTerm().field(), nestedPath);
-        } else if (query instanceof TermInSetQuery) {
-            PrefixCodedTerms terms = ((TermInSetQuery) query).getTermData();
-            if (terms.size() > 0) {
-                PrefixCodedTerms.TermIterator it = terms.iterator();
-                it.next();
-                return mightMatchNonNestedDocs(it.field(), nestedPath);
+        } else if (query instanceof TermInSetQuery tis) {
+            if (tis.getTermsCount() > 0) {
+                return mightMatchNonNestedDocs(tis.getField(), nestedPath);
             } else {
                 return false;
             }
@@ -136,13 +130,13 @@ public final class NestedHelper {
                 return bq.clauses()
                     .stream()
                     .filter(BooleanClause::isRequired)
-                    .map(BooleanClause::getQuery)
+                    .map(BooleanClause::query)
                     .allMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             } else {
                 return bq.clauses()
                     .stream()
-                    .filter(c -> c.getOccur() == Occur.SHOULD)
-                    .map(BooleanClause::getQuery)
+                    .filter(c -> c.occur() == Occur.SHOULD)
+                    .map(BooleanClause::query)
                     .anyMatch(q -> mightMatchNonNestedDocs(q, nestedPath));
             }
         } else {
@@ -177,5 +171,4 @@ public final class NestedHelper {
         }
         return true;
     }
-
 }

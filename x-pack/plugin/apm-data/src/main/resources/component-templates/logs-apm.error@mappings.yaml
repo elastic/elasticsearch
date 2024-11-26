@@ -6,6 +6,9 @@ _meta:
 template:
   mappings:
     properties:
+      # log.*
+      log.level:
+        type: keyword
       # error.*
       error.custom:
         type: object

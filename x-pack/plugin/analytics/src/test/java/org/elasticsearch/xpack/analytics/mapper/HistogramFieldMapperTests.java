@@ -374,9 +374,9 @@ public class HistogramFieldMapperTests extends MapperTestCase {
     }
 
     public void testArrayValueSyntheticSource() throws Exception {
-        DocumentMapper mapper = createDocumentMapper(
-            syntheticSourceFieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
-        );
+        DocumentMapper mapper = createSytheticSourceMapperService(
+            fieldMapping(b -> b.field("type", "histogram").field("ignore_malformed", "true"))
+        ).documentMapper();
 
         var randomString = randomAlphaOfLength(10);
         CheckedConsumer<XContentBuilder, IOException> arrayValue = b -> {
@@ -448,5 +448,10 @@ public class HistogramFieldMapperTests extends MapperTestCase {
         public List<SyntheticSourceInvalidExample> invalidExample() throws IOException {
             return List.of();
         }
+    }
+
+    @Override
+    public void testSyntheticSourceKeepArrays() {
+        // The mapper expects to parse an array of values by default, it's not compatible with array of arrays.
     }
 }

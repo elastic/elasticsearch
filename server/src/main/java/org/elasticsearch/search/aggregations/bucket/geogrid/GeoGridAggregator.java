@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.search.aggregations.bucket.geogrid;
 
@@ -11,6 +12,8 @@ import org.apache.lucene.index.DocValues;
 import org.apache.lucene.index.NumericDocValues;
 import org.apache.lucene.index.SortedNumericDocValues;
 import org.apache.lucene.search.ScoreMode;
+import org.elasticsearch.common.util.LongArray;
+import org.elasticsearch.common.util.ObjectArray;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
 import org.elasticsearch.search.aggregations.Aggregator;
@@ -131,39 +134,40 @@ public abstract class GeoGridAggregator<T extends InternalGeoGrid<?>> extends Bu
     protected abstract InternalGeoGridBucket newEmptyBucket();
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
-        InternalGeoGridBucket[][] topBucketsPerOrd = new InternalGeoGridBucket[owningBucketOrds.length][];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds[ordIdx]), shardSize);
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
+        try (ObjectArray<InternalGeoGridBucket[]> topBucketsPerOrd = bigArrays().newObjectArray(owningBucketOrds.size())) {
+            for (long ordIdx = 0; ordIdx < topBucketsPerOrd.size(); ordIdx++) {
+                int size = (int) Math.min(bucketOrds.bucketsInOrd(owningBucketOrds.get(ordIdx)), shardSize);
 
-            try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, bigArrays())) {
-                InternalGeoGridBucket spare = null;
-                LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds[ordIdx]);
-                while (ordsEnum.next()) {
-                    if (spare == null) {
-                        spare = newEmptyBucket();
+                try (BucketPriorityQueue<InternalGeoGridBucket> ordered = new BucketPriorityQueue<>(size, bigArrays())) {
+                    InternalGeoGridBucket spare = null;
+                    LongKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrds.get(ordIdx));
+                    while (ordsEnum.next()) {
+                        if (spare == null) {
+                            checkRealMemoryCBForInternalBucket();
+                            spare = newEmptyBucket();
+                        }
+
+                        // need a special function to keep the source bucket
+                        // up-to-date so it can get the appropriate key
+                        spare.hashAsLong = ordsEnum.value();
+                        spare.docCount = bucketDocCount(ordsEnum.ord());
+                        spare.bucketOrd = ordsEnum.ord();
+                        spare = ordered.insertWithOverflow(spare);
                     }
 
-                    // need a special function to keep the source bucket
-                    // up-to-date so it can get the appropriate key
-                    spare.hashAsLong = ordsEnum.value();
-                    spare.docCount = bucketDocCount(ordsEnum.ord());
-                    spare.bucketOrd = ordsEnum.ord();
-                    spare = ordered.insertWithOverflow(spare);
-                }
-
-                topBucketsPerOrd[ordIdx] = new InternalGeoGridBucket[(int) ordered.size()];
-                for (int i = (int) ordered.size() - 1; i >= 0; --i) {
-                    topBucketsPerOrd[ordIdx][i] = ordered.pop();
+                    topBucketsPerOrd.set(ordIdx, new InternalGeoGridBucket[(int) ordered.size()]);
+                    for (int i = (int) ordered.size() - 1; i >= 0; --i) {
+                        topBucketsPerOrd.get(ordIdx)[i] = ordered.pop();
+                    }
                 }
             }
+            buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
+            return buildAggregations(
+                Math.toIntExact(owningBucketOrds.size()),
+                ordIdx -> buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd.get(ordIdx)), metadata())
+            );
         }
-        buildSubAggsForAllBuckets(topBucketsPerOrd, b -> b.bucketOrd, (b, aggs) -> b.aggregations = aggs);
-        InternalAggregation[] results = new InternalAggregation[owningBucketOrds.length];
-        for (int ordIdx = 0; ordIdx < owningBucketOrds.length; ordIdx++) {
-            results[ordIdx] = buildAggregation(name, requiredSize, Arrays.asList(topBucketsPerOrd[ordIdx]), metadata());
-        }
-        return results;
     }
 
     @Override

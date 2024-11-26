@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -31,18 +32,17 @@ import org.elasticsearch.cluster.block.ClusterBlocks;
 import org.elasticsearch.cluster.coordination.NoMasterBlockService;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.DataStreamTestHelper;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
-import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
 import org.elasticsearch.common.util.concurrent.ThreadContext;
-import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.MapperException;
 import org.elasticsearch.index.shard.ShardId;
@@ -131,7 +131,7 @@ public class BulkOperationTests extends ESTestCase {
     );
     private final DataStream dataStream3 = DataStream.builder(fsRolloverDataStreamName, List.of(ds3BackingIndex1.getIndex()))
         .setGeneration(1)
-        .setFailureStoreEnabled(true)
+        .setDataStreamOptions(DataStreamOptions.FAILURE_STORE_ENABLED)
         .setFailureIndices(
             DataStream.DataStreamIndices.failureIndicesBuilder(List.of(ds3FailureStore1.getIndex())).setRolloverOnWrite(true).build()
         )
@@ -146,13 +146,11 @@ public class BulkOperationTests extends ESTestCase {
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(dataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, false))
-                            .template(new Template(null, null, null, null))
                             .build(),
                         "ds-template-with-failure-store",
                         ComposableIndexTemplate.builder()
                             .indexPatterns(List.of(fsDataStreamName, fsRolloverDataStreamName))
                             .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate(false, false, true))
-                            .template(new Template(null, null, null, null))
                             .build()
                     )
                 )
@@ -377,6 +375,8 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -402,6 +402,8 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem.getIndex(), is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -440,6 +442,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(MapperException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("failure store test failure")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -475,6 +478,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(IOException.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("Could not serialize json")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -564,6 +568,8 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
 
         verify(observer, times(1)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -616,6 +622,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [FORBIDDEN/5/index read-only (api)];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
 
         verify(observer, times(0)).isTimedOut();
         verify(observer, times(0)).waitForNextChange(any());
@@ -676,6 +683,7 @@ public class BulkOperationTests extends ESTestCase {
             failedItem.getFailure().getCause().getSuppressed()[0].getMessage(),
             is(equalTo("blocked by: [SERVICE_UNAVAILABLE/2/no master];"))
         );
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
 
         verify(observer, times(2)).isTimedOut();
         verify(observer, times(1)).waitForNextChange(any());
@@ -778,6 +786,8 @@ public class BulkOperationTests extends ESTestCase {
             .findFirst()
             .orElseThrow(() -> new AssertionError("Could not find redirected item"));
         assertThat(failedItem, is(notNullValue()));
+        // Ensure the status in the successful response gets through
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.USED));
     }
 
     /**
@@ -825,6 +835,7 @@ public class BulkOperationTests extends ESTestCase {
         assertThat(failedItem.getFailure().getCause().getSuppressed().length, is(not(equalTo(0))));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0], is(instanceOf(Exception.class)));
         assertThat(failedItem.getFailure().getCause().getSuppressed()[0].getMessage(), is(equalTo("rollover failed")));
+        assertThat(failedItem.getFailureStoreStatus(), equalTo(IndexDocFailureStoreStatus.FAILED));
     }
 
     /**
@@ -838,14 +849,12 @@ public class BulkOperationTests extends ESTestCase {
      * Accepts all write operations from the given request object when it is encountered in the mock shard bulk action
      */
     private static BiConsumer<BulkShardRequest, ActionListener<BulkShardResponse>> acceptAllShardWrites() {
-        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> {
-            listener.onResponse(
-                new BulkShardResponse(
-                    request.shardId(),
-                    Arrays.stream(request.items()).map(item -> requestToResponse(request.shardId(), item)).toArray(BulkItemResponse[]::new)
-                )
-            );
-        };
+        return (BulkShardRequest request, ActionListener<BulkShardResponse> listener) -> listener.onResponse(
+            new BulkShardResponse(
+                request.shardId(),
+                Arrays.stream(request.items()).map(item -> requestToResponse(request.shardId(), item)).toArray(BulkItemResponse[]::new)
+            )
+        );
     }
 
     /**
@@ -922,8 +931,11 @@ public class BulkOperationTests extends ESTestCase {
      * Create a shard-level result given a bulk item
      */
     private static BulkItemResponse requestToResponse(ShardId shardId, BulkItemRequest itemRequest) {
+        var failureStatus = itemRequest.request() instanceof IndexRequest ir && ir.isWriteToFailureStore()
+            ? IndexDocFailureStoreStatus.USED
+            : IndexDocFailureStoreStatus.NOT_APPLICABLE_OR_UNKNOWN;
         return BulkItemResponse.success(itemRequest.id(), itemRequest.request().opType(), switch (itemRequest.request().opType()) {
-            case INDEX, CREATE -> new IndexResponse(shardId, itemRequest.request().id(), 1, 1, 1, true);
+            case INDEX, CREATE -> new IndexResponse(shardId, itemRequest.request().id(), 1, 1, 1, true, null, failureStatus);
             case UPDATE -> new UpdateResponse(shardId, itemRequest.request().id(), 1, 1, 1, DocWriteResponse.Result.UPDATED);
             case DELETE -> new DeleteResponse(shardId, itemRequest.request().id(), 1, 1, 1, true);
         });
@@ -1010,7 +1022,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             new FailureStoreDocumentConverter()
@@ -1028,7 +1039,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             mockObserver(DEFAULT_STATE),
             listener,
             failureStoreDocumentConverter
@@ -1047,7 +1057,6 @@ public class BulkOperationTests extends ESTestCase {
             client,
             request,
             new AtomicArray<>(request.numberOfActions()),
-            Map.of(),
             observer,
             listener,
             new FailureStoreDocumentConverter()
@@ -1059,7 +1068,6 @@ public class BulkOperationTests extends ESTestCase {
         NodeClient client,
         BulkRequest request,
         AtomicArray<BulkItemResponse> existingResponses,
-        Map<String, IndexNotFoundException> indicesThatCanNotBeCreated,
         ClusterStateObserver observer,
         ActionListener<BulkResponse> listener,
         FailureStoreDocumentConverter failureStoreDocumentConverter
@@ -1088,7 +1096,6 @@ public class BulkOperationTests extends ESTestCase {
             request,
             client,
             existingResponses,
-            indicesThatCanNotBeCreated,
             indexNameExpressionResolver,
             () -> endTime,
             timeZero,

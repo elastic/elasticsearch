@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.monitoring.rest.action;
 import org.elasticsearch.ElasticsearchParseException;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -53,10 +52,7 @@ public class RestMonitoringBulkAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(POST, "/_monitoring/bulk").replaces(POST, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build(),
-            Route.builder(PUT, "/_monitoring/bulk").replaces(PUT, "/_xpack/monitoring/_bulk", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(POST, "/_monitoring/bulk"), new Route(PUT, "/_monitoring/bulk"));
     }
 
     @Override

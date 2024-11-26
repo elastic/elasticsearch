@@ -15,7 +15,8 @@ Manages the `features` of a connector. This endpoint can be used to control the 
 
 Normally, the running connector service automatically manages these features. However, you can use this API to override the default behavior.
 
-To get started with Connector APIs, check out the {enterprise-search-ref}/connectors-tutorial-api.html[tutorial^].
+To get started with Connector APIs, check out <<es-connectors-tutorial-api, our tutorial>>.
+
 
 [[update-connector-features-api-request]]
 ==== {api-request-title}
@@ -25,7 +26,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 [[update-connector-features-api-prereq]]
 ==== {api-prereq-title}
 
-* To sync data using self-managed connectors, you need to deploy the {enterprise-search-ref}/build-connector.html[Elastic connector service] on your own infrastructure. This service runs automatically on Elastic Cloud for native connectors.
+* To sync data using self-managed connectors, you need to deploy the <<es-connectors-deploy-connector-service,Elastic connector service>>. on your own infrastructure. This service runs automatically on Elastic Cloud for Elastic managed connectors.
 * The `connector_id` parameter should reference an existing connector.
 
 [[update-connector-features-api-path-params]]
@@ -43,7 +44,7 @@ To get started with Connector APIs, check out the {enterprise-search-ref}/connec
 
 * `document_level_security` (Optional, object) Controls whether document-level security is enabled with the `enabled` flag.
 * `incremental_sync` (Optional, object) Controls whether incremental syncs are enabled with the `enabled` flag.
-* `native_connector_api_keys`(Optional, object) Controls whether native connector API keys are enabled with the `enabled` flag.
+* `native_connector_api_keys`(Optional, object) Controls whether managed connector API keys are enabled with the `enabled` flag.
 * `sync_rules` (Optional, object) Controls sync rules.
 **  `advanced` (Optional, object) Controls whether advanced sync rules are enabled with the `enabled` flag.
 **  `basic`(Optional, object) Controls whether basic sync rules are enabled with the `enabled` flag.

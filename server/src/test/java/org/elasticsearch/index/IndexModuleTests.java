@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index;
 
@@ -110,6 +111,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicLong;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static java.util.Collections.emptyList;
 import static java.util.Collections.emptyMap;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.index.IndexService.IndexCreationContext.CREATE_INDEX;
@@ -236,7 +238,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
         module.setReaderWrapper(s -> new Wrapper());
 
@@ -263,7 +266,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
 
         final IndexService indexService = newIndexService(module);
@@ -288,7 +292,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
 
         module.setDirectoryWrapper(new TestDirectoryWrapper());
@@ -641,7 +646,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             recoveryStateFactories,
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
 
         final IndexService indexService = newIndexService(module);
@@ -663,7 +669,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
 
         final AtomicLong lastAcquiredPrimaryTerm = new AtomicLong();
@@ -765,7 +772,8 @@ public class IndexModuleTests extends ESTestCase {
             indexNameExpressionResolver,
             Collections.emptyMap(),
             mock(SlowLogFieldProvider.class),
-            MapperMetrics.NOOP
+            MapperMetrics.NOOP,
+            emptyList()
         );
     }
 

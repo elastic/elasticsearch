@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.store;
 
@@ -180,14 +181,18 @@ public class CorruptedFileIT extends ESIntegTestCase {
          */
         setReplicaCount(2, "test");
         ClusterHealthResponse health = clusterAdmin().health(
-            new ClusterHealthRequest("test").waitForGreenStatus()
+            new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test").waitForGreenStatus()
                 // sometimes due to cluster rebalancing and random settings default timeout is just not enough.
                 .masterNodeTimeout(TimeValue.timeValueMinutes(5))
                 .timeout(TimeValue.timeValueMinutes(5))
                 .waitForNoRelocatingShards(true)
         ).actionGet();
         if (health.isTimedOut()) {
-            logger.info("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
+            logger.info(
+                "cluster state:\n{}\n{}",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                getClusterPendingTasks()
+            );
             assertThat("timed out waiting for green state", health.isTimedOut(), equalTo(false));
         }
         assertThat(health.getStatus(), equalTo(ClusterHealthStatus.GREEN));
@@ -288,18 +293,24 @@ public class CorruptedFileIT extends ESIntegTestCase {
         ClusterRerouteUtils.reroute(client());
 
         boolean didClusterTurnRed = waitUntil(() -> {
-            ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest("test")).actionGet().getStatus();
+            ClusterHealthStatus test = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test"))
+                .actionGet()
+                .getStatus();
             return test == ClusterHealthStatus.RED;
         }, 5, TimeUnit.MINUTES);// sometimes on slow nodes the replication / recovery is just dead slow
 
-        final ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest("test")).get();
+        final ClusterHealthResponse response = clusterAdmin().health(new ClusterHealthRequest(TEST_REQUEST_TIMEOUT, "test")).get();
 
         if (response.getStatus() != ClusterHealthStatus.RED) {
             logger.info("Cluster turned red in busy loop: {}", didClusterTurnRed);
-            logger.info("cluster state:\n{}\n{}", clusterAdmin().prepareState().get().getState(), getClusterPendingTasks());
+            logger.info(
+                "cluster state:\n{}\n{}",
+                clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState(),
+                getClusterPendingTasks()
+            );
         }
         assertThat(response.getStatus(), is(ClusterHealthStatus.RED));
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
         for (ShardIterator iterator : shardIterators) {
@@ -509,7 +520,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private void assertThatAllShards(String index, Consumer<IndexShardRoutingTable> verifier) {
-        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest().routingTable(true)).actionGet();
+        var clusterStateResponse = clusterAdmin().state(new ClusterStateRequest(TEST_REQUEST_TIMEOUT).routingTable(true)).actionGet();
         var indexRoutingTable = clusterStateResponse.getState().getRoutingTable().index(index);
         for (int shardId = 0; shardId < indexRoutingTable.size(); shardId++) {
             verifier.accept(indexRoutingTable.shard(shardId));
@@ -655,7 +666,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private int numShards(String... index) {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         GroupShardsIterator<?> shardIterators = state.getRoutingTable().activePrimaryShardsGrouped(index, false);
         return shardIterators.size();
     }
@@ -682,7 +693,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
     }
 
     private ShardRouting corruptRandomPrimaryFile(final boolean includePerCommitFiles) throws IOException {
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         Index test = state.metadata().index("test").getIndex();
         GroupShardsIterator<ShardIterator> shardIterators = state.getRoutingTable()
             .activePrimaryShardsGrouped(new String[] { "test" }, false);
@@ -738,7 +749,7 @@ public class CorruptedFileIT extends ESIntegTestCase {
 
     public List<Path> listShardFiles(ShardRouting routing) throws IOException {
         NodesStatsResponse nodeStatses = clusterAdmin().prepareNodesStats(routing.currentNodeId()).setFs(true).get();
-        ClusterState state = clusterAdmin().prepareState().get().getState();
+        ClusterState state = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
         final Index test = state.metadata().index("test").getIndex();
         assertThat(routing.toString(), nodeStatses.getNodes().size(), equalTo(1));
         List<Path> files = new ArrayList<>();

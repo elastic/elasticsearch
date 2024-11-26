@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.BytesStreamOutput;
 import org.elasticsearch.common.io.stream.NamedWriteableAwareStreamInput;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.query.AbstractQueryBuilder;
 import org.elasticsearch.index.query.BoolQueryBuilder;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -27,7 +28,6 @@ import org.elasticsearch.xpack.esql.core.util.Queries;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamOutput;
 import org.elasticsearch.xpack.esql.optimizer.LogicalOptimizerContext;
@@ -37,6 +37,7 @@ import org.elasticsearch.xpack.esql.optimizer.PhysicalPlanOptimizer;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.FragmentExec;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
+import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.junit.BeforeClass;
@@ -45,7 +46,6 @@ import java.io.IOException;
 import java.io.UncheckedIOException;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.index.query.QueryBuilders.rangeQuery;
@@ -76,11 +76,11 @@ public class FilterTests extends ESTestCase {
         parser = new EsqlParser();
 
         Map<String, EsField> mapping = loadMapping("mapping-basic.json");
-        EsIndex test = new EsIndex("test", mapping, Set.of("test"));
+        EsIndex test = new EsIndex("test", mapping, Map.of("test", IndexMode.STANDARD));
         IndexResolution getIndexResult = IndexResolution.valid(test);
         logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(EsqlTestUtils.TEST_CFG));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(EsqlTestUtils.TEST_CFG));
-        mapper = new Mapper(false);
+        mapper = new Mapper();
 
         analyzer = new Analyzer(
             new AnalyzerContext(EsqlTestUtils.TEST_CFG, new EsqlFunctionRegistry(), getIndexResult, EsqlTestUtils.emptyPolicyResolution()),
@@ -284,16 +284,14 @@ public class FilterTests extends ESTestCase {
             out.writeOptionalString(null);
             out.writeNamedWriteable(inner);
             out.writeString(field);
-            source.writeTo(new PlanStreamOutput(out, new PlanNameRegistry(), config));
+            source.writeTo(new PlanStreamOutput(out, config));
 
             StreamInput in = new NamedWriteableAwareStreamInput(
                 ByteBufferStreamInput.wrap(BytesReference.toBytes(out.bytes())),
                 SerializationTestUtils.writableRegistry()
             );
 
-            Object obj = SingleValueQuery.ENTRY.reader.read(
-                new PlanStreamInput(in, new PlanNameRegistry(), in.namedWriteableRegistry(), config)
-            );
+            Object obj = SingleValueQuery.ENTRY.reader.read(new PlanStreamInput(in, in.namedWriteableRegistry(), config));
             return (QueryBuilder) obj;
         } catch (IOException e) {
             throw new UncheckedIOException(e);
@@ -307,7 +305,7 @@ public class FilterTests extends ESTestCase {
         // System.out.println("physical\n" + physical);
         physical = physical.transformUp(
             FragmentExec.class,
-            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize(), f.reducer())
+            f -> new FragmentExec(f.source(), f.fragment(), restFilter, f.estimatedRowSize())
         );
         physical = physicalPlanOptimizer.optimize(physical);
         // System.out.println("optimized\n" + physical);
@@ -320,7 +318,7 @@ public class FilterTests extends ESTestCase {
     }
 
     private QueryBuilder filterQueryForTransportNodes(PhysicalPlan plan) {
-        return PlannerUtils.detectFilter(plan, EMP_NO, x -> true);
+        return PlannerUtils.detectFilter(plan, EMP_NO);
     }
 
     @Override

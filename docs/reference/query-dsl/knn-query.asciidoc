@@ -241,7 +241,7 @@ to <<nested-knn-search, top level nested kNN search>>:
 * kNN search over nested dense_vectors diversifies the top results over
 the top-level document
 * `filter`  over the top-level document metadata is supported and acts as a
-post-filter
+pre-filter
 * `filter` over `nested` field metadata is not supported
 
 A sample query can look like below:

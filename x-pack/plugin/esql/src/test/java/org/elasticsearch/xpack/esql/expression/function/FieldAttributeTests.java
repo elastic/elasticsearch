@@ -15,10 +15,12 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.type.AbstractEsFieldTypeTests;
 
+import static org.elasticsearch.xpack.esql.core.expression.FieldAttributeTestUtils.newFieldAttributeWithType;
+
 public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribute> {
     public static FieldAttribute createFieldAttribute(int maxDepth, boolean onlyRepresentable) {
         Source source = Source.EMPTY;
-        FieldAttribute parent = maxDepth == 0 || randomBoolean() ? null : createFieldAttribute(maxDepth - 1, onlyRepresentable);
+        String parentName = maxDepth == 0 || randomBoolean() ? null : randomAlphaOfLength(3);
         String name = randomAlphaOfLength(5);
         DataType type = onlyRepresentable
             ? randomValueOtherThanMany(t -> false == DataType.isRepresentable(t), () -> randomFrom(DataType.types()))
@@ -26,7 +28,7 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
         EsField field = AbstractEsFieldTypeTests.randomAnyEsField(maxDepth);
         Nullability nullability = randomFrom(Nullability.values());
         boolean synthetic = randomBoolean();
-        return new FieldAttribute(source, parent, name, type, field, nullability, new NameId(), synthetic);
+        return newFieldAttributeWithType(source, parentName, name, type, field, nullability, new NameId(), synthetic);
     }
 
     @Override
@@ -37,20 +39,20 @@ public class FieldAttributeTests extends AbstractAttributeTestCase<FieldAttribut
     @Override
     protected FieldAttribute mutate(FieldAttribute instance) {
         Source source = instance.source();
-        FieldAttribute parent = instance.parent();
+        String parentName = instance.parentName();
         String name = instance.name();
         DataType type = instance.dataType();
         EsField field = instance.field();
         Nullability nullability = instance.nullable();
         boolean synthetic = instance.synthetic();
         switch (between(0, 5)) {
-            case 0 -> parent = randomValueOtherThan(parent, () -> randomBoolean() ? null : createFieldAttribute(2, false));
+            case 0 -> parentName = randomValueOtherThan(parentName, () -> randomBoolean() ? null : randomAlphaOfLength(2));
             case 1 -> name = randomAlphaOfLength(name.length() + 1);
             case 2 -> type = randomValueOtherThan(type, () -> randomFrom(DataType.types()));
             case 3 -> field = randomValueOtherThan(field, () -> AbstractEsFieldTypeTests.randomAnyEsField(3));
             case 4 -> nullability = randomValueOtherThan(nullability, () -> randomFrom(Nullability.values()));
             case 5 -> synthetic = false == synthetic;
         }
-        return new FieldAttribute(source, parent, name, type, field, nullability, new NameId(), synthetic);
+        return newFieldAttributeWithType(source, parentName, name, type, field, nullability, new NameId(), synthetic);
     }
 }

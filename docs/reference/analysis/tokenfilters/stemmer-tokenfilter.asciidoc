@@ -144,12 +144,12 @@ https://snowballstem.org/algorithms/danish/stemmer.html[*`danish`*]
 
 Dutch::
 https://snowballstem.org/algorithms/dutch/stemmer.html[*`dutch`*],
-https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`]
+https://snowballstem.org/algorithms/kraaij_pohlmann/stemmer.html[`dutch_kp`] deprecated:[8.16.0, `dutch_kp` will be removed in a future version]
 
 English::
 https://snowballstem.org/algorithms/porter/stemmer.html[*`english`*],
 https://ciir.cs.umass.edu/pubfiles/ir-35.pdf[`light_english`],
-https://snowballstem.org/algorithms/lovins/stemmer.html[`lovins`],
+https://snowballstem.org/algorithms/lovins/stemmer.html[`lovins`] deprecated:[8.16.0, `lovins` will be removed in a future version],
 https://www.researchgate.net/publication/220433848_How_effective_is_suffixing[`minimal_english`],
 https://snowballstem.org/algorithms/english/stemmer.html[`porter2`],
 {lucene-analysis-docs}/en/EnglishPossessiveFilter.html[`possessive_english`]
@@ -173,7 +173,6 @@ http://bvg.udc.es/recursos_lingua/stemming.jsp[`minimal_galician`] (Plural step 
 German::
 https://dl.acm.org/citation.cfm?id=1141523[*`light_german`*],
 https://snowballstem.org/algorithms/german/stemmer.html[`german`],
-https://snowballstem.org/algorithms/german2/stemmer.html[`german2`],
 http://members.unine.ch/jacques.savoy/clef/morpho.pdf[`minimal_german`]
 
 Greek::

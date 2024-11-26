@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.plugins;
@@ -13,6 +14,7 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.routing.RerouteService;
 import org.elasticsearch.cluster.routing.allocation.AllocationService;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -31,6 +33,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.plugins.internal.DocumentParsingProvider;
 import org.elasticsearch.repositories.RepositoriesService;
 import org.elasticsearch.script.ScriptService;
+import org.elasticsearch.tasks.TaskManager;
 import org.elasticsearch.telemetry.TelemetryProvider;
 import org.elasticsearch.threadpool.ExecutorBuilder;
 import org.elasticsearch.threadpool.ThreadPool;
@@ -165,6 +168,12 @@ public abstract class Plugin implements Closeable {
          * A provider of utilities to observe and report parsing of documents
          */
         DocumentParsingProvider documentParsingProvider();
+
+        /**
+         * The task manager for the node. This should only be used by plugins
+         * to track task removal by registering a RemovedTaskListener.
+         */
+        TaskManager taskManager();
     }
 
     /**
@@ -238,6 +247,22 @@ public abstract class Plugin implements Closeable {
      */
     public UnaryOperator<Map<String, IndexTemplateMetadata>> getIndexTemplateMetadataUpgrader() {
         return UnaryOperator.identity();
+    }
+
+    /**
+     * Returns operators to modify custom metadata in the cluster state on startup.
+     *
+     * <p>Each key of the map returned gives the type of custom to be modified. Each value is an operator to be applied to that custom
+     * metadata. The operator will be invoked with the result of calling {@link Metadata#custom(String)} with the map key as its argument,
+     * and should downcast the value accordingly.
+     *
+     * <p>Plugins should return an empty map if no upgrade is required.
+     *
+     * <p>The order of the upgrade calls is undefined and can change between runs. It is expected that plugins will modify only templates
+     * owned by them to avoid conflicts.
+     */
+    public Map<String, UnaryOperator<Metadata.Custom>> getCustomMetadataUpgraders() {
+        return Map.of();
     }
 
     /**

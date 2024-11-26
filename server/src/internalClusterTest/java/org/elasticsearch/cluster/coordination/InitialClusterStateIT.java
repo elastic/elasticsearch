@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.coordination;
@@ -33,7 +34,13 @@ public class InitialClusterStateIT extends ESIntegTestCase {
 
     private static void assertClusterUuid(boolean expectCommitted, String expectedValue) {
         for (String nodeName : internalCluster().getNodeNames()) {
-            final Metadata metadata = client(nodeName).admin().cluster().prepareState().setLocal(true).get().getState().metadata();
+            final Metadata metadata = client(nodeName).admin()
+                .cluster()
+                .prepareState(TEST_REQUEST_TIMEOUT)
+                .setLocal(true)
+                .get()
+                .getState()
+                .metadata();
             assertEquals(expectCommitted, metadata.clusterUUIDCommitted());
             assertEquals(expectedValue, metadata.clusterUUID());
 

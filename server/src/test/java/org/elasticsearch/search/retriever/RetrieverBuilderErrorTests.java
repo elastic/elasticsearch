@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.retriever;
@@ -72,14 +73,6 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [terminate_after]"));
         }
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"sort\": [\"field\"], \"retriever\":{\"standard\":{}}}")) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false, false);
-            assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [sort]"));
-        }
-
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
@@ -93,14 +86,6 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [rescore]"));
         }
 
-        try (XContentParser parser = createParser(JsonXContent.jsonXContent, "{\"min_score\": 2, \"retriever\":{\"standard\":{}}}")) {
-            SearchSourceBuilder ssb = new SearchSourceBuilder();
-            ssb.parseXContent(parser, true, nf -> true);
-            ActionRequestValidationException iae = ssb.validate(null, false, false);
-            assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [min_score]"));
-        }
-
         try (
             XContentParser parser = createParser(
                 JsonXContent.jsonXContent,
@@ -111,7 +96,7 @@ public class RetrieverBuilderErrorTests extends ESTestCase {
             ssb.parseXContent(parser, true, nf -> true);
             ActionRequestValidationException iae = ssb.validate(null, false, false);
             assertNotNull(iae);
-            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query, terminate_after, min_score]"));
+            assertThat(iae.getMessage(), containsString("cannot specify [retriever] and [query, terminate_after]"));
         }
     }
 

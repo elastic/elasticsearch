@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -140,10 +141,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
-            knownNodes.add(cluster2Transport.getLocalDiscoNode());
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalNode();
+            knownNodes.add(cluster1Transport.getLocalNode());
+            knownNodes.add(cluster2Transport.getLocalNode());
             Collections.shuffle(knownNodes, random());
 
             try (
@@ -342,10 +343,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
-            knownNodes.add(cluster2Transport.getLocalDiscoNode());
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalNode();
+            knownNodes.add(cluster1Transport.getLocalNode());
+            knownNodes.add(cluster2Transport.getLocalNode());
             Collections.shuffle(knownNodes, random());
 
             try (
@@ -452,10 +453,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
-            knownNodes.add(cluster2Transport.getLocalDiscoNode());
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalNode();
+            knownNodes.add(cluster1Transport.getLocalNode());
+            knownNodes.add(cluster2Transport.getLocalNode());
             Collections.shuffle(knownNodes, random());
 
             try (
@@ -525,8 +526,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
-            knownNodes.add(seedTransport.getLocalDiscoNode());
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
+            knownNodes.add(seedTransport.getLocalNode());
             TimeValue pingSchedule;
             Settings.Builder settingsBuilder = Settings.builder();
             settingsBuilder.putList("cluster.remote.cluster_1.seeds", seedNode.getAddress().toString());
@@ -581,10 +582,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            DiscoveryNode cluster2Seed = cluster2Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
-            knownNodes.add(cluster2Transport.getLocalDiscoNode());
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalNode();
+            DiscoveryNode cluster2Seed = cluster2Transport.getLocalNode();
+            knownNodes.add(cluster1Transport.getLocalNode());
+            knownNodes.add(cluster2Transport.getLocalNode());
             Collections.shuffle(knownNodes, random());
             Settings.Builder settingsBuilder = Settings.builder();
             if (randomBoolean()) {
@@ -634,8 +635,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode cluster1Seed = cluster1Transport.getLocalDiscoNode();
-            knownNodes.add(cluster1Transport.getLocalDiscoNode());
+            DiscoveryNode cluster1Seed = cluster1Transport.getLocalNode();
+            knownNodes.add(cluster1Transport.getLocalNode());
             Collections.shuffle(knownNodes, random());
 
             try (
@@ -715,10 +716,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 gateway
             )
         ) {
-            final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
-            final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
-            final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();
-            final DiscoveryNode c2N2Node = c2N2.getLocalDiscoNode();
+            final DiscoveryNode c1N1Node = c1N1.getLocalNode();
+            final DiscoveryNode c1N2Node = c1N2.getLocalNode();
+            final DiscoveryNode c2N1Node = c2N1.getLocalNode();
+            final DiscoveryNode c2N2Node = c2N2.getLocalNode();
             knownNodes.add(c1N1Node);
             knownNodes.add(c1N2Node);
             knownNodes.add(c2N1Node);
@@ -808,10 +809,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 data
             )
         ) {
-            final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
-            final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
-            final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();
-            final DiscoveryNode c2N2Node = c2N2.getLocalDiscoNode();
+            final DiscoveryNode c1N1Node = c1N1.getLocalNode();
+            final DiscoveryNode c1N2Node = c1N2.getLocalNode();
+            final DiscoveryNode c2N1Node = c2N1.getLocalNode();
+            final DiscoveryNode c2N2Node = c2N2.getLocalNode();
             knownNodes.add(c1N1Node);
             knownNodes.add(c1N2Node);
             knownNodes.add(c2N1Node);
@@ -905,10 +906,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 settings
             )
         ) {
-            final DiscoveryNode c1N1Node = c1N1.getLocalDiscoNode();
-            final DiscoveryNode c1N2Node = c1N2.getLocalDiscoNode();
-            final DiscoveryNode c2N1Node = c2N1.getLocalDiscoNode();
-            final DiscoveryNode c2N2Node = c2N2.getLocalDiscoNode();
+            final DiscoveryNode c1N1Node = c1N1.getLocalNode();
+            final DiscoveryNode c1N2Node = c1N2.getLocalNode();
+            final DiscoveryNode c2N1Node = c2N1.getLocalNode();
+            final DiscoveryNode c2N2Node = c2N2.getLocalNode();
             knownNodes_c1.add(c1N1Node);
             knownNodes_c1.add(c1N2Node);
             knownNodes_c2.add(c2N1Node);
@@ -1169,8 +1170,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             )
         ) {
 
-            final DiscoveryNode node0 = cluster_node_0.getLocalDiscoNode();
-            final DiscoveryNode node1 = cluster_node_1.getLocalDiscoNode();
+            final DiscoveryNode node0 = cluster_node_0.getLocalNode();
+            final DiscoveryNode node1 = cluster_node_1.getLocalNode();
             knownNodes.add(node0);
             knownNodes.add(node1);
             Collections.shuffle(knownNodes, random());
@@ -1266,10 +1267,10 @@ public class RemoteClusterServiceTests extends ESTestCase {
                 TransportVersion.current()
             )
         ) {
-            DiscoveryNode seedNode = seedTransport.getLocalDiscoNode();
+            DiscoveryNode seedNode = seedTransport.getLocalNode();
             knownNodes.add(seedNode);
             Settings.Builder builder = Settings.builder();
-            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalDiscoNode().getAddress().toString());
+            builder.putList("cluster.remote.cluster1.seeds", seedTransport.getLocalNode().getAddress().toString());
             try (
                 MockTransportService service = MockTransportService.createNewService(
                     builder.build(),
@@ -1352,8 +1353,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
             );
             MockTransportService c2 = startTransport("cluster_2", knownNodes, VersionInformation.CURRENT, TransportVersion.current());
         ) {
-            final DiscoveryNode c1Node = c1.getLocalDiscoNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
-            final DiscoveryNode c2Node = c2.getLocalDiscoNode();
+            final DiscoveryNode c1Node = c1.getLocalNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode c2Node = c2.getLocalNode();
 
             final MockSecureSettings secureSettings = new MockSecureSettings();
             secureSettings.setString("cluster.remote.cluster_1.credentials", randomAlphaOfLength(10));
@@ -1440,7 +1441,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     .build()
             )
         ) {
-            final DiscoveryNode discoNode = c.getLocalDiscoNode().withTransportAddress(c.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode discoNode = c.getLocalNode().withTransportAddress(c.boundRemoteAccessAddress().publishAddress());
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
@@ -1517,8 +1518,8 @@ public class RemoteClusterServiceTests extends ESTestCase {
                     .build()
             )
         ) {
-            final DiscoveryNode c1DiscoNode = c1.getLocalDiscoNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
-            final DiscoveryNode c2DiscoNode = c2.getLocalDiscoNode().withTransportAddress(c2.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode c1DiscoNode = c1.getLocalNode().withTransportAddress(c1.boundRemoteAccessAddress().publishAddress());
+            final DiscoveryNode c2DiscoNode = c2.getLocalNode().withTransportAddress(c2.boundRemoteAccessAddress().publishAddress());
             try (
                 MockTransportService transportService = MockTransportService.createNewService(
                     Settings.EMPTY,
@@ -1635,7 +1636,7 @@ public class RemoteClusterServiceTests extends ESTestCase {
 
             assertThatLogger(
                 () -> clusterSettings.applySettings(
-                    Settings.builder().putList("cluster.remote.remote_1.seeds", remote.getLocalDiscoNode().getAddress().toString()).build()
+                    Settings.builder().putList("cluster.remote.remote_1.seeds", remote.getLocalNode().getAddress().toString()).build()
                 ),
                 RemoteClusterService.class,
                 new MockLog.SeenEventExpectation(

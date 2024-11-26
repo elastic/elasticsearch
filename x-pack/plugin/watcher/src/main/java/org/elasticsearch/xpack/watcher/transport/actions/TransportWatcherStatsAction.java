@@ -36,7 +36,8 @@ public class TransportWatcherStatsAction extends TransportNodesAction<
     WatcherStatsRequest,
     WatcherStatsResponse,
     WatcherStatsRequest.Node,
-    WatcherStatsResponse.Node> {
+    WatcherStatsResponse.Node,
+    Void> {
 
     private final ExecutionService executionService;
     private final TriggerService triggerService;

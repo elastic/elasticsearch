@@ -1,4 +1,4 @@
-import org.elasticsearch.gradle.internal.info.BuildParams
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.test-with-dependencies'
 apply plugin: 'elasticsearch.internal-cluster-test'
@@ -23,23 +23,23 @@ dependencies {
   internalClusterTestImplementation project(":modules:mapper-extras")
 }
 
-tasks.named('yamlRestTest') {
+tasks.withType(StandaloneRestIntegTestTask).configureEach {
   usesDefaultDistribution()
 }
 
-tasks.named('javaRestTest') {
-  usesDefaultDistribution()
-}
-
-if (BuildParams.inFipsJvm){
+if (buildParams.inFipsJvm){
   // These fail in CI but only when run as part of checkPart2 and not individually.
   // Tracked in :
   tasks.named("javaRestTest").configure{enabled = false }
   tasks.named("yamlRestTest").configure{enabled = false }
 }
 
-if (BuildParams.isSnapshotBuild() == false) {
+if (buildParams.isSnapshotBuild() == false) {
   tasks.withType(Test).configureEach {
     systemProperty 'es.failure_store_feature_flag_enabled', 'true'
   }
 }
+
+tasks.named("yamlRestCompatTestTransform").configure({ task ->
+  task.skipTest("data_stream/10_basic/Create hidden data stream", "warning does not exist for compatibility")
+})

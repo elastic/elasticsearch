@@ -1,8 +1,0 @@
-[[retrievers-reranking-overview]]
-== Retrievers and reranking
-
-* <<retrievers-overview>>
-* <<semantic-reranking>>
-
-include::retrievers-overview.asciidoc[]
-include::semantic-reranking.asciidoc[]

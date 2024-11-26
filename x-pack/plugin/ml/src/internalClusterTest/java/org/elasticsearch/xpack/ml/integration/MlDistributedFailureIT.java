@@ -135,7 +135,12 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             Settings masterDataPathSettings = internalCluster().dataPathSettings(internalCluster().getMasterName());
             internalCluster().stopCurrentMasterNode();
             assertBusy(() -> {
-                ClusterState state = client(mlAndDataNode).admin().cluster().prepareState().setLocal(true).get().getState();
+                ClusterState state = client(mlAndDataNode).admin()
+                    .cluster()
+                    .prepareState(TEST_REQUEST_TIMEOUT)
+                    .setLocal(true)
+                    .get()
+                    .getState();
                 assertNull(state.nodes().getMasterNodeId());
             });
             logger.info("Restarting dedicated master node");
@@ -762,7 +767,7 @@ public class MlDistributedFailureIT extends BaseMlIntegTestCase {
             prepareSearch().setIndicesOptions(IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN)
                 .setQuery(QueryBuilders.idsQuery().addIds(DataCounts.documentId(jobId))),
             searchResponse -> {
-                if (searchResponse.getHits().getTotalHits().value != 1) {
+                if (searchResponse.getHits().getTotalHits().value() != 1) {
                     setOnce.set(new DataCounts(jobId));
                     return;
                 }

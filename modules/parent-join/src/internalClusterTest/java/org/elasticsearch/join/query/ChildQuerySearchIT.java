@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.join.query;
 
@@ -106,7 +107,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
             }
         );
@@ -116,7 +117,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchAllQuery()).filter(hasParentQuery("parent", termQuery("p_field", "p_value1"), false))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("c1"));
             }
         );
@@ -126,7 +127,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchAllQuery()).filter(hasParentQuery("child", termQuery("c_field", "c_value1"), false))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("gc1"));
             }
         );
@@ -134,7 +135,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasParentQuery("parent", termQuery("p_field", "p_value1"), false)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("c1"));
             }
         );
@@ -142,7 +143,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasParentQuery("child", termQuery("c_field", "c_value1"), false)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("gc1"));
             }
         );
@@ -160,7 +161,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("test", matchQuery("foo", 1), ScoreMode.None)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
             }
         );
@@ -181,7 +182,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // TEST FETCHING _parent from child
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(idsQuery().addIds("c1")), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("c1"));
             assertThat(extractValue("join_field.name", response.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
             assertThat(extractValue("join_field.parent", response.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
@@ -194,7 +195,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().filter(termQuery("join_field#parent", "p1")).filter(termQuery("join_field", "child"))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("c1"), equalTo("c2")));
                 assertThat(extractValue("join_field.name", response.getHits().getAt(0).getSourceAsMap()), equalTo("child"));
                 assertThat(extractValue("join_field.parent", response.getHits().getAt(0).getSourceAsMap()), equalTo("p1"));
@@ -207,7 +208,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         // HAS CHILD
         assertNoFailuresAndResponse(prepareSearch("test").setQuery(randomHasChild("child", "c_field", "yellow")), response -> {
             assertHitCount(response, 1L);
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
         });
 
@@ -306,8 +307,8 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 ).setSize(numChildDocsPerParent),
                 response -> {
                     Set<String> childIds = parentToChildrenEntry.getValue();
-                    assertThat(response.getHits().getTotalHits().value, equalTo((long) childIds.size()));
-                    for (int i = 0; i < response.getHits().getTotalHits().value; i++) {
+                    assertThat(response.getHits().getTotalHits().value(), equalTo((long) childIds.size()));
+                    for (int i = 0; i < response.getHits().getTotalHits().value(); i++) {
                         assertThat(childIds.remove(response.getHits().getAt(i).getId()), is(true));
                         assertThat(response.getHits().getAt(i).getScore(), is(1.0f));
                     }
@@ -340,7 +341,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.None)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
             }
         );
@@ -348,7 +349,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "blue"), ScoreMode.None)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p2"));
             }
         );
@@ -356,7 +357,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "red"), ScoreMode.None)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("p2"), equalTo("p1")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("p2"), equalTo("p1")));
             }
@@ -366,7 +367,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.None))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
             }
         );
@@ -374,7 +375,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "blue"), ScoreMode.None))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p2"));
             }
         );
@@ -382,7 +383,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "red"), ScoreMode.None))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("p2"), equalTo("p1")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("p2"), equalTo("p1")));
             }
@@ -425,7 +426,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                         )
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), anyOf(equalTo("p2"), equalTo("p1")));
                 assertThat(response.getHits().getAt(1).getId(), anyOf(equalTo("p2"), equalTo("p1")));
 
@@ -457,7 +458,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.None))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
                 assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("\"p_value1\""));
             }
@@ -471,7 +472,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(constantScoreQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.None))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
                 assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("\"p_value1_updated\""));
             }
@@ -646,7 +647,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
                 assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -666,7 +667,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
                 assertThat(response.getHits().getHits()[0].getScore(), equalTo(4f));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
@@ -686,7 +687,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
                 assertThat(response.getHits().getHits()[0].getScore(), equalTo(4f));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
@@ -706,7 +707,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 )
             ).addSort(SortBuilders.fieldSort("c_field3")).addSort(SortBuilders.scoreSort()),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(7L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(7L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("16"));
                 assertThat(response.getHits().getHits()[0].getScore(), equalTo(5f));
                 assertThat(response.getHits().getHits()[1].getId(), equalTo("17"));
@@ -767,7 +768,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchAllQuery()).filter(hasChildQuery("child", termQuery("c_field", 1), ScoreMode.None))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
             }
         );
@@ -777,7 +778,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchAllQuery()).filter(hasParentQuery("parent", termQuery("p_field", 1), false))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
             }
         );
@@ -800,7 +801,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getHits()[0].getId(), equalTo("1"));
                 SearchHit[] searchHits = response.getHits().getHits()[0].getInnerHits().get("child").getHits();
                 assertThat(searchHits.length, equalTo(1));
@@ -887,7 +888,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .addSort("p_field", SortOrder.ASC)
                     .setSize(5),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(10L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(10L));
                     assertThat(response.getHits().getHits()[0].getId(), equalTo("p000"));
                     assertThat(response.getHits().getHits()[1].getId(), equalTo("p001"));
                     assertThat(response.getHits().getHits()[2].getId(), equalTo("p002"));
@@ -902,7 +903,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                     .addSort("c_field", SortOrder.ASC)
                     .setSize(5),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(500L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(500L));
                     assertThat(response.getHits().getHits()[0].getId(), equalTo("c000"));
                     assertThat(response.getHits().getHits()[1].getId(), equalTo("c001"));
                     assertThat(response.getHits().getHits()[2].getId(), equalTo("c002"));
@@ -931,7 +932,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.Total)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
                 assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("\"p_value1\""));
             }
@@ -942,7 +943,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchQuery("c_field", "x")).must(hasParentQuery("parent", termQuery("p_field", "p_value2"), true))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("c3"));
                 assertThat(response.getHits().getAt(1).getId(), equalTo("c4"));
             }
@@ -960,7 +961,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", termQuery("c_field", "yellow"), ScoreMode.Total)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p1"));
                 assertThat(response.getHits().getAt(0).getSourceAsString(), containsString("\"p_value1\""));
             }
@@ -971,7 +972,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 boolQuery().must(matchQuery("c_field", "x")).must(hasParentQuery("parent", termQuery("p_field", "p_value2"), true))
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
                 assertThat(response.getHits().getAt(0).getId(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
                 assertThat(response.getHits().getAt(1).getId(), Matchers.anyOf(equalTo("c3"), equalTo("c4")));
             }
@@ -995,7 +996,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertNoFailuresAndResponse(
             prepareSearch("test").setQuery(hasChildQuery("child", matchAllQuery(), ScoreMode.Total)).setMinScore(3),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("p2"));
                 assertThat(response.getHits().getAt(0).getScore(), equalTo(3.0f));
             }
@@ -1410,7 +1411,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
                 10,
                 (respNum, response) -> {
                     assertNoFailures(response);
-                    assertThat(response.getHits().getTotalHits().value, equalTo(10L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(10L));
                 }
             );
         }
@@ -1468,7 +1469,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // Score mode = NONE
         assertResponse(minMaxQuery(ScoreMode.None, 1, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1478,7 +1479,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.None, 2, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("4"));
@@ -1486,7 +1487,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.None, 3, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
         });
@@ -1494,7 +1495,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(minMaxQuery(ScoreMode.None, 4, null), 0L);
 
         assertResponse(minMaxQuery(ScoreMode.None, 1, 4), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1504,7 +1505,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.None, 1, 3), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1514,7 +1515,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.None, 1, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("2"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1522,7 +1523,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.None, 2, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1f));
         });
@@ -1532,7 +1533,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // Score mode = SUM
         assertResponse(minMaxQuery(ScoreMode.Total, 1, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1542,7 +1543,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Total, 2, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1550,7 +1551,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Total, 3, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
         });
@@ -1558,7 +1559,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(minMaxQuery(ScoreMode.Total, 4, null), 0L);
 
         assertResponse(minMaxQuery(ScoreMode.Total, 1, 4), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1568,7 +1569,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Total, 1, 3), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(6f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1578,7 +1579,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Total, 1, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
@@ -1586,7 +1587,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Total, 2, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
         });
@@ -1596,7 +1597,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // Score mode = MAX
         assertResponse(minMaxQuery(ScoreMode.Max, 1, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1606,7 +1607,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Max, 2, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1614,7 +1615,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Max, 3, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
         });
@@ -1622,7 +1623,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(minMaxQuery(ScoreMode.Max, 4, null), 0L);
 
         assertResponse(minMaxQuery(ScoreMode.Max, 1, 4), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1632,7 +1633,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Max, 1, 3), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(3f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1642,7 +1643,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Max, 1, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
@@ -1650,7 +1651,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Max, 2, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
         });
@@ -1660,7 +1661,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
 
         // Score mode = AVG
         assertResponse(minMaxQuery(ScoreMode.Avg, 1, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1670,7 +1671,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 2, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1678,7 +1679,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 3, null), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
         });
@@ -1686,7 +1687,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         assertHitCount(minMaxQuery(ScoreMode.Avg, 4, null), 0L);
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 1, 4), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1696,7 +1697,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 1, 3), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(3L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(3L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("4"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(2f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("3"));
@@ -1706,7 +1707,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 1, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(2L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(2L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1.5f));
             assertThat(response.getHits().getHits()[1].getId(), equalTo("2"));
@@ -1714,7 +1715,7 @@ public class ChildQuerySearchIT extends ParentChildTestCase {
         });
 
         assertResponse(minMaxQuery(ScoreMode.Avg, 2, 2), response -> {
-            assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+            assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
             assertThat(response.getHits().getHits()[0].getId(), equalTo("3"));
             assertThat(response.getHits().getHits()[0].getScore(), equalTo(1.5f));
         });

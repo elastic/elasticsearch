@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.transport;
 
@@ -53,12 +54,7 @@ public final class TransportSettings {
         "bind_host",
         key -> listSetting(key, BIND_HOST, Function.identity(), Setting.Property.NodeScope)
     );
-    public static final Setting<String> PORT = new Setting<>(
-        "transport.port",
-        "9300-9399",
-        Function.identity(),
-        Setting.Property.NodeScope
-    );
+    public static final Setting<String> PORT = Setting.simpleString("transport.port", "9300-9399", Setting.Property.NodeScope);
     public static final Setting.AffixSetting<String> PORT_PROFILE = affixKeySetting(
         "transport.profiles.",
         "port",

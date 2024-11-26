@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.searchafter;
@@ -149,7 +150,7 @@ public class SearchAfterIT extends ESIntegTestCase {
                 .setQuery(matchAllQuery())
                 .searchAfter(new Object[] { 0, null }),
             searchResponse -> {
-                assertThat(searchResponse.getHits().getTotalHits().value, Matchers.equalTo(2L));
+                assertThat(searchResponse.getHits().getTotalHits().value(), Matchers.equalTo(2L));
                 assertThat(searchResponse.getHits().getHits().length, Matchers.equalTo(1));
                 assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field1"), Matchers.equalTo(100));
                 assertThat(searchResponse.getHits().getHits()[0].getSourceAsMap().get("field2"), Matchers.equalTo("toto"));

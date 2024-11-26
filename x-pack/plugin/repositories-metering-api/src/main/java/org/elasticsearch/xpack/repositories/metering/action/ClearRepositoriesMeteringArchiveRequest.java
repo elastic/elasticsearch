@@ -9,7 +9,7 @@ package org.elasticsearch.xpack.repositories.metering.action;
 
 import org.elasticsearch.action.support.nodes.BaseNodesRequest;
 
-public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequest<ClearRepositoriesMeteringArchiveRequest> {
+public final class ClearRepositoriesMeteringArchiveRequest extends BaseNodesRequest {
     private final long maxVersionToClear;
 
     public ClearRepositoriesMeteringArchiveRequest(long maxVersionToClear, String... nodesIds) {

@@ -107,7 +107,7 @@ public class MvEvaluatorImplementer {
             this.resultType = TypeName.get(processFunction.getReturnType());
         }
         this.singleValueFunction = SingleValueFunction.from(declarationType, singleValueMethodName, resultType, fieldType);
-        this.ascendingFunction = AscendingFunction.from(this, declarationType, ascendingMethodName);
+        this.ascendingFunction = AscendingFunction.from(this, declarationType, workType, ascendingMethodName);
         this.warnExceptions = warnExceptions;
         this.implementation = ClassName.get(
             elements.getPackageOf(declarationType).toString(),
@@ -134,8 +134,8 @@ public class MvEvaluatorImplementer {
             builder.superclass(ABSTRACT_MULTIVALUE_FUNCTION_EVALUATOR);
         } else {
             builder.superclass(ABSTRACT_NULLABLE_MULTIVALUE_FUNCTION_EVALUATOR);
-
-            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(SOURCE, "source", Modifier.PRIVATE, Modifier.FINAL);
+            builder.addField(WARNINGS, "warnings", Modifier.PRIVATE);
         }
 
         builder.addMethod(ctor());
@@ -156,6 +156,9 @@ public class MvEvaluatorImplementer {
         }
 
         builder.addType(factory());
+        if (warnExceptions.isEmpty() == false) {
+            builder.addMethod(EvaluatorImplementer.warnings());
+        }
         return builder.build();
     }
 
@@ -165,10 +168,10 @@ public class MvEvaluatorImplementer {
             builder.addParameter(SOURCE, "source");
         }
         builder.addParameter(EXPRESSION_EVALUATOR, "field");
-        builder.addStatement("super(driverContext, field)");
         builder.addParameter(DRIVER_CONTEXT, "driverContext");
+        builder.addStatement("super(driverContext, field)");
         if (warnExceptions.isEmpty() == false) {
-            builder.addStatement("this.warnings = Warnings.createWarnings(driverContext.warningsMode(), source)");
+            builder.addStatement("this.source = source");
         }
         return builder.build();
     }
@@ -241,7 +244,7 @@ public class MvEvaluatorImplementer {
                 body.accept(builder);
                 String catchPattern = "catch (" + warnExceptions.stream().map(m -> "$T").collect(Collectors.joining(" | ")) + " e)";
                 builder.nextControlFlow(catchPattern, warnExceptions.stream().map(TypeName::get).toArray());
-                builder.addStatement("warnings.registerException(e)");
+                builder.addStatement("warnings().registerException(e)");
                 builder.addStatement("builder.appendNull()");
                 builder.endControlFlow();
             } else {
@@ -511,7 +514,7 @@ public class MvEvaluatorImplementer {
      * Function handling blocks of ascending values.
      */
     private class AscendingFunction {
-        static AscendingFunction from(MvEvaluatorImplementer impl, TypeElement declarationType, String name) {
+        static AscendingFunction from(MvEvaluatorImplementer impl, TypeElement declarationType, TypeName workType, String name) {
             if (name.equals("")) {
                 return null;
             }
@@ -523,8 +526,9 @@ public class MvEvaluatorImplementer {
                 m -> m.getParameters().size() == 1 && m.getParameters().get(0).asType().getKind() == TypeKind.INT
             );
             if (fn != null) {
-                return impl.new AscendingFunction(fn, false);
+                return impl.new AscendingFunction(fn, false, false);
             }
+            // Block mode without work parameter
             fn = findMethod(
                 declarationType,
                 new String[] { name },
@@ -532,17 +536,31 @@ public class MvEvaluatorImplementer {
                     && m.getParameters().get(1).asType().getKind() == TypeKind.INT
                     && m.getParameters().get(2).asType().getKind() == TypeKind.INT
             );
-            if (fn == null) {
-                throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + name + "(block, int, int)");
+            if (fn != null) {
+                return impl.new AscendingFunction(fn, true, false);
             }
-            return impl.new AscendingFunction(fn, true);
+            // Block mode with work parameter
+            fn = findMethod(
+                declarationType,
+                new String[] { name },
+                m -> m.getParameters().size() == 4
+                    && TypeName.get(m.getParameters().get(0).asType()).equals(workType)
+                    && m.getParameters().get(2).asType().getKind() == TypeKind.INT
+                    && m.getParameters().get(3).asType().getKind() == TypeKind.INT
+            );
+            if (fn != null) {
+                return impl.new AscendingFunction(fn, true, true);
+            }
+            throw new IllegalArgumentException("Couldn't find " + declarationType + "#" + name + "(block, int, int)");
         }
 
         private final List<Object> invocationArgs = new ArrayList<>();
         private final boolean blockMode;
+        private final boolean withWorkParameter;
 
-        private AscendingFunction(ExecutableElement fn, boolean blockMode) {
+        private AscendingFunction(ExecutableElement fn, boolean blockMode, boolean withWorkParameter) {
             this.blockMode = blockMode;
+            this.withWorkParameter = withWorkParameter;
             if (blockMode) {
                 invocationArgs.add(resultType);
             }
@@ -552,7 +570,11 @@ public class MvEvaluatorImplementer {
 
         private void call(MethodSpec.Builder builder) {
             if (blockMode) {
-                builder.addStatement("$T result = $T.$L(v, first, valueCount)", invocationArgs.toArray());
+                if (withWorkParameter) {
+                    builder.addStatement("$T result = $T.$L(work, v, first, valueCount)", invocationArgs.toArray());
+                } else {
+                    builder.addStatement("$T result = $T.$L(v, first, valueCount)", invocationArgs.toArray());
+                }
             } else {
                 builder.addStatement("int idx = $T.$L(valueCount)", invocationArgs.toArray());
                 fetch(builder, "result", resultType, "first + idx", workType.equals(fieldType) ? "firstScratch" : "valueScratch");

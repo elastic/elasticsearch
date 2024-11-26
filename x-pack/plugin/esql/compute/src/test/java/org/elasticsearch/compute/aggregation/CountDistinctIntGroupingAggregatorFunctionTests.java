@@ -9,7 +9,9 @@ package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
+import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.LongBlock;
+import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.LongIntBlockSourceOperator;
 import org.elasticsearch.compute.operator.SourceOperator;
@@ -56,5 +58,14 @@ public class CountDistinctIntGroupingAggregatorFunctionTests extends GroupingAgg
         assertThat(b.isNull(position), equalTo(false));
         assertThat(b.getValueCount(position), equalTo(1));
         assertThat(((LongBlock) b).getLong(b.getFirstValueIndex(position)), equalTo(0L));
+    }
+
+    @Override
+    protected void assertOutputFromAllFiltered(Block b) {
+        assertThat(b.elementType(), equalTo(ElementType.LONG));
+        LongVector v = (LongVector) b.asVector();
+        for (int p = 0; p < v.getPositionCount(); p++) {
+            assertThat(v.getLong(p), equalTo(0L));
+        }
     }
 }

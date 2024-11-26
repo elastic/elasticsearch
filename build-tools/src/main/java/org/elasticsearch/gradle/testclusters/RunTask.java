@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.gradle.testclusters;
 
@@ -41,6 +42,7 @@ public abstract class RunTask extends DefaultTestClustersTask {
 
     private Boolean debug = false;
     private Boolean cliDebug = false;
+    private Boolean entitlementsEnabled = false;
     private Boolean apmServerEnabled = false;
 
     private Boolean preserveData = false;
@@ -68,6 +70,14 @@ public abstract class RunTask extends DefaultTestClustersTask {
         this.cliDebug = enabled;
     }
 
+    @Option(
+        option = "entitlements",
+        description = "Use the Entitlements agent system in place of SecurityManager to enforce sandbox policies."
+    )
+    public void setEntitlementsEnabled(boolean enabled) {
+        this.entitlementsEnabled = enabled;
+    }
+
     @Input
     public Boolean getDebug() {
         return debug;
@@ -76,6 +86,11 @@ public abstract class RunTask extends DefaultTestClustersTask {
     @Input
     public Boolean getCliDebug() {
         return cliDebug;
+    }
+
+    @Input
+    public Boolean getEntitlementsEnabled() {
+        return entitlementsEnabled;
     }
 
     @Input
@@ -224,6 +239,9 @@ public abstract class RunTask extends DefaultTestClustersTask {
         }
         if (cliDebug) {
             enableCliDebug();
+        }
+        if (entitlementsEnabled) {
+            enableEntitlements();
         }
     }
 

@@ -32,6 +32,9 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
    */
   @Override
   public Block evalNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNullable(fieldVal);
+    }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
@@ -60,6 +63,9 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
    */
   @Override
   public Block evalNotNullable(Block fieldVal) {
+    if (fieldVal.mvSortedAscending()) {
+      return evalAscendingNotNullable(fieldVal);
+    }
     DoubleBlock v = (DoubleBlock) fieldVal;
     int positionCount = v.getPositionCount();
     try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
@@ -73,6 +79,46 @@ public final class MvMedianDoubleEvaluator extends AbstractMultivalueFunction.Ab
           MvMedian.process(work, value);
         }
         double result = MvMedian.finish(work);
+        builder.appendDouble(result);
+      }
+      return builder.build().asBlock();
+    }
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleBlock.Builder builder = driverContext.blockFactory().newDoubleBlockBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        if (valueCount == 0) {
+          builder.appendNull();
+          continue;
+        }
+        int first = v.getFirstValueIndex(p);
+        double result = MvMedian.ascending(v, first, valueCount);
+        builder.appendDouble(result);
+      }
+      return builder.build();
+    }
+  }
+
+  /**
+   * Evaluate blocks containing at least one multivalued field and all multivalued fields are in ascending order.
+   */
+  private Block evalAscendingNotNullable(Block fieldVal) {
+    DoubleBlock v = (DoubleBlock) fieldVal;
+    int positionCount = v.getPositionCount();
+    try (DoubleVector.FixedBuilder builder = driverContext.blockFactory().newDoubleVectorFixedBuilder(positionCount)) {
+      MvMedian.Doubles work = new MvMedian.Doubles();
+      for (int p = 0; p < positionCount; p++) {
+        int valueCount = v.getValueCount(p);
+        int first = v.getFirstValueIndex(p);
+        double result = MvMedian.ascending(v, first, valueCount);
         builder.appendDouble(result);
       }
       return builder.build().asBlock();

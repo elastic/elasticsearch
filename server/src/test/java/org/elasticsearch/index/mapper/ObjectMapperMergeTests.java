@@ -1,20 +1,27 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.script.ScriptCompiler;
 import org.elasticsearch.test.ESTestCase;
 
 import java.util.Collections;
 import java.util.Optional;
 
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.INDEX_TEMPLATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE;
+import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_AUTO_UPDATE_PREFLIGHT;
 import static org.elasticsearch.index.mapper.MapperService.MergeReason.MAPPING_UPDATE;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.instanceOf;
+import static org.hamcrest.Matchers.is;
 
 public final class ObjectMapperMergeTests extends ESTestCase {
 
@@ -187,7 +194,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         final TextFieldMapper textFieldMapper = (TextFieldMapper) metrics.getMapper("host.name");
         assertEquals("foo.metrics.host.name", textFieldMapper.fullPath());
         assertEquals("host.name", textFieldMapper.leafName());
-        FieldMapper fieldMapper = textFieldMapper.multiFields.iterator().next();
+        FieldMapper fieldMapper = textFieldMapper.multiFields().iterator().next();
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         assertEquals("keyword", fieldMapper.leafName());
     }
@@ -317,6 +324,34 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         assertNotNull(parentMapper.getMapper("child.grandchild"));
     }
 
+    public void testConflictingDynamicUpdate() {
+        RootObjectMapper mergeInto = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new KeywordFieldMapper.Builder("http.status_code", IndexVersion.current())
+        ).build(MapperBuilderContext.root(false, false));
+        RootObjectMapper mergeWith = new RootObjectMapper.Builder("_doc", Optional.empty()).add(
+            new NumberFieldMapper.Builder(
+                "http.status_code",
+                NumberFieldMapper.NumberType.LONG,
+                ScriptCompiler.NONE,
+                false,
+                true,
+                IndexVersion.current(),
+                null
+            )
+        ).build(MapperBuilderContext.root(false, false));
+
+        MapperService.MergeReason autoUpdateMergeReason = randomFrom(MAPPING_AUTO_UPDATE, MAPPING_AUTO_UPDATE_PREFLIGHT);
+        ObjectMapper merged = mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, autoUpdateMergeReason, Long.MAX_VALUE));
+        FieldMapper httpStatusCode = (FieldMapper) merged.getMapper("http.status_code");
+        assertThat(httpStatusCode, is(instanceOf(KeywordFieldMapper.class)));
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> mergeInto.merge(mergeWith, MapperMergeContext.root(false, false, MAPPING_UPDATE, Long.MAX_VALUE))
+        );
+        assertThat(e.getMessage(), equalTo("mapper [http.status_code] cannot be changed from type [keyword] to [long]"));
+    }
+
     private static RootObjectMapper createRootSubobjectFalseLeafWithDots() {
         FieldMapper.Builder fieldBuilder = new KeywordFieldMapper.Builder("host.name", IndexVersion.current());
         FieldMapper fieldMapper = fieldBuilder.build(MapperBuilderContext.root(false, false));
@@ -361,7 +396,7 @@ public final class ObjectMapperMergeTests extends ESTestCase {
         );
         assertEquals("host.name", textKeywordMultiField.leafName());
         assertEquals("foo.metrics.host.name", textKeywordMultiField.fullPath());
-        FieldMapper fieldMapper = textKeywordMultiField.multiFields.iterator().next();
+        FieldMapper fieldMapper = textKeywordMultiField.multiFields().iterator().next();
         assertEquals("keyword", fieldMapper.leafName());
         assertEquals("foo.metrics.host.name.keyword", fieldMapper.fullPath());
         return new ObjectMapper.Builder("foo", ObjectMapper.Defaults.SUBOBJECTS).add(

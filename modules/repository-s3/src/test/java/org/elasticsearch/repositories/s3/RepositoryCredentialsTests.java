@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.repositories.s3;
@@ -106,10 +107,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
         assertThat(credentials.getAWSSecretKey(), is("insecure_aws_secret"));
 
         assertCriticalWarnings(
+            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
             "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings.",
-            "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release."
+            S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
         );
     }
 
@@ -193,10 +193,9 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
 
         if (hasInsecureSettings) {
             assertCriticalWarnings(
+                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
                 "[secret_key] setting was deprecated in Elasticsearch and will be removed in a future release.",
-                "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                    + " the elasticsearch keystore for secure settings.",
-                "[access_key] setting was deprecated in Elasticsearch and will be removed in a future release."
+                S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING
             );
         }
     }
@@ -237,10 +236,7 @@ public class RepositoryCredentialsTests extends ESSingleNodeTestCase {
             throw error.get();
         }
 
-        assertWarnings(
-            "Using s3 access/secret key from repository settings. Instead store these in named clients and"
-                + " the elasticsearch keystore for secure settings."
-        );
+        assertWarnings(S3Repository.INSECURE_CREDENTIALS_DEPRECATION_WARNING);
     }
 
     private void createRepository(final String name, final Settings repositorySettings) {

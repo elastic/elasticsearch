@@ -91,17 +91,14 @@ setup:
           size: 10
 
   - match: { hits.hits.0._id: "1" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term term" }
   - match: { hits.hits.0.fields.keyword.0: "other" }
 
   - match: { hits.hits.1._id: "3" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term" }
   - match: { hits.hits.1.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 
@@ -143,12 +140,10 @@ setup:
   - match: { hits.total.value : 2 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
@@ -198,17 +193,14 @@ setup:
   - match: { hits.total.value : 3 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
   - match: { hits.hits.1._id: "1" }
-  - match: { hits.hits.1._rank: 2 }
   - match: { hits.hits.1.fields.text.0: "term term" }
   - match: { hits.hits.1.fields.keyword.0: "other" }
 
   - match: { hits.hits.2._id: "2" }
-  - match: { hits.hits.2._rank: 3 }
   - match: { hits.hits.2.fields.text.0: "other" }
   - match: { hits.hits.2.fields.keyword.0: "other" }
 
@@ -267,7 +259,6 @@ setup:
   - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
 
@@ -330,6 +321,82 @@ setup:
   - length: { hits.hits: 1 }
 
   - match: { hits.hits.0._id: "3" }
-  - match: { hits.hits.0._rank: 1 }
   - match: { hits.hits.0.fields.text.0: "term" }
   - match: { hits.hits.0.fields.keyword.0: "keyword" }
+
+---
+"rrf retriever with nested rrf retriever and pagination":
+
+  - do:
+      search:
+        index: test
+        body:
+          track_total_hits: true
+          fields: [ "text", "keyword" ]
+          retriever:
+            rrf:
+              retrievers: [
+                {
+                  "rrf":
+                    {
+                      "retrievers": [
+                        {
+                          "knn": {
+                            "field": "vector",
+                            "query_vector": [ 0.0 ],
+                            "k": 3,
+                            "num_candidates": 3
+                          }
+                        },
+                        {
+                          "standard":
+                            {
+                              "query":
+                                {
+                                  "term":
+                                    {
+                                      "text": "term"
+                                    }
+                                }
+                            }
+                        },
+                        {
+                          "standard":
+                            {
+                              "query":
+                                {
+                                  "match":
+                                    {
+                                      "keyword": "keyword"
+                                    }
+                                }
+                            }
+                        }
+                      ],
+                      "rank_window_size": 100,
+                      "rank_constant": 1
+                    }
+                },
+                {
+                  "knn": {
+                    "field": vector,
+                    "query_vector": [ 0.0 ],
+                    "k": 2,
+                    "num_candidates": 2
+                  }
+                }
+              ]
+              "rank_window_size": 10
+              "rank_constant": 1
+          size: 10
+          from: 1
+
+  - match: { hits.total.value : 3 }
+
+  - match: { hits.hits.0._id: "2" }
+  - match: { hits.hits.0.fields.text.0: "other" }
+  - match: { hits.hits.0.fields.keyword.0: "other" }
+
+  - match: { hits.hits.1._id: "3" }
+  - match: { hits.hits.1.fields.text.0: "term" }
+  - match: { hits.hits.1.fields.keyword.0: "keyword" }

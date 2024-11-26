@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.search;
@@ -25,6 +26,7 @@ import org.apache.lucene.search.BooleanClause;
 import org.apache.lucene.search.BooleanQuery;
 import org.apache.lucene.search.BoostAttribute;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.Query;
 import org.apache.lucene.util.QueryBuilder;
@@ -689,7 +691,7 @@ public class MatchQueryParser {
             List<SpanQuery> clauses = new ArrayList<>();
             int[] articulationPoints = graph.articulationPoints();
             int lastState = 0;
-            int maxClauseCount = BooleanQuery.getMaxClauseCount();
+            int maxClauseCount = IndexSearcher.getMaxClauseCount();
             for (int i = 0; i <= articulationPoints.length; i++) {
                 int start = lastState;
                 int end = -1;
@@ -707,7 +709,7 @@ public class MatchQueryParser {
                         SpanQuery q = createSpanQuery(ts, field, usePrefix);
                         if (q != null) {
                             if (queries.size() >= maxClauseCount) {
-                                throw new BooleanQuery.TooManyClauses();
+                                throw new IndexSearcher.TooManyClauses();
                             }
                             queries.add(q);
                         }
@@ -721,14 +723,14 @@ public class MatchQueryParser {
                     Term[] terms = graph.getTerms(field, start);
                     assert terms.length > 0;
                     if (terms.length >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     queryPos = newSpanQuery(terms, usePrefix);
                 }
 
                 if (queryPos != null) {
                     if (clauses.size() >= maxClauseCount) {
-                        throw new BooleanQuery.TooManyClauses();
+                        throw new IndexSearcher.TooManyClauses();
                     }
                     clauses.add(queryPos);
                 }

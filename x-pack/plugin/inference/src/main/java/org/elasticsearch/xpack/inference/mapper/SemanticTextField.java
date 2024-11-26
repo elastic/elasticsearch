@@ -58,6 +58,7 @@ public record SemanticTextField(String fieldName, List<String> originalValues, I
     static final String TEXT_FIELD = "text";
     static final String INFERENCE_FIELD = "inference";
     static final String INFERENCE_ID_FIELD = "inference_id";
+    static final String SEARCH_INFERENCE_ID_FIELD = "search_inference_id";
     static final String CHUNKS_FIELD = "chunks";
     static final String CHUNKED_EMBEDDINGS_FIELD = "embeddings";
     static final String CHUNKED_TEXT_FIELD = "text";

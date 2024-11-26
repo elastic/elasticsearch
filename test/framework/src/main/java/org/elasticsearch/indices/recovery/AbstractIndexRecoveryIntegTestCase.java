@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.recovery;
@@ -103,7 +104,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
@@ -128,7 +129,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
@@ -155,11 +156,11 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         Runnable connectionBreaker = () -> {
             // Always break connection from source to remote to ensure that actions are retried
             logger.info("--> closing connections from source node to target node");
-            blueTransportService.disconnectFromNode(redTransportService.getLocalDiscoNode());
+            blueTransportService.disconnectFromNode(redTransportService.getLocalNode());
             if (randomBoolean()) {
                 // Sometimes break connection from remote to source to ensure that recovery is re-established
                 logger.info("--> closing connections from target node to source node");
-                redTransportService.disconnectFromNode(blueTransportService.getLocalDiscoNode());
+                redTransportService.disconnectFromNode(blueTransportService.getLocalNode());
             }
         };
         TransientReceiveRejected handlingBehavior = new TransientReceiveRejected(recoveryActionToBlock, recoveryStarted, connectionBreaker);
@@ -204,7 +205,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         );
         final String redNodeName = internalCluster().startNode(Settings.builder().put("node.attr.color", "red").put(nodeSettings).build());
 
-        ClusterHealthResponse response = clusterAdmin().prepareHealth().setWaitForNodes(">=3").get();
+        ClusterHealthResponse response = clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT).setWaitForNodes(">=3").get();
         assertThat(response.isTimedOut(), is(false));
 
         indicesAdmin().prepareCreate(indexName)
@@ -219,7 +220,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
         indexRandom(true, requests);
         ensureSearchable(indexName);
 
-        ClusterStateResponse stateResponse = clusterAdmin().prepareState().get();
+        ClusterStateResponse stateResponse = clusterAdmin().prepareState(TEST_REQUEST_TIMEOUT).get();
         final String blueNodeId = getNodeId(blueNodeName);
 
         assertFalse(stateResponse.getState().getRoutingNodes().node(blueNodeId).isEmpty());
@@ -257,13 +258,13 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
             blueMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalDiscoNode());
+                redMockTransportService.disconnectFromNode(blueMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
             redMockTransportService.addRequestHandlingBehavior(recoveryActionToBlock, (handler, request, channel, task) -> {
                 logger.info("--> preventing {} response by closing response channel", recoveryActionToBlock);
                 requestFailed.countDown();
-                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalDiscoNode());
+                blueMockTransportService.disconnectFromNode(redMockTransportService.getLocalNode());
                 handler.messageReceived(request, channel, task);
             });
         }
@@ -344,7 +345,7 @@ public abstract class AbstractIndexRecoveryIntegTestCase extends ESIntegTestCase
                                 "Expected there to be some initializing shards",
                                 client(blueNodeName).admin()
                                     .cluster()
-                                    .prepareState()
+                                    .prepareState(TEST_REQUEST_TIMEOUT)
                                     .setLocal(true)
                                     .get()
                                     .getState()

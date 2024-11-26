@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -26,6 +27,7 @@ import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.engine.EngineFactory;
 import org.elasticsearch.index.mapper.MapperMetrics;
 import org.elasticsearch.index.mapper.MapperRegistry;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.IndexStorePlugin;
@@ -73,6 +75,7 @@ public class IndicesServiceBuilder {
     @Nullable
     CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     MapperMetrics mapperMetrics;
+    List<SearchOperationListener> searchOperationListener = List.of();
 
     public IndicesServiceBuilder settings(Settings settings) {
         this.settings = settings;
@@ -176,6 +179,15 @@ public class IndicesServiceBuilder {
         return this;
     }
 
+    public List<SearchOperationListener> searchOperationListeners() {
+        return searchOperationListener;
+    }
+
+    public IndicesServiceBuilder searchOperationListeners(List<SearchOperationListener> searchOperationListener) {
+        this.searchOperationListener = searchOperationListener;
+        return this;
+    }
+
     public IndicesService build() {
         Objects.requireNonNull(settings);
         Objects.requireNonNull(pluginsService);
@@ -200,6 +212,7 @@ public class IndicesServiceBuilder {
         Objects.requireNonNull(indexFoldersDeletionListeners);
         Objects.requireNonNull(snapshotCommitSuppliers);
         Objects.requireNonNull(mapperMetrics);
+        Objects.requireNonNull(searchOperationListener);
 
         // collect engine factory providers from plugins
         engineFactoryProviders = pluginsService.filterPlugins(EnginePlugin.class)

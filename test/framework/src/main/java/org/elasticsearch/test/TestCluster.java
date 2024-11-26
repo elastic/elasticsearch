@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test;
@@ -36,9 +37,11 @@ import org.elasticsearch.test.hamcrest.ElasticsearchAssertions;
 import java.io.IOException;
 import java.net.InetSocketAddress;
 import java.util.ArrayList;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.safeAwait;
 
 /**
@@ -84,13 +87,13 @@ public abstract class TestCluster {
                     .<AcknowledgedResponse>newForked(
                         l -> client().execute(
                             DeleteDataStreamAction.INSTANCE,
-                            new DeleteDataStreamAction.Request(ESTestCase.TEST_REQUEST_TIMEOUT, "*").indicesOptions(
+                            new DeleteDataStreamAction.Request(TEST_REQUEST_TIMEOUT, "*").indicesOptions(
                                 IndicesOptions.LENIENT_EXPAND_OPEN_CLOSED_HIDDEN
                             ),
                             l.delegateResponse((ll, e) -> {
                                 // Ignore if action isn't registered, because data streams is a module and
                                 // if the delete action isn't registered then there no data streams to delete.
-                                if (e.getMessage().startsWith("failed to find action") == false) {
+                                if (Objects.requireNonNullElse(e.getMessage(), "").startsWith("failed to find action") == false) {
                                     ll.onFailure(e);
                                 } else {
                                     ll.onResponse(AcknowledgedResponse.TRUE);
@@ -255,7 +258,7 @@ public abstract class TestCluster {
             if (wipingAllIndices) {
                 SubscribableListener
 
-                    .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState().execute(l))
+                    .<ClusterStateResponse>newForked(l -> client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).execute(l))
                     .<AcknowledgedResponse>andThen((l, clusterStateResponse) -> {
                         ArrayList<String> concreteIndices = new ArrayList<>();
                         for (IndexMetadata indexMetadata : clusterStateResponse.getState().metadata()) {
@@ -336,7 +339,7 @@ public abstract class TestCluster {
             .<AcknowledgedResponse>newForked(
                 l -> client().admin()
                     .cluster()
-                    .prepareDeleteRepository(ESTestCase.TEST_REQUEST_TIMEOUT, ESTestCase.TEST_REQUEST_TIMEOUT, "*")
+                    .prepareDeleteRepository(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT, "*")
                     .execute(l.delegateResponse((ll, e) -> {
                         if (e instanceof RepositoryMissingException) {
                             // ignore

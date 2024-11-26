@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.aggregations.bucket.filter;
@@ -19,6 +20,7 @@ import org.apache.lucene.search.Scorer;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -207,21 +209,15 @@ public abstract class FiltersAggregator extends BucketsAggregator {
     }
 
     @Override
-    public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+    public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) throws IOException {
         return buildAggregationsForFixedBucketCount(
             owningBucketOrds,
             filters.size() + (otherBucketKey == null ? 0 : 1),
             (offsetInOwningOrd, docCount, subAggregationResults) -> {
                 if (offsetInOwningOrd < filters.size()) {
-                    return new InternalFilters.InternalBucket(
-                        filters.get(offsetInOwningOrd).key(),
-                        docCount,
-                        subAggregationResults,
-                        keyed,
-                        keyedBucket
-                    );
+                    return new InternalFilters.InternalBucket(filters.get(offsetInOwningOrd).key(), docCount, subAggregationResults);
                 }
-                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults, keyed, keyedBucket);
+                return new InternalFilters.InternalBucket(otherBucketKey, docCount, subAggregationResults);
             },
             buckets -> new InternalFilters(name, buckets, keyed, keyedBucket, metadata())
         );
@@ -232,12 +228,12 @@ public abstract class FiltersAggregator extends BucketsAggregator {
         InternalAggregations subAggs = buildEmptySubAggregations();
         List<InternalFilters.InternalBucket> buckets = new ArrayList<>(filters.size() + (otherBucketKey == null ? 0 : 1));
         for (QueryToFilterAdapter filter : filters) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(filter.key(), 0, subAggs);
             buckets.add(bucket);
         }
 
         if (otherBucketKey != null) {
-            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs, keyed, keyedBucket);
+            InternalFilters.InternalBucket bucket = new InternalFilters.InternalBucket(otherBucketKey, 0, subAggs);
             buckets.add(bucket);
         }
 

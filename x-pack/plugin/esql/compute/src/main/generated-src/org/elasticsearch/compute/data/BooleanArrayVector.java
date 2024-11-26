@@ -128,6 +128,32 @@ final class BooleanArrayVector extends AbstractVector implements BooleanVector {
         return BASE_RAM_BYTES_USED + RamUsageEstimator.sizeOf(values);
     }
 
+    /**
+     * Are all values {@code true}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allTrue() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i] == false) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /**
+     * Are all values {@code false}? This will scan all values to check and always answer accurately.
+     */
+    @Override
+    public boolean allFalse() {
+        for (int i = 0; i < getPositionCount(); i++) {
+            if (values[i]) {
+                return false;
+            }
+        }
+        return true;
+    }
+
     @Override
     public long ramBytesUsed() {
         return ramBytesEstimated(values);

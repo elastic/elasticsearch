@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.reindex;
@@ -19,8 +20,8 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.query.QueryBuilder;
@@ -353,20 +354,10 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
             ObjectParser.ValueType.OBJECT
         );
 
-        PARSER.declareInt(
-            ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs", "size").forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7))
-        );
+        PARSER.declareInt(ReindexRequest::setMaxDocsValidateIdentical, new ParseField("max_docs"));
 
-        PARSER.declareInt(
-            ReindexRequest::setMaxDocsValidateIdentical,
-            new ParseField("max_docs").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-        );
         // avoid silently accepting an ignored size.
-        PARSER.declareInt(
-            (r, s) -> failOnSizeSpecified(),
-            new ParseField("size").forRestApiVersion(RestApiVersion.onOrAfter(RestApiVersion.V_8))
-        );
+        PARSER.declareInt((r, s) -> failOnSizeSpecified(), new ParseField("size"));
 
         PARSER.declareField((p, v, c) -> v.setScript(Script.parse(p)), new ParseField("script"), ObjectParser.ValueType.OBJECT);
         PARSER.declareString(ReindexRequest::setConflicts, new ParseField("conflicts"));
@@ -508,6 +499,8 @@ public class ReindexRequest extends AbstractBulkIndexByScrollRequest<ReindexRequ
         }
     }
 
+    @UpdateForV9(owner = UpdateForV9.Owner.DISTRIBUTED_INDEXING)
+    // do we still need this ref to [max_docs] or can we remove the field entirely so it's rejected with the default message?
     private static void failOnSizeSpecified() {
         throw new IllegalArgumentException("invalid parameter [size], use [max_docs] instead");
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.script;
@@ -306,6 +307,87 @@ public class VectorScoreScriptUtils {
         double dotProduct();
     }
 
+    public static class BitDotProduct extends DenseVectorFunction implements DotProductInterface {
+        private final byte[] byteQueryVector;
+        private final float[] floatQueryVector;
+
+        public BitDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, byte[] queryVector) {
+            super(scoreScript, field);
+            if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
+                throw new IllegalArgumentException("cannot calculate bit dot product for non-bit vectors");
+            }
+            int fieldDims = field.get().getDims();
+            if (fieldDims != queryVector.length * Byte.SIZE && fieldDims != queryVector.length) {
+                throw new IllegalArgumentException(
+                    "The query vector has an incorrect number of dimensions. Must be ["
+                        + fieldDims / 8
+                        + "] for bitwise operations, or ["
+                        + fieldDims
+                        + "] for byte wise operations: provided ["
+                        + queryVector.length
+                        + "]."
+                );
+            }
+            this.byteQueryVector = queryVector;
+            this.floatQueryVector = null;
+        }
+
+        public BitDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
+            super(scoreScript, field);
+            if (field.getElementType() != DenseVectorFieldMapper.ElementType.BIT) {
+                throw new IllegalArgumentException("cannot calculate bit dot product for non-bit vectors");
+            }
+            float[] floatQueryVector = new float[queryVector.size()];
+            byte[] byteQueryVector = new byte[queryVector.size()];
+            boolean isFloat = false;
+            for (int i = 0; i < queryVector.size(); i++) {
+                Number number = queryVector.get(i);
+                floatQueryVector[i] = number.floatValue();
+                byteQueryVector[i] = number.byteValue();
+                if (isFloat
+                    || floatQueryVector[i] % 1.0f != 0.0f
+                    || floatQueryVector[i] < Byte.MIN_VALUE
+                    || floatQueryVector[i] > Byte.MAX_VALUE) {
+                    isFloat = true;
+                }
+            }
+            int fieldDims = field.get().getDims();
+            if (isFloat) {
+                this.floatQueryVector = floatQueryVector;
+                this.byteQueryVector = null;
+                if (fieldDims != floatQueryVector.length) {
+                    throw new IllegalArgumentException(
+                        "The query vector has an incorrect number of dimensions. Must be ["
+                            + fieldDims
+                            + "] for float wise operations: provided ["
+                            + floatQueryVector.length
+                            + "]."
+                    );
+                }
+            } else {
+                this.floatQueryVector = null;
+                this.byteQueryVector = byteQueryVector;
+                if (fieldDims != byteQueryVector.length * Byte.SIZE && fieldDims != byteQueryVector.length) {
+                    throw new IllegalArgumentException(
+                        "The query vector has an incorrect number of dimensions. Must be ["
+                            + fieldDims / 8
+                            + "] for bitwise operations, or ["
+                            + fieldDims
+                            + "] for byte wise operations: provided ["
+                            + byteQueryVector.length
+                            + "]."
+                    );
+                }
+            }
+        }
+
+        @Override
+        public double dotProduct() {
+            setNextVector();
+            return byteQueryVector != null ? field.get().dotProduct(byteQueryVector) : field.get().dotProduct(floatQueryVector);
+        }
+    }
+
     public static class ByteDotProduct extends ByteDenseVectorFunction implements DotProductInterface {
 
         public ByteDotProduct(ScoreScript scoreScript, DenseVectorDocValuesField field, List<Number> queryVector) {
@@ -342,7 +424,16 @@ public class VectorScoreScriptUtils {
         public DotProduct(ScoreScript scoreScript, Object queryVector, String fieldName) {
             DenseVectorDocValuesField field = (DenseVectorDocValuesField) scoreScript.field(fieldName);
             function = switch (field.getElementType()) {
-                case BYTE, BIT -> {
+                case BIT -> {
+                    if (queryVector instanceof List) {
+                        yield new BitDotProduct(scoreScript, field, (List<Number>) queryVector);
+                    } else if (queryVector instanceof String s) {
+                        byte[] parsedQueryVector = HexFormat.of().parseHex(s);
+                        yield new BitDotProduct(scoreScript, field, parsedQueryVector);
+                    }
+                    throw new IllegalArgumentException("Unsupported input object for bit vectors: " + queryVector.getClass().getName());
+                }
+                case BYTE -> {
                     if (queryVector instanceof List) {
                         yield new ByteDotProduct(scoreScript, field, (List<Number>) queryVector);
                     } else if (queryVector instanceof String s) {

@@ -95,7 +95,7 @@ Changing allocation id V8QXk-QXSZinZMT-NvEq4w to tjm9Ve6uTBewVFAlfUMWjA
 
 You should run the following command to allocate this shard:
 
-POST /_cluster/reroute?metric=none
+POST /_cluster/reroute
 {
   "commands" : [
     {

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -511,7 +512,8 @@ public class SearchExecutionContext extends QueryRewriteContext {
         SourceProvider sourceProvider,
         Function<LeafReaderContext, LeafFieldLookupProvider> fieldLookupProvider
     ) {
-        // TODO can we assert that this is only called during FetchPhase?
+        // This isn't called only during fetch phase: there's scenarios where fetch phase is executed as part of the query phase,
+        // as well as runtime fields loaded from _source that do need a source provider as part of executing the query
         this.lookup = new SearchLookup(
             this::getFieldType,
             (fieldType, searchLookup, fielddataOperation) -> indexFieldDataLookup.apply(
@@ -614,8 +616,7 @@ public class SearchExecutionContext extends QueryRewriteContext {
     }
 
     @Override
-    @SuppressWarnings("rawtypes")
-    public void executeAsyncActions(ActionListener listener) {
+    public void executeAsyncActions(ActionListener<Void> listener) {
         failIfFrozen();
         super.executeAsyncActions(listener);
     }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.gradle.internal;
@@ -52,8 +53,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":plugins:repository-hdfs");
         map.put(LegacyRestTestBasePlugin.class, ":plugins:store-smb");
         map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-rolling-upgrade-remote-cluster");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:ccs-unavailable-clusters");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:logging-config");
         map.put(LegacyRestTestBasePlugin.class, ":qa:mixed-cluster");
         map.put(LegacyRestTestBasePlugin.class, ":qa:multi-cluster-search");
         map.put(LegacyRestTestBasePlugin.class, ":qa:remote-clusters");
@@ -64,7 +63,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-ingest-with-all-dependencies");
         map.put(LegacyRestTestBasePlugin.class, ":qa:smoke-test-plugins");
         map.put(LegacyRestTestBasePlugin.class, ":qa:system-indices");
-        map.put(LegacyRestTestBasePlugin.class, ":qa:unconfigured-node-name");
         map.put(LegacyRestTestBasePlugin.class, ":qa:verify-version-constants");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-apm-integration");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-delayed-aggs");
@@ -72,7 +70,6 @@ public abstract class RestrictedBuildApiService implements BuildService<Restrict
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-error-query");
         map.put(LegacyRestTestBasePlugin.class, ":test:external-modules:test-latency-simulating-directory");
         map.put(LegacyRestTestBasePlugin.class, ":test:yaml-rest-runner");
-        map.put(LegacyRestTestBasePlugin.class, ":distribution:archives:integ-test-zip");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:core");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:ent-search");
         map.put(LegacyRestTestBasePlugin.class, ":x-pack:plugin:fleet");

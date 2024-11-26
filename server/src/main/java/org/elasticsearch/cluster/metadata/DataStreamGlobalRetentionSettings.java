@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.metadata;
@@ -25,8 +26,6 @@ import java.util.Map;
  * The global retention settings apply to non-system data streams that are managed by the data stream lifecycle. They consist of:
  * - The default retention which applies to data streams that do not have a retention defined.
  * - The max retention which applies to all data streams that do not have retention or their retention has exceeded this value.
- * <p>
- * Temporarily, we fall back to {@link DataStreamFactoryRetention} to facilitate a smooth transition to these settings.
  */
 public class DataStreamGlobalRetentionSettings {
 
@@ -83,42 +82,35 @@ public class DataStreamGlobalRetentionSettings {
         Setting.Property.Dynamic
     );
 
-    private final DataStreamFactoryRetention factoryRetention;
-
     @Nullable
     private volatile TimeValue defaultRetention;
     @Nullable
     private volatile TimeValue maxRetention;
 
-    private DataStreamGlobalRetentionSettings(DataStreamFactoryRetention factoryRetention) {
-        this.factoryRetention = factoryRetention;
+    private DataStreamGlobalRetentionSettings() {
+
     }
 
     @Nullable
     public TimeValue getMaxRetention() {
-        return shouldFallbackToFactorySettings() ? factoryRetention.getMaxRetention() : maxRetention;
+        return maxRetention;
     }
 
     @Nullable
     public TimeValue getDefaultRetention() {
-        return shouldFallbackToFactorySettings() ? factoryRetention.getDefaultRetention() : defaultRetention;
+        return defaultRetention;
     }
 
     public boolean areDefined() {
         return getDefaultRetention() != null || getMaxRetention() != null;
     }
 
-    private boolean shouldFallbackToFactorySettings() {
-        return defaultRetention == null && maxRetention == null;
-    }
-
     /**
      * Creates an instance and initialises the cluster settings listeners
      * @param clusterSettings it will register the cluster settings listeners to monitor for changes
-     * @param factoryRetention for migration purposes, it will be removed shortly
      */
-    public static DataStreamGlobalRetentionSettings create(ClusterSettings clusterSettings, DataStreamFactoryRetention factoryRetention) {
-        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings(factoryRetention);
+    public static DataStreamGlobalRetentionSettings create(ClusterSettings clusterSettings) {
+        DataStreamGlobalRetentionSettings dataStreamGlobalRetentionSettings = new DataStreamGlobalRetentionSettings();
         clusterSettings.initializeAndWatch(DATA_STREAMS_DEFAULT_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setDefaultRetention);
         clusterSettings.initializeAndWatch(DATA_STREAMS_MAX_RETENTION_SETTING, dataStreamGlobalRetentionSettings::setMaxRetention);
         return dataStreamGlobalRetentionSettings;

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.engine;
@@ -118,7 +119,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
         this.parallelArray = new ParallelArray(this.searchBatchSize);
         this.indexVersionCreated = indexVersionCreated;
         final TopDocs topDocs = searchOperations(null, accessStats);
-        this.totalHits = Math.toIntExact(topDocs.totalHits.value);
+        this.totalHits = Math.toIntExact(topDocs.totalHits.value());
         this.scoreDocs = topDocs.scoreDocs;
         fillParallelArray(scoreDocs, parallelArray);
     }
@@ -300,7 +301,8 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             new Sort(sortBySeqNo),
             searchBatchSize,
             after,
-            accurateTotalHits ? Integer.MAX_VALUE : 0
+            accurateTotalHits ? Integer.MAX_VALUE : 0,
+            false
         );
         return indexSearcher.search(rangeQuery, topFieldCollectorManager);
     }
@@ -339,7 +341,7 @@ final class LuceneChangesSnapshot implements Translog.Snapshot {
             assert storedFieldsReaderOrd == leaf.ord : storedFieldsReaderOrd + " != " + leaf.ord;
             storedFieldsReader.document(segmentDocID, fields);
         } else {
-            leaf.reader().document(segmentDocID, fields);
+            leaf.reader().storedFields().document(segmentDocID, fields);
         }
 
         final Translog.Operation op;

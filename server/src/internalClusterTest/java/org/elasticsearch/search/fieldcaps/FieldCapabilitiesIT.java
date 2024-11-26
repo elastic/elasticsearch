@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.search.fieldcaps;
@@ -11,9 +12,9 @@ package org.elasticsearch.search.fieldcaps;
 import org.apache.http.entity.ContentType;
 import org.apache.http.entity.StringEntity;
 import org.apache.logging.log4j.Level;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
+import org.elasticsearch.action.admin.indices.close.CloseIndexRequest;
 import org.elasticsearch.action.fieldcaps.FieldCapabilities;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesFailure;
 import org.elasticsearch.action.fieldcaps.FieldCapabilitiesRequest;
@@ -21,6 +22,7 @@ import org.elasticsearch.action.fieldcaps.FieldCapabilitiesResponse;
 import org.elasticsearch.action.fieldcaps.TransportFieldCapabilitiesAction;
 import org.elasticsearch.action.index.IndexRequestBuilder;
 import org.elasticsearch.action.support.ActiveShardCount;
+import org.elasticsearch.action.support.IndicesOptions;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
@@ -38,8 +40,6 @@ import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.mapper.DocumentParserContext;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.MetadataFieldMapper;
-import org.elasticsearch.index.mapper.SourceLoader;
-import org.elasticsearch.index.mapper.StringStoredFieldFieldLoader;
 import org.elasticsearch.index.mapper.TimeSeriesParams;
 import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
@@ -47,6 +47,7 @@ import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.ShardId;
+import org.elasticsearch.indices.IndexClosedException;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.plugins.MapperPlugin;
@@ -319,6 +320,63 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         assertIndices(response1, "old_index", "new_index");
         FieldCapabilitiesResponse response2 = client().prepareFieldCaps("current", "old_index", "new_index").setFields("*").get();
         assertEquals(response1, response2);
+    }
+
+    public void testNoIndices() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testNoIndicesIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps().setFields("*").setIndicesOptions(options).get();
+        assertIndices(response, "new_index");
+    }
+
+    public void testOneClosedIndex() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testOneClosedIndexIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index").setFields("*").setIndicesOptions(options).get();
+        assertIndices(response);
+    }
+
+    public void testTwoIndicesOneClosed() {
+        boolean ignoreUnavailable = false;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        IndexClosedException ex = expectThrows(
+            IndexClosedException.class,
+            client().prepareFieldCaps("old_index", "new_index").setFields("*").setIndicesOptions(options)
+        );
+        assertEquals("closed", ex.getMessage());
+    }
+
+    public void testTwoIndicesOneClosedIgnoreUnavailable() {
+        boolean ignoreUnavailable = true;
+        IndicesOptions options = IndicesOptions.fromOptions(ignoreUnavailable, true, true, false, true, true, false, false);
+        client().admin().indices().close(new CloseIndexRequest("old_index")).actionGet();
+        FieldCapabilitiesResponse response = client().prepareFieldCaps("old_index", "new_index")
+            .setFields("*")
+            .setIndicesOptions(options)
+            .get();
+        assertIndices(response, "new_index");
     }
 
     public void testWithIndexFilter() throws InterruptedException {
@@ -695,7 +753,7 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
                 }
             }, 30, TimeUnit.SECONDS);
             cancellable.cancel();
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
             logger.info("--> waiting for field-caps tasks to be cancelled");
             assertBusy(() -> {
                 List<TaskInfo> tasks = clusterAdmin().prepareListTasks()
@@ -913,17 +971,6 @@ public class FieldCapabilitiesIT extends ESIntegTestCase {
         @Override
         protected String contentType() {
             return CONTENT_TYPE;
-        }
-
-        @Override
-        public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-            return new StringStoredFieldFieldLoader(fullPath(), leafName()) {
-                @Override
-                protected void write(XContentBuilder b, Object value) throws IOException {
-                    BytesRef ref = (BytesRef) value;
-                    b.utf8Value(ref.bytes, ref.offset, ref.length);
-                }
-            };
         }
 
         private static final TypeParser PARSER = new FixedTypeParser(c -> new TestMetadataMapper());

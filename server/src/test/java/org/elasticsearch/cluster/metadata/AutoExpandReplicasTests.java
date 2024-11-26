@@ -1,14 +1,14 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.cluster.metadata;
 
 import org.elasticsearch.TransportVersion;
-import org.elasticsearch.Version;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteRequest;
 import org.elasticsearch.action.admin.indices.create.CreateIndexRequest;
 import org.elasticsearch.action.support.ActiveShardCount;
@@ -97,15 +97,11 @@ public class AutoExpandReplicasTests extends ESTestCase {
 
     private static final AtomicInteger nodeIdGenerator = new AtomicInteger();
 
-    protected DiscoveryNode createNode(Version version, DiscoveryNodeRole... mustHaveRoles) {
+    protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
         Set<DiscoveryNodeRole> roles = new HashSet<>(randomSubsetOf(DiscoveryNodeRole.roles()));
         Collections.addAll(roles, mustHaveRoles);
         final String id = Strings.format("node_%03d", nodeIdGenerator.incrementAndGet());
-        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).version(version).build();
-    }
-
-    protected DiscoveryNode createNode(DiscoveryNodeRole... mustHaveRoles) {
-        return createNode(Version.CURRENT, mustHaveRoles);
+        return DiscoveryNodeUtils.builder(id).name(id).roles(roles).build();
     }
 
     /**

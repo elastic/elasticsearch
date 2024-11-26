@@ -278,16 +278,17 @@ setup:
 ---
 synthetic_source:
   - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason: synthetic source introduced in 8.4.0
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: synthetic_source_test
         body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
           mappings:
-            _source:
-              mode: synthetic
             properties:
               foo:
                 type: match_only_text
@@ -351,3 +352,46 @@ tsdb:
         "@timestamp" : "2000-01-01T00:00:00.000Z"
         "dimension" : "a"
         foo: "Apache Lucene powers Elasticsearch"
+
+---
+synthetic_source with copy_to:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
+  - do:
+      indices.create:
+        index: synthetic_source_test
+        body:
+          settings:
+            index:
+              mapping.source.mode: synthetic
+          mappings:
+            properties:
+              foo:
+                type: match_only_text
+                copy_to: copy
+              copy:
+                type: keyword
+
+  - do:
+      index:
+        index: synthetic_source_test
+        id:    "1"
+        refresh: true
+        body:
+          foo: "Apache Lucene powers Elasticsearch"
+
+  - do:
+      search:
+        index: synthetic_source_test
+        body:
+          fields: ["copy"]
+
+  - match: { "hits.total.value": 1 }
+  - match:
+      hits.hits.0._source.foo: "Apache Lucene powers Elasticsearch"
+  - match:
+      hits.hits.0.fields.copy.0: "Apache Lucene powers Elasticsearch"
+
+

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.cluster.node.shutdown;
@@ -228,7 +229,8 @@ public class TransportPrevalidateNodeRemovalAction extends TransportMasterNodeRe
                 ) // Convert to ShardId
                 .collect(Collectors.toSet());
             var nodeIds = requestNodes.stream().map(DiscoveryNode::getId).toList().toArray(new String[0]);
-            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds).timeout(request.timeout());
+            var checkShardsRequest = new PrevalidateShardPathRequest(redShards, nodeIds);
+            checkShardsRequest.setTimeout(request.timeout());
             client.execute(TransportPrevalidateShardPathAction.TYPE, checkShardsRequest, new ActionListener<>() {
                 @Override
                 public void onResponse(PrevalidateShardPathResponse response) {

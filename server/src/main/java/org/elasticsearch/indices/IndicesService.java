@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices;
@@ -22,7 +23,6 @@ import org.elasticsearch.action.ActionRunnable;
 import org.elasticsearch.action.ResolvedIndices;
 import org.elasticsearch.action.admin.indices.mapping.put.PutMappingRequest;
 import org.elasticsearch.action.admin.indices.mapping.put.TransportAutoPutMappingAction;
-import org.elasticsearch.action.admin.indices.mapping.put.TransportPutMappingAction;
 import org.elasticsearch.action.admin.indices.stats.CommonStats;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags;
 import org.elasticsearch.action.admin.indices.stats.CommonStatsFlags.Flag;
@@ -78,7 +78,6 @@ import org.elasticsearch.env.NodeEnvironment;
 import org.elasticsearch.env.ShardLock;
 import org.elasticsearch.env.ShardLockObtainFailedException;
 import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.MetaStateService;
 import org.elasticsearch.gateway.MetadataStateFormat;
 import org.elasticsearch.index.CloseUtils;
@@ -123,6 +122,7 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardState;
 import org.elasticsearch.index.shard.IndexingOperationListener;
 import org.elasticsearch.index.shard.IndexingStats;
+import org.elasticsearch.index.shard.SearchOperationListener;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService;
@@ -209,8 +209,6 @@ public class IndicesService extends AbstractLifecycleComponent
         Setting.Property.NodeScope
     );
 
-    static final NodeFeature SUPPORTS_AUTO_PUT = new NodeFeature("indices.auto_put_supported");
-
     /**
      * The node's settings.
      */
@@ -261,6 +259,8 @@ public class IndicesService extends AbstractLifecycleComponent
     private final TimestampFieldMapperService timestampFieldMapperService;
     private final CheckedBiConsumer<ShardSearchRequest, StreamOutput, IOException> requestCacheKeyDifferentiator;
     private final MapperMetrics mapperMetrics;
+    private final PostRecoveryMerger postRecoveryMerger;
+    private final List<SearchOperationListener> searchOperationListeners;
 
     @Override
     protected void doStart() {
@@ -377,6 +377,8 @@ public class IndicesService extends AbstractLifecycleComponent
         clusterService.getClusterSettings().addSettingsUpdateConsumer(ALLOW_EXPENSIVE_QUERIES, this::setAllowExpensiveQueries);
 
         this.timestampFieldMapperService = new TimestampFieldMapperService(settings, threadPool, this);
+        this.postRecoveryMerger = new PostRecoveryMerger(settings, threadPool.executor(ThreadPool.Names.FORCE_MERGE), this::getShardOrNull);
+        this.searchOperationListeners = builder.searchOperationListener;
     }
 
     private static final String DANGLING_INDICES_UPDATE_THREAD_NAME = "DanglingIndices#updateTask";
@@ -748,7 +750,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             loadSlowLogFieldProvider(),
-            mapperMetrics
+            mapperMetrics,
+            searchOperationListeners
         );
         for (IndexingOperationListener operationListener : indexingOperationListeners) {
             indexModule.addIndexOperationListener(operationListener);
@@ -826,7 +829,8 @@ public class IndicesService extends AbstractLifecycleComponent
             indexNameExpressionResolver,
             recoveryStateFactories,
             loadSlowLogFieldProvider(),
-            mapperMetrics
+            mapperMetrics,
+            searchOperationListeners
         );
         pluginsService.forEach(p -> p.onIndexModule(indexModule));
         return indexModule.newIndexMapperService(clusterService, parserConfig, mapperRegistry, scriptService);
@@ -889,23 +893,27 @@ public class IndicesService extends AbstractLifecycleComponent
         RecoveryState recoveryState = indexService.createRecoveryState(shardRouting, targetNode, sourceNode);
         IndexShard indexShard = indexService.createShard(shardRouting, globalCheckpointSyncer, retentionLeaseSyncer);
         indexShard.addShardFailureCallback(onShardFailure);
-        indexShard.startRecovery(recoveryState, recoveryTargetService, recoveryListener, repositoriesService, (mapping, listener) -> {
-            assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
-                : "mapping update consumer only required by local shards recovery";
-            AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest().setConcreteIndex(
-                shardRouting.index()
-            )
-                .setConcreteIndex(shardRouting.index()) // concrete index - no name clash, it uses uuid
-                .source(mapping.source().string(), XContentType.JSON);
-            // concrete index - no name clash, it uses uuid
-            client.execute(
-                featureService.clusterHasFeature(clusterService.state(), SUPPORTS_AUTO_PUT)
-                    ? TransportAutoPutMappingAction.TYPE
-                    : TransportPutMappingAction.TYPE,
-                putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
-                new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
-            );
-        }, this, clusterStateVersion);
+        indexShard.startRecovery(
+            recoveryState,
+            recoveryTargetService,
+            postRecoveryMerger.maybeMergeAfterRecovery(indexService.getMetadata(), shardRouting, recoveryListener),
+            repositoriesService,
+            (mapping, listener) -> {
+                assert recoveryState.getRecoverySource().getType() == RecoverySource.Type.LOCAL_SHARDS
+                    : "mapping update consumer only required by local shards recovery";
+                AcknowledgedRequest<PutMappingRequest> putMappingRequestAcknowledgedRequest = new PutMappingRequest()
+                    // concrete index - no name clash, it uses uuid
+                    .setConcreteIndex(shardRouting.index())
+                    .source(mapping.source().string(), XContentType.JSON);
+                client.execute(
+                    TransportAutoPutMappingAction.TYPE,
+                    putMappingRequestAcknowledgedRequest.ackTimeout(TimeValue.MAX_VALUE).masterNodeTimeout(TimeValue.MAX_VALUE),
+                    new RefCountAwareThreadedActionListener<>(threadPool.generic(), listener.map(ignored -> null))
+                );
+            },
+            this,
+            clusterStateVersion
+        );
     }
 
     @Override

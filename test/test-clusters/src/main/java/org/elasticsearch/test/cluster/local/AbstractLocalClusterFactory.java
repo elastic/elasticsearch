@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.test.cluster.local;
@@ -50,6 +51,7 @@ import java.util.Locale;
 import java.util.Map;
 import java.util.Properties;
 import java.util.Set;
+import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeoutException;
@@ -57,6 +59,7 @@ import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import static java.util.function.Predicate.not;
 import static org.elasticsearch.test.cluster.local.distribution.DistributionType.DEFAULT;
 import static org.elasticsearch.test.cluster.util.OS.WINDOWS;
 
@@ -129,7 +132,7 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             this.distributionResolver = distributionResolver;
             this.spec = spec;
             this.name = suffix == null ? spec.getName() : spec.getName() + "-" + suffix;
-            this.workingDir = baseWorkingDir.resolve(name);
+            this.workingDir = baseWorkingDir.resolve(name != null ? name : UUID.randomUUID().toString());
             this.repoDir = baseWorkingDir.resolve("repo");
             this.dataDir = workingDir.resolve("data");
             this.logsDir = workingDir.resolve("logs");
@@ -385,7 +388,9 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
                 // Write settings to elasticsearch.yml
                 Map<String, String> finalSettings = new HashMap<>();
                 finalSettings.put("cluster.name", spec.getCluster().getName());
-                finalSettings.put("node.name", name);
+                if (name != null) {
+                    finalSettings.put("node.name", name);
+                }
                 finalSettings.put("path.repo", repoDir.toString());
                 finalSettings.put("path.data", dataDir.toString());
                 finalSettings.put("path.logs", logsDir.toString());
@@ -751,18 +756,16 @@ public abstract class AbstractLocalClusterFactory<S extends LocalClusterSpec, H 
             }
 
             String heapSize = System.getProperty("tests.heap.size", "512m");
-            final String esJavaOpts = Stream.of(
-                "-Xms" + heapSize,
-                "-Xmx" + heapSize,
-                "-ea",
-                "-esa",
-                System.getProperty("tests.jvm.argline", ""),
-                featureFlagProperties,
-                systemProperties,
-                jvmArgs,
-                debugArgs
-            ).filter(s -> s.isEmpty() == false).collect(Collectors.joining(" "));
+            List<String> serverOpts = List.of("-Xms" + heapSize, "-Xmx" + heapSize, debugArgs, featureFlagProperties);
+            List<String> commonOpts = List.of("-ea", "-esa", System.getProperty("tests.jvm.argline", ""), systemProperties, jvmArgs);
+
+            String esJavaOpts = Stream.concat(serverOpts.stream(), commonOpts.stream())
+                .filter(not(String::isEmpty))
+                .collect(Collectors.joining(" "));
+            String cliJavaOpts = commonOpts.stream().filter(not(String::isEmpty)).collect(Collectors.joining(" "));
+
             environment.put("ES_JAVA_OPTS", esJavaOpts);
+            environment.put("CLI_JAVA_OPTS", cliJavaOpts);
 
             return environment;
         }

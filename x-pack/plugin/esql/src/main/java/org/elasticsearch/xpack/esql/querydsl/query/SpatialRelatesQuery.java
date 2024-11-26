@@ -9,6 +9,8 @@ package org.elasticsearch.xpack.esql.querydsl.query;
 
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.geo.GeoJson;
 import org.elasticsearch.common.geo.ShapeRelation;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.geometry.Geometry;
@@ -92,9 +94,16 @@ public class SpatialRelatesQuery extends Query {
      */
     public abstract class ShapeQueryBuilder implements QueryBuilder {
 
-        @Override
-        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
-            throw new UnsupportedOperationException("Unimplemented: toXContent()");
+        protected void doToXContent(String queryName, XContentBuilder builder, Params params) throws IOException {
+            builder.startObject();
+            builder.startObject(queryName);
+            builder.startObject(field);
+            builder.field("relation", queryRelation);
+            builder.field("shape");
+            GeoJson.toXContent(shape, builder, params);
+            builder.endObject();
+            builder.endObject();
+            builder.endObject();
         }
 
         @Override
@@ -157,6 +166,11 @@ public class SpatialRelatesQuery extends Query {
         public Geometry shape() {
             return shape;
         }
+
+        @Override
+        public String toString() {
+            return Strings.toString(this, true, true);
+        }
     }
 
     private class GeoShapeQueryBuilder extends ShapeQueryBuilder {
@@ -177,6 +191,13 @@ public class SpatialRelatesQuery extends Query {
             }
             final GeoShapeQueryable ft = (GeoShapeQueryable) fieldType;
             return new ConstantScoreQuery(ft.geoShapeQuery(context, fieldType.name(), shapeRelation(), shape));
+        }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // Currently used only in testing and debugging
+            doToXContent(NAME, builder, params);
+            return builder;
         }
     }
 
@@ -225,5 +246,13 @@ public class SpatialRelatesQuery extends Query {
                 throw new QueryShardException(context, "Exception creating query on Field [" + fieldName + "] " + e.getMessage(), e);
             }
         }
+
+        @Override
+        public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+            // Currently used only in testing and debugging
+            doToXContent("cartesian_shape", builder, params);
+            return builder;
+        }
+
     }
 }

@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.mapper;
@@ -48,13 +49,13 @@ public class BinaryFieldMapper extends FieldMapper {
         private final Parameter<Boolean> stored = Parameter.storeParam(m -> toType(m).stored, false);
         private final Parameter<Map<String, String>> meta = Parameter.metaParam();
 
-        private final boolean isSyntheticSourceEnabledViaIndexMode;
+        private final boolean isSyntheticSourceEnabled;
         private final Parameter<Boolean> hasDocValues;
 
-        public Builder(String name, boolean isSyntheticSourceEnabledViaIndexMode) {
+        public Builder(String name, boolean isSyntheticSourceEnabled) {
             super(name);
-            this.isSyntheticSourceEnabledViaIndexMode = isSyntheticSourceEnabledViaIndexMode;
-            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabledViaIndexMode);
+            this.isSyntheticSourceEnabled = isSyntheticSourceEnabled;
+            this.hasDocValues = Parameter.docValuesParam(m -> toType(m).hasDocValues, isSyntheticSourceEnabled);
         }
 
         @Override
@@ -72,16 +73,13 @@ public class BinaryFieldMapper extends FieldMapper {
             return new BinaryFieldMapper(
                 leafName(),
                 new BinaryFieldType(context.buildFullName(leafName()), stored.getValue(), hasDocValues.getValue(), meta.getValue()),
-                multiFieldsBuilder.build(this, context),
-                copyTo,
+                builderParams(this, context),
                 this
             );
         }
     }
 
-    public static final TypeParser PARSER = new TypeParser(
-        (n, c) -> new Builder(n, c.getIndexSettings().getMode().isSyntheticSourceEnabled())
-    );
+    public static final TypeParser PARSER = new TypeParser((n, c) -> new Builder(n, SourceFieldMapper.isSynthetic(c.getIndexSettings())));
 
     public static final class BinaryFieldType extends MappedFieldType {
         private BinaryFieldType(String name, boolean isStored, boolean hasDocValues, Map<String, String> meta) {
@@ -140,19 +138,13 @@ public class BinaryFieldMapper extends FieldMapper {
 
     private final boolean stored;
     private final boolean hasDocValues;
-    private final boolean isSyntheticSourceEnabledViaIndexMode;
+    private final boolean isSyntheticSourceEnabled;
 
-    protected BinaryFieldMapper(
-        String simpleName,
-        MappedFieldType mappedFieldType,
-        MultiFields multiFields,
-        CopyTo copyTo,
-        Builder builder
-    ) {
-        super(simpleName, mappedFieldType, multiFields, copyTo);
+    protected BinaryFieldMapper(String simpleName, MappedFieldType mappedFieldType, BuilderParams builderParams, Builder builder) {
+        super(simpleName, mappedFieldType, builderParams);
         this.stored = builder.stored.getValue();
         this.hasDocValues = builder.hasDocValues.getValue();
-        this.isSyntheticSourceEnabledViaIndexMode = builder.isSyntheticSourceEnabledViaIndexMode;
+        this.isSyntheticSourceEnabled = builder.isSyntheticSourceEnabled;
     }
 
     @Override
@@ -192,7 +184,7 @@ public class BinaryFieldMapper extends FieldMapper {
 
     @Override
     public FieldMapper.Builder getMergeBuilder() {
-        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabledViaIndexMode).init(this);
+        return new BinaryFieldMapper.Builder(leafName(), isSyntheticSourceEnabled).init(this);
     }
 
     @Override
@@ -201,54 +193,40 @@ public class BinaryFieldMapper extends FieldMapper {
     }
 
     @Override
-    protected SyntheticSourceMode syntheticSourceMode() {
-        return SyntheticSourceMode.NATIVE;
-    }
+    protected SyntheticSourceSupport syntheticSourceSupport() {
+        if (hasDocValues) {
+            var loader = new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
+                @Override
+                protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
+                    var in = new ByteArrayStreamInput();
+                    in.reset(value.bytes, value.offset, value.length);
 
-    @Override
-    public SourceLoader.SyntheticFieldLoader syntheticFieldLoader() {
-        if (copyTo.copyToFields().isEmpty() != true) {
-            throw new IllegalArgumentException(
-                "field [" + fullPath() + "] of type [" + typeName() + "] doesn't support synthetic source because it declares copy_to"
-            );
+                    int count = in.readVInt();
+                    switch (count) {
+                        case 0:
+                            return;
+                        case 1:
+                            b.field(leafName());
+                            break;
+                        default:
+                            b.startArray(leafName());
+                    }
+
+                    for (int i = 0; i < count; i++) {
+                        byte[] bytes = in.readByteArray();
+                        b.value(Base64.getEncoder().encodeToString(bytes));
+                    }
+
+                    if (count > 1) {
+                        b.endArray();
+                    }
+                }
+            };
+
+            return new SyntheticSourceSupport.Native(loader);
         }
-        if (hasDocValues == false) {
-            throw new IllegalArgumentException(
-                "field ["
-                    + fullPath()
-                    + "] of type ["
-                    + typeName()
-                    + "] doesn't support synthetic source because it doesn't have doc values"
-            );
-        }
 
-        return new BinaryDocValuesSyntheticFieldLoader(fullPath()) {
-            @Override
-            protected void writeValue(XContentBuilder b, BytesRef value) throws IOException {
-                var in = new ByteArrayStreamInput();
-                in.reset(value.bytes, value.offset, value.length);
-
-                int count = in.readVInt();
-                switch (count) {
-                    case 0:
-                        return;
-                    case 1:
-                        b.field(leafName());
-                        break;
-                    default:
-                        b.startArray(leafName());
-                }
-
-                for (int i = 0; i < count; i++) {
-                    byte[] bytes = in.readByteArray();
-                    b.value(Base64.getEncoder().encodeToString(bytes));
-                }
-
-                if (count > 1) {
-                    b.endArray();
-                }
-            }
-        };
+        return super.syntheticSourceSupport();
     }
 
     public static final class CustomBinaryDocValuesField extends CustomDocValuesField {

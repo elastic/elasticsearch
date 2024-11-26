@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cloud.gce;
@@ -25,7 +26,6 @@ import java.io.IOException;
 import java.net.URI;
 import java.net.URISyntaxException;
 import java.security.GeneralSecurityException;
-import java.util.function.Function;
 
 public class GceMetadataService extends AbstractLifecycleComponent {
     private static final Logger logger = LogManager.getLogger(GceMetadataService.class);
@@ -34,10 +34,9 @@ public class GceMetadataService extends AbstractLifecycleComponent {
     // http://metadata/computeMetadata/v1/instance/service-accounts/default/token
     // See https://developers.google.com/compute/docs/metadata#metadataserver
     // all settings just used for testing - not registered by default
-    public static final Setting<String> GCE_HOST = new Setting<>(
+    public static final Setting<String> GCE_HOST = Setting.simpleString(
         "cloud.gce.host",
         "http://metadata.google.internal",
-        Function.identity(),
         Setting.Property.NodeScope
     );
 

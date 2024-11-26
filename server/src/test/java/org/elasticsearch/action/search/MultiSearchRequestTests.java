@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -467,52 +468,6 @@ public class MultiSearchRequestTests extends ESTestCase {
                 randomBoolean()
             ),
             "none"
-        );
-    }
-
-    public void testEmptyFirstLine1() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
-        );
-    }
-
-    public void testEmptyFirstLine2() throws Exception {
-        MultiSearchRequest request = parseMultiSearchRequestFromString("""
-
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            {}
-            { "query": {"match_all": {}}}
-
-            { "query": {"match_all": {}}}
-            """, RestApiVersion.V_7);
-        assertThat(request.requests().size(), equalTo(4));
-        for (SearchRequest searchRequest : request.requests()) {
-            assertThat(searchRequest.indices().length, equalTo(0));
-            assertThat(searchRequest.source().query(), instanceOf(MatchAllQueryBuilder.class));
-        }
-        assertCriticalWarnings(
-            "support for empty first line before any action metadata in msearch API is deprecated and will be removed "
-                + "in the next major version"
         );
     }
 

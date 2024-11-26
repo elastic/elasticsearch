@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.cluster.routing.allocation.decider;
@@ -13,6 +14,7 @@ import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.ShardRouting;
 import org.elasticsearch.cluster.routing.UnassignedInfo;
 import org.elasticsearch.cluster.routing.allocation.RoutingAllocation;
+import org.elasticsearch.common.ReferenceDocs;
 import org.elasticsearch.common.settings.Setting;
 
 /**
@@ -34,7 +36,7 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
         Setting.Property.NotCopyableOnResize
     );
 
-    private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed&metric=none";
+    private static final String RETRY_FAILED_API = "POST /_cluster/reroute?retry_failed";
 
     public static final String NAME = "max_retry";
 
@@ -71,9 +73,11 @@ public class MaxRetryAllocationDecider extends AllocationDecider {
             return Decision.single(
                 Decision.Type.NO,
                 NAME,
-                "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - manually call [%s] to retry, [%s]",
+                "shard has exceeded the maximum number of retries [%d] on failed allocation attempts - "
+                    + "manually call [%s] to retry, and for more information, see [%s] [%s]",
                 maxRetries,
                 RETRY_FAILED_API,
+                ReferenceDocs.ALLOCATION_EXPLAIN_MAX_RETRY,
                 info.toString()
             );
         } else {

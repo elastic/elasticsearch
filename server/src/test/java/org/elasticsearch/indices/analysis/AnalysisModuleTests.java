@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.indices.analysis;
@@ -21,7 +22,6 @@ import org.elasticsearch.env.TestEnvironment;
 import org.elasticsearch.index.IndexService.IndexCreationContext;
 import org.elasticsearch.index.IndexSettings;
 import org.elasticsearch.index.IndexVersion;
-import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.analysis.Analysis;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.index.analysis.CharFilterFactory;
@@ -184,34 +184,6 @@ public class AnalysisModuleTests extends ESTestCase {
                     equalTo("analyzer name must not start with '_'. got \"_invalidName\"")
                 )
             );
-        }
-    }
-
-    public void testStandardFilterBWC() throws IOException {
-        // standard tokenfilter should have been removed entirely in the 7x line. However, a
-        // cacheing bug meant that it was still possible to create indexes using a standard
-        // filter until 7.6
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_6_0, IndexVersion.current());
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            IllegalArgumentException exc = expectThrows(IllegalArgumentException.class, () -> getIndexAnalyzers(settings));
-            assertThat(exc.getMessage(), equalTo("The [standard] token filter has been removed."));
-        }
-        {
-            IndexVersion version = IndexVersionUtils.randomVersionBetween(random(), IndexVersions.V_7_0_0, IndexVersions.V_7_5_2);
-            final Settings settings = Settings.builder()
-                .put("index.analysis.analyzer.my_standard.tokenizer", "standard")
-                .put("index.analysis.analyzer.my_standard.filter", "standard")
-                .put(Environment.PATH_HOME_SETTING.getKey(), createTempDir().toString())
-                .put(IndexMetadata.SETTING_VERSION_CREATED, version)
-                .build();
-            getIndexAnalyzers(settings);
-            assertWarnings("The [standard] token filter is deprecated and will be removed in a future version.");
         }
     }
 

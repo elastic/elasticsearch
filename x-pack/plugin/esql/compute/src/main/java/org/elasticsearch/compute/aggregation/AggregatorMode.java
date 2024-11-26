@@ -9,13 +9,24 @@ package org.elasticsearch.compute.aggregation;
 
 public enum AggregatorMode {
 
+    /**
+     * Maps raw inputs to intermediate outputs.
+     */
     INITIAL(false, true),
 
+    /**
+     * Maps intermediate inputs to intermediate outputs.
+     */
     INTERMEDIATE(true, true),
 
+    /**
+     * Maps intermediate inputs to final outputs.
+     */
     FINAL(true, false),
 
-    // most useful for testing
+    /**
+     * Maps raw inputs to final outputs. Most useful for testing.
+     */
     SINGLE(false, false);
 
     private final boolean inputPartial;

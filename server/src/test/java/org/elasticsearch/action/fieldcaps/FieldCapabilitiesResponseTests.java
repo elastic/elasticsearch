@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.fieldcaps;
@@ -11,10 +12,8 @@ package org.elasticsearch.action.fieldcaps;
 import org.elasticsearch.ElasticsearchExceptionTests;
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
-import org.elasticsearch.Version;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.util.CollectionUtils;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
@@ -29,7 +28,6 @@ import org.hamcrest.Matchers;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Arrays;
-import java.util.Base64;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -40,8 +38,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithMappingHash;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomIndexResponsesWithoutMappingHash;
 import static org.elasticsearch.action.fieldcaps.FieldCapabilitiesIndexResponseTests.randomMappingHashToIndices;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.nullValue;
@@ -123,7 +119,7 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
         );
         FieldCapabilitiesResponse parsedResponse;
         try (XContentParser parser = createParser(xContentType.xContent(), originalBytes)) {
-            parsedResponse = FieldCapabilitiesResponse.fromXContent(parser);
+            parsedResponse = FieldCapsUtils.parseFieldCapsResponse(parser);
             assertNull(parser.nextToken());
         }
         assertNotSame(parsedResponse, randomResponse);
@@ -245,47 +241,5 @@ public class FieldCapabilitiesResponseTests extends AbstractWireSerializingTestC
                 }
             }
         }
-    }
-
-    public void testReadCCSResponseFromPre82() throws Exception {
-        final Version minCompactVersion = Version.CURRENT.minimumCompatibilityVersion();
-        assertTrue("Remove this test once minCompactVersion >= 8.2.0", minCompactVersion.before(Version.V_8_2_0));
-        String base64 = "AAADCGluZGV4XzAxAgpibHVlX2ZpZWxkCmJsdWVfZmllbGQEbG9uZwABAQAAAAlyZWRfZmllbGQJcmVkX2ZpZWxkBHRleHQAAQAAAAABC"
-            + "GluZGV4XzAyAAAIaW5kZXhfMDMCDHllbGxvd19maWVsZAx5ZWxsb3dfZmllbGQHa2V5d29yZAABAQAAAAdfc2VxX25vB19zZXFfbm8EbG9uZwEBAQAAAA"
-            + "EAAAAAAAAAAAA=";
-        StreamInput in = StreamInput.wrap(Base64.getDecoder().decode(base64));
-        in.setTransportVersion(TransportVersions.V_8_1_0);
-        FieldCapabilitiesResponse nodeResp = new FieldCapabilitiesResponse(in);
-        assertThat(nodeResp.getFailures(), empty());
-        assertThat(
-            nodeResp.getIndexResponses(),
-            contains(
-                new FieldCapabilitiesIndexResponse(
-                    "index_01",
-                    null,
-                    Map.of(
-                        "red_field",
-                        new IndexFieldCapabilities("red_field", "text", false, true, false, false, null, Map.of()),
-                        "blue_field",
-                        new IndexFieldCapabilities("blue_field", "long", false, true, true, false, null, Map.of())
-                    ),
-                    true,
-                    IndexMode.STANDARD
-                ),
-                new FieldCapabilitiesIndexResponse("index_02", null, Map.of(), false, IndexMode.STANDARD),
-                new FieldCapabilitiesIndexResponse(
-                    "index_03",
-                    null,
-                    Map.of(
-                        "yellow_field",
-                        new IndexFieldCapabilities("yellow_field", "keyword", false, true, true, false, null, Map.of()),
-                        "_seq_no",
-                        new IndexFieldCapabilities("_seq_no", "long", true, true, true, false, null, Map.of())
-                    ),
-                    true,
-                    IndexMode.STANDARD
-                )
-            )
-        );
     }
 }

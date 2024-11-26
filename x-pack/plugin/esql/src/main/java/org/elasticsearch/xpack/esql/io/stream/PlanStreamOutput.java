@@ -23,14 +23,14 @@ import org.elasticsearch.xpack.esql.Column;
 import org.elasticsearch.xpack.esql.core.InvalidArgumentException;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.io.stream.PlanNameRegistry.PlanWriter;
-import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
 import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.IdentityHashMap;
 import java.util.Map;
-import java.util.function.Function;
+
+import static org.elasticsearch.xpack.esql.core.util.PlanStreamOutput.writeCachedStringWithVersionCheck;
 
 /**
  * A customized stream output used to serialize ESQL physical plan fragments. Complements stream
@@ -68,29 +68,20 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      */
     protected final Map<EsField, Integer> cachedEsFields = new IdentityHashMap<>();
 
-    private final StreamOutput delegate;
-    private final PlanNameRegistry registry;
+    protected final Map<String, Integer> stringCache = new HashMap<>();
 
-    private final Function<Class<?>, String> nameSupplier;
+    private final StreamOutput delegate;
 
     private int nextCachedBlock = 0;
 
-    private int maxSerializedAttributes;
+    private final int maxSerializedAttributes;
 
-    public PlanStreamOutput(StreamOutput delegate, PlanNameRegistry registry, @Nullable Configuration configuration) throws IOException {
-        this(delegate, registry, configuration, PlanNamedTypes::name, MAX_SERIALIZED_ATTRIBUTES);
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration) throws IOException {
+        this(delegate, configuration, MAX_SERIALIZED_ATTRIBUTES);
     }
 
-    public PlanStreamOutput(
-        StreamOutput delegate,
-        PlanNameRegistry registry,
-        @Nullable Configuration configuration,
-        Function<Class<?>, String> nameSupplier,
-        int maxSerializedAttributes
-    ) throws IOException {
+    public PlanStreamOutput(StreamOutput delegate, @Nullable Configuration configuration, int maxSerializedAttributes) throws IOException {
         this.delegate = delegate;
-        this.registry = registry;
-        this.nameSupplier = nameSupplier;
         if (configuration != null) {
             for (Map.Entry<String, Map<String, Column>> table : configuration.tables().entrySet()) {
                 for (Map.Entry<String, Column> column : table.getValue().entrySet()) {
@@ -99,28 +90,6 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             }
         }
         this.maxSerializedAttributes = maxSerializedAttributes;
-    }
-
-    public void writePhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        assert physicalPlan.children().size() <= 1;
-        writeNamed(PhysicalPlan.class, physicalPlan);
-    }
-
-    public void writeOptionalPhysicalPlanNode(PhysicalPlan physicalPlan) throws IOException {
-        if (physicalPlan == null) {
-            writeBoolean(false);
-        } else {
-            writeBoolean(true);
-            writePhysicalPlanNode(physicalPlan);
-        }
-    }
-
-    public <T> void writeNamed(Class<T> type, T value) throws IOException {
-        String name = nameSupplier.apply(value.getClass());
-        @SuppressWarnings("unchecked")
-        PlanWriter<T> writer = (PlanWriter<T>) registry.getWriter(type, name);
-        writeString(name);
-        writer.write(this, value);
     }
 
     @Override
@@ -141,6 +110,9 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     @Override
     public void close() throws IOException {
         delegate.close();
+        stringCache.clear();
+        cachedEsFields.clear();
+        cachedAttributes.clear();
     }
 
     @Override
@@ -157,10 +129,10 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
     /**
      * Write a {@link Block} as part of the plan.
      * <p>
-     *     These {@link Block}s are not tracked by {@link BlockFactory} and closing them
-     *     does nothing so they should be small. We do make sure not to send duplicates,
-     *     reusing blocks sent as part of the {@link Configuration#tables()} if
-     *     possible, otherwise sending a {@linkplain Block} inline.
+     * These {@link Block}s are not tracked by {@link BlockFactory} and closing them
+     * does nothing so they should be small. We do make sure not to send duplicates,
+     * reusing blocks sent as part of the {@link Configuration#tables()} if
+     * possible, otherwise sending a {@linkplain Block} inline.
      * </p>
      */
     public void writeCachedBlock(Block block) throws IOException {
@@ -182,7 +154,8 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeAttributeCacheHeader(Attribute attribute) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
             Integer cacheId = attributeIdFromCache(attribute);
             if (cacheId != null) {
                 writeZLong(cacheId);
@@ -213,7 +186,8 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
 
     @Override
     public boolean writeEsFieldCacheHeader(EsField field) throws IOException {
-        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)) {
+        if (getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
+            || getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
             Integer cacheId = esFieldIdFromCache(field);
             if (cacheId != null) {
                 writeZLong(cacheId);
@@ -223,8 +197,41 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
             cacheId = cacheEsField(field);
             writeZLong(-1 - cacheId);
         }
-        writeString(field.getWriteableName());
+        writeCachedStringWithVersionCheck(this, field.getWriteableName());
         return true;
+    }
+
+    /**
+     * Writes a string caching it, ie. the second time the same string is written, only a small, numeric ID will be sent.
+     * This should be used only to serialize recurring strings.
+     *
+     * Values serialized with this method have to be deserialized with {@link PlanStreamInput#readCachedString()}
+     */
+    @Override
+    public void writeCachedString(String string) throws IOException {
+        Integer cacheId = stringCache.get(string);
+        if (cacheId != null) {
+            writeZLong(cacheId);
+            return;
+        }
+        cacheId = stringCache.size();
+        if (cacheId >= maxSerializedAttributes) {
+            throw new InvalidArgumentException("Limit of the number of serialized strings exceeded [{}]", maxSerializedAttributes);
+        }
+        stringCache.put(string, cacheId);
+
+        writeZLong(-1 - cacheId);
+        writeString(string);
+    }
+
+    @Override
+    public void writeOptionalCachedString(String str) throws IOException {
+        if (str == null) {
+            writeBoolean(false);
+        } else {
+            writeBoolean(true);
+            writeCachedString(str);
+        }
     }
 
     private Integer esFieldIdFromCache(EsField field) {
@@ -282,12 +289,12 @@ public final class PlanStreamOutput extends StreamOutput implements org.elastics
      * This is important because some operations like {@code LOOKUP} frequently read
      * {@linkplain Block}s directly from the configuration.
      * <p>
-     *     It'd be possible to implement this by adding all of the Blocks as "previous"
-     *     keys in the constructor and never use this construct at all, but that'd
-     *     require there be a consistent ordering of Blocks there. We could make one,
-     *     but I'm afraid that'd be brittle as we evolve the code. It'd make wire
-     *     compatibility difficult. This signal is much simpler to deal with even though
-     *     it is more bytes over the wire.
+     * It'd be possible to implement this by adding all of the Blocks as "previous"
+     * keys in the constructor and never use this construct at all, but that'd
+     * require there be a consistent ordering of Blocks there. We could make one,
+     * but I'm afraid that'd be brittle as we evolve the code. It'd make wire
+     * compatibility difficult. This signal is much simpler to deal with even though
+     * it is more bytes over the wire.
      * </p>
      */
     static BytesReference fromConfigKey(String table, String column) throws IOException {

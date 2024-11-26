@@ -11,6 +11,7 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -26,13 +27,19 @@ public class MvExpand extends UnaryPlan {
 
     private final NamedExpression target;
     private final Attribute expanded;
+    private final Integer limit;
 
     private List<Attribute> output;
 
     public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded) {
+        this(source, child, target, expanded, null);
+    }
+
+    public MvExpand(Source source, LogicalPlan child, NamedExpression target, Attribute expanded, Integer limit) {
         super(source, child);
         this.target = target;
         this.expanded = expanded;
+        this.limit = limit;
     }
 
     private MvExpand(StreamInput in) throws IOException {
@@ -40,7 +47,8 @@ public class MvExpand extends UnaryPlan {
             Source.readFrom((PlanStreamInput) in),
             in.readNamedWriteable(LogicalPlan.class),
             in.readNamedWriteable(NamedExpression.class),
-            in.readNamedWriteable(Attribute.class)
+            in.readNamedWriteable(Attribute.class),
+            null // we only need this on the coordinator
         );
     }
 
@@ -50,6 +58,7 @@ public class MvExpand extends UnaryPlan {
         out.writeNamedWriteable(child());
         out.writeNamedWriteable(target());
         out.writeNamedWriteable(expanded());
+        assert limit == null;
     }
 
     @Override
@@ -77,6 +86,19 @@ public class MvExpand extends UnaryPlan {
         return expanded;
     }
 
+    public Integer limit() {
+        return limit;
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return target.references();
+    }
+
+    public String commandName() {
+        return "MV_EXPAND";
+    }
+
     @Override
     public boolean expressionsResolved() {
         return target.resolved();
@@ -84,7 +106,7 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     public UnaryPlan replaceChild(LogicalPlan newChild) {
-        return new MvExpand(source(), newChild, target, expanded);
+        return new MvExpand(source(), newChild, target, expanded, limit);
     }
 
     @Override
@@ -97,12 +119,12 @@ public class MvExpand extends UnaryPlan {
 
     @Override
     protected NodeInfo<? extends LogicalPlan> info() {
-        return NodeInfo.create(this, MvExpand::new, child(), target, expanded);
+        return NodeInfo.create(this, MvExpand::new, child(), target, expanded, limit);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(super.hashCode(), target, expanded);
+        return Objects.hash(super.hashCode(), target, expanded, limit);
     }
 
     @Override
@@ -110,6 +132,7 @@ public class MvExpand extends UnaryPlan {
         if (false == super.equals(obj)) {
             return false;
         }
-        return Objects.equals(target, ((MvExpand) obj).target) && Objects.equals(expanded, ((MvExpand) obj).expanded);
+        MvExpand other = ((MvExpand) obj);
+        return Objects.equals(target, other.target) && Objects.equals(expanded, other.expanded) && Objects.equals(limit, other.limit);
     }
 }

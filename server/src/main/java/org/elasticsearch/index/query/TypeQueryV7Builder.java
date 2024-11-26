@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.query;
@@ -17,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.core.RestApiVersion;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -25,6 +27,7 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_RELEVANCE) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
 public class TypeQueryV7Builder extends AbstractQueryBuilder<TypeQueryV7Builder> {
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TypeQueryV7Builder.class);
     public static final String TYPES_DEPRECATION_MESSAGE = "[types removal] Type queries are deprecated, "

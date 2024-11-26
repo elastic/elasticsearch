@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.search;
@@ -145,7 +146,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                 if (SearchService.canRewriteToMatchNone(searchRequest.source()) == false) {
                     delegate.onResponse(new SearchShardsResponse(toGroups(shardIts), clusterState.nodes().getAllNodes(), aliasFilters));
                 } else {
-                    var canMatchPhase = new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
+                    new CanMatchPreFilterSearchPhase(logger, searchTransportService, (clusterAlias, node) -> {
                         assert Objects.equals(clusterAlias, searchShardsRequest.clusterAlias());
                         return transportService.getConnection(clusterState.nodes().get(node));
                     },
@@ -159,8 +160,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
                         false,
                         searchService.getCoordinatorRewriteContextProvider(timeProvider::absoluteStartMillis),
                         delegate.map(its -> new SearchShardsResponse(toGroups(its), clusterState.nodes().getAllNodes(), aliasFilters))
-                    );
-                    canMatchPhase.start();
+                    ).start();
                 }
             })
         );

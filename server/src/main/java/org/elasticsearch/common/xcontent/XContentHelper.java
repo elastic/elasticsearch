@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.common.xcontent;
@@ -19,6 +20,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -625,7 +627,22 @@ public class XContentHelper {
      */
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
         throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+        return toXContent(toXContent, xContentType, RestApiVersion.current(), params, humanReadable);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(
+        ToXContent toXContent,
+        XContentType xContentType,
+        RestApiVersion restApiVersion,
+        Params params,
+        boolean humanReadable
+    ) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent(), restApiVersion)) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {
                 builder.startObject();

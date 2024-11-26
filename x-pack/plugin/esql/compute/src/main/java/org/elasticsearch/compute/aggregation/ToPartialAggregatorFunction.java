@@ -8,6 +8,7 @@
 package org.elasticsearch.compute.aggregation;
 
 import org.elasticsearch.compute.data.Block;
+import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.CompositeBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.Page;
@@ -37,8 +38,8 @@ public class ToPartialAggregatorFunction implements AggregatorFunction {
     }
 
     @Override
-    public void addRawInput(Page page) {
-        delegate.addRawInput(page);
+    public void addRawInput(Page page, BooleanVector mask) {
+        delegate.addRawInput(page, mask);
     }
 
     @Override

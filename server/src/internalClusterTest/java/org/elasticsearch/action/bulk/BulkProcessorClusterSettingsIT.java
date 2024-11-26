@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.bulk;
@@ -28,7 +29,7 @@ public class BulkProcessorClusterSettingsIT extends ESIntegTestCase {
         internalCluster().startNode(settings);
 
         createIndex("willwork");
-        clusterAdmin().prepareHealth("willwork").setWaitForGreenStatus().get();
+        clusterAdmin().prepareHealth(TEST_REQUEST_TIMEOUT, "willwork").setWaitForGreenStatus().get();
 
         BulkRequestBuilder bulkRequestBuilder = client().prepareBulk();
         bulkRequestBuilder.add(prepareIndex("willwork").setId("1").setSource("{\"foo\":1}", XContentType.JSON));

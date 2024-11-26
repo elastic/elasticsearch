@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.esql.plan.logical;
 
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -37,6 +38,11 @@ public abstract class RegexExtract extends UnaryPlan implements GeneratingPlan<R
     @Override
     public List<Attribute> output() {
         return mergeOutputAttributes(extractedFields, child().output());
+    }
+
+    @Override
+    protected AttributeSet computeReferences() {
+        return input.references();
     }
 
     public Expression input() {

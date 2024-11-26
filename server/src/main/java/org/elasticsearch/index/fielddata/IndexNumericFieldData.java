@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.index.fielddata;
@@ -197,20 +198,16 @@ public abstract class IndexNumericFieldData implements IndexFieldData<LeafNumeri
         MultiValueMode sortMode,
         Nested nested
     ) {
-        switch (targetNumericType) {
-            case HALF_FLOAT:
-            case FLOAT:
-                return new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DOUBLE:
-                return new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
-            case DATE:
-                return dateComparatorSource(missingValue, sortMode, nested);
-            case DATE_NANOSECONDS:
-                return dateNanosComparatorSource(missingValue, sortMode, nested);
-            default:
+        return switch (targetNumericType) {
+            case HALF_FLOAT, FLOAT -> new FloatValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DOUBLE -> new DoubleValuesComparatorSource(this, missingValue, sortMode, nested);
+            case DATE -> dateComparatorSource(missingValue, sortMode, nested);
+            case DATE_NANOSECONDS -> dateNanosComparatorSource(missingValue, sortMode, nested);
+            default -> {
                 assert targetNumericType.isFloatingPoint() == false;
-                return new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
-        }
+                yield new LongValuesComparatorSource(this, missingValue, sortMode, nested, targetNumericType);
+            }
+        };
     }
 
     protected XFieldComparatorSource dateComparatorSource(@Nullable Object missingValue, MultiValueMode sortMode, Nested nested) {

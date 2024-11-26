@@ -12,17 +12,25 @@ import org.elasticsearch.TransportVersion;
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.common.util.LazyInitializable;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.ChunkedInferenceServiceResults;
 import org.elasticsearch.inference.ChunkingOptions;
+import org.elasticsearch.inference.EmptySettingsConfiguration;
+import org.elasticsearch.inference.InferenceServiceConfiguration;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
 import org.elasticsearch.inference.ModelConfigurations;
 import org.elasticsearch.inference.ModelSecrets;
+import org.elasticsearch.inference.SettingsConfiguration;
+import org.elasticsearch.inference.TaskSettingsConfiguration;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationDisplayType;
+import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.Task;
 import org.elasticsearch.xpack.core.inference.results.ErrorChunkedInferenceResults;
 import org.elasticsearch.xpack.core.inference.results.InferenceChunkedSparseEmbeddingResults;
 import org.elasticsearch.xpack.core.inference.results.SparseEmbeddingResults;
@@ -30,15 +38,21 @@ import org.elasticsearch.xpack.core.ml.inference.results.ErrorInferenceResults;
 import org.elasticsearch.xpack.inference.external.action.elastic.ElasticInferenceServiceActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
+import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
 import org.elasticsearch.xpack.inference.services.ConfigurationParseContext;
 import org.elasticsearch.xpack.inference.services.SenderService;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
+import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 
+import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.Set;
 
 import static org.elasticsearch.xpack.core.inference.results.ResultUtils.createInvalidChunkedResultException;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MAX_INPUT_TOKENS;
+import static org.elasticsearch.xpack.inference.services.ServiceFields.MODEL_ID;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.createInvalidModelException;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.parsePersistedConfigErrorMsg;
 import static org.elasticsearch.xpack.inference.services.ServiceUtils.removeFromMapOrDefaultEmpty;
@@ -48,22 +62,25 @@ import static org.elasticsearch.xpack.inference.services.ServiceUtils.throwIfNot
 public class ElasticInferenceService extends SenderService {
 
     public static final String NAME = "elastic";
+    public static final String ELASTIC_INFERENCE_SERVICE_IDENTIFIER = "Elastic Inference Service";
 
     private final ElasticInferenceServiceComponents elasticInferenceServiceComponents;
+
+    private static final EnumSet<TaskType> supportedTaskTypes = EnumSet.of(TaskType.SPARSE_EMBEDDING);
 
     public ElasticInferenceService(
         HttpRequestSender.Factory factory,
         ServiceComponents serviceComponents,
-        ElasticInferenceServiceComponents eisComponents
+        ElasticInferenceServiceComponents elasticInferenceServiceComponents
     ) {
         super(factory, serviceComponents);
-        this.elasticInferenceServiceComponents = eisComponents;
+        this.elasticInferenceServiceComponents = elasticInferenceServiceComponents;
     }
 
     @Override
     protected void doInfer(
         Model model,
-        List<String> input,
+        InferenceInputs inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -74,31 +91,22 @@ public class ElasticInferenceService extends SenderService {
             return;
         }
 
+        // We extract the trace context here as it's sufficient to propagate the trace information of the REST request,
+        // which handles the request to the inference API overall (including the outgoing request, which is started in a new thread
+        // generating a different "traceparent" as every task and every REST request creates a new span).
+        var currentTraceInfo = getCurrentTraceInfo();
+
         ElasticInferenceServiceModel elasticInferenceServiceModel = (ElasticInferenceServiceModel) model;
-        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents());
+        var actionCreator = new ElasticInferenceServiceActionCreator(getSender(), getServiceComponents(), currentTraceInfo);
 
         var action = elasticInferenceServiceModel.accept(actionCreator, taskSettings);
-        action.execute(new DocumentsOnlyInput(input), timeout, listener);
-    }
-
-    @Override
-    protected void doInfer(
-        Model model,
-        String query,
-        List<String> input,
-        Map<String, Object> taskSettings,
-        InputType inputType,
-        TimeValue timeout,
-        ActionListener<InferenceServiceResults> listener
-    ) {
-        throw new UnsupportedOperationException("Query input not supported for Elastic Inference Service");
+        action.execute(inputs, timeout, listener);
     }
 
     @Override
     protected void doChunkedInfer(
         Model model,
-        String query,
-        List<String> input,
+        DocumentsOnlyInput inputs,
         Map<String, Object> taskSettings,
         InputType inputType,
         ChunkingOptions chunkingOptions,
@@ -107,10 +115,10 @@ public class ElasticInferenceService extends SenderService {
     ) {
         // Pass-through without actually performing chunking (result will have a single chunk per input)
         ActionListener<InferenceServiceResults> inferListener = listener.delegateFailureAndWrap(
-            (delegate, response) -> delegate.onResponse(translateToChunkedResults(input, response))
+            (delegate, response) -> delegate.onResponse(translateToChunkedResults(inputs, response))
         );
 
-        doInfer(model, input, taskSettings, inputType, timeout, inferListener);
+        doInfer(model, inputs, taskSettings, inputType, timeout, inferListener);
     }
 
     @Override
@@ -123,7 +131,6 @@ public class ElasticInferenceService extends SenderService {
         String inferenceEntityId,
         TaskType taskType,
         Map<String, Object> config,
-        Set<String> platformArchitectures,
         ActionListener<Model> parsedModelListener
     ) {
         try {
@@ -149,6 +156,16 @@ public class ElasticInferenceService extends SenderService {
         } catch (Exception e) {
             parsedModelListener.onFailure(e);
         }
+    }
+
+    @Override
+    public InferenceServiceConfiguration getConfiguration() {
+        return Configuration.get();
+    }
+
+    @Override
+    public EnumSet<TaskType> supportedTaskTypes() {
+        return supportedTaskTypes;
     }
 
     private static ElasticInferenceServiceModel createModel(
@@ -184,7 +201,7 @@ public class ElasticInferenceService extends SenderService {
         Map<String, Object> secrets
     ) {
         Map<String, Object> serviceSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.SERVICE_SETTINGS);
-        Map<String, Object> taskSettingsMap = removeFromMapOrThrowIfNull(config, ModelConfigurations.TASK_SETTINGS);
+        Map<String, Object> taskSettingsMap = removeFromMapOrDefaultEmpty(config, ModelConfigurations.TASK_SETTINGS);
         Map<String, Object> secretSettingsMap = removeFromMapOrDefaultEmpty(secrets, ModelSecrets.SECRET_SETTINGS);
 
         return createModelFromPersistent(
@@ -247,11 +264,11 @@ public class ElasticInferenceService extends SenderService {
     }
 
     private static List<ChunkedInferenceServiceResults> translateToChunkedResults(
-        List<String> inputs,
+        InferenceInputs inputs,
         InferenceServiceResults inferenceResults
     ) {
         if (inferenceResults instanceof SparseEmbeddingResults sparseEmbeddingResults) {
-            return InferenceChunkedSparseEmbeddingResults.listOf(inputs, sparseEmbeddingResults);
+            return InferenceChunkedSparseEmbeddingResults.listOf(DocumentsOnlyInput.of(inputs).getInputs(), sparseEmbeddingResults);
         } else if (inferenceResults instanceof ErrorInferenceResults error) {
             return List.of(new ErrorChunkedInferenceResults(error.getException()));
         } else {
@@ -270,5 +287,61 @@ public class ElasticInferenceService extends SenderService {
         );
 
         return new ElasticInferenceServiceSparseEmbeddingsModel(model, serviceSettings);
+    }
+
+    private TraceContext getCurrentTraceInfo() {
+        var threadPool = getServiceComponents().threadPool();
+
+        var traceParent = threadPool.getThreadContext().getHeader(Task.TRACE_PARENT);
+        var traceState = threadPool.getThreadContext().getHeader(Task.TRACE_STATE);
+
+        return new TraceContext(traceParent, traceState);
+    }
+
+    public static class Configuration {
+        public static InferenceServiceConfiguration get() {
+            return configuration.getOrCompute();
+        }
+
+        private static final LazyInitializable<InferenceServiceConfiguration, RuntimeException> configuration = new LazyInitializable<>(
+            () -> {
+                var configurationMap = new HashMap<String, SettingsConfiguration>();
+
+                configurationMap.put(
+                    MODEL_ID,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.TEXTBOX)
+                        .setLabel("Model ID")
+                        .setOrder(2)
+                        .setRequired(true)
+                        .setSensitive(false)
+                        .setTooltip("The name of the model to use for the inference task.")
+                        .setType(SettingsConfigurationFieldType.STRING)
+                        .build()
+                );
+
+                configurationMap.put(
+                    MAX_INPUT_TOKENS,
+                    new SettingsConfiguration.Builder().setDisplay(SettingsConfigurationDisplayType.NUMERIC)
+                        .setLabel("Maximum Input Tokens")
+                        .setOrder(3)
+                        .setRequired(false)
+                        .setSensitive(false)
+                        .setTooltip("Allows you to specify the maximum number of tokens per input.")
+                        .setType(SettingsConfigurationFieldType.INTEGER)
+                        .build()
+                );
+
+                configurationMap.putAll(RateLimitSettings.toSettingsConfiguration());
+
+                return new InferenceServiceConfiguration.Builder().setProvider(NAME).setTaskTypes(supportedTaskTypes.stream().map(t -> {
+                    Map<String, SettingsConfiguration> taskSettingsConfig;
+                    switch (t) {
+                        // SPARSE_EMBEDDING task type has no task settings
+                        default -> taskSettingsConfig = EmptySettingsConfiguration.get();
+                    }
+                    return new TaskSettingsConfiguration.Builder().setTaskType(t).setConfiguration(taskSettingsConfig).build();
+                }).toList()).setConfiguration(configurationMap).build();
+            }
+        );
     }
 }

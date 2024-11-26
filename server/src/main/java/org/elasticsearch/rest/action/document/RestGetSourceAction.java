@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.rest.action.document;
@@ -16,7 +17,6 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestChannel;
 import org.elasticsearch.rest.RestRequest;
@@ -46,12 +46,7 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            new Route(GET, "/{index}/_source/{id}"),
-            new Route(HEAD, "/{index}/_source/{id}"),
-            Route.builder(GET, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build(),
-            Route.builder(HEAD, "/{index}/{type}/{id}/_source").deprecated(TYPES_DEPRECATION_MESSAGE, RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, "/{index}/_source/{id}"), new Route(HEAD, "/{index}/_source/{id}"));
     }
 
     @Override
@@ -61,11 +56,6 @@ public class RestGetSourceAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type"); // consume and ignore the type
-            deprecationLogger.compatibleCritical("get_source_with_types", TYPES_DEPRECATION_MESSAGE);
-        }
-
         final GetRequest getRequest = new GetRequest(request.param("index"), request.param("id"));
         getRequest.refresh(request.paramAsBoolean("refresh", getRequest.refresh()));
         getRequest.routing(request.param("routing"));

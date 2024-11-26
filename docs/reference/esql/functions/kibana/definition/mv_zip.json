@@ -271,5 +271,7 @@
   ],
   "examples" : [
     "ROW a = [\"x\", \"y\", \"z\"], b = [\"1\", \"2\"]\n| EVAL c = mv_zip(a, b, \"-\")\n| KEEP a, b, c"
-  ]
+  ],
+  "preview" : false,
+  "snapshot_only" : false
 }

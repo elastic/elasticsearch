@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
 package org.elasticsearch.action.admin.indices.stats;
@@ -53,7 +54,17 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     IndicesStatsResponse(StreamInput in) throws IOException {
         super(in);
         shards = in.readArray(ShardStats::new, ShardStats[]::new);
-        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
+            indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
+            indexStateMap = in.readMap(IndexMetadata.State::readFrom);
+            in.readMap(StreamInput::readStringCollectionAsList); // unused, reverted
+            in.readMap(StreamInput::readLong); // unused, reverted
+        } else if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+            // Between 8.1 and INDEX_STATS_ADDITIONAL_FIELDS, we had a different format for the response
+            // where we only had health and state available.
             indexHealthMap = in.readMap(ClusterHealthStatus::readFrom);
             indexStateMap = in.readMap(IndexMetadata.State::readFrom);
         } else {
@@ -173,7 +184,15 @@ public class IndicesStatsResponse extends ChunkedBroadcastResponse {
     public void writeTo(StreamOutput out) throws IOException {
         super.writeTo(out);
         out.writeArray(shards);
-        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS_REVERT)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_STATS_ADDITIONAL_FIELDS)) {
+            out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
+            out.writeMap(indexStateMap, StreamOutput::writeWriteable);
+            out.writeMap(Map.of(), StreamOutput::writeStringCollection);
+            out.writeMap(Map.of(), StreamOutput::writeLong);
+        } else if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_1_0)) {
             out.writeMap(indexHealthMap, StreamOutput::writeWriteable);
             out.writeMap(indexStateMap, StreamOutput::writeWriteable);
         }

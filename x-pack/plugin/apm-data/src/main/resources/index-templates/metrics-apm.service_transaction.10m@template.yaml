@@ -16,12 +16,14 @@ composed_of:
 - metrics-apm@mappings
 - metrics-apm@settings
 - metrics-apm.service_transaction@mappings
+- metrics-apm.service_transaction.10m-fallback@ilm
 - metrics@custom
 - metrics-apm.service_transaction.10m@custom
 - ecs@mappings
 ignore_missing_component_templates:
 - metrics@custom
 - metrics-apm.service_transaction.10m@custom
+- metrics-apm.service_transaction.10m-fallback@ilm
 template:
   settings:
     index:

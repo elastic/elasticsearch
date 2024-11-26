@@ -1,9 +1,10 @@
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
- * or more contributor license agreements. Licensed under the Elastic License
- * 2.0 and the Server Side Public License, v 1; you may not use this file except
- * in compliance with, at your election, the Elastic License 2.0 or the Server
- * Side Public License, v 1.
+ * or more contributor license agreements. Licensed under the "Elastic License
+ * 2.0", the "GNU Affero General Public License v3.0 only", and the "Server Side
+ * Public License v 1"; you may not use this file except in compliance with, at
+ * your election, the "Elastic License 2.0", the "GNU Affero General Public
+ * License v3.0 only", or the "Server Side Public License, v 1".
  */
 package org.elasticsearch.test;
 
@@ -129,6 +130,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Predicate;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
@@ -142,6 +144,7 @@ import static org.elasticsearch.discovery.DiscoveryModule.DISCOVERY_TYPE_SETTING
 import static org.elasticsearch.discovery.DiscoveryModule.MULTI_NODE_DISCOVERY_TYPE;
 import static org.elasticsearch.discovery.FileBasedSeedHostsProvider.UNICAST_HOSTS_FILE;
 import static org.elasticsearch.node.Node.INITIAL_STATE_TIMEOUT_SETTING;
+import static org.elasticsearch.test.ESTestCase.TEST_REQUEST_TIMEOUT;
 import static org.elasticsearch.test.ESTestCase.assertBusy;
 import static org.elasticsearch.test.ESTestCase.randomFrom;
 import static org.elasticsearch.test.ESTestCase.runInParallel;
@@ -656,12 +659,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     private NodeAndClient getRandomNodeAndClient() {
-        return getRandomNodeAndClient(Predicates.always());
+        var n = nodes;
+        ensureOpen();
+        if (n.isEmpty()) {
+            return null;
+        }
+        return randomFrom(n.values());
     }
 
-    private synchronized NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
-        ensureOpen();
+    private NodeAndClient getRandomNodeAndClient(Predicate<NodeAndClient> predicate) {
         List<NodeAndClient> values = nodes.values().stream().filter(predicate).collect(Collectors.toList());
+        ensureOpen();
         if (values.isEmpty() == false) {
             return randomFrom(random, values);
         }
@@ -819,10 +827,17 @@ public final class InternalTestCluster extends TestCluster {
     }
 
     @Override
-    public synchronized Client client() {
-        ensureOpen();
+    public Client client() {
         /* Randomly return a client to one of the nodes in the cluster */
-        return getOrBuildRandomNode().client();
+        NodeAndClient c = getRandomNodeAndClient();
+        ensureOpen();
+        if (c == null) {
+            synchronized (this) {
+                return getOrBuildRandomNode().client();
+            }
+        } else {
+            return c.client();
+        }
     }
 
     /**
@@ -923,7 +938,7 @@ public final class InternalTestCluster extends TestCluster {
     private final class NodeAndClient implements Closeable {
         private MockNode node;
         private final Settings originalNodeSettings;
-        private Client nodeClient;
+        private volatile Client nodeClient;
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final String name;
         private final int nodeAndClientId;
@@ -937,10 +952,14 @@ public final class InternalTestCluster extends TestCluster {
         }
 
         Node node() {
+            ensureNotClosed();
+            return node;
+        }
+
+        private void ensureNotClosed() {
             if (closed.get()) {
                 throw new RuntimeException("already closed");
             }
-            return node;
         }
 
         public int nodeAndClientId() {
@@ -961,21 +980,21 @@ public final class InternalTestCluster extends TestCluster {
 
         // TODO: collapse these together?
         Client nodeClient() {
-            if (closed.get()) {
-                throw new RuntimeException("already closed");
-            }
             return getOrBuildNodeClient();
         }
 
         private Client getOrBuildNodeClient() {
+            var n = nodeClient;
+            if (n != null) {
+                ensureNotClosed();
+                return n;
+            }
             synchronized (InternalTestCluster.this) {
-                if (closed.get()) {
-                    throw new RuntimeException("already closed");
-                }
+                ensureNotClosed();
                 if (nodeClient == null) {
-                    nodeClient = node.client();
+                    nodeClient = clientWrapper.apply(node.client());
                 }
-                return clientWrapper.apply(nodeClient);
+                return nodeClient;
             }
         }
 
@@ -1224,34 +1243,36 @@ public final class InternalTestCluster extends TestCluster {
         assertFalse(
             client().admin()
                 .cluster()
-                .prepareHealth()
+                .prepareHealth(TEST_REQUEST_TIMEOUT)
                 .setWaitForEvents(Priority.LANGUID)
                 .setWaitForNodes(Integer.toString(expectedNodes.size()))
                 .get(TimeValue.timeValueSeconds(40))
                 .isTimedOut()
         );
         try {
+            final Object[] previousStates = new Object[1];
             assertBusy(() -> {
                 final List<ClusterState> states = nodes.values()
                     .stream()
                     .map(node -> getInstanceFromNode(ClusterService.class, node.node()))
                     .map(ClusterService::state)
                     .toList();
-                final String debugString = ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
+                if (previousStates[0] != null && previousStates[0].equals(states)) {
+                    throw new AssertionError("unchanged");
+                }
+                previousStates[0] = states;
+                final Supplier<String> debugString = () -> ", expected nodes: " + expectedNodes + " and actual cluster states " + states;
                 // all nodes have a master
-                assertTrue("Missing master" + debugString, states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null));
+                assert states.stream().allMatch(cs -> cs.nodes().getMasterNodeId() != null) : "Missing master" + debugString.get();
                 // all nodes have the same master (in same term)
-                assertEquals(
-                    "Not all masters in same term" + debugString,
-                    1,
-                    states.stream().mapToLong(ClusterState::term).distinct().count()
-                );
+                assert 1L == states.stream().mapToLong(ClusterState::term).distinct().count()
+                    : "Not all masters in same term" + debugString.get();
                 // all nodes know about all other nodes
                 states.forEach(cs -> {
                     DiscoveryNodes discoveryNodes = cs.nodes();
-                    assertEquals("Node size mismatch" + debugString, expectedNodes.size(), discoveryNodes.getSize());
+                    assert expectedNodes.size() == discoveryNodes.getSize() : "Node size mismatch" + debugString.get();
                     for (DiscoveryNode expectedNode : expectedNodes) {
-                        assertTrue("Expected node to exist: " + expectedNode + debugString, discoveryNodes.nodeExists(expectedNode));
+                        assert discoveryNodes.nodeExists(expectedNode) : "Expected node to exist: " + expectedNode + debugString.get();
                     }
                 });
             }, 30, TimeUnit.SECONDS);
@@ -1352,7 +1373,7 @@ public final class InternalTestCluster extends TestCluster {
                             if (engine instanceof InternalEngine) {
                                 assertFalse(
                                     indexShard.routingEntry().toString() + " has unreleased snapshotted index commits",
-                                    EngineTestCase.hasAcquiredIndexCommits(engine)
+                                    EngineTestCase.hasAcquiredIndexCommitsForTesting(engine)
                                 );
                             }
                         } catch (AlreadyClosedException ignored) {
@@ -1465,7 +1486,7 @@ public final class InternalTestCluster extends TestCluster {
      */
     public void assertSameDocIdsOnShards() throws Exception {
         assertBusy(() -> {
-            ClusterState state = client().admin().cluster().prepareState().get().getState();
+            ClusterState state = client().admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState();
             for (var indexRoutingTable : state.routingTable().indicesRouting().values()) {
                 for (int i = 0; i < indexRoutingTable.size(); i++) {
                     IndexShardRoutingTable indexShardRoutingTable = indexRoutingTable.shard(i);
@@ -1515,7 +1536,9 @@ public final class InternalTestCluster extends TestCluster {
         // only reset the clients on nightly tests, it causes heavy load...
         if (RandomizedTest.isNightly() && rarely(random)) {
             final Collection<NodeAndClient> nodesAndClients = nodes.values();
+            logger.info("Resetting [{}] node clients on internal test cluster", nodesAndClients.size());
             for (NodeAndClient nodeAndClient : nodesAndClients) {
+                logger.info("Resetting [{}] node client on internal test cluster", nodeAndClient.name);
                 nodeAndClient.resetClient();
             }
         }
@@ -1912,7 +1935,7 @@ public final class InternalTestCluster extends TestCluster {
                 try {
                     client().execute(
                         TransportAddVotingConfigExclusionsAction.TYPE,
-                        new AddVotingConfigExclusionsRequest(excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
+                        new AddVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT, excludedNodeNames.toArray(Strings.EMPTY_ARRAY))
                     ).get();
                 } catch (InterruptedException | ExecutionException e) {
                     ESTestCase.fail(e);
@@ -1928,7 +1951,10 @@ public final class InternalTestCluster extends TestCluster {
             logger.info("removing voting config exclusions for {} after restart/shutdown", excludedNodeIds);
             try {
                 Client client = getRandomNodeAndClient(node -> excludedNodeIds.contains(node.name) == false).client();
-                client.execute(TransportClearVotingConfigExclusionsAction.TYPE, new ClearVotingConfigExclusionsRequest()).get();
+                client.execute(
+                    TransportClearVotingConfigExclusionsAction.TYPE,
+                    new ClearVotingConfigExclusionsRequest(TEST_REQUEST_TIMEOUT)
+                ).get();
             } catch (InterruptedException | ExecutionException e) {
                 ESTestCase.fail(e);
             }
@@ -1984,7 +2010,7 @@ public final class InternalTestCluster extends TestCluster {
     public String getMasterName(@Nullable String viaNode) {
         try {
             Client client = viaNode != null ? client(viaNode) : client();
-            return client.admin().cluster().prepareState().get().getState().nodes().getMasterNode().getName();
+            return client.admin().cluster().prepareState(TEST_REQUEST_TIMEOUT).get().getState().nodes().getMasterNode().getName();
         } catch (Exception e) {
             logger.warn("Can't fetch cluster state", e);
             throw new RuntimeException("Can't get master node " + e.getMessage(), e);

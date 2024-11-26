@@ -6,13 +6,13 @@
 
 [IMPORTANT]
 ====
-cat APIs are only intended for human consumption using the command line or {kib} 
-console. They are _not_ intended for use by applications. For application 
+cat APIs are only intended for human consumption using the command line or {kib}
+console. They are _not_ intended for use by applications. For application
 consumption, use the <<indices-get-index,get index API>>.
 ====
 
-Returns high-level information about indices in a cluster, including backing
-indices for data streams.
+Returns high-level information about <<documents-indices,indices>> in a cluster, including backing
+indices for <<data-streams,data streams>>.
 
 
 [[cat-indices-api-request]]
@@ -49,6 +49,10 @@ indexing and search. As a result, all document counts include hidden
 
 To get an accurate count of {es} documents, use the <<cat-count,cat count>> or
 <<search-count,count>> APIs.
+
+Note that information such as document count, deleted document count and store size are not shown for
+indices restored from <<snapshots-source-only-repository,source-only snapshots>> since these indices
+do not contain the relevant data structures to retrieve this information from.
 
 
 [[cat-indices-api-path-params]]

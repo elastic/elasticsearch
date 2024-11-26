@@ -35,6 +35,10 @@ public record EndpointStats(long operations, long requests, long legacyValue) im
         this(in.readLong(), in.readLong(), in.readLong());
     }
 
+    public EndpointStats {
+        assert legacyValue >= 0 && ((operations == -1 && requests == -1) || (operations >= 0 && requests >= 0));
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
         out.writeLong(operations);
@@ -48,9 +52,13 @@ public record EndpointStats(long operations, long requests, long legacyValue) im
 
     public EndpointStats add(EndpointStats other) {
         if (isLegacyStats() || other.isLegacyStats()) {
-            return new EndpointStats(legacyValue + other.legacyValue);
+            return new EndpointStats(Math.addExact(legacyValue, other.legacyValue));
         } else {
-            return new EndpointStats(operations + other.operations, requests + other.requests, legacyValue + other.legacyValue);
+            return new EndpointStats(
+                Math.addExact(operations, other.operations),
+                Math.addExact(requests, other.requests),
+                Math.addExact(legacyValue, other.legacyValue)
+            );
         }
     }
 

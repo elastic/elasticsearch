@@ -68,3 +68,16 @@ Click the links to review the configuration details of the services:
 
 The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
 the services connect to external providers.
+
+[discrete]
+[[adaptive-allocations-put-inference]]
+==== Adaptive allocations
+
+Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
+
+You can enable adaptive allocations for inference services (<<infer-service-elser,ELSER>>, <<infer-service-elasticsearch,E5 and models uploaded via Eland>>). When adaptive allocations are enabled:
+
+- The number of allocations scales up automatically when the load increases.
+- Allocations scale down to a minimum of 0 when the load decreases, saving resources.
+
+For more information about adaptive allocations and resources, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] documentation.

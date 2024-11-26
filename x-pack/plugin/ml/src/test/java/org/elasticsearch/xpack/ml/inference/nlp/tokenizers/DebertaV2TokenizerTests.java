@@ -23,7 +23,7 @@ import static org.hamcrest.Matchers.not;
 
 public class DebertaV2TokenizerTests extends ESTestCase {
 
-    private static final List<String> TEST_CASE_VOCAB = List.of(
+    public static final List<String> TEST_CASE_VOCAB = List.of(
         DebertaV2Tokenizer.CLASS_TOKEN,
         DebertaV2Tokenizer.PAD_TOKEN,
         DebertaV2Tokenizer.SEPARATOR_TOKEN,
@@ -48,7 +48,7 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         "<0xAD>",
         "▁"
     );
-    private static final List<Double> TEST_CASE_SCORES = List.of(
+    public static final List<Double> TEST_CASE_SCORES = List.of(
         0.0,
         0.0,
         0.0,
@@ -91,6 +91,28 @@ public class DebertaV2TokenizerTests extends ESTestCase {
             assertThat(tokenStrings(tokenization.tokens().get(0)), contains("▁Ela", "stic", "search", "▁fun"));
             assertArrayEquals(new int[] { 4, 5, 6, 8 }, tokenization.tokenIds());
             assertArrayEquals(new int[] { 0, 1, 2, 3 }, tokenization.tokenMap());
+        }
+    }
+
+    public void testVeryLongInputSequence() throws IOException {
+        // Create a long input sequence by repeating tokens from the vocabulary
+        StringBuilder longInput = new StringBuilder();
+
+        for (int i = 0; i < 1000; i++) {
+            longInput.append(TEST_CASE_VOCAB.get(i % TEST_CASE_VOCAB.size())).append(" ");
+        }
+
+        try (
+            DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
+                TEST_CASE_VOCAB,
+                TEST_CASE_SCORES,
+                new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
+            ).build()
+        ) {
+            var request = tokenizer.requestBuilder()
+                .buildRequest(List.of(longInput.toString()), "1", Tokenization.Truncate.BALANCED, -1, null);
+            // Validate the results
+            assertThat(request.tokenization().getTokens().getFirst().tokenIds().length, equalTo(512));
         }
     }
 

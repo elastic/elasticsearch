@@ -15,7 +15,11 @@ import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 
+import static org.hamcrest.Matchers.equalTo;
+
 public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingTestCase<DataStreamOptions.Template> {
+
+    public static final DataStreamOptions.Template RESET = new DataStreamOptions.Template(ResettableValue.reset());
 
     @Override
     protected Writeable.Reader<DataStreamOptions.Template> instanceReader() {
@@ -32,7 +36,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             case 0 -> DataStreamOptions.Template.EMPTY;
             case 1 -> createTemplateWithFailureStoreConfig(true);
             case 2 -> createTemplateWithFailureStoreConfig(false);
-            case 3 -> new DataStreamOptions.Template(ResettableValue.reset());
+            case 3 -> RESET;
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
     }
@@ -66,5 +70,47 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
 
     private static DataStreamOptions.Template createTemplateWithFailureStoreConfig(boolean enabled) {
         return new DataStreamOptions.Template(ResettableValue.create(new DataStreamFailureStore.Template(ResettableValue.create(enabled))));
+    }
+
+    public void testBuilder() {
+        // No updates
+        {
+            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(null);
+            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
+
+            builder = DataStreamOptions.Template.builder(new DataStreamOptions.Template(ResettableValue.undefined()));
+            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
+
+            builder = DataStreamOptions.Template.builder(RESET);
+            assertThat(builder.build(), equalTo(RESET));
+
+            DataStreamOptions.Template initial = new DataStreamOptions.Template(
+                ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
+            );
+            builder = DataStreamOptions.Template.builder(initial);
+            assertThat(builder.build(), equalTo(initial));
+        }
+
+        // Merge
+        {
+            DataStreamOptions.Template initial = randomDataStreamOptions();
+            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(initial);
+            builder.updateFailureStore(ResettableValue.undefined());
+            assertThat(builder.build(), equalTo(initial));
+        }
+
+        // Override
+        {
+            DataStreamOptions.Template.Builder builder = DataStreamOptions.Template.builder(randomDataStreamOptions());
+            builder.updateFailureStore(ResettableValue.reset());
+            assertThat(builder.build(), equalTo(DataStreamOptions.Template.EMPTY));
+
+            builder = DataStreamOptions.Template.builder(randomDataStreamOptions());
+            DataStreamOptions.Template update = new DataStreamOptions.Template(
+                ResettableValue.create(DataStreamFailureStoreTemplateTests.randomFailureStoreTemplate())
+            );
+            builder.updateFailureStore(update.failureStore());
+            assertThat(builder.build(), equalTo(update));
+        }
     }
 }

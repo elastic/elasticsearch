@@ -44,7 +44,7 @@ public class OpenAiUnifiedChatCompletionRequest implements OpenAiRequest {
         HttpPost httpPost = new HttpPost(account.uri());
 
         ByteArrayEntity byteEntity = new ByteArrayEntity(
-            Strings.toString(new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput)).getBytes(StandardCharsets.UTF_8)
+            Strings.toString(new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput, model)).getBytes(StandardCharsets.UTF_8)
         );
         httpPost.setEntity(byteEntity);
 

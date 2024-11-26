@@ -15,6 +15,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Objects;
 
+// TODO remove this
 public class OpenAiChatCompletionRequestEntity implements ToXContentObject {
 
     private static final String MESSAGES_FIELD = "messages";

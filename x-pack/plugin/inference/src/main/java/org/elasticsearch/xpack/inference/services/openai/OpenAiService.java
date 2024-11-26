@@ -33,7 +33,7 @@ import org.elasticsearch.inference.configuration.SettingsConfigurationFieldType;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.xpack.inference.chunking.ChunkingSettingsBuilder;
 import org.elasticsearch.xpack.inference.chunking.EmbeddingRequestChunker;
-import org.elasticsearch.xpack.inference.external.action.SingleInputSenderExecutableAction;
+import org.elasticsearch.xpack.inference.external.action.SenderExecutableAction;
 import org.elasticsearch.xpack.inference.external.action.openai.OpenAiActionCreator;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
@@ -277,13 +277,10 @@ public class OpenAiService extends SenderService {
 
         OpenAiChatCompletionModel openAiModel = (OpenAiChatCompletionModel) model;
 
-        // TODO override fields from the persisted model
-        // var overriddenModel = OpenAiChatCompletionModel.of(model, taskSettings);
-        // TODO create a new OpenAiCompletionRequestManager with the appropriate unified completion input
-        // or look into merging the functionality but that'd require potentially a lot more fields for the old version?
-        var requestCreator = OpenAiCompletionRequestManager.of(openAiModel, getServiceComponents().threadPool());
-        var errorMessage = constructFailedToSendRequestMessage(openAiModel.getServiceSettings().uri(), COMPLETION_ERROR_PREFIX);
-        var action = new SingleInputSenderExecutableAction(getSender(), requestCreator, errorMessage, COMPLETION_ERROR_PREFIX);
+        var overriddenModel = OpenAiChatCompletionModel.of(openAiModel, inputs.getRequest());
+        var requestCreator = OpenAiCompletionRequestManager.of(overriddenModel, getServiceComponents().threadPool());
+        var errorMessage = constructFailedToSendRequestMessage(overriddenModel.getServiceSettings().uri(), COMPLETION_ERROR_PREFIX);
+        var action = new SenderExecutableAction(getSender(), requestCreator, errorMessage);
 
         action.execute(inputs, timeout, listener);
     }

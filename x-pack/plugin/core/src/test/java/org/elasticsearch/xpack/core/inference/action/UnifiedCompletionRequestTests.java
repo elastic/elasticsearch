@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.json.JsonXContent;
@@ -51,7 +52,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 "max_completion_tokens": 100,
                 "n": 1,
                 "stop": ["stop"],
-                "stream": true,
                 "temperature": 0.1,
                 "tools": [
                   {
@@ -192,8 +192,8 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
         return new UnifiedCompletionRequest(
             randomList(5, UnifiedCompletionRequestTests::randomMessage),
             randomNullOrAlphaOfLength(10),
-            randomNullOrLong(),
-            randomNullOrInt(),
+            randomNullOrPositiveLong(),
+            randomNullOrPositiveInt(),
             randomNullOrStop(),
             randomNullOrFloat(),
             randomNullOrToolChoice(),
@@ -286,5 +286,13 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
     @Override
     protected UnifiedCompletionRequest mutateInstance(UnifiedCompletionRequest instance) throws IOException {
         return randomValueOtherThan(instance, this::createTestInstance);
+    }
+
+    @Override
+    protected NamedWriteableRegistry getNamedWriteableRegistry() {
+        // List<NamedWriteableRegistry.Entry> entries = new ArrayList<>();
+        // entries.addAll(new MlInferenceNamedXContentProvider().getNamedWriteables());
+        // entries.addAll(InferenceNamedWriteablesProvider.getNamedWriteables());
+        return new NamedWriteableRegistry(UnifiedCompletionRequest.getNamedWriteables());
     }
 }

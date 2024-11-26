@@ -42,7 +42,7 @@ public class OpenAiChatCompletionModelTests extends ESTestCase {
     public void testOverrideWith_NullMap() {
         var model = createChatCompletionModel("url", "org", "api_key", "model_name", null);
 
-        var overriddenModel = OpenAiChatCompletionModel.of(model, null);
+        var overriddenModel = OpenAiChatCompletionModel.of(model, (Map<String, Object>) null);
         assertThat(overriddenModel, sameInstance(model));
     }
 

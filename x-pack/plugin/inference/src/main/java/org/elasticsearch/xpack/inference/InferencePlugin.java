@@ -83,6 +83,7 @@ import org.elasticsearch.xpack.inference.rest.RestGetInferenceServicesAction;
 import org.elasticsearch.xpack.inference.rest.RestInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestPutInferenceModelAction;
 import org.elasticsearch.xpack.inference.rest.RestStreamInferenceAction;
+import org.elasticsearch.xpack.inference.rest.RestUnifiedCompletionInferenceAction;
 import org.elasticsearch.xpack.inference.rest.RestUpdateInferenceModelAction;
 import org.elasticsearch.xpack.inference.services.ServiceComponents;
 import org.elasticsearch.xpack.inference.services.alibabacloudsearch.AlibabaCloudSearchService;
@@ -152,9 +153,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
 
     @Override
     public List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> getActions() {
-        return List.of(
+        var availableActions = List.of(
             new ActionHandler<>(InferenceAction.INSTANCE, TransportInferenceAction.class),
-            new ActionHandler<>(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class),
+
             new ActionHandler<>(GetInferenceModelAction.INSTANCE, TransportGetInferenceModelAction.class),
             new ActionHandler<>(PutInferenceModelAction.INSTANCE, TransportPutInferenceModelAction.class),
             new ActionHandler<>(UpdateInferenceModelAction.INSTANCE, TransportUpdateInferenceModelAction.class),
@@ -163,6 +164,13 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new ActionHandler<>(GetInferenceDiagnosticsAction.INSTANCE, TransportGetInferenceDiagnosticsAction.class),
             new ActionHandler<>(GetInferenceServicesAction.INSTANCE, TransportGetInferenceServicesAction.class)
         );
+
+        List<ActionHandler<? extends ActionRequest, ? extends ActionResponse>> conditionalActions =
+            UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()
+                ? List.of(new ActionHandler<>(UnifiedCompletionAction.INSTANCE, TransportUnifiedCompletionInferenceAction.class))
+                : List.of();
+
+        return Stream.concat(availableActions.stream(), conditionalActions.stream()).toList();
     }
 
     @Override
@@ -177,7 +185,7 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         Supplier<DiscoveryNodes> nodesInCluster,
         Predicate<NodeFeature> clusterSupportsFeature
     ) {
-        return List.of(
+        var availableRestActions = List.of(
             new RestInferenceAction(),
             new RestStreamInferenceAction(),
             new RestGetInferenceModelAction(),
@@ -187,6 +195,11 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
             new RestGetInferenceDiagnosticsAction(),
             new RestGetInferenceServicesAction()
         );
+        List<RestHandler> conditionalRestActions = UnifiedCompletionFeature.UNIFIED_COMPLETION_FEATURE_FLAG.isEnabled()
+            ? List.of(new RestUnifiedCompletionInferenceAction())
+            : List.of();
+
+        return Stream.concat(availableRestActions.stream(), conditionalRestActions.stream()).toList();
     }
 
     @Override

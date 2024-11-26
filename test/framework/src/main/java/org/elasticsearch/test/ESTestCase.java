@@ -1213,8 +1213,16 @@ public abstract class ESTestCase extends LuceneTestCase {
         return randomBoolean() ? null : randomLong();
     }
 
+    public static Long randomNullOrPositiveLong() {
+        return randomBoolean() ? null : randomLongBetween(0L, Long.MAX_VALUE);
+    }
+
     public static Integer randomNullOrInt() {
         return randomBoolean() ? null : randomInt();
+    }
+
+    public static Integer randomNullOrPositiveInt() {
+        return randomBoolean() ? null : randomIntBetween(0, Integer.MAX_VALUE);
     }
 
     public static Float randomNullOrFloat() {

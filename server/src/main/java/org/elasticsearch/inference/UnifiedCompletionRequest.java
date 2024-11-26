@@ -8,6 +8,7 @@
 package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
+import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -52,11 +53,11 @@ public record UnifiedCompletionRequest(
             (Long) args[2],
             (Integer) args[3],
             (Stop) args[4],
-            (Float) args[6],
-            (ToolChoice) args[7],
-            (List<Tool>) args[8],
-            (Float) args[9],
-            (String) args[10]
+            (Float) args[5],
+            (ToolChoice) args[6],
+            (List<Tool>) args[7],
+            (Float) args[8],
+            (String) args[9]
         )
     );
 
@@ -76,6 +77,17 @@ public record UnifiedCompletionRequest(
         PARSER.declareObjectArray(optionalConstructorArg(), Tool.PARSER::apply, new ParseField("tools"));
         PARSER.declareFloat(optionalConstructorArg(), new ParseField("top_p"));
         PARSER.declareString(optionalConstructorArg(), new ParseField("user"));
+    }
+
+    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
+        return List.of(
+            new NamedWriteableRegistry.Entry(Content.class, ContentObjects.NAME, ContentObjects::new),
+            new NamedWriteableRegistry.Entry(Content.class, ContentString.NAME, ContentString::new),
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceObject.NAME, ToolChoiceObject::new),
+            new NamedWriteableRegistry.Entry(ToolChoice.class, ToolChoiceString.NAME, ToolChoiceString::new),
+            new NamedWriteableRegistry.Entry(Stop.class, StopValues.NAME, StopValues::new),
+            new NamedWriteableRegistry.Entry(Stop.class, StopString.NAME, StopString::new)
+        );
     }
 
     public UnifiedCompletionRequest(StreamInput in) throws IOException {
@@ -157,7 +169,7 @@ public record UnifiedCompletionRequest(
         }
     }
 
-    public record ContentObjects(List<ContentObject> contentObjects) implements Content, Writeable {
+    public record ContentObjects(List<ContentObject> contentObjects) implements Content, NamedWriteable {
 
         public static final String NAME = "content_objects";
 

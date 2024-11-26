@@ -5,16 +5,16 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.inference.rest;
+package org.elasticsearch.xpack.inference;
 
 import org.elasticsearch.common.util.FeatureFlag;
 
 /**
  * Unified Completion feature flag. When the feature is complete, this flag will be removed.
- * Enable feature via JVM option: `-Des.unified_feature_flag_enabled=true`.
+ * Enable feature via JVM option: `-Des.inference_unified_feature_flag_enabled=true`.
  */
 public class UnifiedCompletionFeature {
-    public static final FeatureFlag UNIFIED_COMPLETION_FEATURE_FLAG = new FeatureFlag("unified");
+    public static final FeatureFlag UNIFIED_COMPLETION_FEATURE_FLAG = new FeatureFlag("inference_unified");
 
     private UnifiedCompletionFeature() {}
 }

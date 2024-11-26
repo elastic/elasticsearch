@@ -7,10 +7,12 @@
 
 package org.elasticsearch.xpack.inference.external.request.openai;
 
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
+import org.elasticsearch.xpack.inference.services.openai.completion.OpenAiChatCompletionModel;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -44,12 +46,14 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
 
     private final UnifiedCompletionRequest unifiedRequest;
     private final boolean stream;
+    private final OpenAiChatCompletionModel model;
 
-    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
+    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
         Objects.requireNonNull(unifiedChatInput);
 
         this.unifiedRequest = unifiedChatInput.getRequest();
         this.stream = unifiedChatInput.stream();
+        this.model = Objects.requireNonNull(model);
     }
 
     @Override
@@ -162,9 +166,11 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         if (unifiedRequest.topP() != null) {
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
-        if (unifiedRequest.user() != null && unifiedRequest.user().isEmpty() == false) {
-            builder.field(USER_FIELD, unifiedRequest.user());
+
+        if (Strings.isNullOrEmpty(model.getTaskSettings().user())) {
+            builder.field(USER_FIELD, model.getTaskSettings().user());
         }
+
         builder.field(STREAM_FIELD, stream);
         builder.endObject();
         return builder;

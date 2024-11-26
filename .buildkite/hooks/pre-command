@@ -117,3 +117,7 @@ if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
   echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
   sudo systemctl restart dnsmasq.service
 fi
+
+if [[ "${BUILDKITE_PULL_REQUEST:-}" ]]; then
+  source .buildkite/scripts/get-latest-test-mutes.sh
+fi

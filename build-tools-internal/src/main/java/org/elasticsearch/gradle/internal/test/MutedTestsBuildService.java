@@ -37,9 +37,9 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
     public MutedTestsBuildService() {
         File infoPath = getParameters().getInfoPath().get().getAsFile();
         File mutedTestsFile = new File(infoPath, "muted-tests.yml");
-        excludePatterns.addAll(buildExcludePatterns(mutedTestsFile));
+        addExcludes(buildExcludePatterns(mutedTestsFile));
         for (RegularFile regularFile : getParameters().getAdditionalFiles().get()) {
-            excludePatterns.addAll(buildExcludePatterns(regularFile.getAsFile()));
+            addExcludes(buildExcludePatterns(regularFile.getAsFile()));
         }
     }
 
@@ -92,6 +92,16 @@ public abstract class MutedTestsBuildService implements BuildService<MutedTestsB
         }
 
         return excludes;
+    }
+
+    private void addExcludes(List<String> excludes) {
+        // Don't add the same exclude multiple times
+        for (String exclude : excludes) {
+            if (excludePatterns.stream().noneMatch(e -> e.equals(exclude))) {
+                excludePatterns.add(exclude);
+            }
+        }
+
     }
 
     public interface Params extends BuildServiceParameters {

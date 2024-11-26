@@ -46,7 +46,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         List<RepositoryStatsSnapshot> archivedStats = repositoriesStatsArchive.getArchivedStats();
         assertThat(archivedStats.size(), equalTo(statsToBeRetainedCount));
         for (RepositoryStatsSnapshot repositoryStatsSnapshot : archivedStats) {
-            assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts, equalTo(Map.of("GET", 10L)));
+            assertThat(repositoryStatsSnapshot.getRepositoryStats().requestCounts, equalTo(Map.of("GET", new EndpointStats(10, 13, 13))));
         }
     }
 

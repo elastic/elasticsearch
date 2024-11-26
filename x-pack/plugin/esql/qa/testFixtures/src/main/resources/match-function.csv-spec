@@ -315,7 +315,7 @@ testMatchUnsignedLongField
 required_capability: match_function
 
 from ul_logs
-| where match(bytes_out, to_ul(12749081495402663265))
+| where match(bytes_out, 12749081495402663265)
 | keep bytes_out;
 
 bytes_out:unsigned_long

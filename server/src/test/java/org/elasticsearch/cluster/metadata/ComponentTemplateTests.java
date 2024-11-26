@@ -107,7 +107,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     public static ResettableValue<DataStreamOptions.Template> randomDataStreamOptionsTemplate() {
         return switch (randomIntBetween(0, 2)) {
             case 0 -> ResettableValue.undefined();
-            case 1 -> ResettableValue.unset();
+            case 1 -> ResettableValue.reset();
             case 2 -> ResettableValue.create(DataStreamOptionsTemplateTests.randomDataStreamOptions());
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };

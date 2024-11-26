@@ -26,24 +26,24 @@ import java.util.function.Function;
  * - It has a concrete value, or
  * - It is missing, or
  * - It is meant to reset any other when it is composed with it.
- * It is mainly used in template composition to capture the case when the user wished to unset any previous values.
+ * It is mainly used in template composition to capture the case when the user wished to reset any previous values.
  * @param <T>
  */
 public class ResettableValue<T> {
-    private static final ResettableValue<?> UNSET = new ResettableValue<>(true, null);
+    private static final ResettableValue<?> RESET = new ResettableValue<>(true, null);
     private static final ResettableValue<?> UNDEFINED = new ResettableValue<>(false, null);
-    private static final String SKIP_UNSET_VALUES = "unset";
-    private static final Map<String, String> SKIP_RESET_VALUES_PARAMS = Map.of(SKIP_UNSET_VALUES, "true");
+    private static final String SKIP_RESET_VALUES = "reset";
+    private static final Map<String, String> SKIP_RESET_VALUES_PARAMS = Map.of(SKIP_RESET_VALUES, "true");
 
     private final T value;
     private final boolean isDefined;
 
     /**
-     * @return the unset state, meaning that this value is explicitly requested to be unset
+     * @return the reset state, meaning that this value is explicitly requested to be reset
      */
-    public static <T> ResettableValue<T> unset() {
+    public static <T> ResettableValue<T> reset() {
         @SuppressWarnings("unchecked")
-        ResettableValue<T> t = (ResettableValue<T>) UNSET;
+        ResettableValue<T> t = (ResettableValue<T>) RESET;
         return t;
     }
 
@@ -72,14 +72,14 @@ public class ResettableValue<T> {
     }
 
     /**
-     * @return true if the state of this is unset
+     * @return true if the state of this is reset
      */
-    public boolean isUnset() {
+    public boolean shouldReset() {
         return isDefined && value == null;
     }
 
     /**
-     * @return true when the value is defined, either with a concrete value or unset.
+     * @return true when the value is defined, either with a concrete value or reset.
      */
     public boolean isDefined() {
         return isDefined;
@@ -102,8 +102,8 @@ public class ResettableValue<T> {
     static <T> void write(StreamOutput out, ResettableValue<T> value, Writeable.Writer<T> writer) throws IOException {
         out.writeBoolean(value.isDefined);
         if (value.isDefined) {
-            out.writeBoolean(value.isUnset());
-            if (value.isUnset() == false) {
+            out.writeBoolean(value.shouldReset());
+            if (value.shouldReset() == false) {
                 writer.write(out, value.get());
             }
         }
@@ -124,7 +124,7 @@ public class ResettableValue<T> {
         }
         boolean shouldReset = in.readBoolean();
         if (shouldReset) {
-            return ResettableValue.unset();
+            return ResettableValue.reset();
         }
         T value = reader.read(in);
         return ResettableValue.create(value);
@@ -134,7 +134,7 @@ public class ResettableValue<T> {
      * Gets the value and applies the function {@param f} when the value is not null.
      */
     public <U> U applyAndGet(Function<? super T, ? extends U> f) {
-        if (isDefined() == false || isUnset()) {
+        if (isDefined() == false || shouldReset()) {
             return null;
         } else {
             return f.apply(value);
@@ -146,27 +146,27 @@ public class ResettableValue<T> {
         if (isDefined == false) {
             return ResettableValue.undefined();
         }
-        if (isUnset()) {
-            return unset();
+        if (shouldReset()) {
+            return reset();
         }
         return ResettableValue.create(mapper.apply(value));
     }
 
     /**
      * Applies the {@param mergeFunction} to the current value while respecting the different states:
-     * - If the newer value is unset, it returns {@link #undefined()} since it unsets any previous values
+     * - If the newer value is reset, it returns {@link #undefined()} since it resets any previous values
      * - If the newer value is undefined, it returns <code>this</code>
      * - If the current value is undefined, it returns {@param other}
      * - otherwise, it merges the two values based on the provided function
      */
     public ResettableValue<T> merge(ResettableValue<T> other, Function<T, T> mergeFunction) {
-        if (other.isUnset()) {
+        if (other.shouldReset()) {
             return undefined();
         }
         if (other.isDefined() == false) {
             return this;
         }
-        if (this.isDefined() == false || this.isUnset()) {
+        if (this.isDefined() == false || this.shouldReset()) {
             return other;
         }
         return this.map(mergeFunction);
@@ -197,7 +197,7 @@ public class ResettableValue<T> {
     }
 
     public static boolean shouldDisplayResetValue(ToXContent.Params params) {
-        return params.paramAsBoolean(SKIP_UNSET_VALUES, false) == false;
+        return params.paramAsBoolean(SKIP_RESET_VALUES, false) == false;
     }
 
     public static ToXContent.Params disableResetValues(ToXContent.Params params) {

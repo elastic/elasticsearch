@@ -1738,7 +1738,7 @@ public class MetadataIndexTemplateService {
             if (current.isDefined() == false) {
                 continue;
             }
-            if (current.isUnset()) {
+            if (current.shouldReset()) {
                 builder = null;
             } else {
                 DataStreamOptions.Template currentTemplate = current.get();

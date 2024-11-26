@@ -32,7 +32,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             case 0 -> DataStreamOptions.Template.EMPTY;
             case 1 -> createTemplateWithFailureStoreConfig(true);
             case 2 -> createTemplateWithFailureStoreConfig(false);
-            case 3 -> new DataStreamOptions.Template(ResettableValue.unset());
+            case 3 -> new DataStreamOptions.Template(ResettableValue.reset());
             default -> throw new IllegalArgumentException("Illegal randomisation branch");
         };
     }
@@ -44,10 +44,10 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
             if (randomBoolean()) {
                 return createTemplateWithFailureStoreConfig(randomBoolean());
             } else {
-                return new DataStreamOptions.Template(ResettableValue.unset());
+                return new DataStreamOptions.Template(ResettableValue.reset());
             }
         }
-        if (failureStore.isUnset()) {
+        if (failureStore.shouldReset()) {
             if (randomBoolean()) {
                 return createTemplateWithFailureStoreConfig(randomBoolean());
             } else {

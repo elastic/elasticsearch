@@ -124,7 +124,7 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             PARSER.declareObjectOrNull(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, s) -> ResettableValue.create(DataStreamFailureStore.Template.fromXContent(p)),
-                ResettableValue.unset(),
+                ResettableValue.reset(),
                 FAILURE_STORE_FIELD
             );
         }

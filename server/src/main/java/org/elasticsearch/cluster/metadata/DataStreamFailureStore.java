@@ -108,7 +108,7 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
             PARSER.declareField(
                 ConstructingObjectParser.optionalConstructorArg(),
                 (p, c) -> p.currentToken() == XContentParser.Token.VALUE_NULL
-                    ? ResettableValue.unset()
+                    ? ResettableValue.reset()
                     : ResettableValue.create(p.booleanValue()),
                 ENABLED_FIELD,
                 ObjectParser.ValueType.BOOLEAN_OR_NULL

@@ -92,7 +92,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         PARSER.declareObjectOrNull(
             ConstructingObjectParser.optionalConstructorArg(),
             (p, c) -> ResettableValue.create(DataStreamOptions.Template.fromXContent(p)),
-            ResettableValue.unset(),
+            ResettableValue.reset(),
             DATA_STREAM_OPTIONS
         );
     }

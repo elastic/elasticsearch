@@ -1615,7 +1615,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         state = addComponentTemplate(service, state, ctFailureStoreDisabled, DataStreamTestHelper.createDataStreamOptionsTemplate(false));
 
         String ctFailureStoreNullified = "ct_null_failure_store";
-        DataStreamOptions.Template nullifiedFailureStore = new DataStreamOptions.Template(ResettableValue.unset());
+        DataStreamOptions.Template nullifiedFailureStore = new DataStreamOptions.Template(ResettableValue.reset());
         state = addComponentTemplate(service, state, ctFailureStoreNullified, nullifiedFailureStore);
 
         // Component A: -

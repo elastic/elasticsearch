@@ -141,6 +141,12 @@ public class EsqlCapabilities {
         CASE_MV,
 
         /**
+         * Support for loading values over enrich. This is supported by all versions of ESQL but not
+         * the unit test CsvTests.
+         */
+        ENRICH_LOAD,
+
+        /**
          * Optimization for ST_CENTROID changed some results in cartesian data. #108713
          */
         ST_CENTROID_AGG_OPTIMIZED,
@@ -307,7 +313,7 @@ public class EsqlCapabilities {
         /**
          * Support for match operator as a colon. Previous support for match operator as MATCH has been removed
          */
-        MATCH_OPERATOR_COLON(Build.current().isSnapshot()),
+        MATCH_OPERATOR_COLON,
 
         /**
          * Removing support for the {@code META} keyword.
@@ -410,6 +416,11 @@ public class EsqlCapabilities {
         MATCH_FUNCTION,
 
         /**
+         * KQL function
+         */
+        KQL_FUNCTION(Build.current().isSnapshot()),
+
+        /**
          * Don't optimize CASE IS NOT NULL function by not requiring the fields to be not null as well.
          * https://github.com/elastic/elasticsearch/issues/112704
          */
@@ -426,6 +437,12 @@ public class EsqlCapabilities {
         SORTING_ON_SOURCE_AND_COUNTERS_FORBIDDEN,
 
         /**
+         * Fix {@code SORT} when the {@code _source} field is not a sort key but
+         * <strong>is</strong> being returned.
+         */
+        SORT_RETURNING_SOURCE_OK,
+
+        /**
          * Allow filter per individual aggregation.
          */
         PER_AGG_FILTERING,
@@ -434,6 +451,11 @@ public class EsqlCapabilities {
          * Fix {@link #PER_AGG_FILTERING} grouped by ordinals.
          */
         PER_AGG_FILTERING_ORDS,
+
+        /**
+         * Support for {@code STD_DEV} aggregation.
+         */
+        STD_DEV,
 
         /**
          * Fix for https://github.com/elastic/elasticsearch/issues/114714
@@ -499,7 +521,17 @@ public class EsqlCapabilities {
         /**
          * LOOKUP JOIN
          */
-        JOIN_LOOKUP(Build.current().isSnapshot());
+        JOIN_LOOKUP(Build.current().isSnapshot()),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/117054
+         */
+        FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
+
+        /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
 
         private final boolean enabled;
 
@@ -543,9 +575,6 @@ public class EsqlCapabilities {
          * Add all of our cluster features without the leading "esql."
          */
         for (NodeFeature feature : new EsqlFeatures().getFeatures()) {
-            caps.add(cap(feature));
-        }
-        for (NodeFeature feature : new EsqlFeatures().getHistoricalFeatures().keySet()) {
             caps.add(cap(feature));
         }
         return Set.copyOf(caps);

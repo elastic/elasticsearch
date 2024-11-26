@@ -87,12 +87,20 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
         writeSize(shardSize, out);
         out.writeBoolean(showTermDocCountError);
         out.writeVLong(otherDocCount);
-        out.writeCollection(buckets);
+        out.writeVInt(buckets.size());
+        for (var bucket : buckets) {
+            bucket.writeTo(out, showTermDocCountError);
+        }
     }
 
     @Override
     protected void setDocCountError(long docCountError) {
         this.docCountError = docCountError;
+    }
+
+    @Override
+    protected boolean getShowDocCountError() {
+        return showTermDocCountError;
     }
 
     @Override
@@ -145,6 +153,6 @@ public abstract class InternalMappedTerms<A extends InternalTerms<A, B>, B exten
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, docCountError, otherDocCount, buckets);
+        return doXContentCommon(builder, params, showTermDocCountError, docCountError, otherDocCount, buckets);
     }
 }

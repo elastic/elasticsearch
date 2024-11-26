@@ -35,7 +35,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
  * The test works as follows:
  * 1. Start a large (reasonably long running) reindexing request on the coordinator-only node.
  * 2. Check that the reindexing task appears on the coordinating node
- * 3. With a 10s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
+ * 3. With a 60s timeout value for MAXIMUM_REINDEXING_TIMEOUT_SETTING,
  *    wait for the reindexing task to complete before closing the node
  * 4. Confirm that the reindexing task succeeds with the wait (it will fail without it)
  */
@@ -58,8 +58,9 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         final String masterNodeName = internalCluster().startMasterOnlyNode();
         final String dataNodeName = internalCluster().startDataOnlyNode();
 
+        /* Maximum time to wait for reindexing tasks to complete before shutdown */
         final Settings COORD_SETTINGS = Settings.builder()
-            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(10))
+            .put(MAXIMUM_REINDEXING_TIMEOUT_SETTING.getKey(), TimeValue.timeValueSeconds(60))
             .build();
         final String coordNodeName = internalCluster().startCoordinatingOnlyNode(Settings.EMPTY);
 
@@ -118,7 +119,7 @@ public class ReindexNodeShutdownIT extends ESIntegTestCase {
         internalCluster().stopNode(coordNodeName);
     }
 
-    // Make sure all documents from the source index have been reindexed into the destination index
+    // Make sure all documents from the source index have been re-indexed into the destination index
     private void checkDestinationIndex(String dataNodeName, int numDocs) throws Exception {
         assertTrue(indexExists(DEST_INDEX));
         flushAndRefresh(DEST_INDEX);

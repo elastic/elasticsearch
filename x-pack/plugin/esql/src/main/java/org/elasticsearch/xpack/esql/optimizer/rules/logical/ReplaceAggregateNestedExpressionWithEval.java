@@ -46,8 +46,6 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
         List<Expression> newGroupings = new ArrayList<>(aggregate.groupings());
         boolean groupingChanged = false;
 
-        Map<NamedExpression, NamedExpression> replacedAggs = new IdentityHashMap<>();
-
         // start with the groupings since the aggs might duplicate it
         for (int i = 0, s = newGroupings.size(); i < s; i++) {
             Expression g = newGroupings.get(i);
@@ -57,22 +55,13 @@ public final class ReplaceAggregateNestedExpressionWithEval extends OptimizerRul
                 if (as.child() instanceof Categorize cat) {
                     if (cat.field() instanceof Attribute == false) {
                         groupingChanged = true;
-                        var catAs = new Alias(as.source(), as.name(), cat.field());
-                        var attr = catAs.toAttribute();
-                        evals.add(catAs);
-                        evalNames.put(catAs.name(), attr);
-                        Categorize replacement = cat.replaceChildren(List.of(attr));
+                        var fieldAs = new Alias(as.source(), as.name(), cat.field(), null, true);
+                        var fieldAttr = fieldAs.toAttribute();
+                        evals.add(fieldAs);
+                        evalNames.put(fieldAs.name(), fieldAttr);
+                        Categorize replacement = cat.replaceChildren(List.of(fieldAttr));
                         newGroupings.set(i, as.replaceChild(replacement));
-                        ReferenceAttribute ref = new ReferenceAttribute(
-                            as.source(),
-                            as.name(),
-                            attr.dataType(),
-                            attr.nullable(),
-                            attr.id(),
-                            true
-                        );
-                        groupingAttributes.put(cat, ref);
-                        replacedAggs.put(as.toAttribute(), ref);
+                        groupingAttributes.put(cat, fieldAttr);
                     }
                 } else {
                     groupingChanged = true;

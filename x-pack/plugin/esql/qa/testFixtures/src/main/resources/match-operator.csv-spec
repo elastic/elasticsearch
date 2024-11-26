@@ -219,6 +219,7 @@ count(*): long  | author.keyword:keyword
 ;
 
 testMatchIpField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from clientips
@@ -229,6 +230,7 @@ client_ip:keyword   | env:keyword
 ;
 
 testMatchDateField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -240,6 +242,7 @@ millis:date
 ;
 
 testMatchPartialDateField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -251,6 +254,7 @@ millis:date
 ;
 
 testMatchDateNanosField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -262,6 +266,7 @@ nanos:date_nanos
 ;
 
 testMatchPartialDateNanosField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -273,6 +278,7 @@ nanos:date_nanos
 ;
 
 testMatchBooleanField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -288,6 +294,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -299,6 +306,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -310,6 +318,7 @@ emp_no:integer | salary_change:double
 ;
 
 testMatchDoubleField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from employees 
@@ -321,6 +330,7 @@ emp_no:integer | salary_change:double
 ;  
 
 testMatchLongField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from date_nanos
@@ -332,6 +342,7 @@ num:long
 ;
 
 testMatchUnsignedLongField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from ul_logs
@@ -343,6 +354,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchVersionField
+required_capability: match_operator_colon
 required_capability: match_additional_types
 
 from apps 

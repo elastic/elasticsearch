@@ -17,23 +17,22 @@ import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-public final class StExtentGroupingState extends AbstractArrayState {
+final class StExtentGroupingState extends AbstractArrayState {
     private final PointType pointType;
     private IntArray minXs;
     private IntArray maxXs;
     private IntArray maxYs;
     private IntArray minYs;
 
-    StExtentGroupingState(PointType pointType) {
+    public StExtentGroupingState(PointType pointType) {
         this(pointType, BigArrays.NON_RECYCLING_INSTANCE);
     }
 
-    StExtentGroupingState(PointType pointType, BigArrays bigArrays) {
+    public StExtentGroupingState(PointType pointType, BigArrays bigArrays) {
         super(bigArrays);
         this.pointType = pointType;
         this.minXs = bigArrays.newIntArray(0, false);
@@ -69,7 +68,7 @@ public final class StExtentGroupingState extends AbstractArrayState {
 
     public void add(int groupId, Geometry geometry) {
         ensureCapacity(groupId);
-        SpatialEnvelopeVisitor.visit(geometry)
+        pointType.computeEnvelope(geometry)
             .ifPresent(
                 r -> add(
                     groupId,

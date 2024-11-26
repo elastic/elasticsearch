@@ -124,17 +124,17 @@ extent:geo_point
 BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
 ;
 
-extent:geo_point
-BBOX (0.0, 1.0, 1.0, 0.0)
-;
-
 stExtentMultipleGeoPoints
 required_capability: st_extent_agg
+// tag::st_extent_agg-airports[]
 FROM airports | WHERE country == "India" | STATS extent = st_extent(location)
+// end::st_extent_agg-airports[]
 ;
 
+// tag::st_extent_agg-airports-result[]
 extent:geo_point
 BBOX (70.77995480038226, 91.5882289968431, 33.9830909203738, 8.47650992218405)
+// end::st_extent_agg-airports-result[]
 ;
 
 stExtentMultipleGeoPointsNoDocValues

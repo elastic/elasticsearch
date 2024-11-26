@@ -74,7 +74,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
      * Determine the BBOX without considering the CRS or wrapping of the longitude.
      * Note that incoming BBOX's that do cross the dateline (minx>maxx) will be treated as invalid.
      */
-    public static Optional<Rectangle> visit(Geometry geometry) {
+    public static Optional<Rectangle> visitCartesian(Geometry geometry) {
         var visitor = new SpatialEnvelopeVisitor(new CartesianPointVisitor());
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -85,7 +85,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
     /**
      * Determine the BBOX assuming the CRS is geographic (eg WGS84) and optionally wrapping the longitude around the dateline.
      */
-    public static Optional<Rectangle> visit(Geometry geometry, boolean wrapLongitude) {
+    public static Optional<Rectangle> visitGeo(Geometry geometry, boolean wrapLongitude) {
         var visitor = new SpatialEnvelopeVisitor(new GeoPointVisitor(wrapLongitude));
         if (geometry.visit(visitor)) {
             return Optional.of(visitor.getResult());
@@ -133,7 +133,7 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         @Override
         public void visitRectangle(double minX, double maxX, double maxY, double minY) {
             if (minX > maxX) {
-                throw new IllegalArgumentException("Invalid cartesian rectangle: minX > maxX");
+                throw new IllegalArgumentException("Invalid cartesian rectangle: minX (%s) > maxX (%s)".formatted(minX, maxX));
             }
             this.minX = Math.min(this.minX, minX);
             this.minY = Math.min(this.minY, minY);

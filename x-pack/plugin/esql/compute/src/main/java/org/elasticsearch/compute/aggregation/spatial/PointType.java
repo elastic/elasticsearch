@@ -9,6 +9,11 @@ package org.elasticsearch.compute.aggregation.spatial;
 
 import org.apache.lucene.geo.GeoEncodingUtils;
 import org.apache.lucene.geo.XYEncodingUtils;
+import org.elasticsearch.geometry.Geometry;
+import org.elasticsearch.geometry.Rectangle;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
+
+import java.util.Optional;
 
 enum PointType {
     GEO,
@@ -54,6 +59,13 @@ enum PointType {
         return switch (this) {
             case GEO -> SpatialAggregationUtils.extractX(encoded);
             case CARTESIAN -> SpatialAggregationUtils.extractY(encoded);
+        };
+    }
+
+    public Optional<Rectangle> computeEnvelope(Geometry geo) {
+        return switch (this) {
+            case GEO -> SpatialEnvelopeVisitor.visitGeo(geo, false);
+            case CARTESIAN -> SpatialEnvelopeVisitor.visitCartesian(geo);
         };
     }
 }

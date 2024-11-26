@@ -13,12 +13,11 @@ import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Rectangle;
-import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 
 import java.nio.ByteOrder;
 
-public final class StExtentState implements AggregatorState {
+final class StExtentState implements AggregatorState {
     private final PointType pointType;
     private boolean seen = false;
     private int minX = Integer.MAX_VALUE;
@@ -26,7 +25,7 @@ public final class StExtentState implements AggregatorState {
     private int maxY = Integer.MIN_VALUE;
     private int minY = Integer.MAX_VALUE;
 
-    StExtentState(PointType pointType) {
+    public StExtentState(PointType pointType) {
         this.pointType = pointType;
     }
 
@@ -44,7 +43,7 @@ public final class StExtentState implements AggregatorState {
     }
 
     public void add(Geometry geo) {
-        SpatialEnvelopeVisitor.visit(geo)
+        pointType.computeEnvelope(geo)
             .ifPresent(
                 r -> add(
                     pointType.encodeX(r.getMinX()),

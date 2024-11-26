@@ -36,6 +36,7 @@ import org.elasticsearch.xpack.esql.expression.function.MultiRowTestCaseSupplier
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
 
 import java.util.List;
+import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
@@ -55,7 +56,8 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
         var suppliers = Stream.of(
             MultiRowTestCaseSupplier.geoPointCases(1, 1000, IncludingAltitude.NO),
             MultiRowTestCaseSupplier.cartesianPointCases(1, 1000, IncludingAltitude.NO),
-            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO)
+            MultiRowTestCaseSupplier.geoShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO),
+            MultiRowTestCaseSupplier.cartesianShapeCasesWithoutCircle(1, 1000, IncludingAltitude.NO)
         ).flatMap(List::stream).map(SpatialStExtentTests::makeSupplier).toList();
 
         // The withNoRowsExpectingNull() cases don't work here, as this aggregator doesn't return nulls.
@@ -69,9 +71,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
-        if (fieldSupplier.type() != DataType.CARTESIAN_POINT
-            && fieldSupplier.type() != DataType.GEO_POINT
-            && fieldSupplier.type() != DataType.GEO_SHAPE) {
+        if (ALLOWED_SHAPES.contains(fieldSupplier.type()) == false) {
             throw new IllegalArgumentException("Unexpected type: " + fieldSupplier.type());
         }
 
@@ -97,6 +97,13 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
             );
         });
     }
+
+    private static final Set<DataType> ALLOWED_SHAPES = Set.of(
+        DataType.CARTESIAN_POINT,
+        DataType.GEO_POINT,
+        DataType.CARTESIAN_SHAPE,
+        DataType.GEO_SHAPE
+    );
 
     private static class GeometryToPointsVisitor implements GeometryVisitor<List<Point>, RuntimeException> {
         @Override

@@ -24,7 +24,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitCartesianShape() {
         for (int i = 0; i < 1000; i++) {
             var geometry = ShapeTestUtils.randomGeometryWithoutCircle(0, false);
-            var bbox = SpatialEnvelopeVisitor.visit(geometry);
+            var bbox = SpatialEnvelopeVisitor.visitCartesian(geometry);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());
             var result = bbox.get();
@@ -36,7 +36,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitGeoShapeNoWrap() {
         for (int i = 0; i < 1000; i++) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, false);
-            var bbox = SpatialEnvelopeVisitor.visit(geometry, false);
+            var bbox = SpatialEnvelopeVisitor.visitCartesian(geometry, false);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());
             var result = bbox.get();
@@ -48,7 +48,7 @@ public class SpatialEnvelopeVisitorTests extends ESTestCase {
     public void testVisitGeoShapeWrap() {
         for (int i = 0; i < 1000; i++) {
             var geometry = GeometryTestUtils.randomGeometryWithoutCircle(0, true);
-            var bbox = SpatialEnvelopeVisitor.visit(geometry, false);
+            var bbox = SpatialEnvelopeVisitor.visitCartesian(geometry, false);
             assertNotNull(bbox);
             assertTrue(i + ": " + geometry, bbox.isPresent());
             var result = bbox.get();

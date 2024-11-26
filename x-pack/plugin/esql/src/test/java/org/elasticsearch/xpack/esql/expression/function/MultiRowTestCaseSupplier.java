@@ -391,6 +391,17 @@ public final class MultiRowTestCaseSupplier {
         );
     }
 
+    public static List<TypedDataSupplier> cartesianShapeCasesWithoutCircle(int minRows, int maxRows, IncludingAltitude includingAltitude) {
+        return spatialCases(
+            minRows,
+            maxRows,
+            includingAltitude,
+            "geo_shape",
+            DataType.CARTESIAN_SHAPE,
+            b -> ShapeTestUtils.randomGeometryWithoutCircle(0, b)
+        );
+    }
+
     public static List<TypedDataSupplier> cartesianPointCases(int minRows, int maxRows, IncludingAltitude includingAltitude) {
         return spatialCases(minRows, maxRows, includingAltitude, "cartesian_point", DataType.CARTESIAN_POINT, ShapeTestUtils::randomPoint);
     }

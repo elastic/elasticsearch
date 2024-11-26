@@ -33,7 +33,7 @@ import java.util.List;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions.isSpatial;
 
-/** Calculate spatial extent of all geo_point or cartesian point values of a field in matching documents. */
+/** Calculate spatial extent of all values of a field in matching documents. */
 public final class SpatialStExtent extends SpatialAggregateFunction implements ToAggregator {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
@@ -42,10 +42,10 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
     );
 
     @FunctionInfo(
-        returnType = { "geo_point", "cartesian_point" },
+        returnType = { "geo_point", "cartesian_point", "geo_shape", "cartesian_shape" },
         description = "Calculate the extent over a field with spatial point geometry type.",
         isAggregation = true,
-        examples = @Example(file = "spatial", tag = "st_spatial-airports")
+        examples = @Example(file = "spatial", tag = "st_extent_agg-airports")
     )
     public SpatialStExtent(
         Source source,
@@ -84,7 +84,6 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @Override
     public DataType dataType() {
-        // We aggregate incoming GEO_POINTs into a single GEO_POINT, or incoming CARTESIAN_POINTs into a single CARTESIAN_POINT.
         return field().dataType();
     }
 
@@ -100,10 +99,7 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
-        DataType type = field().dataType();
-        return switch (type) {
-            case DataType.GEO_SHAPE -> new SpatialStExtentGeoShapeAggregatorFunctionSupplier(inputChannels);
-            case DataType.CARTESIAN_SHAPE ->  new SpatialStExtentCartesianShapeAggregatorFunctionSupplier(inputChannels);
+        return switch (field().dataType()) {
             case DataType.GEO_POINT -> switch (preference) {
                 case DOC_VALUES -> new SpatialStExtentGeoPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialStExtentGeoPointSourceValuesAggregatorFunctionSupplier(inputChannels);
@@ -112,7 +108,10 @@ public final class SpatialStExtent extends SpatialAggregateFunction implements T
                 case DOC_VALUES -> new SpatialStExtentCartesianPointDocValuesAggregatorFunctionSupplier(inputChannels);
                 case NONE -> new SpatialStExtentCartesianPointSourceValuesAggregatorFunctionSupplier(inputChannels);
             };
-            default -> throw EsqlIllegalArgumentException.illegalDataType(type);
+            // Shapes don't differentiate between source and doc values.
+            case DataType.GEO_SHAPE -> new SpatialStExtentGeoShapeAggregatorFunctionSupplier(inputChannels);
+            case DataType.CARTESIAN_SHAPE -> new SpatialStExtentCartesianShapeAggregatorFunctionSupplier(inputChannels);
+            default -> throw EsqlIllegalArgumentException.illegalDataType(field().dataType());
         };
     }
 }

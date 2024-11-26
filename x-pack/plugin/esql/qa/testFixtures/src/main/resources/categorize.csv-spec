@@ -136,6 +136,89 @@ COUNT():long | CATEGORIZE(message):keyword
            7 | .*?Bread.*?
 ;
 
+mv const in parameter
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
+  | SORT c
+;
+
+COUNT():long | c:keyword
+           7 | .*?Banana.*?
+           7 | .*?Bread.*?
+;
+
+agg alias shadowing
+required_capability: categorize
+
+FROM sample_data
+  | STATS c = COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
+  | SORT c
+;
+
+warning:Line 2:9: Field 'c' shadowed by field at line 2:24
+
+c:keyword
+.*?Banana.*?
+.*?Bread.*?
+;
+
+chained aggregations using categorize
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE(message)
+  | STATS COUNT() BY category=CATEGORIZE(category)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           1 | .*?\.\*\?Connected\.\+\?to\.\*\?.*?
+           1 | .*?\.\*\?Connection\.\+\?error\.\*\?.*?
+           1 | .*?\.\*\?Disconnected\.\*\?.*?
+;
+
+stats without aggs
+required_capability: categorize
+
+FROM sample_data
+  | STATS BY category=CATEGORIZE(message)
+  | SORT category
+;
+
+category:keyword
+.*?Connected.+?to.*?
+.*?Connection.+?error.*?
+.*?Disconnected.*?
+;
+
+text field
+required_capability: categorize
+
+FROM semantic_text
+  | STATS COUNT() BY category=CATEGORIZE(description)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           3 | .*?some.*?
+;
+
+semantic text field
+required_capability: categorize
+
+FROM semantic_text
+  | STATS COUNT() BY category=CATEGORIZE(semantic_text_field)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           1 | .*?all.+?we.+?have.+?to.+?decide.+?is.+?what.+?to.+?do.+?with.+?the.+?time.+?that.+?is.+?given.+?to.+?us.*?
+           1 | .*?be.+?excellent.+?to.+?each.+?other.*?
+           1 | .*?live.+?long.+?and.+?prosper.*?
+;
+
 on TO_UPPER
 required_capability: categorize
 

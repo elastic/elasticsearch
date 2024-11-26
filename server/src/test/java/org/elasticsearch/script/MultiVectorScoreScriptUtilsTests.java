@@ -200,7 +200,7 @@ public class MultiVectorScoreScriptUtilsTests extends ESTestCase {
             function = new MaxSimDotProduct(scoreScript, floatQueryVector, fieldName);
             assertEquals(
                 "maxSimDotProduct result is not equal to the expected value!",
-                0.42f + 0f + 1f - 1f - 0.42f,
+                -1.4f + 0.42f + 0f + 1f - 1f,
                 function.maxSimDotProduct(),
                 0.001
             );

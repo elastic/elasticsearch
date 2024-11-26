@@ -65,6 +65,7 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
 
     private final Map<String, Long> clientCounts;
     private final Map<String, PerClusterCCSTelemetry> byRemoteCluster;
+    private boolean useMRT = true;
 
     /**
     * Creates a new stats instance with the provided info.
@@ -190,6 +191,11 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         return Collections.unmodifiableMap(byRemoteCluster);
     }
 
+    public CCSTelemetrySnapshot setUseMRT(boolean useMRT) {
+        this.useMRT = useMRT;
+        return this;
+    }
+
     public static class PerClusterCCSTelemetry implements Writeable, ToXContentFragment {
         private long count;
         private long skippedCount;
@@ -290,8 +296,10 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         stats.featureCounts.forEach((k, v) -> featureCounts.merge(k, v, Long::sum));
         stats.clientCounts.forEach((k, v) -> clientCounts.merge(k, v, Long::sum));
         took.add(stats.took);
-        tookMrtTrue.add(stats.tookMrtTrue);
-        tookMrtFalse.add(stats.tookMrtFalse);
+        if (useMRT) {
+            tookMrtTrue.add(stats.tookMrtTrue);
+            tookMrtFalse.add(stats.tookMrtFalse);
+        }
         remotesPerSearchMax = Math.max(remotesPerSearchMax, stats.remotesPerSearchMax);
         if (totalCount > 0 && oldCount > 0) {
             // Weighted average
@@ -331,8 +339,10 @@ public final class CCSTelemetrySnapshot implements Writeable, ToXContentFragment
         builder.field("success", successCount);
         builder.field("skipped", skippedRemotes);
         publishLatency(builder, "took", took);
-        publishLatency(builder, "took_mrt_true", tookMrtTrue);
-        publishLatency(builder, "took_mrt_false", tookMrtFalse);
+        if (useMRT) {
+            publishLatency(builder, "took_mrt_true", tookMrtTrue);
+            publishLatency(builder, "took_mrt_false", tookMrtFalse);
+        }
         builder.field("remotes_per_search_max", remotesPerSearchMax);
         builder.field("remotes_per_search_avg", remotesPerSearchAvg);
         builder.field("failure_reasons", failureReasons);

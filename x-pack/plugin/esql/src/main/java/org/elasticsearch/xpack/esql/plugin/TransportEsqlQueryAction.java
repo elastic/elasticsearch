@@ -223,7 +223,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
         if (request.async()) {
             usageBuilder.setFeature(CCSUsageTelemetry.ASYNC_FEATURE);
         }
-        usageBuilder.setFeature(CCSUsageTelemetry.MRT_FEATURE);
 
         AtomicInteger count = new AtomicInteger();
         executionInfo.getClusters().forEach((clusterAlias, cluster) -> {

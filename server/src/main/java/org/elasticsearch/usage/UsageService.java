@@ -32,7 +32,7 @@ public class UsageService {
         this.handlers = new HashMap<>();
         this.searchUsageHolder = new SearchUsageHolder();
         this.ccsUsageHolder = new CCSUsageTelemetry();
-        this.esqlUsageHolder = new CCSUsageTelemetry();
+        this.esqlUsageHolder = new CCSUsageTelemetry(false);
     }
 
     /**

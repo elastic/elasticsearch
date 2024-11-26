@@ -62,7 +62,7 @@ public class ClusterStatsResponse extends BaseNodesResponse<ClusterStatsNodeResp
         nodesStats = new ClusterStatsNodes(nodes);
         indicesStats = new ClusterStatsIndices(nodes, mappingStats, analysisStats, versionStats);
         ccsMetrics = new CCSTelemetrySnapshot();
-        esqlMetrics = new CCSTelemetrySnapshot();
+        esqlMetrics = new CCSTelemetrySnapshot().setUseMRT(false);
         ClusterHealthStatus status = null;
         for (ClusterStatsNodeResponse response : nodes) {
             // only the master node populates the status

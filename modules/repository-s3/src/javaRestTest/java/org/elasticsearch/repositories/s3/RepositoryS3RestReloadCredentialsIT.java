@@ -35,7 +35,14 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
     private static final String BUCKET = "RepositoryS3RestReloadCredentialsIT-bucket-" + HASHED_SEED;
     private static final String BASE_PATH = "RepositoryS3RestReloadCredentialsIT-base-path-" + HASHED_SEED;
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture(true, BUCKET, BASE_PATH, "ignored");
+    private static volatile String repositoryAccessKey;
+
+    public static final S3HttpFixture s3Fixture = new S3HttpFixture(
+        true,
+        BUCKET,
+        BASE_PATH,
+        S3HttpFixture.mutableAccessKey(() -> repositoryAccessKey)
+    );
 
     private static final MutableSettingsProvider keystoreSettings = new MutableSettingsProvider();
 
@@ -68,7 +75,7 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Set up initial credentials
         final var accessKey1 = randomIdentifier();
-        s3Fixture.setAccessKey(accessKey1);
+        repositoryAccessKey = accessKey1;
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
         keystoreSettings.put("s3.client.default.secret_key", randomIdentifier());
         cluster.updateStoredSecureSettings();
@@ -79,14 +86,14 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
 
         // Rotate credentials in blob store
         final var accessKey2 = randomValueOtherThan(accessKey1, ESTestCase::randomIdentifier);
-        s3Fixture.setAccessKey(accessKey2);
+        repositoryAccessKey = accessKey2;
 
         // Ensure that initial credentials now invalid
         final var accessDeniedException2 = expectThrows(ResponseException.class, () -> client().performRequest(verifyRequest));
         assertThat(accessDeniedException2.getResponse().getStatusLine().getStatusCode(), equalTo(500));
         assertThat(
             accessDeniedException2.getMessage(),
-            allOf(containsString("Bad access key"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
+            allOf(containsString("Access denied"), containsString("Status Code: 403"), containsString("Error Code: AccessDenied"))
         );
 
         // Set up refreshed credentials

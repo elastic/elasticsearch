@@ -57,16 +57,11 @@ import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.lessThanOrEqualTo;
 import static org.hamcrest.Matchers.not;
 
-/**
- * MP TODO: DOCUMENT ME
- */
 public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
 
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
     private static final String REMOTE_CLUSTER_2 = "remote-b";
     private static String LOCAL_INDEX = "logs-1";
-    private static String IDX_ALIAS = "alias1";
-    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
     private static String REMOTE_INDEX = "logs-2";
     private static final String INDEX_WITH_RUNTIME_MAPPING = "blocking";
 
@@ -165,6 +160,9 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
         }
     }
 
+    /**
+     * Includes testing for CCS metadata in the GET /_query/async/:id response while the search is still running
+     */
     public void testSuccessfulPathways() throws Exception {
         Map<String, Object> testClusterInfo = setupClusters(3);
         int localNumShards = (Integer) testClusterInfo.get("local.num_shards");
@@ -520,25 +518,5 @@ public class CrossClusterAsyncQueryIT extends AbstractMultiClustersTestCase {
             remoteClient.prepareIndex(indexName).setSource("id", "remote-" + i, "tag", "remote", "v", i * i).get();
         }
         remoteClient.admin().indices().prepareRefresh(indexName).get();
-    }
-
-    // MP TODO: do we needs these?
-    private void setSkipUnavailable(String clusterAlias, boolean skip) {
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(Settings.builder().put("cluster.remote." + clusterAlias + ".skip_unavailable", skip).build())
-            .get();
-    }
-
-    private void clearSkipUnavailable() {
-        Settings.Builder settingsBuilder = Settings.builder()
-            .putNull("cluster.remote." + REMOTE_CLUSTER_1 + ".skip_unavailable")
-            .putNull("cluster.remote." + REMOTE_CLUSTER_2 + ".skip_unavailable");
-        client(LOCAL_CLUSTER).admin()
-            .cluster()
-            .prepareUpdateSettings(TEST_REQUEST_TIMEOUT, TEST_REQUEST_TIMEOUT)
-            .setPersistentSettings(settingsBuilder.build())
-            .get();
     }
 }

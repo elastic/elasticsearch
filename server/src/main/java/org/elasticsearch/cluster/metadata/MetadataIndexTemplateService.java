@@ -1718,7 +1718,7 @@ public class MetadataIndexTemplateService {
         List<ResettableValue<DataStreamOptions.Template>> dataStreamOptionsList
     ) {
         if (dataStreamOptionsList.isEmpty()) {
-            return null;
+            return ResettableValue.undefined();
         }
         DataStreamOptions.Template.Builder builder = null;
         for (ResettableValue<DataStreamOptions.Template> current : dataStreamOptionsList) {

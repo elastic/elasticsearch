@@ -193,8 +193,8 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
      */
     public static List<Attribute> intermediateAttributes(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {
         // TODO: This should take CATEGORIZE into account:
-        //       it currently works because the CATEGORIZE intermediate state is just 1 block with the same type as the function return,
-        //       so the attribute generated here is the expected one
+        // it currently works because the CATEGORIZE intermediate state is just 1 block with the same type as the function return,
+        // so the attribute generated here is the expected one
         var aggregateMapper = new AggregateMapper();
 
         List<Attribute> attrs = new ArrayList<>();

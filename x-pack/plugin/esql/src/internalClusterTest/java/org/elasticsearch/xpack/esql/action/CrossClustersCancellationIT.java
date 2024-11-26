@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.Build;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.CancelTasksRequest;
 import org.elasticsearch.action.admin.cluster.node.tasks.cancel.TransportCancelTasksAction;
@@ -55,6 +56,11 @@ import static org.hamcrest.Matchers.instanceOf;
 
 public class CrossClustersCancellationIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER = "cluster-a";
+
+    @Override
+    protected boolean reuseClusters() {
+        return false;
+    }
 
     @Override
     protected Collection<String> remoteClusterAlias() {

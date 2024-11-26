@@ -72,7 +72,7 @@ public class DataStreamOptionsIT extends DisabledSecurityDataStreamTestCase {
         assertThat(failureStore.size(), is(1));
     }
 
-    public void testExplicitlyNullifiedDataStream() throws IOException {
+    public void testExplicitlyResetDataStreamOptions() throws IOException {
         Request putComponentTemplateRequest = new Request("POST", "/_component_template/with-options");
         putComponentTemplateRequest.setJsonEntity("""
             {

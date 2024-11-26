@@ -261,12 +261,10 @@ public class MetadataCreateDataStreamService {
         // This is not a problem as both have different prefixes (`.ds-` vs `.fs-`) and both will be using the same `generation` field
         // when rolling over in the future.
         final long initialGeneration = 1;
-        DataStreamOptions.Template dataStreamOptionsTemplate = isSystem
+        ResettableValue<DataStreamOptions.Template> dataStreamOptionsTemplate = isSystem
             ? MetadataIndexTemplateService.resolveDataStreamOptions(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveDataStreamOptions(template, metadata.componentTemplates());
-        final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate == null
-            ? null
-            : dataStreamOptionsTemplate.toDataStreamOptions();
+        final DataStreamOptions dataStreamOptions = dataStreamOptionsTemplate.applyAndGet(DataStreamOptions.Template::toDataStreamOptions);
         var isFailureStoreEnabled = dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
 
         // If we need to create a failure store, do so first. Do not reroute during the creation since we will do

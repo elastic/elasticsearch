@@ -464,7 +464,7 @@ public final class DataStreamTestHelper {
             ComposableIndexTemplate.builder()
                 .indexPatterns(List.of("*"))
                 .template(
-                    org.elasticsearch.cluster.metadata.Template.builder()
+                    Template.builder()
                         .dataStreamOptions(
                             DataStream.isFailureStoreFeatureFlagEnabled() && storeFailures ? createDataStreamOptionsTemplate(true) : null
                         )

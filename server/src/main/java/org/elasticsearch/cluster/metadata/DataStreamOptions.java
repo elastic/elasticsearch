@@ -23,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 import static org.elasticsearch.cluster.metadata.DataStreamFailureStore.FAILURE_STORE;
 
@@ -106,18 +105,20 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
     }
 
     /**
-     * This class is only used in template configuration. It allows us to represent resettable values during template composition.
+     * This class is only used in template configuration. It wraps the fields of {@link DataStreamOptions} with {@link ResettableValue}
+     * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
+     * provides the {@link Template.Builder} that dictates how two templates can be composed.
      */
-    public static class Template implements Writeable, ToXContentObject {
-        public static final Template EMPTY = new Template();
-
-        private final ResettableValue<DataStreamFailureStore.Template> failureStore;
+    public record Template(ResettableValue<DataStreamFailureStore.Template> failureStore) implements Writeable, ToXContentObject {
+        public static final Template EMPTY = new Template(ResettableValue.undefined());
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
             "data_stream_options_template",
             false,
-            (args, unused) -> new Template((ResettableValue<DataStreamFailureStore.Template>) args[0])
+            (args, unused) -> new Template(
+                args[0] == null ? ResettableValue.undefined() : (ResettableValue<DataStreamFailureStore.Template>) args[0]
+            )
         );
 
         static {
@@ -129,16 +130,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             );
         }
 
-        private Template() {
-            this.failureStore = ResettableValue.undefined();
-        }
-
-        public Template(@Nullable ResettableValue<DataStreamFailureStore.Template> failureStore) {
-            this.failureStore = failureStore == null ? ResettableValue.undefined() : failureStore;
-        }
-
-        public ResettableValue<DataStreamFailureStore.Template> failureStore() {
-            return failureStore;
+        public Template {
+            assert failureStore != null : "Template does not accept null values, please use Resettable.undefined()";
         }
 
         @Override
@@ -167,7 +160,6 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
             return builder;
         }
 
-        @Nullable
         public DataStreamOptions toDataStreamOptions() {
             return new DataStreamOptions(failureStore.applyAndGet(DataStreamFailureStore.Template::toFailureStore));
         }
@@ -203,22 +195,8 @@ public record DataStreamOptions(@Nullable DataStreamFailureStore failureStore)
         }
 
         @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Template template = (Template) o;
-            return Objects.equals(failureStore, template.failureStore);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(failureStore);
-        }
-
-        @Override
         public String toString() {
             return Strings.toString(this, true, true);
         }
     }
-
 }

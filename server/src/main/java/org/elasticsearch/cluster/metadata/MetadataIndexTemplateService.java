@@ -312,10 +312,7 @@ public class MetadataIndexTemplateService {
             }
         }
 
-        final Template finalTemplate = org.elasticsearch.cluster.metadata.Template.builder(template.template())
-            .settings(finalSettings)
-            .mappings(wrappedMappings)
-            .build();
+        final Template finalTemplate = Template.builder(template.template()).settings(finalSettings).mappings(wrappedMappings).build();
         final ComponentTemplate finalComponentTemplate = new ComponentTemplate(
             finalTemplate,
             template.version(),
@@ -628,10 +625,7 @@ public class MetadataIndexTemplateService {
             // adjusted (to add _doc) and it should be validated
             CompressedXContent mappings = innerTemplate.mappings();
             CompressedXContent wrappedMappings = wrapMappingsIfNecessary(mappings, xContentRegistry);
-            final Template finalTemplate = org.elasticsearch.cluster.metadata.Template.builder(innerTemplate)
-                .settings(finalSettings)
-                .mappings(wrappedMappings)
-                .build();
+            final Template finalTemplate = Template.builder(innerTemplate).settings(finalSettings).mappings(wrappedMappings).build();
             finalIndexTemplate = template.toBuilder().template(finalTemplate).build();
         }
 
@@ -724,9 +718,7 @@ public class MetadataIndexTemplateService {
             finalSettings.put(finalTemplate.settings());
         }
 
-        var templateToValidate = indexTemplate.toBuilder()
-            .template(org.elasticsearch.cluster.metadata.Template.builder(finalTemplate).settings(finalSettings))
-            .build();
+        var templateToValidate = indexTemplate.toBuilder().template(Template.builder(finalTemplate).settings(finalSettings)).build();
 
         validate(name, templateToValidate);
         validateDataStreamsStillReferenced(currentState, name, templateToValidate);
@@ -827,8 +819,8 @@ public class MetadataIndexTemplateService {
 
     // Visible for testing
     static void validateDataStreamOptions(Metadata metadata, String indexTemplateName, ComposableIndexTemplate template) {
-        DataStreamOptions.Template dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
-        if (dataStreamOptions != null) {
+        ResettableValue<DataStreamOptions.Template> dataStreamOptions = resolveDataStreamOptions(template, metadata.componentTemplates());
+        if (dataStreamOptions.get() != null) {
             if (template.getDataStreamTemplate() == null) {
                 throw new IllegalArgumentException(
                     "index template ["
@@ -1430,11 +1422,11 @@ public class MetadataIndexTemplateService {
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
-            .map(org.elasticsearch.cluster.metadata.Template::mappings)
+            .map(Template::mappings)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(LinkedList::new));
         // Add the actual index template's mappings, since it takes the highest precedence
-        Optional.ofNullable(template.template()).map(org.elasticsearch.cluster.metadata.Template::mappings).ifPresent(mappings::add);
+        Optional.ofNullable(template.template()).map(Template::mappings).ifPresent(mappings::add);
         if (template.getDataStreamTemplate() != null && isDataStreamIndex(indexName)) {
             // add a default mapping for the `@timestamp` field, at the lowest precedence, to make bootstrapping data streams more
             // straightforward as all backing indices are required to have a timestamp field
@@ -1497,16 +1489,14 @@ public class MetadataIndexTemplateService {
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
-            .map(org.elasticsearch.cluster.metadata.Template::settings)
+            .map(Template::settings)
             .filter(Objects::nonNull)
             .toList();
 
         Settings.Builder templateSettings = Settings.builder();
         componentSettings.forEach(templateSettings::put);
         // Add the actual index template's settings to the end, since it takes the highest precedence.
-        Optional.ofNullable(template.template())
-            .map(org.elasticsearch.cluster.metadata.Template::settings)
-            .ifPresent(templateSettings::put);
+        Optional.ofNullable(template.template()).map(Template::settings).ifPresent(templateSettings::put);
         return templateSettings.build();
     }
 
@@ -1562,12 +1552,12 @@ public class MetadataIndexTemplateService {
             .map(componentTemplates::get)
             .filter(Objects::nonNull)
             .map(ComponentTemplate::template)
-            .map(org.elasticsearch.cluster.metadata.Template::aliases)
+            .map(Template::aliases)
             .filter(Objects::nonNull)
             .collect(Collectors.toCollection(ArrayList::new));
 
         // Add the actual index template's aliases to the end if they exist
-        Optional.ofNullable(template.template()).map(org.elasticsearch.cluster.metadata.Template::aliases).ifPresent(aliases::add);
+        Optional.ofNullable(template.template()).map(Template::aliases).ifPresent(aliases::add);
 
         // Aliases are applied in order, but subsequent alias configuration from the same name is
         // ignored, so in order for the order to be correct, alias configuration should be in order
@@ -1676,24 +1666,22 @@ public class MetadataIndexTemplateService {
     }
 
     /**
-     * Resolve the given v2 template into a {@link DataStreamOptions} object
+     * Resolve the given v2 template into a {@link ResettableValue<DataStreamOptions>} object
      */
-    @Nullable
-    public static DataStreamOptions.Template resolveDataStreamOptions(final Metadata metadata, final String templateName) {
+    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(final Metadata metadata, final String templateName) {
         final ComposableIndexTemplate template = metadata.templatesV2().get(templateName);
         assert template != null
             : "attempted to resolve data stream options for a template [" + templateName + "] that did not exist in the cluster state";
         if (template == null) {
-            return null;
+            return ResettableValue.undefined();
         }
         return resolveDataStreamOptions(template, metadata.componentTemplates());
     }
 
     /**
-     * Resolve the provided v2 template and component templates into a {@link DataStreamOptions} object
+     * Resolve the provided v2 template and component templates into a {@link ResettableValue<DataStreamOptions>} object
      */
-    @Nullable
-    public static DataStreamOptions.Template resolveDataStreamOptions(
+    public static ResettableValue<DataStreamOptions.Template> resolveDataStreamOptions(
         ComposableIndexTemplate template,
         Map<String, ComponentTemplate> componentTemplates
     ) {
@@ -1726,8 +1714,7 @@ public class MetadataIndexTemplateService {
      * @param dataStreamOptionsList a sorted list of data stream options in the order that they will be composed
      * @return the final data stream option configuration
      */
-    @Nullable
-    public static DataStreamOptions.Template composeDataStreamOptions(
+    public static ResettableValue<DataStreamOptions.Template> composeDataStreamOptions(
         List<ResettableValue<DataStreamOptions.Template>> dataStreamOptionsList
     ) {
         if (dataStreamOptionsList.isEmpty()) {
@@ -1750,7 +1737,7 @@ public class MetadataIndexTemplateService {
                 }
             }
         }
-        return builder == null ? null : builder.build();
+        return builder == null ? ResettableValue.undefined() : ResettableValue.create(builder.build());
     }
 
     /**
@@ -1899,14 +1886,9 @@ public class MetadataIndexTemplateService {
         Optional<Template> maybeTemplate = Optional.ofNullable(template);
         validate(
             name,
-            maybeTemplate.map(org.elasticsearch.cluster.metadata.Template::settings).orElse(Settings.EMPTY),
+            maybeTemplate.map(Template::settings).orElse(Settings.EMPTY),
             indexPatterns,
-            maybeTemplate.map(org.elasticsearch.cluster.metadata.Template::aliases)
-                .orElse(emptyMap())
-                .values()
-                .stream()
-                .map(MetadataIndexTemplateService::toAlias)
-                .toList()
+            maybeTemplate.map(Template::aliases).orElse(emptyMap()).values().stream().map(MetadataIndexTemplateService::toAlias).toList()
         );
     }
 

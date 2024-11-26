@@ -79,7 +79,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     }
 
     public static ComponentTemplate randomInstance(boolean supportsDataStreams, Boolean deprecated) {
-        Template.Builder templateBuilder = org.elasticsearch.cluster.metadata.Template.builder();
+        Template.Builder templateBuilder = Template.builder();
         if (randomBoolean()) {
             templateBuilder.settings(randomSettings());
         }
@@ -163,31 +163,25 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                 Template ot = orig.template();
                 yield switch (randomIntBetween(0, 4)) {
                     case 0 -> new ComponentTemplate(
-                        org.elasticsearch.cluster.metadata.Template.builder(ot)
-                            .settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings))
-                            .build(),
+                        Template.builder(ot).settings(randomValueOtherThan(ot.settings(), ComponentTemplateTests::randomSettings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 1 -> new ComponentTemplate(
-                        org.elasticsearch.cluster.metadata.Template.builder(ot)
-                            .mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings))
-                            .build(),
+                        Template.builder(ot).mappings(randomValueOtherThan(ot.mappings(), ComponentTemplateTests::randomMappings)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 2 -> new ComponentTemplate(
-                        org.elasticsearch.cluster.metadata.Template.builder(ot)
-                            .aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases))
-                            .build(),
+                        Template.builder(ot).aliases(randomValueOtherThan(ot.aliases(), ComponentTemplateTests::randomAliases)).build(),
                         orig.version(),
                         orig.metadata(),
                         orig.deprecated()
                     );
                     case 3 -> new ComponentTemplate(
-                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                        Template.builder(ot)
                             .lifecycle(randomValueOtherThan(ot.lifecycle(), DataStreamLifecycleTests::randomLifecycle))
                             .build(),
                         orig.version(),
@@ -195,7 +189,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
                         orig.deprecated()
                     );
                     case 4 -> new ComponentTemplate(
-                        org.elasticsearch.cluster.metadata.Template.builder(ot)
+                        Template.builder(ot)
                             .dataStreamOptions(
                                 randomValueOtherThan(ot.dataStreamOptions(), DataStreamOptionsTemplateTests::randomDataStreamOptions)
                             )
@@ -232,17 +226,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
     public void testMappingsEquals() throws IOException {
         {
             CompressedXContent mappings = randomMappings();
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(mappings, mappings), equalTo(true));
+            assertThat(Template.mappingsEquals(mappings, mappings), equalTo(true));
         }
 
         {
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(null, null), equalTo(true));
+            assertThat(Template.mappingsEquals(null, null), equalTo(true));
         }
 
         {
             CompressedXContent mappings = randomMappings();
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(mappings, null), equalTo(false));
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(null, mappings), equalTo(false));
+            assertThat(Template.mappingsEquals(mappings, null), equalTo(false));
+            assertThat(Template.mappingsEquals(null, mappings), equalTo(false));
         }
 
         {
@@ -253,7 +247,7 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
                 """, randomString));
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(m1, m2), equalTo(true));
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
 
         {
@@ -261,17 +255,17 @@ public class ComponentTemplateTests extends SimpleDiffableSerializationTestCase<
             CompressedXContent m2 = new CompressedXContent(Strings.format("""
                 {"properties":{"%s":{"type":"keyword"}}}
                 """, randomAlphaOfLength(10)));
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(m1, m2), equalTo(false));
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(false));
         }
 
         {
             Map<String, Object> map = XContentHelper.convertToMap(new BytesArray(Strings.format("""
                 {"%s":{"properties":{"%s":{"type":"keyword"}}}}
                 """, MapperService.SINGLE_MAPPING_NAME, randomAlphaOfLength(10))), true, XContentType.JSON).v2();
-            Map<String, Object> reduceMap = org.elasticsearch.cluster.metadata.Template.reduceMapping(map);
+            Map<String, Object> reduceMap = Template.reduceMapping(map);
             CompressedXContent m1 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(map)));
             CompressedXContent m2 = new CompressedXContent(Strings.toString(XContentFactory.jsonBuilder().map(reduceMap)));
-            assertThat(org.elasticsearch.cluster.metadata.Template.mappingsEquals(m1, m2), equalTo(true));
+            assertThat(Template.mappingsEquals(m1, m2), equalTo(true));
         }
     }
 

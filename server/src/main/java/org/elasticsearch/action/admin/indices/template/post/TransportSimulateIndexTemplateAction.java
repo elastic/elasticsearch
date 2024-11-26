@@ -19,13 +19,11 @@ import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
-import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
-import org.elasticsearch.cluster.metadata.ResettableValue;
 import org.elasticsearch.cluster.metadata.Template;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.UUIDs;
@@ -351,8 +349,13 @@ public class TransportSimulateIndexTemplateAction extends TransportMasterNodeRea
         if (template.getDataStreamTemplate() != null && lifecycle == null && isDslOnlyMode) {
             lifecycle = DataStreamLifecycle.DEFAULT;
         }
-        DataStreamOptions.Template dataStreamOptions = resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate);
-        return new Template(settings, mergedMapping, aliasesByName, lifecycle, ResettableValue.create(dataStreamOptions));
+        return new Template(
+            settings,
+            mergedMapping,
+            aliasesByName,
+            lifecycle,
+            resolveDataStreamOptions(simulatedState.metadata(), matchingTemplate)
+        );
     }
 
     private static IndexLongFieldRange getEventIngestedRange(String indexName, ClusterState simulatedState) {

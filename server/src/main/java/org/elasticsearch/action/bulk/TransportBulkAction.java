@@ -35,6 +35,7 @@ import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.Metadata;
@@ -656,12 +657,9 @@ public class TransportBulkAction extends TransportAbstractBulkAction {
             ComposableIndexTemplate composableIndexTemplate = metadata.templatesV2().get(template);
             if (composableIndexTemplate.getDataStreamTemplate() != null) {
                 // Check if the data stream has the failure store enabled
-                var optionsTemplate = MetadataIndexTemplateService.resolveDataStreamOptions(
-                    composableIndexTemplate,
-                    metadata.componentTemplates()
-                );
-                var options = optionsTemplate == null ? null : optionsTemplate.toDataStreamOptions();
-                return options != null && options.isFailureStoreEnabled();
+                return MetadataIndexTemplateService.resolveDataStreamOptions(composableIndexTemplate, metadata.componentTemplates())
+                    .map(DataStreamOptions.Template::toDataStreamOptions)
+                    .applyAndGet(DataStreamOptions::isFailureStoreEnabled);
             }
         }
 

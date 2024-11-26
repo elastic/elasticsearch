@@ -15,7 +15,6 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
@@ -24,7 +23,6 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
-import java.util.Objects;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
@@ -90,12 +88,11 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
     }
 
     /**
-     * This class is only used in template configuration. It allows us to represent explicit null values and denotes that the fields
-     * of the failure can be merged.
+     * This class is only used in template configuration. It wraps the fields of {@link DataStreamFailureStore} with {@link ResettableValue}
+     * to allow a user to signal when they want to reset any previously encountered values during template composition. Furthermore, it
+     * provides the method {@link #mergeWith(Template)} that dictates how two templates can be composed.
      */
-    public static class Template implements Writeable, ToXContentObject {
-
-        private final ResettableValue<Boolean> enabled;
+    public record Template(ResettableValue<Boolean> enabled) implements Writeable, ToXContentObject {
 
         @SuppressWarnings("unchecked")
         public static final ConstructingObjectParser<Template, Void> PARSER = new ConstructingObjectParser<>(
@@ -115,15 +112,10 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
             );
         }
 
-        public Template(@Nullable ResettableValue<Boolean> enabled) {
-            if (enabled == null || enabled.get() == null) {
+        public Template {
+            if (enabled.get() == null) {
                 throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
             }
-            this.enabled = enabled;
-        }
-
-        public ResettableValue<Boolean> enabled() {
-            return enabled;
         }
 
         @Override
@@ -154,28 +146,15 @@ public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<
 
         /**
          * Returns a template that has the initial values overridden by the new template
+         *
          * @param template the new template to merge with
          */
         public Template mergeWith(Template template) {
             return template;
         }
 
-        @Nullable
         public DataStreamFailureStore toFailureStore() {
-            return new DataStreamFailureStore(enabled == null ? null : enabled.get());
-        }
-
-        @Override
-        public boolean equals(Object o) {
-            if (this == o) return true;
-            if (o == null || getClass() != o.getClass()) return false;
-            Template template = (Template) o;
-            return Objects.equals(enabled, template.enabled);
-        }
-
-        @Override
-        public int hashCode() {
-            return Objects.hashCode(enabled);
+            return new DataStreamFailureStore(enabled.get());
         }
 
         @Override

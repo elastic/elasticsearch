@@ -42,7 +42,7 @@ public class DataStreamOptionsTemplateTests extends AbstractXContentSerializingT
     }
 
     @Override
-    protected DataStreamOptions.Template mutateInstance(DataStreamOptions.Template instance) throws IOException {
+    protected DataStreamOptions.Template mutateInstance(DataStreamOptions.Template instance) {
         ResettableValue<DataStreamFailureStore.Template> failureStore = instance.failureStore();
         if (failureStore.isDefined() == false) {
             if (randomBoolean()) {

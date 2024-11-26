@@ -1674,9 +1674,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
 
     public void testInvalidNonDataStreamTemplateWithDataStreamOptions() throws Exception {
         MetadataIndexTemplateService metadataIndexTemplateService = getMetadataIndexTemplateService();
-        Template template = org.elasticsearch.cluster.metadata.Template.builder()
-            .dataStreamOptions(DataStreamOptionsTemplateTests.randomDataStreamOptions())
-            .build();
+        Template template = Template.builder().dataStreamOptions(DataStreamOptionsTemplateTests.randomDataStreamOptions()).build();
         ComponentTemplate componentTemplate = new ComponentTemplate(template, 1L, new HashMap<>());
         ComposableIndexTemplate globalIndexTemplate = ComposableIndexTemplate.builder()
             .indexPatterns(List.of("my-index"))
@@ -1721,7 +1719,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         DataStreamLifecycle lifecycle
     ) throws Exception {
         ComponentTemplate ct = new ComponentTemplate(
-            org.elasticsearch.cluster.metadata.Template.builder().dataStreamOptions(dataStreamOptions).lifecycle(lifecycle).build(),
+            Template.builder().dataStreamOptions(dataStreamOptions).lifecycle(lifecycle).build(),
             null,
             null
         );
@@ -1737,7 +1735,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     ) throws Exception {
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
-            .template(org.elasticsearch.cluster.metadata.Template.builder().lifecycle(lifecycleZ))
+            .template(Template.builder().lifecycle(lifecycleZ))
             .componentTemplates(composeOf)
             .priority(0L)
             .version(1L)
@@ -1758,7 +1756,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
     ) throws Exception {
         ComposableIndexTemplate it = ComposableIndexTemplate.builder()
             .indexPatterns(List.of(randomAlphaOfLength(10) + "*"))
-            .template(org.elasticsearch.cluster.metadata.Template.builder().dataStreamOptions(dataStreamOptionsZ))
+            .template(Template.builder().dataStreamOptions(dataStreamOptionsZ))
             .componentTemplates(composeOf)
             .priority(0L)
             .version(1L)
@@ -1766,15 +1764,9 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
             .build();
         state = service.addIndexTemplateV2(state, true, "my-template", it);
 
-        DataStreamOptions.Template resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(
-            state.metadata(),
-            "my-template"
-        );
-        if (resolvedDataStreamOptions == null) {
-            assertThat(resolvedDataStreamOptions, nullValue());
-        } else {
-            assertThat(resolvedDataStreamOptions.toDataStreamOptions(), equalTo(expected));
-        }
+        DataStreamOptions resolvedDataStreamOptions = MetadataIndexTemplateService.resolveDataStreamOptions(state.metadata(), "my-template")
+            .applyAndGet(DataStreamOptions.Template::toDataStreamOptions);
+        assertThat(resolvedDataStreamOptions, resolvedDataStreamOptions == null ? nullValue() : equalTo(expected));
     }
 
     public void testAddInvalidTemplate() throws Exception {
@@ -1989,9 +1981,7 @@ public class MetadataIndexTemplateServiceTests extends ESSingleNodeTestCase {
         ClusterState state = ClusterState.EMPTY_STATE;
 
         ComponentTemplate ct = new ComponentTemplate(
-            org.elasticsearch.cluster.metadata.Template.builder()
-                .lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999()))
-                .build(),
+            Template.builder().lifecycle(DataStreamLifecycle.newBuilder().dataRetention(randomMillisUpToYear9999())).build(),
             null,
             null
         );

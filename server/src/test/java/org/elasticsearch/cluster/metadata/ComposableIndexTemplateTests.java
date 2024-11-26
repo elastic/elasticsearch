@@ -62,7 +62,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
     public static ComposableIndexTemplate randomInstance() {
         Template template = null;
         ComposableIndexTemplate.DataStreamTemplate dataStreamTemplate = randomDataStreamTemplate();
-        Template.Builder builder = org.elasticsearch.cluster.metadata.Template.builder();
+        Template.Builder builder = Template.builder();
         if (dataStreamTemplate != null || randomBoolean()) {
             if (randomBoolean()) {
                 builder.settings(randomSettings());
@@ -169,7 +169,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
                     .template(
                         randomValueOtherThan(
                             orig.template(),
-                            () -> org.elasticsearch.cluster.metadata.Template.builder()
+                            () -> Template.builder()
                                 .settings(randomSettings())
                                 .mappings(randomMappings(orig.getDataStreamTemplate()))
                                 .aliases(randomAliases())
@@ -272,7 +272,7 @@ public class ComposableIndexTemplateTests extends SimpleDiffableSerializationTes
         assertEquals(template, template.toBuilder().build());
 
         if (template.template() != null) {
-            assertEquals(template.template(), org.elasticsearch.cluster.metadata.Template.builder(template.template()).build());
+            assertEquals(template.template(), Template.builder(template.template()).build());
         }
     }
 }

@@ -425,7 +425,7 @@ public final class DataStream implements SimpleDiffable<DataStream>, ToXContentO
      * @return true, if the user has explicitly enabled the failure store.
      */
     public boolean isFailureStoreEnabled() {
-        return dataStreamOptions != null && dataStreamOptions.isFailureStoreEnabled();
+        return dataStreamOptions.isFailureStoreEnabled();
     }
 
     @Nullable

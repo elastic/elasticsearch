@@ -119,6 +119,7 @@ public class Template implements SimpleDiffable<Template>, ToXContentObject {
         this.mappings = mappings;
         this.aliases = aliases;
         this.lifecycle = lifecycle;
+        assert dataStreamOptions != null : "Template does not accept null values, please use Resettable.undefined()";
         this.dataStreamOptions = dataStreamOptions;
     }
 

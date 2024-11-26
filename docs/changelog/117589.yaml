@@ -1,0 +1,5 @@
+pr: 117589
+summary: "[Inference API] Add unified api for chat completions"
+area: Machine Learning
+type: enhancement
+issues: []

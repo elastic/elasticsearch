@@ -21,6 +21,7 @@ import org.gradle.api.plugins.JavaPlugin;
 import org.gradle.api.plugins.JavaPluginExtension;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
 import org.gradle.api.tasks.compile.CompileOptions;
 import org.gradle.api.tasks.compile.JavaCompile;
 import org.gradle.api.tasks.javadoc.Javadoc;
@@ -87,6 +88,7 @@ public class MrjarPlugin implements Plugin<Project> {
                 String mainSourceSetName = SourceSet.MAIN_SOURCE_SET_NAME + javaVersion;
                 SourceSet mainSourceSet = addSourceSet(project, javaExtension, mainSourceSetName, mainSourceSets, javaVersion);
                 configureSourceSetInJar(project, mainSourceSet, javaVersion);
+                addJar(project, mainSourceSet, javaVersion);
                 mainSourceSets.add(mainSourceSetName);
                 testSourceSets.add(mainSourceSetName);
 
@@ -145,6 +147,14 @@ public class MrjarPlugin implements Plugin<Project> {
         });
 
         return sourceSet;
+    }
+
+    private void addJar(Project project, SourceSet sourceSet, int javaVersion) {
+        project.getConfigurations().register("java" + javaVersion);
+        TaskProvider<Jar> jarTask = project.getTasks().register("java" + javaVersion + "Jar", Jar.class, task -> {
+            task.from(sourceSet.getOutput());
+        });
+        project.getArtifacts().add("java" + javaVersion, jarTask);
     }
 
     private void configurePreviewFeatures(Project project, SourceSet sourceSet, int javaVersion) {

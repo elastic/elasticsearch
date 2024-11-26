@@ -9,7 +9,6 @@
 
 import org.elasticsearch.gradle.util.Pair
 import org.elasticsearch.gradle.util.GradleUtils
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.test.TestUtil
 import org.jetbrains.gradle.ext.JUnit
 

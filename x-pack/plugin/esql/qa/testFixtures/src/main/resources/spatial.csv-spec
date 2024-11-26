@@ -124,14 +124,6 @@ extent:geo_point
 BBOX(42.97109629958868, 42.97109629958868, 14.7552534006536, 14.7552534006536)
 ;
 
-stExtentMultipleGeoPoints2
-required_capability: st_extent_agg
-ROW wkt = ["POINT (0 0)", "POINT (1 0)", "POINT (0 1)"]
-| MV_EXPAND wkt
-| EVAL point = TO_GEOPOINT(wkt)
-| STATS extent=ST_EXTENT(point)
-;
-
 extent:geo_point
 BBOX (0.0, 1.0, 1.0, 0.0)
 ;
@@ -192,7 +184,7 @@ FROM airport_city_boundaries | WHERE region == "City of New York" | STATS extent
 ;
 
 extent:geo_shape
-BBOX (-74.2588, -73.7002, 40.9176, 40.4766)
+BBOX (-74.25880000926554, -73.70020005851984, 40.91759996954352, 40.47659996431321)
 ;
 
 stExtentCartesianShapes

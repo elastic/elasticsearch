@@ -69,7 +69,9 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
-        if (fieldSupplier.type() != DataType.CARTESIAN_POINT && fieldSupplier.type() != DataType.GEO_POINT) {
+        if (fieldSupplier.type() != DataType.CARTESIAN_POINT
+            && fieldSupplier.type() != DataType.GEO_POINT
+            && fieldSupplier.type() != DataType.GEO_SHAPE) {
             throw new IllegalArgumentException("Unexpected type: " + fieldSupplier.type());
         }
 
@@ -91,7 +93,7 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
                 List.of(fieldTypedData),
                 "SpatialStExtent[field=Attribute[channel=0]]",
                 fieldTypedData.type(),
-                new WellKnownBinaryBytesRefMatcher<Rectangle>(RectangleMatcher.closeTo(new Rectangle(minX, maxX, maxY, minY), 1e-6))
+                new WellKnownBinaryBytesRefMatcher<Rectangle>(RectangleMatcher.closeTo(new Rectangle(minX, maxX, maxY, minY), 1e-3))
             );
         });
     }

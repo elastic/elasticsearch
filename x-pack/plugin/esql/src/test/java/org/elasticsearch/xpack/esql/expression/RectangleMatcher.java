@@ -28,10 +28,10 @@ public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
 
     @Override
     protected boolean matchesSafely(Rectangle other) {
-        return Matchers.closeTo(r.getMinX(), error).matches(other.getMinX())
-            && Matchers.closeTo(r.getMaxX(), error).matches(other.getMaxX())
-            && Matchers.closeTo(r.getMaxY(), error).matches(other.getMaxY())
-            && Matchers.closeTo(r.getMinY(), error).matches(other.getMinY());
+        return Matchers.closeTo((float) r.getMinX(), error).matches(other.getMinX())
+            && Matchers.closeTo((float) r.getMaxX(), error).matches(other.getMaxX())
+            && Matchers.closeTo((float) r.getMaxY(), error).matches(other.getMaxY())
+            && Matchers.closeTo((float) r.getMinY(), error).matches(other.getMinY());
     }
 
     @Override
@@ -41,6 +41,6 @@ public class RectangleMatcher extends TypeSafeMatcher<Rectangle> {
 
     @Override
     public void describeTo(Description description) {
-        description.appendValue("    BBOX" + r);
+        description.appendValue("    " + r);
     }
 }

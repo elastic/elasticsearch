@@ -30,11 +30,19 @@ class SpatialAggregationUtils {
     }
 
     public static double decodeX(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded >>> 32));
+        return XYEncodingUtils.decode(extractX(encoded));
+    }
+
+    public static int extractX(long encoded) {
+        return (int) (encoded >>> 32);
     }
 
     public static double decodeY(long encoded) {
-        return XYEncodingUtils.decode((int) (encoded & 0xFFFFFFFFL));
+        return XYEncodingUtils.decode(extractY(encoded));
+    }
+
+    public static int extractY(long encoded) {
+        return (int) (encoded & 0xFFFFFFFFL);
     }
 
     public static double decodeLongitude(long encoded) {

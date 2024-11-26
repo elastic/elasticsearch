@@ -28,16 +28,19 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("minX", ElementType.INT),
+      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("maxY", ElementType.INT),
+      new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentAggregator.GroupingStExtentState state;
+  private final StExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction(List<Integer> channels,
-      StExtentAggregator.GroupingStExtentState state, DriverContext driverContext) {
+      StExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -45,7 +48,7 @@ public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFu
 
   public static SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction create(
       List<Integer> channels, DriverContext driverContext) {
-    return new SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction(channels, SpatialStExtentCartesianPointSourceValuesAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction(channels, SpatialStExtentCartesianPointSourceValuesAggregator.initGrouping(), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {
@@ -168,15 +171,30 @@ public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFu
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block extentUncast = page.getBlock(channels.get(0));
-    if (extentUncast.areAllValuesNull()) {
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, extent.getBytesRef(groupPosition + positionOffset, scratch));
+      SpatialStExtentCartesianPointSourceValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -185,7 +203,7 @@ public final class SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFu
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentAggregator.GroupingStExtentState inState = ((SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
+    StExtentGroupingState inState = ((SpatialStExtentCartesianPointSourceValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialStExtentCartesianPointSourceValuesAggregator.combineStates(state, groupId, inState, position);
   }

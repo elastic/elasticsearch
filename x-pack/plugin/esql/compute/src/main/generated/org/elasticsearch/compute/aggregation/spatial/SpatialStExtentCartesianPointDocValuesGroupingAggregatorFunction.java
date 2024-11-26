@@ -9,13 +9,10 @@ import java.lang.Override;
 import java.lang.String;
 import java.lang.StringBuilder;
 import java.util.List;
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.IntermediateStateDesc;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
-import org.elasticsearch.compute.data.BytesRefBlock;
-import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
@@ -30,16 +27,19 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("minX", ElementType.INT),
+      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("maxY", ElementType.INT),
+      new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentAggregator.GroupingStExtentState state;
+  private final StExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction(List<Integer> channels,
-      StExtentAggregator.GroupingStExtentState state, DriverContext driverContext) {
+      StExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -166,15 +166,30 @@ public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunct
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block extentUncast = page.getBlock(channels.get(0));
-    if (extentUncast.areAllValuesNull()) {
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
-    BytesRef scratch = new BytesRef();
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, extent.getBytesRef(groupPosition + positionOffset, scratch));
+      SpatialStExtentCartesianPointDocValuesAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -183,7 +198,7 @@ public final class SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunct
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentAggregator.GroupingStExtentState inState = ((SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction) input).state;
+    StExtentGroupingState inState = ((SpatialStExtentCartesianPointDocValuesGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialStExtentCartesianPointDocValuesAggregator.combineStates(state, groupId, inState, position);
   }

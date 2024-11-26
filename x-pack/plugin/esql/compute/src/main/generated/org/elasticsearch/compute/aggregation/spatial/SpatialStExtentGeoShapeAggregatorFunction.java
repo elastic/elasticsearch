@@ -17,6 +17,8 @@ import org.elasticsearch.compute.data.BooleanVector;
 import org.elasticsearch.compute.data.BytesRefBlock;
 import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.ElementType;
+import org.elasticsearch.compute.data.IntBlock;
+import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.operator.DriverContext;
 
@@ -26,16 +28,19 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentGeoShapeAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("extent", ElementType.BYTES_REF)  );
+      new IntermediateStateDesc("minX", ElementType.INT),
+      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("maxY", ElementType.INT),
+      new IntermediateStateDesc("minY", ElementType.INT)  );
 
   private final DriverContext driverContext;
 
-  private final StExtentAggregator.StExtentState state;
+  private final StExtentState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentGeoShapeAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentAggregator.StExtentState state) {
+      List<Integer> channels, StExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -134,14 +139,31 @@ public final class SpatialStExtentGeoShapeAggregatorFunction implements Aggregat
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block extentUncast = page.getBlock(channels.get(0));
-    if (extentUncast.areAllValuesNull()) {
+    Block minXUncast = page.getBlock(channels.get(0));
+    if (minXUncast.areAllValuesNull()) {
       return;
     }
-    BytesRefVector extent = ((BytesRefBlock) extentUncast).asVector();
-    assert extent.getPositionCount() == 1;
-    BytesRef scratch = new BytesRef();
-    SpatialStExtentGeoShapeAggregator.combineIntermediate(state, extent.getBytesRef(0, scratch));
+    IntVector minX = ((IntBlock) minXUncast).asVector();
+    assert minX.getPositionCount() == 1;
+    Block maxXUncast = page.getBlock(channels.get(1));
+    if (maxXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxX = ((IntBlock) maxXUncast).asVector();
+    assert maxX.getPositionCount() == 1;
+    Block maxYUncast = page.getBlock(channels.get(2));
+    if (maxYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxY = ((IntBlock) maxYUncast).asVector();
+    assert maxY.getPositionCount() == 1;
+    Block minYUncast = page.getBlock(channels.get(3));
+    if (minYUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector minY = ((IntBlock) minYUncast).asVector();
+    assert minY.getPositionCount() == 1;
+    SpatialStExtentGeoShapeAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
   }
 
   @Override

@@ -7,7 +7,6 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
@@ -21,14 +20,28 @@ import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUt
  * It is assumes that the cartesian points are encoded as longs.
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
-@Aggregator({ @IntermediateState(name = "extent", type = "BYTES_REF") })
+@Aggregator(
+    {
+        @IntermediateState(name = "minX", type = "INT"),
+        @IntermediateState(name = "maxX", type = "INT"),
+        @IntermediateState(name = "maxY", type = "INT"),
+        @IntermediateState(name = "minY", type = "INT") }
+)
 @GroupingAggregator
 class SpatialStExtentCartesianPointDocValuesAggregator extends StExtentAggregator {
-    public static void combine(StExtentState current, long v) {
-        current.add(new Point(decodeX(v), decodeY(v)));
+    public static StExtentState initSingle() {
+        return new StExtentState(PointType.CARTESIAN);
     }
 
-    public static void combine(GroupingStExtentState current, int groupId, long encoded) {
-        current.add(groupId, new Point(decodeX(encoded), decodeY(encoded)));
+    public static StExtentGroupingState initGrouping() {
+        return new StExtentGroupingState(PointType.CARTESIAN);
+    }
+
+    public static void combine(StExtentState current, long v) {
+        current.add(v);
+    }
+
+    public static void combine(StExtentGroupingState current, int groupId, long v) {
+        current.add(groupId, v);
     }
 }

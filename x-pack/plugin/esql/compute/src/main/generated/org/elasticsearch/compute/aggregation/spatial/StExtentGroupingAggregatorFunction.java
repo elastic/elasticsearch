@@ -32,14 +32,14 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
       new IntermediateStateDesc("maxY", ElementType.DOUBLE)  );
 
-  private final StExtentAggregator.GroupingStExtentState state;
+  private final StExtentGroupingState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public StExtentGroupingAggregatorFunction(List<Integer> channels,
-      StExtentAggregator.GroupingStExtentState state, DriverContext driverContext) {
+                                            StExtentGroupingState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -186,7 +186,7 @@ public final class StExtentGroupingAggregatorFunction implements GroupingAggrega
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentAggregator.GroupingStExtentState inState = ((StExtentGroupingAggregatorFunction) input).state;
+    StExtentGroupingState inState = ((StExtentGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     StExtentAggregator.combineStates(state, groupId, inState, position);
   }

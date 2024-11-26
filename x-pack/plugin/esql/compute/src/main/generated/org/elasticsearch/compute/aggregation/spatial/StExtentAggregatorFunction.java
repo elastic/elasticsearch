@@ -32,12 +32,12 @@ public final class StExtentAggregatorFunction implements AggregatorFunction {
 
   private final DriverContext driverContext;
 
-  private final StExtentAggregator.StExtentState state;
+  private final StExtentState state;
 
   private final List<Integer> channels;
 
   public StExtentAggregatorFunction(DriverContext driverContext, List<Integer> channels,
-      StExtentAggregator.StExtentState state) {
+      StExtentState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;

@@ -58,7 +58,7 @@ class BuildParameterExtensionSpec extends Specification {
 
         then:
         futures.size() == numberOfThreads
-        futures.every { it.state() == Future.State.SUCCESS }
+        futures.collect { it.state() }.every { it == Future.State.SUCCESS }
 
         where:
         getterName << [
@@ -72,7 +72,7 @@ class BuildParameterExtensionSpec extends Specification {
 
     private BuildParameterExtension extension(Project project, ProviderFactory providers) {
         return project.getExtensions().create(
-                BuildParameterExtension.class, "buildParameters", DefaultBuildParameterExtension.class,
+            BuildParameterExtension.class, "buildParameters", DefaultBuildParameterExtension.class,
             providers,
             providerMock(),
             providerMock(),

@@ -1135,7 +1135,11 @@ public abstract class ESIntegTestCase extends ESTestCase {
     }
 
     public static String getNodeId(String nodeName) {
-        return internalCluster().getInstance(ClusterService.class, nodeName).localNode().getId();
+        return getNode(nodeName).getId();
+    }
+
+    public static DiscoveryNode getNode(String nodeName) {
+        return internalCluster().getInstance(ClusterService.class, nodeName).localNode();
     }
 
     /**

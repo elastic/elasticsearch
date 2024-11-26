@@ -24,6 +24,7 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
      */
     record RequestWrapper(
         String nodeId,
+        String ephemeralId,
         SingleNodeShutdownMetadata.Type type,
         String reason,
         TimeValue allocationDelay,
@@ -39,6 +40,7 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 masterNodeTimeout,
                 ackTimeout,
                 nodeId,
+                ephemeralId,
                 type,
                 reason,
                 allocationDelay,
@@ -56,6 +58,7 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
             final var request = new PutShutdownNodeAction.Request(in);
             return new RequestWrapper(
                 request.getNodeId(),
+                request.getEphemeralId(),
                 request.getType(),
                 request.getReason(),
                 request.getAllocationDelay(),
@@ -71,6 +74,7 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
     @Override
     protected RequestWrapper createTestInstance() {
         return new RequestWrapper(
+            randomIdentifier(),
             randomIdentifier(),
             randomFrom(SingleNodeShutdownMetadata.Type.values()),
             randomIdentifier(),
@@ -97,9 +101,10 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
 
     @Override
     protected RequestWrapper mutateInstance(RequestWrapper instance) {
-        return switch (between(1, 9)) {
+        return switch (between(1, 10)) {
             case 1 -> new RequestWrapper(
                 randomValueOtherThan(instance.nodeId, ESTestCase::randomIdentifier),
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,
@@ -111,7 +116,8 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
             );
             case 2 -> new RequestWrapper(
                 instance.nodeId,
-                randomValueOtherThan(instance.type, () -> randomFrom(SingleNodeShutdownMetadata.Type.values())),
+                randomValueOtherThan(instance.ephemeralId, ESTestCase::randomIdentifier),
+                instance.type,
                 instance.reason,
                 instance.allocationDelay,
                 instance.targetNodeName,
@@ -122,8 +128,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
             );
             case 3 -> new RequestWrapper(
                 instance.nodeId,
-                instance.type,
-                randomValueOtherThan(instance.reason, ESTestCase::randomIdentifier),
+                instance.ephemeralId,
+                randomValueOtherThan(instance.type, () -> randomFrom(SingleNodeShutdownMetadata.Type.values())),
+                instance.reason,
                 instance.allocationDelay,
                 instance.targetNodeName,
                 instance.gracePeriod,
@@ -133,6 +140,19 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
             );
             case 4 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
+                instance.type,
+                randomValueOtherThan(instance.reason, ESTestCase::randomIdentifier),
+                instance.allocationDelay,
+                instance.targetNodeName,
+                instance.gracePeriod,
+                instance.parentTask,
+                instance.ackTimeout,
+                instance.masterNodeTimeout
+            );
+            case 5 -> new RequestWrapper(
+                instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 randomValueOtherThan(instance.allocationDelay, PutShutdownRequestTests::randomOptionalTimeValue),
@@ -142,8 +162,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 instance.ackTimeout,
                 instance.masterNodeTimeout
             );
-            case 5 -> new RequestWrapper(
+            case 6 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,
@@ -153,8 +174,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 instance.ackTimeout,
                 instance.masterNodeTimeout
             );
-            case 6 -> new RequestWrapper(
+            case 7 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,
@@ -164,8 +186,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 instance.ackTimeout,
                 instance.masterNodeTimeout
             );
-            case 7 -> new RequestWrapper(
+            case 8 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,
@@ -175,8 +198,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 instance.ackTimeout,
                 instance.masterNodeTimeout
             );
-            case 8 -> new RequestWrapper(
+            case 9 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,
@@ -186,8 +210,9 @@ public class PutShutdownRequestTests extends AbstractWireSerializingTestCase<Put
                 randomValueOtherThan(instance.ackTimeout, ESTestCase::randomTimeValue),
                 instance.masterNodeTimeout
             );
-            case 9 -> new RequestWrapper(
+            case 10 -> new RequestWrapper(
                 instance.nodeId,
+                instance.ephemeralId,
                 instance.type,
                 instance.reason,
                 instance.allocationDelay,

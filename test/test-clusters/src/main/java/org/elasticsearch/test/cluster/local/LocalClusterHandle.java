@@ -30,6 +30,12 @@ public interface LocalClusterHandle extends ClusterHandle {
     void stopNode(int index, boolean forcibly);
 
     /**
+     * Restarts the node by first stopping it and then starting it again.
+     * @param index of the node to stop
+     */
+    void restartNode(int index, boolean forcibly);
+
+    /**
      * Restarts the cluster. Effectively the same as calling {@link #stop(boolean)} followed by {@link #start()}
      *
      * @param forcibly whether to ficibly terminate the cluster

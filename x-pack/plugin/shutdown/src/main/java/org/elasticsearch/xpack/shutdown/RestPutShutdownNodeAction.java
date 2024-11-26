@@ -71,6 +71,7 @@ public class RestPutShutdownNodeAction extends BaseRestHandler {
                 masterNodeTimeout,
                 ackTimeout,
                 nodeId,
+                null,   // We might need to set this if someone puts a SIGKILL, but do we expect SIGKILLs to originate from the API?
                 type,
                 reason,
                 allocationDelay,

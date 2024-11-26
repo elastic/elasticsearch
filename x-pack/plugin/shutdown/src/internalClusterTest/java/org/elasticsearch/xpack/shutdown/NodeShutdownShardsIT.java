@@ -468,6 +468,7 @@ public class NodeShutdownShardsIT extends ESIntegTestCase {
                     TEST_REQUEST_TIMEOUT,
                     TEST_REQUEST_TIMEOUT,
                     nodeId,
+                    null,
                     type,
                     this.getTestName(),
                     null,

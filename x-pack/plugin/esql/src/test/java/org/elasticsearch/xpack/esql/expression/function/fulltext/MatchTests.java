@@ -11,6 +11,7 @@ import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
@@ -121,7 +122,7 @@ public class MatchTests extends AbstractFunctionTestCase {
                 case VERSION -> value = new Version(bytesRef).toString();
                 case IP -> {
                     try {
-                        value = InetAddress.getByAddress(bytesRef.bytes).getHostAddress();
+                        value = NetworkAddress.format(InetAddress.getByAddress(bytesRef.bytes));
                     } catch (UnknownHostException e) {
                         throw new IllegalArgumentException(e);
                     }

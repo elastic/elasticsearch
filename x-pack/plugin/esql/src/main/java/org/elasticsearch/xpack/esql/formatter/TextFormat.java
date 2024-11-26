@@ -39,7 +39,8 @@ public enum TextFormat implements MediaType {
     PLAIN_TEXT() {
         @Override
         public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
-            return new TextFormatter(esqlResponse).format(hasHeader(request));
+            boolean dropNullColumns = request.paramAsBoolean(DROP_NULL_COLUMNS_OPTION, false);
+            return new TextFormatter(esqlResponse).format(hasHeader(request), dropNullColumns);
         }
 
         @Override
@@ -282,9 +283,11 @@ public enum TextFormat implements MediaType {
      */
     public static final String URL_PARAM_FORMAT = "format";
     public static final String URL_PARAM_DELIMITER = "delimiter";
+    public static final String DROP_NULL_COLUMNS_OPTION = "drop_null_columns";
 
     public Iterator<CheckedConsumer<Writer, IOException>> format(RestRequest request, EsqlQueryResponse esqlResponse) {
         final var delimiter = delimiter(request);
+
         return Iterators.concat(
             // if the header is requested return the info
             hasHeader(request) && esqlResponse.columns() != null

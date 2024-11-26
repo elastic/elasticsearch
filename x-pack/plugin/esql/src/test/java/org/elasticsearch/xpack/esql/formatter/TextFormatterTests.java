@@ -95,7 +95,7 @@ public class TextFormatterTests extends ESTestCase {
      * column size.
      */
     public void testFormatWithHeader() {
-        String[] result = getTextBodyContent(formatter.format(true)).split("\n");
+        String[] result = getTextBodyContent(formatter.format(true, false)).split("\n");
         assertThat(result, arrayWithSize(4));
         assertEquals(
             "      foo      |      bar      |15charwidename!|  null_field1  |superduperwidename!!!|      baz      |"
@@ -160,7 +160,7 @@ public class TextFormatterTests extends ESTestCase {
             new EsqlExecutionInfo(randomBoolean())
         );
 
-        String[] result = getTextBodyContent(new TextFormatter(response).format(false)).split("\n");
+        String[] result = getTextBodyContent(new TextFormatter(response).format(false, false)).split("\n");
         assertThat(result, arrayWithSize(2));
         assertEquals(
             "doggie         |4              |1.0            |null           |77.0                 |wombat         |"
@@ -200,7 +200,7 @@ public class TextFormatterTests extends ESTestCase {
                         randomBoolean(),
                         new EsqlExecutionInfo(randomBoolean())
                     )
-                ).format(false)
+                ).format(false, false)
             )
         );
     }

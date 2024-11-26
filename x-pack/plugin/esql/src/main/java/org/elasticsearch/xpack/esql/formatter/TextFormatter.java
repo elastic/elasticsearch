@@ -60,17 +60,28 @@ public class TextFormatter {
     /**
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
-    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader) {
+    public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
+        boolean[] nullColumns;
+        if (dropNullColumns) {
+            nullColumns = response.nullColumns();
+        } else {
+            nullColumns = null;
+        }
         return Iterators.concat(
             // The header lines
-            includeHeader && response.columns().size() > 0 ? Iterators.single(this::formatHeader) : Collections.emptyIterator(),
+            includeHeader && response.columns().size() > 0
+                ? Iterators.single(writer -> formatHeader(writer, nullColumns))
+                : Collections.emptyIterator(),
             // Now format the results.
-            formatResults()
+            formatResults(nullColumns)
         );
     }
 
-    private void formatHeader(Writer writer) throws IOException {
+    private void formatHeader(Writer writer, boolean[] nullColumns) throws IOException {
         for (int i = 0; i < width.length; i++) {
+            if (nullColumns != null && nullColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('|');
             }
@@ -86,6 +97,9 @@ public class TextFormatter {
         writer.append('\n');
 
         for (int i = 0; i < width.length; i++) {
+            if (nullColumns != null && nullColumns[i]) {
+                continue;
+            }
             if (i > 0) {
                 writer.append('+');
             }
@@ -94,10 +108,14 @@ public class TextFormatter {
         writer.append('\n');
     }
 
-    private Iterator<CheckedConsumer<Writer, IOException>> formatResults() {
+    private Iterator<CheckedConsumer<Writer, IOException>> formatResults(boolean[] nullColumns) {
         return Iterators.map(response.values(), row -> writer -> {
             for (int i = 0; i < width.length; i++) {
                 assert row.hasNext();
+                if (nullColumns != null && nullColumns[i]) {
+                    row.next();
+                    continue;
+                }
                 if (i > 0) {
                     writer.append('|');
                 }

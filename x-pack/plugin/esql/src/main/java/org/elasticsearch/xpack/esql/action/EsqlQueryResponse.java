@@ -215,7 +215,7 @@ public class EsqlQueryResponse extends org.elasticsearch.xpack.core.esql.action.
         });
     }
 
-    private boolean[] nullColumns() {
+    public boolean[] nullColumns() {
         boolean[] nullColumns = new boolean[columns.size()];
         for (int c = 0; c < nullColumns.length; c++) {
             nullColumns[c] = allColumnsAreNull(c);

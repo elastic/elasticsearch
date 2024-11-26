@@ -40,8 +40,8 @@ import java.util.Base64;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
+import java.util.OptionalInt;
 import java.util.Set;
-import java.util.function.Consumer;
 import java.util.function.IntConsumer;
 import java.util.function.IntSupplier;
 import java.util.function.Predicate;
@@ -56,6 +56,7 @@ public abstract class IndexRouting {
 
     static final NodeFeature BOOLEAN_ROUTING_PATH = new NodeFeature("routing.boolean_routing_path");
     static final NodeFeature MULTI_VALUE_ROUTING_PATH = new NodeFeature("routing.multi_value_routing_path");
+    static final NodeFeature LOGSB_ROUTE_ON_SORT_FIELDS = new NodeFeature("routing.logsb_route_on_sort_fields");
 
     /**
      * Build the routing from {@link IndexMetadata}.
@@ -80,19 +81,15 @@ public abstract class IndexRouting {
         this.routingFactor = metadata.getRoutingFactor();
     }
 
-    public abstract void process(IndexRequest indexRequest);
+    public void preProcess(IndexRequest indexRequest) {}
+
+    public void postProcess(IndexRequest indexRequest) {}
 
     /**
      * Called when indexing a document to generate the shard id that should contain
      * a document with the provided parameters.
      */
-    public abstract int indexShard(
-        String id,
-        @Nullable String routing,
-        XContentType sourceType,
-        BytesReference source,
-        Consumer<String> routingHashSetter
-    );
+    public abstract int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source);
 
     /**
      * Called when updating a document to generate the shard id that should contain
@@ -163,7 +160,7 @@ public abstract class IndexRouting {
         protected abstract int shardId(String id, @Nullable String routing);
 
         @Override
-        public void process(IndexRequest indexRequest) {
+        public void preProcess(IndexRequest indexRequest) {
             // generate id if not already provided
             final String id = indexRequest.id();
             if (id == null) {
@@ -187,13 +184,7 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public int indexShard(
-            String id,
-            @Nullable String routing,
-            XContentType sourceType,
-            BytesReference source,
-            Consumer<String> routingHashSetter
-        ) {
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             if (id == null) {
                 throw new IllegalStateException("id is required and should have been set by process");
             }
@@ -277,14 +268,20 @@ public abstract class IndexRouting {
     public static class ExtractFromSource extends IndexRouting {
         private final Predicate<String> isRoutingPath;
         private final XContentParserConfiguration parserConfig;
+        private final IndexMode indexMode;
         private final boolean trackTimeSeriesRoutingHash;
+        private final boolean addIdWithRoutingHash;
+        private int hash = Integer.MAX_VALUE;
 
         ExtractFromSource(IndexMetadata metadata) {
             super(metadata);
             if (metadata.isRoutingPartitionedIndex()) {
                 throw new IllegalArgumentException("routing_partition_size is incompatible with routing_path");
             }
-            trackTimeSeriesRoutingHash = metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+            indexMode = metadata.getIndexMode();
+            trackTimeSeriesRoutingHash = indexMode == IndexMode.TIME_SERIES
+                && metadata.getCreationVersion().onOrAfter(IndexVersions.TIME_SERIES_ROUTING_HASH_IN_ID);
+            addIdWithRoutingHash = indexMode == IndexMode.LOGSDB;
             List<String> routingPaths = metadata.getRoutingPaths();
             isRoutingPath = Regex.simpleMatcher(routingPaths.toArray(String[]::new));
             this.parserConfig = XContentParserConfiguration.EMPTY.withFiltering(Set.copyOf(routingPaths), null, true);
@@ -295,22 +292,20 @@ public abstract class IndexRouting {
         }
 
         @Override
-        public void process(IndexRequest indexRequest) {}
+        public void postProcess(IndexRequest indexRequest) {
+            if (trackTimeSeriesRoutingHash) {
+                indexRequest.routing(TimeSeriesRoutingHashFieldMapper.encode(hash));
+            } else if (addIdWithRoutingHash) {
+                assert hash != Integer.MAX_VALUE;
+                indexRequest.autoGenerateTimeBasedId(OptionalInt.of(hash));
+            }
+        }
 
         @Override
-        public int indexShard(
-            String id,
-            @Nullable String routing,
-            XContentType sourceType,
-            BytesReference source,
-            Consumer<String> routingHashSetter
-        ) {
+        public int indexShard(String id, @Nullable String routing, XContentType sourceType, BytesReference source) {
             assert Transports.assertNotTransportThread("parsing the _source can get slow");
             checkNoRouting(routing);
-            int hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
-            if (trackTimeSeriesRoutingHash) {
-                routingHashSetter.accept(TimeSeriesRoutingHashFieldMapper.encode(hash));
-            }
+            hash = hashSource(sourceType, source).buildHash(IndexRouting.ExtractFromSource::defaultOnEmpty);
             return hashToShardId(hash);
         }
 
@@ -470,12 +465,15 @@ public abstract class IndexRouting {
             try {
                 idBytes = Base64.getUrlDecoder().decode(id);
             } catch (IllegalArgumentException e) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
             if (idBytes.length < 4) {
-                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in time series mode", id, indexName);
+                throw new ResourceNotFoundException("invalid id [{}] for index [{}] in " + indexMode.getName() + " mode", id, indexName);
             }
-            return hashToShardId(ByteUtils.readIntLE(idBytes, 0));
+            // For TSDB, the hash is stored as the id prefix.
+            // For LogsDB with routing on sort fields, the routing hash is stored in the range[id.length - 8, id.length - 4] of the id,
+            // see IndexRequest#autoGenerateTimeBasedId.
+            return hashToShardId(ByteUtils.readIntLE(idBytes, addIdWithRoutingHash ? idBytes.length - 8 : 0));
         }
 
         @Override
@@ -489,7 +487,7 @@ public abstract class IndexRouting {
         }
 
         private String error(String operation) {
-            return operation + " is not supported because the destination index [" + indexName + "] is in time series mode";
+            return operation + " is not supported because the destination index [" + indexName + "] is in " + indexMode.getName() + " mode";
         }
     }
 

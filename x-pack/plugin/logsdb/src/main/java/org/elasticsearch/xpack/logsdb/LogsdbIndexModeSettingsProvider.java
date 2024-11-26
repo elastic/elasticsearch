@@ -60,7 +60,7 @@ final class LogsdbIndexModeSettingsProvider implements IndexSettingProvider {
         return Regex.simpleMatch(LOGS_PATTERN, name);
     }
 
-    private IndexMode resolveIndexMode(final String mode) {
+    static IndexMode resolveIndexMode(final String mode) {
         return mode != null ? Enum.valueOf(IndexMode.class, mode.toUpperCase(Locale.ROOT)) : null;
     }
 }

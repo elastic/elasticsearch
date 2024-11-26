@@ -314,8 +314,9 @@ final class BulkOperation extends ActionRunnable<BulkResponse> {
                     continue;
                 }
                 IndexRouting indexRouting = concreteIndices.routing(concreteIndex);
-                docWriteRequest.process(indexRouting);
+                docWriteRequest.preRoutingProcess(indexRouting);
                 int shardId = docWriteRequest.route(indexRouting);
+                docWriteRequest.postRoutingProcess(indexRouting);
                 List<BulkItemRequest> shardRequests = requestsByShard.computeIfAbsent(
                     new ShardId(concreteIndex, shardId),
                     shard -> new ArrayList<>()

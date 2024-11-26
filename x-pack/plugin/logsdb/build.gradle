@@ -8,6 +8,7 @@
 evaluationDependsOn(xpackModule('core'))
 
 apply plugin: 'elasticsearch.internal-es-plugin'
+apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 
@@ -29,7 +30,9 @@ restResources {
 
 dependencies {
   compileOnly project(path: xpackModule('core'))
+  testImplementation project(':modules:data-streams')
   testImplementation(testArtifact(project(xpackModule('core'))))
+  internalClusterTestImplementation(testArtifact(project(xpackModule('core'))))
 }
 
 tasks.named("javaRestTest").configure {

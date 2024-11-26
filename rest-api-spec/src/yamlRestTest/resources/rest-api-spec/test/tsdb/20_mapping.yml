@@ -123,11 +123,11 @@ top level wildcard dim object:
 ---
 exact match object type:
   - requires:
-      cluster_features: ["gte_v8.14.0"]
-      reason: routing_path error message updated in 8.14.0
+      cluster_features: [ "routing.logsb_route_on_sort_fields" ]
+      reason: error message changed
 
   - do:
-      catch: '/All fields that match routing_path must be configured with \[time_series_dimension: true\] or flattened fields with a list of dimensions in \[time_series_dimensions\] and without the \[script\] parameter. \[dim\] was \[object\]./'
+      catch: '/All fields that match routing_path must be flattened fields. \[dim\] was \[object\]./'
       indices.create:
         index: tsdb_index
         body:

@@ -8,6 +8,1302 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "keyword",
           "optional" : false,
           "description" : "Field that the query will target."
@@ -15,6 +1311,24 @@
         {
           "name" : "query",
           "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
           "optional" : false,
           "description" : "Text you wish to find in the provided field."
         }
@@ -44,6 +1358,348 @@
       "params" : [
         {
           "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
           "optional" : false,
           "description" : "Field that the query will target."
@@ -68,7 +1724,457 @@
         },
         {
           "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
           "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "boolean",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "date_nanos",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "double",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "integer",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "ip",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "keyword",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "text",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "unsigned_long",
+          "optional" : false,
+          "description" : "Text you wish to find in the provided field."
+        }
+      ],
+      "variadic" : false,
+      "returnType" : "boolean"
+    },
+    {
+      "params" : [
+        {
+          "name" : "field",
+          "type" : "version",
+          "optional" : false,
+          "description" : "Field that the query will target."
+        },
+        {
+          "name" : "query",
+          "type" : "version",
           "optional" : false,
           "description" : "Text you wish to find in the provided field."
         }

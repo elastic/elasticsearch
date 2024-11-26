@@ -49,6 +49,7 @@ plugins {
   id 'elasticsearch.run-ccs'
   id 'elasticsearch.release-tools'
   id 'elasticsearch.versions'
+  id 'org.sonarqube' version '6.0.0.5145'
 }
 
 /**
@@ -466,4 +467,12 @@ tasks.register("spotlessApply").configure {
   dependsOn gradle.includedBuild('build-tools').task(':spotlessApply')
   dependsOn gradle.includedBuild('build-tools').task(':reaper:spotlessApply')
   dependsOn gradle.includedBuild('build-tools-internal').task(':spotlessApply')
+}
+
+sonar {
+    properties {
+        property "sonar.projectKey", "ngleason31_elasticsearch"
+        property "sonar.organization", "ngleason31"
+        property "sonar.host.url", "https://sonarcloud.io"
+    }
 }

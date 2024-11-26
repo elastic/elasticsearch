@@ -50,6 +50,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
+import java.util.TreeMap;
 
 import static org.elasticsearch.common.xcontent.XContentHelper.createParserNotCompressed;
 import static org.elasticsearch.xpack.core.security.authz.permission.RemoteClusterPermissions.ROLE_REMOTE_CLUSTER_PRIVS;
@@ -189,9 +190,9 @@ public class RoleDescriptor implements ToXContentObject, Writeable {
         this.indicesPrivileges = indicesPrivileges != null ? indicesPrivileges : IndicesPrivileges.NONE;
         this.applicationPrivileges = applicationPrivileges != null ? applicationPrivileges : ApplicationResourcePrivileges.NONE;
         this.runAs = runAs != null ? runAs : Strings.EMPTY_ARRAY;
-        this.metadata = metadata != null ? Collections.unmodifiableMap(metadata) : Collections.emptyMap();
+        this.metadata = metadata != null ? Collections.unmodifiableMap(new TreeMap<>(metadata)) : Collections.emptyMap();
         this.transientMetadata = transientMetadata != null
-            ? Collections.unmodifiableMap(transientMetadata)
+            ? Collections.unmodifiableMap(new TreeMap<>(transientMetadata))
             : Collections.singletonMap("enabled", true);
         this.remoteIndicesPrivileges = remoteIndicesPrivileges != null ? remoteIndicesPrivileges : RemoteIndicesPrivileges.NONE;
         this.remoteClusterPermissions = remoteClusterPermissions != null && remoteClusterPermissions.hasAnyPrivileges()

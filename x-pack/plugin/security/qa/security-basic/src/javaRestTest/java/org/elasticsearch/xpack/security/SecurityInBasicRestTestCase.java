@@ -54,6 +54,7 @@ public abstract class SecurityInBasicRestTestCase extends ESRestTestCase {
         .user(API_KEY_USER, API_KEY_USER_PASSWORD.toString(), "api_key_user_role", false)
         .user(API_KEY_ADMIN_USER, API_KEY_ADMIN_USER_PASSWORD.toString(), "api_key_admin_role", false)
         .user(READ_SECURITY_USER, READ_SECURITY_PASSWORD.toString(), "read_security_user_role", false)
+        .systemProperty("es.queryable_built_in_roles_enabled", "true")
         .build();
 
     @Override

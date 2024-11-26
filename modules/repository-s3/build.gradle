@@ -45,6 +45,8 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(":test:framework")
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
+  yamlRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+  yamlRestTestImplementation project(':test:fixtures:aws-sts-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
 

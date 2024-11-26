@@ -28,15 +28,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.net.InetSocketAddress;
 import java.net.URI;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.Set;
+
+import static org.hamcrest.Matchers.aMapWithSize;
 
 public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
     public void testImdsV1() throws IOException {
-        final var accessKey = randomIdentifier();
-        final var sessionToken = randomIdentifier();
+        final Map<String, String> generatedCredentials = new HashMap<>();
 
-        final var handler = new Ec2ImdsHttpHandler(accessKey, sessionToken, Set.of());
+        final var handler = new Ec2ImdsHttpHandler(generatedCredentials::put, Set.of());
 
         final var roleResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/");
         assertEquals(RestStatus.OK, roleResponse.status());
@@ -45,6 +48,10 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
 
         final var credentialsResponse = handleRequest(handler, "GET", "/latest/meta-data/iam/security-credentials/" + profileName);
         assertEquals(RestStatus.OK, credentialsResponse.status());
+
+        assertThat(generatedCredentials, aMapWithSize(1));
+        final var accessKey = generatedCredentials.keySet().iterator().next();
+        final var sessionToken = generatedCredentials.values().iterator().next();
 
         final var responseMap = XContentHelper.convertToMap(XContentType.JSON.xContent(), credentialsResponse.body().streamInput(), false);
         assertEquals(Set.of("AccessKeyId", "Expiration", "RoleArn", "SecretAccessKey", "Token"), responseMap.keySet());
@@ -55,7 +62,7 @@ public class Ec2ImdsHttpHandlerTests extends ESTestCase {
     public void testImdsV2Disabled() {
         assertEquals(
             RestStatus.METHOD_NOT_ALLOWED,
-            handleRequest(new Ec2ImdsHttpHandler(randomIdentifier(), randomIdentifier(), Set.of()), "PUT", "/latest/api/token").status()
+            handleRequest(new Ec2ImdsHttpHandler((accessKey, sessionToken) -> fail(), Set.of()), "PUT", "/latest/api/token").status()
         );
     }
 

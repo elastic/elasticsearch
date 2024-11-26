@@ -996,7 +996,6 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
         }
 
         String remoteSearchUserAPIKey = createRemoteSearchUserAPIKey();
-
         // sanity check - init queries to ensure we can query employees on local and employees,employees2 on remote
         {
             Request request = esqlRequest("""
@@ -1194,15 +1193,15 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 }
                 final List<ExpectedCluster> expectedClusters = List.of(
                     new ExpectedCluster("(local)", "employees", "successful", limit0 ? 0 : null),
-                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "employees_nomatch,employees*", "successful", 0)
+                    // TODO: LIMIT0 query should be partial too, but current implementation does not mark it as such
+                    new ExpectedCluster(REMOTE_CLUSTER_ALIAS, "employees_nomatch,employees*", limit0 ? "successful" : "partial", 0)
                 );
                 assertExpectedClustersForMissingIndicesTests(map, expectedClusters);
             };
 
-            // TODO: uncomment in follow on PR handling skip_unavailable errors at execution time
-            // Request limit1 = esqlRequest(q + " | LIMIT 1");
-            // verifier.accept(performRequestWithRemoteSearchUser(limit1), false);
-            // verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey), false);
+            Request limit1 = esqlRequest(q + " | LIMIT 1");
+            verifier.accept(performRequestWithRemoteSearchUser(limit1), false);
+            verifier.accept(performRequestWithRemoteSearchUserViaAPIKey(limit1, remoteSearchUserAPIKey), false);
 
             Request limit0 = esqlRequest(q + " | LIMIT 0");
             verifier.accept(performRequestWithRemoteSearchUser(limit0), true);
@@ -1652,6 +1651,12 @@ public class RemoteClusterSecurityEsqlIT extends AbstractRemoteClusterSecurityTe
                 String expectedMsg = "Unknown index [" + expectedCluster.indexExpression() + "]";
                 assertThat(innerReason.get("reason").toString(), containsString(expectedMsg));
                 assertThat(innerReason.get("type").toString(), containsString("verification_exception"));
+
+            } else if (expectedCluster.status().equals("partial")) {
+                assertThat((int) shards.get("successful"), is(0));
+                assertThat((int) shards.get("skipped"), is(0));
+                ArrayList<?> failures = (ArrayList<?>) clusterDetails.get("failures");
+                assertThat(failures.size(), is(1));
 
             } else {
                 fail(msg + "; Unexpected status: " + expectedCluster.status());

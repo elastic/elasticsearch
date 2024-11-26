@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.ilm.action;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterState;
-import org.elasticsearch.cluster.project.DefaultProjectResolver;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.reservedstate.ReservedClusterStateHandler;
 import org.elasticsearch.reservedstate.TransformState;
@@ -84,13 +82,12 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         ClusterState state = prevState.state();
 
         for (var request : requests) {
-            @FixForMultiProject
             TransportPutLifecycleAction.UpdateLifecyclePolicyTask task = new TransportPutLifecycleAction.UpdateLifecyclePolicyTask(
+                state.metadata().getProject().id(),
                 request,
                 licenseState,
                 xContentRegistry,
-                client,
-                DefaultProjectResolver.INSTANCE // TODO multi-project: the settings file should specify the project being acted upon
+                client
             );
 
             state = task.execute(state);
@@ -102,14 +99,13 @@ public class ReservedLifecycleAction implements ReservedClusterStateHandler<List
         toDelete.removeAll(entities);
 
         for (var policyToDelete : toDelete) {
-            @FixForMultiProject
             TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask task = new TransportDeleteLifecycleAction.DeleteLifecyclePolicyTask(
+                state.metadata().getProject().id(),
                 new DeleteLifecycleAction.Request(
                     RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
                     RESERVED_CLUSTER_STATE_HANDLER_IGNORED_TIMEOUT,
                     policyToDelete
                 ),
-                DefaultProjectResolver.INSTANCE, // TODO multi-project: the settings file should specify the project being acted upon
                 ActionListener.noop()
             );
             state = task.execute(state);

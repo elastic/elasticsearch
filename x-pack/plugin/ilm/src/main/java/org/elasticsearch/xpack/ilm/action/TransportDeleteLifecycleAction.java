@@ -18,6 +18,7 @@ import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
+import org.elasticsearch.cluster.metadata.ProjectId;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.project.ProjectResolver;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -50,8 +51,8 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
         ClusterService clusterService,
         ThreadPool threadPool,
         ActionFilters actionFilters,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        ProjectResolver projectResolver
+        ProjectResolver projectResolver,
+        IndexNameExpressionResolver indexNameExpressionResolver
     ) {
         super(
             DeleteLifecycleAction.NAME,
@@ -69,26 +70,24 @@ public class TransportDeleteLifecycleAction extends TransportMasterNodeAction<Re
 
     @Override
     protected void masterOperation(Task task, Request request, ClusterState state, ActionListener<AcknowledgedResponse> listener) {
-        submitUnbatchedTask(
-            "delete-lifecycle-" + request.getPolicyName(),
-            new DeleteLifecyclePolicyTask(request, projectResolver, listener)
-        );
+        final var projectId = projectResolver.getProjectId();
+        submitUnbatchedTask("delete-lifecycle-" + request.getPolicyName(), new DeleteLifecyclePolicyTask(projectId, request, listener));
     }
 
     public static class DeleteLifecyclePolicyTask extends AckedClusterStateUpdateTask {
+        private final ProjectId projectId;
         private final Request request;
-        private final ProjectResolver projectResolver;
 
-        public DeleteLifecyclePolicyTask(Request request, ProjectResolver projectResolver, ActionListener<AcknowledgedResponse> listener) {
+        public DeleteLifecyclePolicyTask(ProjectId projectId, Request request, ActionListener<AcknowledgedResponse> listener) {
             super(request, listener);
+            this.projectId = projectId;
             this.request = request;
-            this.projectResolver = projectResolver;
         }
 
         @Override
         public ClusterState execute(ClusterState currentState) {
             String policyToDelete = request.getPolicyName();
-            ProjectMetadata projectMetadata = projectResolver.getProjectMetadata(currentState);
+            ProjectMetadata projectMetadata = currentState.metadata().getProject(projectId);
             List<String> indicesUsingPolicy = projectMetadata.indices()
                 .values()
                 .stream()

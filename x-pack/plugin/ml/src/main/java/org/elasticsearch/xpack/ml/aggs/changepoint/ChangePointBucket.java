@@ -18,7 +18,7 @@ import org.elasticsearch.xcontent.XContentBuilder;
 import java.io.IOException;
 import java.util.Objects;
 
-public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBucket implements ToXContent {
+public class ChangePointBucket extends InternalMultiBucketAggregation.InternalBucketWritable implements ToXContent {
     private final Object key;
     private final long docCount;
     private final InternalAggregations aggregations;

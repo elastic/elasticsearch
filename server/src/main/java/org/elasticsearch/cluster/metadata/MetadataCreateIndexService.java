@@ -134,7 +134,9 @@ public class MetadataCreateIndexService {
     public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
 
     @FunctionalInterface
-    interface ClusterBlocksTransformer extends BiConsumer<ClusterBlocks.Builder, IndexMetadata> {}
+    interface ClusterBlocksTransformer {
+        void apply(ClusterBlocks.Builder clusterBlocks, IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion);
+    }
 
     private final Settings settings;
     private final ClusterService clusterService;
@@ -554,7 +556,7 @@ public class MetadataCreateIndexService {
                 blocksTransformerUponIndexCreation,
                 allocationService.getShardRoutingRoleStrategy()
             );
-            assert assertHasRefreshBlock(indexMetadata, updated);
+            assert assertHasRefreshBlock(indexMetadata, updated, updated.getMinTransportVersion());
             if (request.performReroute()) {
                 updated = allocationService.reroute(updated, "index [" + indexMetadata.getIndex().getName() + "] created", rerouteListener);
             }
@@ -1322,7 +1324,7 @@ public class MetadataCreateIndexService {
         var blocksBuilder = ClusterBlocks.builder().blocks(currentState.blocks());
         blocksBuilder.updateBlocks(indexMetadata);
         if (blocksTransformer != null) {
-            blocksTransformer.accept(blocksBuilder, indexMetadata);
+            blocksTransformer.apply(blocksBuilder, indexMetadata, currentState.getMinTransportVersion());
         }
 
         var routingTableBuilder = RoutingTable.builder(shardRoutingRoleStrategy, currentState.routingTable())
@@ -1769,24 +1771,25 @@ public class MetadataCreateIndexService {
 
     static ClusterBlocksTransformer createClusterBlocksTransformerForIndexCreation(Settings settings) {
         if (useRefreshBlock(settings) == false) {
-            return (builder, indexMetadata) -> {};
+            return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {};
         }
         logger.info("applying refresh block on index creation");
-        return (builder, indexMetadata) -> {
-            if (applyRefreshBlock(indexMetadata)) {
-                builder.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
+        return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {
+            if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
+                clusterBlocks.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);
             }
         };
     }
 
-    private static boolean applyRefreshBlock(IndexMetadata indexMetadata) {
+    private static boolean applyRefreshBlock(IndexMetadata indexMetadata, TransportVersion minClusterTransportVersion) {
         return 0 < indexMetadata.getNumberOfReplicas() // index has replicas
             && indexMetadata.getResizeSourceIndex() == null // index is not a split/shrink index
-            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty); // index is a new index
+            && indexMetadata.getInSyncAllocationIds().values().stream().allMatch(Set::isEmpty) // index is a new index
+            && minClusterTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
     }
 
-    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ClusterState clusterState) {
-        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata) == false) {
+    private boolean assertHasRefreshBlock(IndexMetadata indexMetadata, ClusterState clusterState, TransportVersion minTransportVersion) {
+        if (useRefreshBlock(settings) == false || applyRefreshBlock(indexMetadata, minTransportVersion) == false) {
             assert clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK) == false;
         } else {
             assert clusterState.blocks().hasIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);

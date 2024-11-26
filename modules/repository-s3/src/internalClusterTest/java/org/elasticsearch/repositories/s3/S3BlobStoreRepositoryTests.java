@@ -388,7 +388,7 @@ public class S3BlobStoreRepositoryTests extends ESMockAPIBasedRepositoryIntegTes
             equalTo(
                 newStats.entrySet()
                     .stream()
-                    .filter(entry -> entry.getValue() != EndpointStats.ZERO)
+                    .filter(entry -> entry.getValue().isZero() == false)
                     .collect(Collectors.toUnmodifiableMap(Map.Entry::getKey, Map.Entry::getValue))
             )
         );

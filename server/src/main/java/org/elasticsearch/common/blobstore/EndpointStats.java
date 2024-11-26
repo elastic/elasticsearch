@@ -54,6 +54,10 @@ public record EndpointStats(long operations, long requests, long legacyValue) im
         }
     }
 
+    public boolean isZero() {
+        return (isLegacyStats() && legacyValue == 0) || (operations == 0 && requests == 0 && legacyValue == 0);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (o instanceof EndpointStats other) {

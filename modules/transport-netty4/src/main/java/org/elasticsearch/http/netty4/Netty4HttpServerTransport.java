@@ -33,6 +33,7 @@ import io.netty.handler.ssl.SslHandler;
 import io.netty.handler.timeout.ReadTimeoutException;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.util.AttributeKey;
+import io.netty.util.ResourceLeakDetector;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -409,6 +410,9 @@ public class Netty4HttpServerTransport extends AbstractHttpServerTransport {
                         }
                     }
                 });
+            }
+            if (ResourceLeakDetector.isEnabled()) {
+                ch.pipeline().addLast(new Netty4LeakDetectionHandler());
             }
             ch.pipeline()
                 .addLast(

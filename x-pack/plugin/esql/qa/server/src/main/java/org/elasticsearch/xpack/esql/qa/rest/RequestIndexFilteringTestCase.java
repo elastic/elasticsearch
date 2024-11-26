@@ -38,12 +38,6 @@ import static org.hamcrest.Matchers.nullValue;
 
 public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
 
-    protected final RestEsqlTestCase.Mode mode;
-
-    protected RequestIndexFilteringTestCase(RestEsqlTestCase.Mode mode) {
-        this.mode = mode;
-    }
-
     @After
     public void wipeTestData() throws IOException {
         try {
@@ -242,7 +236,7 @@ public abstract class RequestIndexFilteringTestCase extends ESRestTestCase {
     }
 
     public Map<String, Object> runEsql(RestEsqlTestCase.RequestObjectBuilder requestObject) throws IOException {
-        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), mode);
+        return RestEsqlTestCase.runEsql(requestObject, new AssertWarnings.NoWarnings(), RestEsqlTestCase.Mode.SYNC);
     }
 
     protected void indexTimestampData(int docs, String indexName, String date, String differentiatorFieldName) throws IOException {

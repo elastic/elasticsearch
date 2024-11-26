@@ -521,46 +521,49 @@ Let's create a query that addresses the following user needs:
 ----
 GET /cooking_blog/_search
 {
- "query": {
-   "bool": {
-     "must": [
-       {
-         "range": {
-           "rating": {
-             "gte": 4.5
-           }
-         }
-       }
-     ],
-     "should": [
-       {
-         "term": {
-           "category": "Main Course"
-         }
-       },
-       {
-         "multi_match": {
-           "query": "curry spicy",
-           "fields": ["title^2", "description"]
-         }
-       },
-       {
-         "range": {
-           "date": {
-             "gte": "now-1M/d"
-           }
-         }
-       }
-     ],
-     "must_not": [ <1>
-       {
-         "term": {
-           "category": "Dessert"
-         }
-       }
-     ]
-   }
- }
+  "query": {
+    "bool": {
+      "must": [
+        {
+          "range": {
+            "rating": {
+              "gte": 4.5
+            }
+          }
+        }
+      ],
+      "should": [
+        {
+          "term": {
+            "category": "Main Course"
+          }
+        },
+        {
+          "multi_match": {
+            "query": "curry spicy",
+            "fields": [
+              "title^2",
+              "description"
+            ]
+          }
+        },
+        {
+          "range": {
+            "date": {
+              "gte": "now-1M/d"
+            }
+          }
+        }
+      ],
+      "must_not": [ <1>
+        {
+          "term": {
+            "category": "Dessert"
+          }
+        }
+      ]
+    }
+  }
 }
 ----
 // TEST[continued]

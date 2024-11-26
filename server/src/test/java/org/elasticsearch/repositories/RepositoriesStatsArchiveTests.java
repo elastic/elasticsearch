@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories;
 
 import org.elasticsearch.common.UUIDs;
+import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.test.ESTestCase;
 
@@ -38,7 +39,7 @@ public class RepositoriesStatsArchiveTests extends ESTestCase {
         fakeRelativeClock.set(retentionTimeInMillis * 2);
         int statsToBeRetainedCount = randomInt(10);
         for (int i = 0; i < statsToBeRetainedCount; i++) {
-            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", 10L)));
+            RepositoryStatsSnapshot repoStats = createRepositoryStats(new RepositoryStats(Map.of("GET", new EndpointStats(10, 13, 13))));
             repositoriesStatsArchive.archive(repoStats);
         }
 

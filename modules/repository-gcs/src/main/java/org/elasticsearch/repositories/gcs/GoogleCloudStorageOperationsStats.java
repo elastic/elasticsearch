@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories.gcs;
 
+import org.elasticsearch.common.blobstore.EndpointStats;
+
 import java.util.HashMap;
 import java.util.Map;
 import java.util.concurrent.atomic.AtomicLong;
@@ -46,11 +48,11 @@ final class GoogleCloudStorageOperationsStats {
         return bucketName;
     }
 
-    Map<String, Long> toMap() {
-        final Map<String, Long> results = new HashMap<>();
-        results.put("GetObject", getCount.get());
-        results.put("ListObjects", listCount.get());
-        results.put("InsertObject", postCount.get() + putCount.get());
+    Map<String, EndpointStats> toMap() {
+        final Map<String, EndpointStats> results = new HashMap<>();
+        results.put("GetObject", new EndpointStats(getCount.get()));
+        results.put("ListObjects", new EndpointStats(listCount.get()));
+        results.put("InsertObject", new EndpointStats(postCount.get() + putCount.get()));
         return results;
     }
 }

@@ -9,6 +9,8 @@
 
 package org.elasticsearch.repositories;
 
+import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
@@ -23,28 +25,36 @@ public class RepositoryStats implements Writeable {
 
     public static final RepositoryStats EMPTY_STATS = new RepositoryStats(Collections.emptyMap());
 
-    public final Map<String, Long> requestCounts;
+    public final Map<String, EndpointStats> requestCounts;
 
-    public RepositoryStats(Map<String, Long> requestCounts) {
+    public RepositoryStats(Map<String, EndpointStats> requestCounts) {
         this.requestCounts = Collections.unmodifiableMap(requestCounts);
     }
 
     public RepositoryStats(StreamInput in) throws IOException {
-        this.requestCounts = in.readMap(StreamInput::readLong);
+        if (in.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+            this.requestCounts = in.readMap(EndpointStats::new);
+        } else {
+            this.requestCounts = in.readMap(si -> new EndpointStats(in.readLong()));
+        }
     }
 
     public RepositoryStats merge(RepositoryStats otherStats) {
-        final Map<String, Long> result = new HashMap<>();
+        final Map<String, EndpointStats> result = new HashMap<>();
         result.putAll(requestCounts);
-        for (Map.Entry<String, Long> entry : otherStats.requestCounts.entrySet()) {
-            result.merge(entry.getKey(), entry.getValue(), Math::addExact);
+        for (Map.Entry<String, EndpointStats> entry : otherStats.requestCounts.entrySet()) {
+            result.merge(entry.getKey(), entry.getValue(), EndpointStats::add);
         }
         return new RepositoryStats(result);
     }
 
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeMap(requestCounts, StreamOutput::writeLong);
+        if (out.getTransportVersion().onOrAfter(TransportVersions.RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS)) {
+            out.writeMap(requestCounts, (so, v) -> v.writeTo(so));
+        } else {
+            out.writeMap(requestCounts, (so, v) -> so.writeLong(v.legacyValue()));
+        }
     }
 
     @Override

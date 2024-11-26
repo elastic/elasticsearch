@@ -52,6 +52,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -694,7 +695,7 @@ public class AzureBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, EndpointStats> stats() {
         return requestMetricsRecorder.statsMap(service.isStateless());
     }
 
@@ -737,26 +738,44 @@ public class AzureBlobStore implements BlobStore {
     }
 
     // visible for testing
+    record StatsCounter(LongAdder operations, LongAdder requests) {
+        StatsCounter() {
+            this(new LongAdder(), new LongAdder());
+        }
+
+        EndpointStats getStats() {
+            return new EndpointStats(operations.sum(), requests.sum(), operations.sum());
+        }
+
+        EndpointStats addTo(EndpointStats other) {
+            long ops = operations.sum() + other.operations();
+            long reqs = requests.sum() + other.requests();
+            return new EndpointStats(ops, reqs, ops);
+        }
+    }
+
+    // visible for testing
     class RequestMetricsRecorder {
         private final RepositoriesMetrics repositoriesMetrics;
-        final Map<StatsKey, LongAdder> opsCounters = new ConcurrentHashMap<>();
+        final Map<StatsKey, StatsCounter> statsCounters = new ConcurrentHashMap<>();
         final Map<StatsKey, Map<String, Object>> opsAttributes = new ConcurrentHashMap<>();
 
         RequestMetricsRecorder(RepositoriesMetrics repositoriesMetrics) {
             this.repositoriesMetrics = repositoriesMetrics;
         }
 
-        Map<String, Long> statsMap(boolean stateless) {
+        Map<String, EndpointStats> statsMap(boolean stateless) {
             if (stateless) {
-                return opsCounters.entrySet()
+                return statsCounters.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().sum()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().getStats()));
             } else {
-                Map<String, Long> normalisedStats = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, o -> 0L));
-                opsCounters.forEach(
+                Map<String, EndpointStats> normalisedStats = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, o -> EndpointStats.ZERO));
+                statsCounters.forEach(
                     (key, value) -> normalisedStats.compute(
                         key.operation.getKey(),
-                        (k, current) -> Objects.requireNonNull(current) + value.sum()
+                        (k, current) -> value.addTo(Objects.requireNonNull(current))
                     )
                 );
                 return Map.copyOf(normalisedStats);
@@ -765,13 +784,14 @@ public class AzureBlobStore implements BlobStore {
 
         public void onRequestComplete(Operation operation, OperationPurpose purpose, AzureClientProvider.RequestMetrics requestMetrics) {
             final StatsKey statsKey = new StatsKey(operation, purpose);
-            final LongAdder counter = opsCounters.computeIfAbsent(statsKey, k -> new LongAdder());
+            final StatsCounter counter = statsCounters.computeIfAbsent(statsKey, k -> new StatsCounter());
             final Map<String, Object> attributes = opsAttributes.computeIfAbsent(
                 statsKey,
                 k -> RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey())
             );
 
-            counter.add(1);
+            counter.operations.increment();
+            counter.requests.add(requestMetrics.getRequestCount());
 
             // range not satisfied is not retried, so we count them by checking the final response
             if (requestMetrics.getStatusCode() == RestStatus.REQUESTED_RANGE_NOT_SATISFIED.getStatus()) {

@@ -28,6 +28,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.DeleteResult;
+import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.blobstore.OptionalBytesReference;
 import org.elasticsearch.common.blobstore.support.BlobContainerUtils;
@@ -597,7 +598,7 @@ class GoogleCloudStorageBlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, EndpointStats> stats() {
         return stats.toMap();
     }
 

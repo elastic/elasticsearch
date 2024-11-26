@@ -32,6 +32,7 @@ import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.common.blobstore.BlobPath;
 import org.elasticsearch.common.blobstore.BlobStore;
 import org.elasticsearch.common.blobstore.BlobStoreException;
+import org.elasticsearch.common.blobstore.EndpointStats;
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
@@ -146,13 +147,18 @@ class S3BlobStore implements BlobStore {
     // issue
     class IgnoreNoResponseMetricsCollector extends RequestMetricCollector {
 
-        final LongAdder counter = new LongAdder();
+        final LongAdder requests = new LongAdder();
+        final LongAdder operations = new LongAdder();
         private final Operation operation;
         private final Map<String, Object> attributes;
 
         private IgnoreNoResponseMetricsCollector(Operation operation, OperationPurpose purpose) {
             this.operation = operation;
             this.attributes = RepositoriesMetrics.createAttributesMap(repositoryMetadata, purpose, operation.getKey());
+        }
+
+        EndpointStats getEndpointStats() {
+            return new EndpointStats(operations.sum(), requests.sum(), requests.sum());
         }
 
         @Override
@@ -168,7 +174,7 @@ class S3BlobStore implements BlobStore {
             // See https://github.com/elastic/elasticsearch/pull/71406
             // TODO Is this BWC really necessary?
             if (response != null) {
-                counter.add(requestCount);
+                requests.add(requestCount);
             }
 
             // We collect all metrics regardless whether response is null
@@ -196,6 +202,7 @@ class S3BlobStore implements BlobStore {
             }
 
             s3RepositoriesMetrics.common().operationCounter().incrementBy(1, attributes);
+            operations.increment();
             if (numberOfAwsErrors == requestCount) {
                 s3RepositoriesMetrics.common().unsuccessfulOperationCounter().incrementBy(1, attributes);
             }
@@ -454,7 +461,7 @@ class S3BlobStore implements BlobStore {
     }
 
     @Override
-    public Map<String, Long> stats() {
+    public Map<String, EndpointStats> stats() {
         return statsCollectors.statsMap(service.isStateless);
     }
 
@@ -558,14 +565,19 @@ class S3BlobStore implements BlobStore {
             return collectors.computeIfAbsent(new StatsKey(operation, purpose), k -> buildMetricCollector(k.operation(), k.purpose()));
         }
 
-        Map<String, Long> statsMap(boolean isStateless) {
+        Map<String, EndpointStats> statsMap(boolean isStateless) {
             if (isStateless) {
                 return collectors.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().counter.sum()));
+                    .collect(
+                        Collectors.toUnmodifiableMap(entry -> entry.getKey().toString(), entry -> entry.getValue().getEndpointStats())
+                    );
             } else {
-                final Map<String, Long> m = Arrays.stream(Operation.values()).collect(Collectors.toMap(Operation::getKey, e -> 0L));
-                collectors.forEach((sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c) + v.counter.sum()));
+                final Map<String, EndpointStats> m = Arrays.stream(Operation.values())
+                    .collect(Collectors.toMap(Operation::getKey, e -> EndpointStats.ZERO));
+                collectors.forEach(
+                    (sk, v) -> m.compute(sk.operation().getKey(), (k, c) -> Objects.requireNonNull(c).add(v.getEndpointStats()))
+                );
                 return Map.copyOf(m);
             }
         }

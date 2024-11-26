@@ -27,7 +27,6 @@ import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.XPackPlugin;
-import org.elasticsearch.xpack.core.ssl.SSLConfigurationSettings;
 import org.elasticsearch.xpack.core.ssl.SSLService;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 
@@ -37,9 +36,11 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.EIS_SSL_ENABLED;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.SSL_CONFIGURATION_PREFIX;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.SSL_CONFIGURATION_SETTINGS;
 
 public class ElasticInferenceServiceHttpClientManager implements Closeable {
-    public static final String SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
     private static final Logger logger = LogManager.getLogger(HttpClientManager.class);
     /**
      * The maximum number of total connections the connection pool can lease to all routes.
@@ -88,17 +89,6 @@ public class ElasticInferenceServiceHttpClientManager implements Closeable {
         DEFAULT_CONNECTION_MAX_IDLE_TIME_SETTING,
         Setting.Property.NodeScope,
         Setting.Property.Dynamic
-    );
-
-    public static final SSLConfigurationSettings SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
-        SSL_CONFIGURATION_PREFIX,
-        false
-    );
-
-    public static final Setting<Boolean> EIS_SSL_ENABLED = Setting.boolSetting(
-        SSL_CONFIGURATION_PREFIX + "enabled",
-        true,
-        Setting.Property.NodeScope
     );
 
     private final ThreadPool threadPool;

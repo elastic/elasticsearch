@@ -7,14 +7,13 @@
 
 package org.elasticsearch.xpack.inference.external.request.openai;
 
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.ToXContentObject;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionRequest;
-import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
-import org.elasticsearch.xpack.inference.external.request.UnifiedRequest;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 
 import java.io.IOException;
-import java.util.List;
+import java.util.Objects;
 
 public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObject {
 
@@ -43,21 +42,14 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     private static final String TEXT_FIELD = "text";
     private static final String TYPE_FIELD = "type";
 
-    private final UnifiedRequest unifiedRequest;
+    private final UnifiedCompletionRequest unifiedRequest;
+    private final boolean stream;
 
-    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedRequest unifiedRequest) {
-        this.unifiedRequest = unifiedRequest;
-    }
+    public OpenAiUnifiedChatCompletionRequestEntity(UnifiedChatInput unifiedChatInput) {
+        Objects.requireNonNull(unifiedChatInput);
 
-    public OpenAiUnifiedChatCompletionRequestEntity(DocumentsOnlyInput input) {
-        this(new UnifiedRequest(convertDocumentsOnlyInputToMessages(input), null, null, null, null, null, null, null, null, null, true));
-    }
-
-    private static List<UnifiedCompletionRequest.Message> convertDocumentsOnlyInputToMessages(DocumentsOnlyInput input) {
-        return input.getInputs()
-            .stream()
-            .map(doc -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(doc), USER_FIELD, null, null, null))
-            .toList();
+        this.unifiedRequest = unifiedChatInput.getRequest();
+        this.stream = unifiedChatInput.stream();
     }
 
     @Override
@@ -173,7 +165,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         if (unifiedRequest.user() != null && unifiedRequest.user().isEmpty() == false) {
             builder.field(USER_FIELD, unifiedRequest.user());
         }
-        builder.field(STREAM_FIELD, unifiedRequest.stream());
+        builder.field(STREAM_FIELD, stream);
         builder.endObject();
         return builder;
     }

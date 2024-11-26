@@ -14,11 +14,11 @@ public abstract class InferenceInputs {
         return new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
     }
 
-    public static <T> T abc(InferenceInputs inputs, Class<T> clazz) {
-        if (inputs.getClass().isInstance(clazz) == false) {
-            throw createUnsupportedTypeException(inputs);
+    public <T> T castTo(Class<T> clazz) {
+        if (this.getClass().isInstance(clazz) == false) {
+            throw createUnsupportedTypeException(this);
         }
 
-        return clazz.cast(inputs);
+        return clazz.cast(this);
     }
 }

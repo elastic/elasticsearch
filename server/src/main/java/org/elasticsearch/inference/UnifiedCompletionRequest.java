@@ -5,7 +5,7 @@
  * 2.0.
  */
 
-package org.elasticsearch.xpack.core.inference.action;
+package org.elasticsearch.inference;
 
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
@@ -44,8 +44,8 @@ public record UnifiedCompletionRequest(
     public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
 
     @SuppressWarnings("unchecked")
-    static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
-        InferenceAction.NAME,
+    public static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
+        UnifiedCompletionRequest.class.getSimpleName(),
         args -> new UnifiedCompletionRequest(
             (List<Message>) args[0],
             (String) args[1],

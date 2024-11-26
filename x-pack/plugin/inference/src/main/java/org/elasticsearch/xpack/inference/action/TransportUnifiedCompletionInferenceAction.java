@@ -71,6 +71,6 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         InferenceService service,
         ActionListener<InferenceServiceResults> listener
     ) {
-        service.completionInfer(model, request.getUnifiedCompletionRequest(), null, listener);
+        service.unifiedCompletionInfer(model, request.getUnifiedCompletionRequest(), null, listener);
     }
 }

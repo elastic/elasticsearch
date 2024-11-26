@@ -47,10 +47,9 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
         ActionListener<InferenceServiceResults> listener
     ) {
 
-        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(
-            UnifiedChatInput.of(inferenceInputs).getRequestEntity(),
-            model
-        );
+        // TODO check and see if this works
+//        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(UnifiedChatInput.of(inferenceInputs), model);
+        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(inferenceInputs.castTo(UnifiedChatInput.class), model);
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

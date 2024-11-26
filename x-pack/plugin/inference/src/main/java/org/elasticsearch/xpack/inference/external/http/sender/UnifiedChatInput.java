@@ -7,34 +7,60 @@
 
 package org.elasticsearch.xpack.inference.external.http.sender;
 
-import org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequestEntity;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 
+import java.util.List;
 import java.util.Objects;
+
+import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUnifiedChatCompletionRequestEntity.USER_FIELD;
 
 public class UnifiedChatInput extends InferenceInputs {
 
     public static UnifiedChatInput of(InferenceInputs inferenceInputs) {
-
-        if (inferenceInputs instanceof DocumentsOnlyInput docsOnly) {
-            return new UnifiedChatInput(new OpenAiUnifiedChatCompletionRequestEntity(docsOnly));
-        } else if (inferenceInputs instanceof UnifiedChatInput == false) {
+        if (inferenceInputs instanceof UnifiedChatInput == false) {
             throw createUnsupportedTypeException(inferenceInputs);
         }
 
         return (UnifiedChatInput) inferenceInputs;
     }
 
-    public OpenAiUnifiedChatCompletionRequestEntity getRequestEntity() {
-        return requestEntity;
+    public static UnifiedChatInput of(List<String> input, boolean stream) {
+        var unifiedRequest = new UnifiedCompletionRequest(
+            convertToMessages(input),
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            null,
+            // TODO we need to get the user field from task settings if it is there
+            null
+        );
+
+        return new UnifiedChatInput(unifiedRequest, stream);
     }
 
-    private final OpenAiUnifiedChatCompletionRequestEntity requestEntity;
+    private static List<UnifiedCompletionRequest.Message> convertToMessages(List<String> inputs) {
+        return inputs.stream()
+            .map(doc -> new UnifiedCompletionRequest.Message(new UnifiedCompletionRequest.ContentString(doc), USER_FIELD, null, null, null))
+            .toList();
+    }
 
-    public UnifiedChatInput(OpenAiUnifiedChatCompletionRequestEntity requestEntity) {
-        this.requestEntity = Objects.requireNonNull(requestEntity);
+    private final UnifiedCompletionRequest request;
+    private final boolean stream;
+
+    public UnifiedChatInput(UnifiedCompletionRequest request, boolean stream) {
+        this.request = Objects.requireNonNull(request);
+        this.stream = stream;
+    }
+
+    public UnifiedCompletionRequest getRequest() {
+        return request;
     }
 
     public boolean stream() {
-        return requestEntity.isStream();
+        return stream;
     }
 }

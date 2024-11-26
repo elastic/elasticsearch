@@ -13,6 +13,7 @@ import org.apache.http.client.utils.URIBuilder;
 import org.apache.http.entity.ByteArrayEntity;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.inference.external.http.sender.UnifiedChatInput;
 import org.elasticsearch.xpack.inference.external.openai.OpenAiAccount;
 import org.elasticsearch.xpack.inference.external.request.HttpRequest;
 import org.elasticsearch.xpack.inference.external.request.Request;
@@ -29,12 +30,12 @@ import static org.elasticsearch.xpack.inference.external.request.openai.OpenAiUt
 public class OpenAiUnifiedChatCompletionRequest implements OpenAiRequest {
 
     private final OpenAiAccount account;
-    private final OpenAiUnifiedChatCompletionRequestEntity requestEntity;
     private final OpenAiChatCompletionModel model;
+    private final UnifiedChatInput unifiedChatInput;
 
-    public OpenAiUnifiedChatCompletionRequest(OpenAiUnifiedChatCompletionRequestEntity requestEntity, OpenAiChatCompletionModel model) {
+    public OpenAiUnifiedChatCompletionRequest(UnifiedChatInput unifiedChatInput, OpenAiChatCompletionModel model) {
         this.account = OpenAiAccount.of(model, OpenAiUnifiedChatCompletionRequest::buildDefaultUri);
-        this.requestEntity = Objects.requireNonNull(requestEntity);
+        this.unifiedChatInput = Objects.requireNonNull(unifiedChatInput);
         this.model = Objects.requireNonNull(model);
     }
 
@@ -42,7 +43,9 @@ public class OpenAiUnifiedChatCompletionRequest implements OpenAiRequest {
     public HttpRequest createHttpRequest() {
         HttpPost httpPost = new HttpPost(account.uri());
 
-        ByteArrayEntity byteEntity = new ByteArrayEntity(Strings.toString(requestEntity).getBytes(StandardCharsets.UTF_8));
+        ByteArrayEntity byteEntity = new ByteArrayEntity(
+            Strings.toString(new OpenAiUnifiedChatCompletionRequestEntity(unifiedChatInput)).getBytes(StandardCharsets.UTF_8)
+        );
         httpPost.setEntity(byteEntity);
 
         httpPost.setHeader(HttpHeaders.CONTENT_TYPE, XContentType.JSON.mediaType());
@@ -80,7 +83,7 @@ public class OpenAiUnifiedChatCompletionRequest implements OpenAiRequest {
 
     @Override
     public boolean isStreaming() {
-        return requestEntity.isStream();
+        return unifiedChatInput.stream();
     }
 
     public static URI buildDefaultUri() throws URISyntaxException {

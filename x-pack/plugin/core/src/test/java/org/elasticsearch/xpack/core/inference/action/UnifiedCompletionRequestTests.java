@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.core.inference.action;
 
 import org.elasticsearch.TransportVersion;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase;
 
@@ -99,7 +100,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 100L,
                 1,
                 new UnifiedCompletionRequest.StopValues(List.of("stop")),
-                true,
                 0.1F,
                 new UnifiedCompletionRequest.ToolChoiceObject(
                     "function",
@@ -168,7 +168,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
                 null,
                 new UnifiedCompletionRequest.StopString("none"),
                 null,
-                null,
                 new UnifiedCompletionRequest.ToolChoiceString("auto"),
                 List.of(
                     new UnifiedCompletionRequest.Tool(
@@ -196,7 +195,6 @@ public class UnifiedCompletionRequestTests extends AbstractBWCWireSerializationT
             randomNullOrLong(),
             randomNullOrInt(),
             randomNullOrStop(),
-            randomOptionalBoolean(),
             randomNullOrFloat(),
             randomNullOrToolChoice(),
             randomList(5, UnifiedCompletionRequestTests::randomTool),

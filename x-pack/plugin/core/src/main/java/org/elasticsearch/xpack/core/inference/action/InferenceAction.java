@@ -19,7 +19,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
-import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InferenceResults;
 import org.elasticsearch.inference.InferenceServiceResults;
@@ -93,8 +92,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
         private final InputType inputType;
         private final TimeValue inferenceTimeout;
         private final boolean stream;
-        private final boolean isUnifiedCompletionMode;
-        private final UnifiedCompletionRequest unifiedCompletionRequest;
 
         public Request(
             TaskType taskType,
@@ -104,34 +101,7 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             Map<String, Object> taskSettings,
             InputType inputType,
             TimeValue inferenceTimeout,
-            boolean stream,
-            boolean isUnifiedCompletionsMode
-        ) {
-            this(
-                taskType,
-                inferenceEntityId,
-                query,
-                input,
-                taskSettings,
-                inputType,
-                inferenceTimeout,
-                stream,
-                isUnifiedCompletionsMode,
-                null
-            );
-        }
-
-        public Request(
-            TaskType taskType,
-            String inferenceEntityId,
-            String query,
-            List<String> input,
-            Map<String, Object> taskSettings,
-            InputType inputType,
-            TimeValue inferenceTimeout,
-            boolean stream,
-            boolean isUnifiedCompletionsMode,
-            @Nullable UnifiedCompletionRequest unifiedCompletionRequest
+            boolean stream
         ) {
             this.taskType = taskType;
             this.inferenceEntityId = inferenceEntityId;
@@ -141,8 +111,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             this.inputType = inputType;
             this.inferenceTimeout = inferenceTimeout;
             this.stream = stream;
-            this.isUnifiedCompletionMode = isUnifiedCompletionsMode;
-            this.unifiedCompletionRequest = unifiedCompletionRequest;
         }
 
         public Request(StreamInput in) throws IOException {
@@ -167,14 +135,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             } else {
                 this.query = null;
                 this.inferenceTimeout = DEFAULT_TIMEOUT;
-            }
-
-            if (in.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_UNIFIED_COMPLETIONS_API)) {
-                this.isUnifiedCompletionMode = in.readBoolean();
-                this.unifiedCompletionRequest = in.readOptionalWriteable(UnifiedCompletionRequest::new);
-            } else {
-                this.isUnifiedCompletionMode = false;
-                this.unifiedCompletionRequest = null;
             }
 
             // streaming is not supported yet for transport traffic
@@ -213,10 +173,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             return stream;
         }
 
-        public boolean isUnifiedCompletionMode() {
-            return isUnifiedCompletionMode;
-        }
-
         @Override
         public ActionRequestValidationException validate() {
             if (input == null) {
@@ -242,10 +198,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                     e.addValidationError(format("Field [query] cannot be empty for task type [%s]", TaskType.RERANK));
                     return e;
                 }
-            } else if (query != null) {
-                var e = new ActionRequestValidationException();
-                e.addValidationError(format("Task type [%s] does not support field [query]", TaskType.RERANK));
-                return e;
             }
 
             return null;
@@ -270,11 +222,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_14_0)) {
                 out.writeOptionalString(query);
                 out.writeTimeValue(inferenceTimeout);
-            }
-
-            if (out.getTransportVersion().onOrAfter(TransportVersions.ML_INFERENCE_UNIFIED_COMPLETIONS_API)) {
-                out.writeBoolean(isUnifiedCompletionMode);
-                out.writeOptionalWriteable(unifiedCompletionRequest);
             }
         }
 
@@ -302,22 +249,12 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 && Objects.equals(taskSettings, request.taskSettings)
                 && Objects.equals(inputType, request.inputType)
                 && Objects.equals(query, request.query)
-                && Objects.equals(inferenceTimeout, request.inferenceTimeout)
-                && Objects.equals(isUnifiedCompletionMode, request.isUnifiedCompletionMode);
+                && Objects.equals(inferenceTimeout, request.inferenceTimeout);
         }
 
         @Override
         public int hashCode() {
-            return Objects.hash(
-                taskType,
-                inferenceEntityId,
-                input,
-                taskSettings,
-                inputType,
-                query,
-                inferenceTimeout,
-                isUnifiedCompletionMode
-            );
+            return Objects.hash(taskType, inferenceEntityId, input, taskSettings, inputType, query, inferenceTimeout);
         }
 
         public static class Builder {
@@ -330,8 +267,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
             private String query;
             private TimeValue timeout = DEFAULT_TIMEOUT;
             private boolean stream = false;
-            private boolean unifiedCompletionMode = false;
-            private UnifiedCompletionRequest unifiedCompletionRequest;
 
             private Builder() {}
 
@@ -379,29 +314,8 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 return this;
             }
 
-            public Builder setUnifiedCompletionMode(boolean unified) {
-                this.unifiedCompletionMode = unified;
-                return this;
-            }
-
-            public Builder setUnifiedCompletionRequest(UnifiedCompletionRequest unifiedCompletionRequest) {
-                this.unifiedCompletionRequest = unifiedCompletionRequest;
-                return this;
-            }
-
             public Request build() {
-                return new Request(
-                    taskType,
-                    inferenceEntityId,
-                    query,
-                    input,
-                    taskSettings,
-                    inputType,
-                    timeout,
-                    stream,
-                    unifiedCompletionMode,
-                    unifiedCompletionRequest
-                );
+                return new Request(taskType, inferenceEntityId, query, input, taskSettings, inputType, timeout, stream);
             }
         }
 
@@ -420,8 +334,6 @@ public class InferenceAction extends ActionType<InferenceAction.Response> {
                 + this.getInputType()
                 + ", timeout="
                 + this.getInferenceTimeout()
-                + ", isUnifiedCompletionsMode="
-                + this.isUnifiedCompletionMode()
                 + ")";
         }
     }

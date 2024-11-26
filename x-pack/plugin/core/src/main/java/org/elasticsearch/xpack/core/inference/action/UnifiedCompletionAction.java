@@ -13,6 +13,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
@@ -27,7 +28,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
     }
 
     public static class Request extends BaseInferenceActionRequest {
-        public static Request parseRequest(String inferenceEntityId, TaskType taskType, TimeValue timeout, XContentParser parser) throws IOException {
+        public static Request parseRequest(String inferenceEntityId, TaskType taskType, TimeValue timeout, XContentParser parser)
+            throws IOException {
             var unifiedRequest = UnifiedCompletionRequest.PARSER.apply(parser, null);
             return new Request(inferenceEntityId, taskType, unifiedRequest, timeout);
         }
@@ -110,8 +112,8 @@ public class UnifiedCompletionAction extends ActionType<InferenceAction.Response
             Request request = (Request) o;
             return Objects.equals(inferenceEntityId, request.inferenceEntityId)
                 && taskType == request.taskType
-                && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest) &&
-                Objects.equals(timeout, request.timeout);
+                && Objects.equals(unifiedCompletionRequest, request.unifiedCompletionRequest)
+                && Objects.equals(timeout, request.timeout);
         }
 
         @Override

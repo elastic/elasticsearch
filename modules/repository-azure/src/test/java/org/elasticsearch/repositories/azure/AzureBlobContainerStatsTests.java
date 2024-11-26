@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
+import fixture.azure.MockAzureBlobStore;
 
 import org.elasticsearch.common.blobstore.OperationPurpose;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -26,7 +27,7 @@ public class AzureBlobContainerStatsTests extends AbstractAzureServerTestCase {
     @SuppressForbidden(reason = "use a http server")
     @Before
     public void configureAzureHandler() {
-        httpServer.createContext("/", new AzureHttpHandler(ACCOUNT, CONTAINER, null, null));
+        httpServer.createContext("/", new AzureHttpHandler(ACCOUNT, CONTAINER, null, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE));
     }
 
     public void testOperationPurposeIsReflectedInBlobStoreStats() throws IOException {

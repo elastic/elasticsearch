@@ -20,6 +20,7 @@ import org.elasticsearch.rest.RestStatus;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.stream.Collectors;
@@ -39,9 +40,9 @@ public class MockAzureBlobStore {
      *
      * @param leaseExpiryPredicate A Predicate that takes an active lease ID and returns true when it should be expired, or null to never fail leases
      */
-    public MockAzureBlobStore(@Nullable LeaseExpiryPredicate leaseExpiryPredicate) {
+    public MockAzureBlobStore(LeaseExpiryPredicate leaseExpiryPredicate) {
         this.blobs = new ConcurrentHashMap<>();
-        this.leaseExpiryPredicate = leaseExpiryPredicate != null ? leaseExpiryPredicate : (current, request) -> false;
+        this.leaseExpiryPredicate = Objects.requireNonNull(leaseExpiryPredicate);
     }
 
     public void putBlock(String path, String blockId, BytesReference content, @Nullable String leaseId) {
@@ -438,6 +439,8 @@ public class MockAzureBlobStore {
     }
 
     public interface LeaseExpiryPredicate {
+
+        LeaseExpiryPredicate NEVER_EXPIRE = (activeLeaseId, requestLeaseId) -> false;
 
         /**
          * Should the lease be expired?

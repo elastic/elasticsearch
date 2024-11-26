@@ -7,6 +7,7 @@
 package org.elasticsearch.xpack.repositories.metering.azure;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Booleans;
@@ -38,7 +39,7 @@ public class AzureRepositoriesMeteringIT extends AbstractRepositoriesMeteringAPI
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_TEST_ACCOUNT),
-        null
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
     private static TestTrustStore trustStore = new TestTrustStore(

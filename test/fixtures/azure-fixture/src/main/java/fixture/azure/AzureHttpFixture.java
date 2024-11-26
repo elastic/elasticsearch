@@ -118,7 +118,7 @@ public class AzureHttpFixture extends ExternalResource {
         @Nullable String rawTenantId,
         @Nullable String rawClientId,
         Predicate<String> authHeaderPredicate,
-        @Nullable MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
+        MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
     ) {
         final var tenantId = Strings.hasText(rawTenantId) ? rawTenantId : null;
         final var clientId = Strings.hasText(rawClientId) ? rawClientId : null;

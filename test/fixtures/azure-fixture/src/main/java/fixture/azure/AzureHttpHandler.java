@@ -70,7 +70,7 @@ public class AzureHttpHandler implements HttpHandler {
         final String account,
         final String container,
         @Nullable Predicate<String> authHeaderPredicate,
-        @Nullable MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
+        MockAzureBlobStore.LeaseExpiryPredicate leaseExpiryPredicate
     ) {
         this.account = Objects.requireNonNull(account);
         this.container = Objects.requireNonNull(container);

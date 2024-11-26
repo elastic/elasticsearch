@@ -10,6 +10,7 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpFixture;
+import fixture.azure.MockAzureBlobStore;
 
 import com.azure.core.exception.HttpResponseException;
 import com.azure.storage.blob.BlobContainerClient;
@@ -61,7 +62,7 @@ public class AzureStorageCleanupThirdPartyTests extends AbstractThirdPartyReposi
         System.getProperty("test.azure.tenant_id"),
         System.getProperty("test.azure.client_id"),
         AzureHttpFixture.sharedKeyForAccountPredicate(AZURE_ACCOUNT),
-        null
+        MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
     );
 
     @Override

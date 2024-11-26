@@ -50,9 +50,6 @@ import static org.hamcrest.Matchers.hasSize;
 
 public class CategorizeBlockHashTests extends BlockHashTestCase {
 
-    /**
-     * Replicate the existing csv test, using sample_data.csv
-     */
     public void testCategorizeRaw() {
         final Page page;
         final int positions = 7;
@@ -66,7 +63,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
             page = new Page(builder.build());
         }
-        // final int emitBatchSize = between(positions, 10 * 1024);
+
         try (BlockHash hash = new CategorizeRawBlockHash(0, blockFactory, true)) {
             hash.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -125,7 +122,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("System shutdown"));
             page2 = new Page(builder.build());
         }
-        // final int emitBatchSize = between(positions, 10 * 1024);
+
         try (
             BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true);
             BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true);

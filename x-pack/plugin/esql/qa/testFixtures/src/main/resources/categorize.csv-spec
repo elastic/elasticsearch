@@ -60,7 +60,7 @@ COUNT():long | category:keyword
            1 | .*?disconnected.*?
 ;
 
-mv with multiple indices
+with multiple indices
 required_capability: categorize
 required_capability: union_types
 
@@ -70,10 +70,9 @@ FROM sample_data*
 ;
 
 COUNT():long | category:keyword
-           7 | .*?Banana.*?
-           15 | .*?Connected.+?to.*?
-           15 | .*?Connection.+?error.*?
-           5 | .*?Disconnected.*?
+          12 | .*?Connected.+?to.*?
+          12 | .*?Connection.+?error.*?
+           4 | .*?Disconnected.*?
 ;
 
 mv with many values

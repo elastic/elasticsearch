@@ -6,7 +6,6 @@
 
 This section summarizes the changes in each release.
 
-* <<release-notes-8.16.2>>
 * <<release-notes-8.16.1>>
 * <<release-notes-8.16.0>>
 * <<release-notes-8.15.5>>

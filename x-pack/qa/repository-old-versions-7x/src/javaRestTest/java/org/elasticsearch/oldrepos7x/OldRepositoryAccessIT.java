@@ -299,16 +299,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         closeIndex(client(), "mounted_shared_cache_" + indexName);
 
         // restore / mount again
-        restoreMountAndVerify(
-            numDocs,
-            expectedIds,
-            numberOfShards,
-            sourceOnlyRepository,
-            oldVersion,
-            indexName,
-            repoName,
-            snapshotName
-        );
+        restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, oldVersion, indexName, repoName, snapshotName);
 
         // TODO restart current cluster
 

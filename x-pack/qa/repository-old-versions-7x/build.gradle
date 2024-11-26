@@ -1,12 +1,25 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
+import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.Version
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 
-tasks.named("javaRestTest").configure {
-  def versionString = "7.17.25"
-  // def versionString = "7.9.0"
-  systemProperty 'tests.old_cluster_version', versionString
-  usesDefaultDistribution()
-  usesBwcDistribution(Version.fromString(versionString))
+tasks.named("javaRestTest") {
+  enabled = false
+}
+
+for (String versionString : ['7.9.0', '7.17.25']) {
+  String versionNoDots = versionString.replace('.', '_')
+
+  tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {
+    systemProperty 'tests.old_cluster_version', versionString
+    usesDefaultDistribution()
+    testClassesDirs = sourceSets.javaRestTest.output.classesDirs
+    classpath = sourceSets.javaRestTest.runtimeClasspath
+    usesBwcDistribution(Version.fromString(versionString))
+  }
+
+  tasks.named("check").configure {
+    dependsOn "javaRestTest#${versionNoDots}"
+  }
 }

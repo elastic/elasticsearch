@@ -27,7 +27,7 @@ public class AuditUtil {
 
     public static String restRequestContent(RestRequest request) {
         if (request.hasContent()) {
-            var content = request.releasableContent();
+            var content = request.content();
             try {
                 return XContentHelper.convertToJson(content, false, false, request.getXContentType());
             } catch (IOException ioe) {

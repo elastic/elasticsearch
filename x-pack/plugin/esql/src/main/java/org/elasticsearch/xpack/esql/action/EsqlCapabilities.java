@@ -531,7 +531,12 @@ public class EsqlCapabilities {
         /**
          * support for aggregations on semantic_text
          */
-        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * Additional types for match function and operator
+         */
+        MATCH_ADDITIONAL_TYPES;
 
         private final boolean enabled;
 

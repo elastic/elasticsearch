@@ -116,14 +116,15 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST)
-            .and(isType(
-            field,
-            DATA_TYPES::contains,
-            sourceText(),
-            FIRST,
-            "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
-        ));
+        return isNotNull(field, sourceText(), FIRST).and(
+            isType(
+                field,
+                DATA_TYPES::contains,
+                sourceText(),
+                FIRST,
+                "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+            )
+        );
     }
 
     @Override

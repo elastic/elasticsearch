@@ -219,7 +219,7 @@ count(*): long  | author.keyword:keyword
 ;
 
 testMatchIpField
-required_capability: match_function
+required_capability: match_additional_types
 
 from clientips
 | where client_ip:"172.21.3.15";
@@ -229,7 +229,7 @@ client_ip:keyword   | env:keyword
 ;
 
 testMatchDateField
-required_capability: match_function
+required_capability: match_additional_types
 
 from date_nanos
 | where millis:"2023-10-23T13:55:01.543Z"
@@ -240,7 +240,7 @@ millis:date
 ;
 
 testMatchPartialDateField
-required_capability: match_function
+required_capability: match_additional_types
 
 from date_nanos
 | where millis:"1999-10-22"
@@ -251,7 +251,7 @@ millis:date
 ;
 
 testMatchDateNanosField
-required_capability: match_function
+required_capability: match_additional_types
 
 from date_nanos
 | where nanos:"2023-10-23T13:55:01.543123456Z"
@@ -262,7 +262,7 @@ nanos:date_nanos
 ;
 
 testMatchPartialDateNanosField
-required_capability: match_function
+required_capability: match_additional_types
 
 from date_nanos
 | where nanos:"2023-10-23T13:55:01"
@@ -273,7 +273,7 @@ nanos:date_nanos
 ;
 
 testMatchBooleanField
-required_capability: match_function
+required_capability: match_additional_types
 
 from employees 
 | where still_hired:true and height > 2.08 
@@ -288,7 +288,7 @@ Amabile             | true                  | 2.09
 ;
 
 testMatchIntegerField
-required_capability: match_function
+required_capability: match_additional_types
 
 from employees 
 | where emp_no:10004
@@ -299,7 +299,7 @@ emp_no:integer | first_name:keyword
 ;
 
 testMatchDoubleField
-required_capability: match_function
+required_capability: match_additional_types
 
 from employees 
 | where salary_change:9.07
@@ -310,7 +310,7 @@ emp_no:integer | salary_change:double
 ;
 
 testMatchDoubleField
-required_capability: match_function
+required_capability: match_additional_types
 
 from employees 
 | where salary_change:9.07
@@ -321,7 +321,7 @@ emp_no:integer | salary_change:double
 ;  
 
 testMatchLongField
-required_capability: match_function
+required_capability: match_additional_types
 
 from date_nanos
 | where num:1698069301543123456
@@ -332,7 +332,7 @@ num:long
 ;
 
 testMatchUnsignedLongField
-required_capability: match_function
+required_capability: match_additional_types
 
 from ul_logs
 | where bytes_out:12749081495402663265
@@ -343,7 +343,7 @@ bytes_out:unsigned_long
 ;
 
 testMatchVersionField
-required_capability: match_function
+required_capability: match_additional_types
 
 from apps 
 | where version:"2.1" 

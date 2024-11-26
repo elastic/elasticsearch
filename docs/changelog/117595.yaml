@@ -1,0 +1,5 @@
+pr: 117595
+summary: Fix for Deberta tokenizer when input sequence exceeds 512 tokens
+area: Machine Learning
+type: bug
+issues: []

@@ -12,13 +12,17 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.xpack.core.security.authc.support.mapper.expressiondsl.FieldExpression;
+import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.AbstractFunctionTestCase;
 import org.elasticsearch.xpack.esql.expression.function.FunctionName;
 import org.elasticsearch.xpack.esql.expression.function.TestCaseSupplier;
+import org.elasticsearch.xpack.versionfield.Version;
 
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.LinkedList;
 import java.util.List;
@@ -38,8 +42,8 @@ public class MatchTests extends AbstractFunctionTestCase {
     public static Iterable<Object[]> parameters() {
         List<Set<DataType>> supportedPerPosition = supportedParams();
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        for (DataType fieldType : DataType.stringTypes()) {
-            for (DataType queryType : DataType.stringTypes()) {
+        for (DataType fieldType : Match.DATA_TYPES) {
+            for (DataType queryType : Match.DATA_TYPES) {
                 addPositiveTestCase(List.of(fieldType, queryType), suppliers);
                 addNonFieldTestCase(List.of(fieldType, queryType), supportedPerPosition, suppliers);
             }
@@ -55,13 +59,9 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     protected static List<Set<DataType>> supportedParams() {
         Set<DataType> supportedTextParams = Set.of(DataType.KEYWORD, DataType.TEXT);
-        Set<DataType> supportedNumericParams = Set.of(DataType.DOUBLE, DataType.INTEGER);
-        Set<DataType> supportedFuzzinessParams = Set.of(DataType.INTEGER, DataType.KEYWORD, DataType.TEXT);
         List<Set<DataType>> supportedPerPosition = List.of(
             supportedTextParams,
-            supportedTextParams,
-            supportedNumericParams,
-            supportedFuzzinessParams
+            Match.DATA_TYPES
         );
         return supportedPerPosition;
     }
@@ -108,8 +108,32 @@ public class MatchTests extends AbstractFunctionTestCase {
                 "field"
             )
         );
-        params.add(new TestCaseSupplier.TypedData(new BytesRef(randomAlphaOfLength(10)), paramDataTypes.get(1), "query"));
+        final Object value = randomQuery(paramDataTypes.get(1));
+        params.add(new TestCaseSupplier.TypedData(new BytesRef(String.valueOf(value)), paramDataTypes.get(1), "query"));
         return params;
+    }
+
+    public static Object randomQuery(DataType dataType) {
+        if (Match.DATA_TYPES.contains(dataType) == false) {
+            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
+        }
+        Object value = EsqlTestUtils.randomLiteral(dataType).value();
+        if (value instanceof BytesRef bytesRef) {
+            switch (dataType) {
+                case TEXT, KEYWORD -> value = bytesRef.utf8ToString();
+                case VERSION -> value = new Version(bytesRef).toString();
+                case IP -> {
+                    try {
+                        value = InetAddress.getByAddress(bytesRef.bytes).getHostAddress();
+                    } catch (UnknownHostException e) {
+                        throw new IllegalArgumentException(e);
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unexpected type: " + dataType + " has BytesRef as value");
+            }
+        }
+
+        return value;
     }
 
     private static String getTestCaseName(List<DataType> paramDataTypes, String fieldType) {

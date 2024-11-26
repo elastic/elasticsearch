@@ -39,8 +39,11 @@ import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchTests;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
+import org.elasticsearch.xpack.esql.parser.ParsingException;
 import org.elasticsearch.xpack.esql.plan.logical.Enrich;
 import org.elasticsearch.xpack.esql.plan.physical.AggregateExec;
 import org.elasticsearch.xpack.esql.plan.physical.EsQueryExec;
@@ -1092,19 +1095,31 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        var plan = plannerOptimizer.plan("""
-            from test
-            | where first_name:"Anna"
-            """);
+        // Check for every possible query data type
+        for (DataType queryDataType : Match.DATA_TYPES) {
+            var query = MatchTests.randomQuery(queryDataType);
+            var queryText = query;
+            if (query instanceof String) {
+                queryText = "\"" + query + "\"";
+            }
+            var esqlQuery = """
+                from test
+                | where first_name:""" + queryText;
+            try {
+                var plan = plannerOptimizer.plan(esqlQuery);
 
-        var limit = as(plan, LimitExec.class);
-        var exchange = as(limit.child(), ExchangeExec.class);
-        var project = as(exchange.child(), ProjectExec.class);
-        var fieldExtract = as(project.child(), FieldExtractExec.class);
-        var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
+                var limit = as(plan, LimitExec.class);
+                var exchange = as(limit.child(), ExchangeExec.class);
+                var project = as(exchange.child(), ProjectExec.class);
+                var fieldExtract = as(project.child(), FieldExtractExec.class);
+                var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-        var expectedLuceneQuery = new MatchQueryBuilder("first_name", "Anna");
-        assertThat(actualLuceneQuery, equalTo(expectedLuceneQuery));
+                var expectedLuceneQuery = new MatchQueryBuilder("first_name", query);
+                assertThat("Unexpected match query for data type " + queryDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
+            } catch (ParsingException e) {
+                fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
+            }
+        }
     }
 
     /**

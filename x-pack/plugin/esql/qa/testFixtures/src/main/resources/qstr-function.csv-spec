@@ -155,7 +155,7 @@ from books metadata _score
 | where qstr("author:Lord Rings^2")
 | eval c_score = ceil(_score)  
 | keep book_no, title, c_score 
-| sort c_score desc
+| sort c_score desc, book_no asc
 | LIMIT 2;
 
 book_no:keyword | title:text | c_score:double

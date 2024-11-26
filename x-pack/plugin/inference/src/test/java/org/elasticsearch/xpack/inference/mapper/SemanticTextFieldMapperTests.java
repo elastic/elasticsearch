@@ -70,8 +70,8 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
-import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -1084,7 +1084,8 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
     private static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
         throws IOException {
         if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
-            Map<String, Object> inferenceMetadataFields = new HashMap<>();
+            // Use a linked hash map to maintain insertion-order iteration over the inference fields
+            Map<String, Object> inferenceMetadataFields = new LinkedHashMap<>();
             for (var field : semanticTextInferenceResults) {
                 List<String> originalValues = field.originalValues();
                 if (originalValues.isEmpty() == false) {

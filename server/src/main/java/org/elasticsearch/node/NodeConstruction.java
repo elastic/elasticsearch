@@ -1006,7 +1006,6 @@ class NodeConstruction {
             taskManager,
             telemetryProvider.getTracer()
         );
-
         final SearchResponseMetrics searchResponseMetrics = new SearchResponseMetrics(telemetryProvider.getMeterRegistry());
         final SearchTransportService searchTransportService = new SearchTransportService(
             transportService,

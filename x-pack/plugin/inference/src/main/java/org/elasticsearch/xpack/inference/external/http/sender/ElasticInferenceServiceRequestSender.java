@@ -43,7 +43,10 @@ public class ElasticInferenceServiceRequestSender implements Sender {
         private final ClusterService clusterService;
         private final RequestSender requestSender;
 
-        public Factory(ServiceComponents serviceComponents, ElasticInferenceServiceHttpClientManager httpClientManager, ClusterService clusterService) {
+        public Factory(ServiceComponents serviceComponents,
+                       ElasticInferenceServiceHttpClientManager httpClientManager,
+                       ClusterService clusterService)
+        {
             this.serviceComponents = Objects.requireNonNull(serviceComponents);
             this.httpClientManager = Objects.requireNonNull(httpClientManager);
             this.clusterService = Objects.requireNonNull(clusterService);

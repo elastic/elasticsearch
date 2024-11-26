@@ -620,7 +620,7 @@ GET /cooking_blog/_search
 <2> While the description also contains matching terms, only the best matching field's score is used by default.
 <3> The recipe was published within the last month, satisfying our recency preference.
 <4> The "Main Course" category satisfies another `should` condition.
-<5> The "vegetarian" tag satisfies another `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
+<5> The "vegetarian" tag satisfies a `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
 <6> The rating of 4.6 meets our minimum rating requirement of 4.5.
 ==============
 

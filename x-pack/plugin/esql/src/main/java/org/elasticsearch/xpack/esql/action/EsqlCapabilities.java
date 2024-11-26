@@ -526,7 +526,7 @@ public class EsqlCapabilities {
         /**
          * Term function
          */
-        TERM_FUNCTION;
+        TERM_FUNCTION(Build.current().isSnapshot());
 
         private final boolean enabled;
 

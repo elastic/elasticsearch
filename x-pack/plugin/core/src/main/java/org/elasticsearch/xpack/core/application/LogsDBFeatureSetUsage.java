@@ -63,7 +63,8 @@ public final class LogsDBFeatureSetUsage extends XPackFeatureUsage {
         int indicesWithSyntheticSource,
         long numDocs,
         long sizeInBytes,
-        boolean hasCustomCutoffDate) {
+        boolean hasCustomCutoffDate
+    ) {
         super(XPackField.LOGSDB, available, enabled);
         this.indicesCount = indicesCount;
         this.indicesWithSyntheticSource = indicesWithSyntheticSource;

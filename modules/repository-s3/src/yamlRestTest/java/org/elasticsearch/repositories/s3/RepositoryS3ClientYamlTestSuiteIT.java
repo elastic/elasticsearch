@@ -10,8 +10,8 @@
 package org.elasticsearch.repositories.s3;
 
 import fixture.aws.imds.Ec2ImdsHttpFixture;
+import fixture.s3.DynamicS3Credentials;
 import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpFixtureWithSessionToken;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -34,26 +34,29 @@ public class RepositoryS3ClientYamlTestSuiteIT extends AbstractRepositoryS3Clien
 
     private static final String HASHED_SEED = Integer.toString(Murmur3HashFunction.hash(System.getProperty("tests.seed")));
     private static final String TEMPORARY_SESSION_TOKEN = "session_token-" + HASHED_SEED;
-    private static final String IMDS_ACCESS_KEY = "imds-access-key-" + HASHED_SEED;
-    private static final String IMDS_SESSION_TOKEN = "imds-session-token-" + HASHED_SEED;
 
     private static final S3HttpFixture s3Fixture = new S3HttpFixture();
 
-    private static final S3HttpFixtureWithSessionToken s3HttpFixtureWithSessionToken = new S3HttpFixtureWithSessionToken(
+    private static final S3HttpFixture s3HttpFixtureWithSessionToken = new S3HttpFixture(
+        true,
         "session_token_bucket",
         "session_token_base_path_integration_tests",
-        System.getProperty("s3TemporaryAccessKey"),
-        TEMPORARY_SESSION_TOKEN
+        S3HttpFixture.fixedAccessKeyAndToken(System.getProperty("s3TemporaryAccessKey"), TEMPORARY_SESSION_TOKEN)
     );
 
-    private static final S3HttpFixtureWithSessionToken s3HttpFixtureWithImdsSessionToken = new S3HttpFixtureWithSessionToken(
+    private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
+
+    private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(
+        dynamicS3Credentials::addValidCredentials,
+        Set.of()
+    );
+
+    private static final S3HttpFixture s3HttpFixtureWithImdsSessionToken = new S3HttpFixture(
+        true,
         "ec2_bucket",
         "ec2_base_path",
-        IMDS_ACCESS_KEY,
-        IMDS_SESSION_TOKEN
+        dynamicS3Credentials::isAuthorized
     );
-
-    private static final Ec2ImdsHttpFixture ec2ImdsHttpFixture = new Ec2ImdsHttpFixture(IMDS_ACCESS_KEY, IMDS_SESSION_TOKEN, Set.of());
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")

@@ -202,11 +202,12 @@ testMatchIpField
 required_capability: match_function
 required_capability: match_additional_types
 
-from clientips
-| where match(client_ip, "172.21.3.15");
+from sample_data
+| where match(client_ip,"172.21.0.5")
+| keep client_ip, message;
 
-client_ip:keyword   | env:keyword
-172.21.3.15         | Production
+client_ip:ip   | message:keyword
+172.21.0.5     | Disconnected
 ;
 
 testMatchDateField

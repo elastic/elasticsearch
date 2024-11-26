@@ -6,7 +6,6 @@ setup:
           path: /_query
           parameters: [ method, path, parameters, capabilities ]
           capabilities: [ match_operator_colon ]
-      cluster_features: [ "gte_v8.16.0" ]
       reason: "Match operator added in 8.16.0"
       test_runner_features: [capabilities, allowed_warnings_regex]
   - do:
@@ -97,6 +96,13 @@ setup:
 
 ---
 "match with integer field":
+  - requires:
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ method, path, parameters, capabilities ]
+          capabilities: [ match_additional_types ]
+      reason: "Additional types support for match"
   - do:
       allowed_warnings_regex:
         - "No limit defined, adding default limit of \\[.*\\]"

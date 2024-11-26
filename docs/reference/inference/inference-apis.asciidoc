@@ -41,7 +41,7 @@ Now use <<semantic-search-semantic-text, semantic text>> to perform
 
 Adaptive allocations allow inference services to dynamically adjust the number of model allocations based on the current load.
 
-You can enable adaptive allocations for inference services (<<infer-service-elser,ELSER>>, <<infer-service-elasticsearch,E5 and models uploaded via Eland>>). When adaptive allocations are enabled:
+When adaptive allocations are enabled:
 
 - The number of allocations scales up automatically when the load increases.
 - Allocations scale down to a minimum of 0 when the load decreases, saving resources.

@@ -256,7 +256,9 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
         }
 
         if (elasticInferenceUrl != null) {
-            var elasticInferenceServiceHttpClientManager = ElasticInferenceServiceHttpClientManager.create(settings, services.threadPool(), services.clusterService(), throttlerManager);
+            var elasticInferenceServiceHttpClientManager = ElasticInferenceServiceHttpClientManager.create(
+                settings, services.threadPool(), services.clusterService(), throttlerManager);
+
             var elasticInferenceServiceRequestSenderFactory = new ElasticInferenceServiceRequestSender.Factory(
                 serviceComponents.get(), elasticInferenceServiceHttpClientManager, services.clusterService());
             elasicInferenceServiceFactory.set(elasticInferenceServiceRequestSenderFactory);

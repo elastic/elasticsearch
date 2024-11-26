@@ -34,6 +34,7 @@ dependencies {
   compileOnly project(':modules:lang-painless:spi')
   compileOnly project(xpackModule('esql-core'))
   compileOnly project(xpackModule('ml'))
+  implementation project(xpackModule('kql'))
   implementation project('compute')
   implementation project('compute:ann')
   implementation project(':libs:dissect')
@@ -50,6 +51,7 @@ dependencies {
   testImplementation(testArtifact(project(xpackModule('core'))))
   testImplementation project(path: xpackModule('enrich'))
   testImplementation project(path: xpackModule('spatial'))
+  testImplementation project(path: xpackModule('kql'))
 
   testImplementation project(path: ':modules:reindex')
   testImplementation project(path: ':modules:parent-join')

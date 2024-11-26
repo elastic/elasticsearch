@@ -26,6 +26,7 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.IndexSettings;
+import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.query.QueryShardException;
 import org.elasticsearch.index.query.SearchExecutionContext;
@@ -298,7 +299,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
         if (indexMode == IndexMode.STANDARD && settingSourceMode == Mode.STORED) {
             return DEFAULT;
         }
-        if (c.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+        if (onOrAfterDeprecateModeVersion(c.indexVersionCreated())) {
             return resolveStaticInstance(settingSourceMode);
         } else {
             return new SourceFieldMapper(settingSourceMode, Explicit.IMPLICIT_TRUE, Strings.EMPTY_ARRAY, Strings.EMPTY_ARRAY, true);
@@ -308,14 +309,14 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.getIndexSettings().getMode(),
             c.getSettings(),
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
-            c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            onOrAfterDeprecateModeVersion(c.indexVersionCreated()) == false
         )
     ) {
         @Override
         public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
             throws MapperParsingException {
             assert name.equals(SourceFieldMapper.NAME) : name;
-            if (parserContext.indexVersionCreated().after(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER) && node.containsKey("mode")) {
+            if (onOrAfterDeprecateModeVersion(parserContext.indexVersionCreated()) && node.containsKey("mode")) {
                 deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
             }
             return super.parse(name, node, parserContext);
@@ -495,5 +496,10 @@ public class SourceFieldMapper extends MetadataFieldMapper {
 
     public boolean isStored() {
         return mode == null || mode == Mode.STORED;
+    }
+
+    public static boolean onOrAfterDeprecateModeVersion(IndexVersion version) {
+        return version.onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
+            || version.between(IndexVersions.V8_DEPRECATE_SOURCE_MODE_MAPPER, IndexVersions.UPGRADE_TO_LUCENE_10_0_0);
     }
 }

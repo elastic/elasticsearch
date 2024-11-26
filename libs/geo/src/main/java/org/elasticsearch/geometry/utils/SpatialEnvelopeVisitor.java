@@ -122,6 +122,22 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         private double maxX = Double.NEGATIVE_INFINITY;
         private double maxY = Double.NEGATIVE_INFINITY;
 
+        public double getMinX() {
+            return minX;
+        }
+
+        public double getMinY() {
+            return minY;
+        }
+
+        public double getMaxX() {
+            return maxX;
+        }
+
+        public double getMaxY() {
+            return maxY;
+        }
+
         @Override
         public void visitPoint(double x, double y) {
             minX = Math.min(minX, x);
@@ -169,6 +185,30 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
         private double minPosX = Double.POSITIVE_INFINITY;
         private double maxPosX = Double.NEGATIVE_INFINITY;
 
+        public double getMinY() {
+            return minY;
+        }
+
+        public double getMaxY() {
+            return maxY;
+        }
+
+        public double getMinNegX() {
+            return minNegX;
+        }
+
+        public double getMaxNegX() {
+            return maxNegX;
+        }
+
+        public double getMinPosX() {
+            return minPosX;
+        }
+
+        public double getMaxPosX() {
+            return maxPosX;
+        }
+
         private final boolean wrapLongitude;
 
         public GeoPointVisitor(boolean wrapLongitude) {
@@ -207,9 +247,20 @@ public class SpatialEnvelopeVisitor implements GeometryVisitor<Boolean, RuntimeE
 
         @Override
         public Rectangle getResult() {
-            if (Double.isInfinite(maxY)) {
-                return null;
-            } else if (Double.isInfinite(minPosX)) {
+            return Double.isInfinite(maxY) ? null : getResult(minNegX, minPosX, maxNegX, maxPosX, maxY, minY, wrapLongitude);
+        }
+
+        public static Rectangle getResult(
+            double minNegX,
+            double minPosX,
+            double maxNegX,
+            double maxPosX,
+            double maxY,
+            double minY,
+            boolean wrapLongitude
+        ) {
+            assert Double.isFinite(maxY);
+            if (Double.isInfinite(minPosX)) {
                 return new Rectangle(minNegX, maxNegX, maxY, minY);
             } else if (Double.isInfinite(minNegX)) {
                 return new Rectangle(minPosX, maxPosX, maxY, minY);

@@ -16,56 +16,91 @@ import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import java.util.Optional;
 
 enum PointType {
-    GEO,
-    CARTESIAN;
+    GEO {
+        @Override
+        public Optional<Rectangle> computeEnvelope(Geometry geo) {
+            return SpatialEnvelopeVisitor.visitGeo(geo, false /* wrapLongitude */);
+        }
 
-    double decodeX(int encoded) {
-        return switch (this) {
-            case GEO -> GeoEncodingUtils.decodeLongitude(encoded);
-            case CARTESIAN -> XYEncodingUtils.decode(encoded);
-        };
-    }
+        @Override
+        public double decodeX(int encoded) {
+            return GeoEncodingUtils.decodeLongitude(encoded);
+        }
 
-    double decodeY(int encoded) {
-        return switch (this) {
-            case GEO -> GeoEncodingUtils.decodeLatitude(encoded);
-            case CARTESIAN -> XYEncodingUtils.decode(encoded);
-        };
-    }
+        @Override
+        public double decodeY(int encoded) {
+            return GeoEncodingUtils.decodeLatitude(encoded);
+        }
 
-    int encodeX(double decoded) {
-        return switch (this) {
-            case GEO -> GeoEncodingUtils.encodeLongitude(decoded);
-            case CARTESIAN -> XYEncodingUtils.encode((float) decoded);
-        };
-    }
+        @Override
+        public int encodeX(double decoded) {
+            return GeoEncodingUtils.encodeLongitude(decoded);
+        }
 
-    int encodeY(double decoded) {
-        return switch (this) {
-            case GEO -> GeoEncodingUtils.encodeLatitude(decoded);
-            case CARTESIAN -> XYEncodingUtils.encode((float) decoded);
-        };
-    }
+        @Override
+        public int encodeY(double decoded) {
+            return GeoEncodingUtils.encodeLatitude(decoded);
+        }
 
-    // FIXME (gal) document
-    public int extractX(long encoded) {
-        return switch (this) {
-            case GEO -> SpatialAggregationUtils.extractY(encoded);
-            case CARTESIAN -> SpatialAggregationUtils.extractX(encoded);
-        };
-    }
+        // Geo encodes the longitude in the lower 32 bits and the latitude in the upper 32 bits.
+        @Override
+        public int extractX(long encoded) {
+            return SpatialAggregationUtils.extractSecond(encoded);
+        }
 
-    public int extractY(long encoded) {
-        return switch (this) {
-            case GEO -> SpatialAggregationUtils.extractX(encoded);
-            case CARTESIAN -> SpatialAggregationUtils.extractY(encoded);
-        };
-    }
+        @Override
+        public int extractY(long encoded) {
+            return SpatialAggregationUtils.extractFirst(encoded);
+        }
+    },
+    CARTESIAN {
+        @Override
+        public Optional<Rectangle> computeEnvelope(Geometry geo) {
+            return SpatialEnvelopeVisitor.visitCartesian(geo);
+        }
 
-    public Optional<Rectangle> computeEnvelope(Geometry geo) {
-        return switch (this) {
-            case GEO -> SpatialEnvelopeVisitor.visitGeo(geo, false);
-            case CARTESIAN -> SpatialEnvelopeVisitor.visitCartesian(geo);
-        };
-    }
+        @Override
+        public double decodeX(int encoded) {
+            return XYEncodingUtils.decode(encoded);
+        }
+
+        @Override
+        public double decodeY(int encoded) {
+            return XYEncodingUtils.decode(encoded);
+        }
+
+        @Override
+        public int encodeX(double decoded) {
+            return XYEncodingUtils.encode((float) decoded);
+        }
+
+        @Override
+        public int encodeY(double decoded) {
+            return XYEncodingUtils.encode((float) decoded);
+        }
+
+        @Override
+        public int extractX(long encoded) {
+            return SpatialAggregationUtils.extractFirst(encoded);
+        }
+
+        @Override
+        public int extractY(long encoded) {
+            return SpatialAggregationUtils.extractSecond(encoded);
+        }
+    };
+
+    public abstract Optional<Rectangle> computeEnvelope(Geometry geo);
+
+    public abstract double decodeX(int encoded);
+
+    public abstract double decodeY(int encoded);
+
+    public abstract int encodeX(double decoded);
+
+    public abstract int encodeY(double decoded);
+
+    public abstract int extractX(long encoded);
+
+    public abstract int extractY(long encoded);
 }

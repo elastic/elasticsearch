@@ -10,14 +10,9 @@ package org.elasticsearch.compute.aggregation.spatial;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
-import org.elasticsearch.geometry.Point;
-
-import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeX;
-import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeY;
 
 /**
- * This aggregator calculates the centroid of a set of cartesian points.
- * It is assumes that the cartesian points are encoded as longs.
+ * Computes the extent of a set of cartesian points. It is assumed the points are encoded as longs.
  * This requires that the planner has planned that points are loaded from the index as doc-values.
  */
 @Aggregator(

@@ -7,12 +7,11 @@
 
 package org.elasticsearch.compute.aggregation.spatial;
 
-import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.operator.DriverContext;
 
-// A bit of abuse of notation here, since we're extending this class to inherit its static methods.
+// A bit of abuse of notation here, since we're extending this class to "inherit" its static methods.
 // Unfortunately, this is the way it has to be done, since the generated code invokes these methods statically.
 abstract class StExtentAggregator {
     public static void combineIntermediate(StExtentState current, int minX, int maxX, int maxY, int minY) {

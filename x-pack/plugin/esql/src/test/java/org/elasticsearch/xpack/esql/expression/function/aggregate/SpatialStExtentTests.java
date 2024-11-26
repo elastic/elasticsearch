@@ -23,6 +23,7 @@ import org.elasticsearch.geometry.Point;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.GeometryValidator;
+import org.elasticsearch.geometry.utils.SpatialEnvelopeVisitor;
 import org.elasticsearch.geometry.utils.WellKnownBinary;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -40,9 +41,6 @@ import java.util.Set;
 import java.util.function.Supplier;
 import java.util.stream.Stream;
 import java.util.stream.StreamSupport;
-
-import static java.lang.Double.NEGATIVE_INFINITY;
-import static java.lang.Double.POSITIVE_INFINITY;
 
 @FunctionName("st_extent")
 public class SpatialStExtentTests extends AbstractAggregationTestCase {
@@ -71,29 +69,25 @@ public class SpatialStExtentTests extends AbstractAggregationTestCase {
     }
 
     private static TestCaseSupplier makeSupplier(TestCaseSupplier.TypedDataSupplier fieldSupplier) {
-        if (ALLOWED_SHAPES.contains(fieldSupplier.type()) == false) {
-            throw new IllegalArgumentException("Unexpected type: " + fieldSupplier.type());
-        }
-
         return new TestCaseSupplier(List.of(fieldSupplier.type()), () -> {
-            var fieldTypedData = fieldSupplier.get();
-            var values = fieldTypedData.multiRowData();
+            var pointVisitor = switch (fieldSupplier.type()) {
+                case DataType.CARTESIAN_POINT, DataType.CARTESIAN_SHAPE -> new SpatialEnvelopeVisitor.CartesianPointVisitor();
+                case DataType.GEO_POINT, DataType.GEO_SHAPE -> new SpatialEnvelopeVisitor.GeoPointVisitor(true /*wrapLongitude*/);
+                default -> throw new IllegalArgumentException("Unsupported type: " + fieldSupplier.type());
+            };
 
-            List<Point> points = values.stream()
+            var fieldTypedData = fieldSupplier.get();
+            fieldTypedData.multiRowData()
+                .stream()
                 .map(value -> (BytesRef) value)
                 .map(value -> WellKnownBinary.fromWKB(GeometryValidator.NOOP, false, value.bytes, value.offset, value.length))
-                .flatMap(g -> g.visit(new GeometryToPointsVisitor()).stream())
-                .toList();
-            double minX = points.stream().mapToDouble(Point::getX).min().orElse(POSITIVE_INFINITY);
-            double maxX = points.stream().mapToDouble(Point::getX).max().orElse(NEGATIVE_INFINITY);
-            double maxY = points.stream().mapToDouble(Point::getY).max().orElse(NEGATIVE_INFINITY);
-            double minY = points.stream().mapToDouble(Point::getY).min().orElse(NEGATIVE_INFINITY);
-
+                .forEach(g -> g.visit(new SpatialEnvelopeVisitor(pointVisitor)));
+            assert pointVisitor.isValid();
             return new TestCaseSupplier.TestCase(
                 List.of(fieldTypedData),
                 "SpatialStExtent[field=Attribute[channel=0]]",
                 fieldTypedData.type(),
-                new WellKnownBinaryBytesRefMatcher<Rectangle>(RectangleMatcher.closeTo(new Rectangle(minX, maxX, maxY, minY), 1e-3))
+                new WellKnownBinaryBytesRefMatcher<Rectangle>(RectangleMatcher.closeTo(pointVisitor.getResult(), 1e-3))
             );
         });
     }

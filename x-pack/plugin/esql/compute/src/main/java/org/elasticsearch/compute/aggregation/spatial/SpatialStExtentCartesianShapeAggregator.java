@@ -12,15 +12,11 @@ import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
 
-import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeX;
-import static org.elasticsearch.compute.aggregation.spatial.SpatialAggregationUtils.decodeY;
-
 /**
- * This aggregator calculates the centroid of a set of cartesian points.
- * It is assumes that the cartesian points are encoded as WKB BytesRef.
- * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
+ * Computes the extent of a set of cartesian shapes. It is assumed that the cartesian points are encoded as WKB BytesRef.
+ * We do not currently support reading shape values or extents from doc values.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianShapeAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialStExtentCartesianPointSourceValuesAggregator}.
  */
 @Aggregator(
     {

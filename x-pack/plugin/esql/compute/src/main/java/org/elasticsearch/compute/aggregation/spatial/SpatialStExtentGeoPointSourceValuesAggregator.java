@@ -11,37 +11,38 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.compute.ann.Aggregator;
 import org.elasticsearch.compute.ann.GroupingAggregator;
 import org.elasticsearch.compute.ann.IntermediateState;
-import org.elasticsearch.geometry.Point;
 
 /**
- * This aggregator calculates the centroid of a set of geo points.
- * It is assumes that the geo points are encoded as WKB BytesRef.
+ * Computes the extent of a set of geo points. It is assumed that the geo points are encoded as WKB BytesRef.
  * This requires that the planner has NOT planned that points are loaded from the index as doc-values, but from source instead.
  * This is also used for final aggregations and aggregations in the coordinator node,
- * even if the local node partial aggregation is done with {@link SpatialStExtentGeoPointDocValuesAggregator}.
+ * even if the local node partial aggregation is done with {@link SpatialStExtentGeoPointSourceValuesAggregator}.
  */
 @Aggregator(
     {
-        @IntermediateState(name = "minX", type = "INT"),
-        @IntermediateState(name = "maxX", type = "INT"),
+        @IntermediateState(name = "minNegX", type = "INT"),
+        @IntermediateState(name = "minPosX", type = "INT"),
+        @IntermediateState(name = "maxNegX", type = "INT"),
+        @IntermediateState(name = "maxPosX", type = "INT"),
         @IntermediateState(name = "maxY", type = "INT"),
         @IntermediateState(name = "minY", type = "INT") }
 )
 @GroupingAggregator
-class SpatialStExtentGeoPointSourceValuesAggregator extends StExtentAggregator {
-    public static StExtentState initSingle() {
-        return new StExtentState(PointType.GEO);
+class SpatialStExtentGeoPointSourceValuesAggregator extends StExtentLongitudeWrappingAggregator {
+    // TODO support non-longitude wrapped geo shapes.
+    public static StExtentStateWrappedLongitudeState initSingle() {
+        return new StExtentStateWrappedLongitudeState();
     }
 
-    public static StExtentGroupingState initGrouping() {
-        return new StExtentGroupingState(PointType.GEO);
+    public static StExtentGroupingStateWrappedLongitudeState initGrouping() {
+        return new StExtentGroupingStateWrappedLongitudeState();
     }
 
-    public static void combine(StExtentState current, BytesRef bytes) {
+    public static void combine(StExtentStateWrappedLongitudeState current, BytesRef bytes) {
         current.add(SpatialAggregationUtils.decode(bytes));
     }
 
-    public static void combine(StExtentGroupingState current, int groupId, BytesRef bytes) {
+    public static void combine(StExtentGroupingStateWrappedLongitudeState current, int groupId, BytesRef bytes) {
         current.add(groupId, SpatialAggregationUtils.decode(bytes));
     }
 }

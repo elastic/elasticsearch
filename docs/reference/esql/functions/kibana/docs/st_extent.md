@@ -7,5 +7,4 @@ Calculate the extent over a field with spatial point geometry type.
 
 ```
 FROM airports | WHERE country == "India" | STATS extent = st_extent(location)
-;
 ```

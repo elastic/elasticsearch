@@ -28,19 +28,21 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction implements AggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("minX", ElementType.INT),
-      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("minNegX", ElementType.INT),
+      new IntermediateStateDesc("minPosX", ElementType.INT),
+      new IntermediateStateDesc("maxNegX", ElementType.INT),
+      new IntermediateStateDesc("maxPosX", ElementType.INT),
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
   private final DriverContext driverContext;
 
-  private final StExtentState state;
+  private final StExtentStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   public SpatialStExtentGeoPointSourceValuesAggregatorFunction(DriverContext driverContext,
-      List<Integer> channels, StExtentState state) {
+      List<Integer> channels, StExtentStateWrappedLongitudeState state) {
     this.driverContext = driverContext;
     this.channels = channels;
     this.state = state;
@@ -139,31 +141,43 @@ public final class SpatialStExtentGeoPointSourceValuesAggregatorFunction impleme
   public void addIntermediateInput(Page page) {
     assert channels.size() == intermediateBlockCount();
     assert page.getBlockCount() >= channels.get(0) + intermediateStateDesc().size();
-    Block minXUncast = page.getBlock(channels.get(0));
-    if (minXUncast.areAllValuesNull()) {
+    Block minNegXUncast = page.getBlock(channels.get(0));
+    if (minNegXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector minX = ((IntBlock) minXUncast).asVector();
-    assert minX.getPositionCount() == 1;
-    Block maxXUncast = page.getBlock(channels.get(1));
-    if (maxXUncast.areAllValuesNull()) {
+    IntVector minNegX = ((IntBlock) minNegXUncast).asVector();
+    assert minNegX.getPositionCount() == 1;
+    Block minPosXUncast = page.getBlock(channels.get(1));
+    if (minPosXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector maxX = ((IntBlock) maxXUncast).asVector();
-    assert maxX.getPositionCount() == 1;
-    Block maxYUncast = page.getBlock(channels.get(2));
+    IntVector minPosX = ((IntBlock) minPosXUncast).asVector();
+    assert minPosX.getPositionCount() == 1;
+    Block maxNegXUncast = page.getBlock(channels.get(2));
+    if (maxNegXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxNegX = ((IntBlock) maxNegXUncast).asVector();
+    assert maxNegX.getPositionCount() == 1;
+    Block maxPosXUncast = page.getBlock(channels.get(3));
+    if (maxPosXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxPosX = ((IntBlock) maxPosXUncast).asVector();
+    assert maxPosX.getPositionCount() == 1;
+    Block maxYUncast = page.getBlock(channels.get(4));
     if (maxYUncast.areAllValuesNull()) {
       return;
     }
     IntVector maxY = ((IntBlock) maxYUncast).asVector();
     assert maxY.getPositionCount() == 1;
-    Block minYUncast = page.getBlock(channels.get(3));
+    Block minYUncast = page.getBlock(channels.get(5));
     if (minYUncast.areAllValuesNull()) {
       return;
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
     assert minY.getPositionCount() == 1;
-    SpatialStExtentGeoPointSourceValuesAggregator.combineIntermediate(state, minX.getInt(0), maxX.getInt(0), maxY.getInt(0), minY.getInt(0));
+    SpatialStExtentGeoPointSourceValuesAggregator.combineIntermediate(state, minNegX.getInt(0), minPosX.getInt(0), maxNegX.getInt(0), maxPosX.getInt(0), maxY.getInt(0), minY.getInt(0));
   }
 
   @Override

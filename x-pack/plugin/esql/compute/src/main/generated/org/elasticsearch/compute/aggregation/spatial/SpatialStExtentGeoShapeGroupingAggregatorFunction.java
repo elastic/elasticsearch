@@ -28,19 +28,21 @@ import org.elasticsearch.compute.operator.DriverContext;
  */
 public final class SpatialStExtentGeoShapeGroupingAggregatorFunction implements GroupingAggregatorFunction {
   private static final List<IntermediateStateDesc> INTERMEDIATE_STATE_DESC = List.of(
-      new IntermediateStateDesc("minX", ElementType.INT),
-      new IntermediateStateDesc("maxX", ElementType.INT),
+      new IntermediateStateDesc("minNegX", ElementType.INT),
+      new IntermediateStateDesc("minPosX", ElementType.INT),
+      new IntermediateStateDesc("maxNegX", ElementType.INT),
+      new IntermediateStateDesc("maxPosX", ElementType.INT),
       new IntermediateStateDesc("maxY", ElementType.INT),
       new IntermediateStateDesc("minY", ElementType.INT)  );
 
-  private final StExtentGroupingState state;
+  private final StExtentGroupingStateWrappedLongitudeState state;
 
   private final List<Integer> channels;
 
   private final DriverContext driverContext;
 
   public SpatialStExtentGeoShapeGroupingAggregatorFunction(List<Integer> channels,
-      StExtentGroupingState state, DriverContext driverContext) {
+      StExtentGroupingStateWrappedLongitudeState state, DriverContext driverContext) {
     this.channels = channels;
     this.state = state;
     this.driverContext = driverContext;
@@ -171,30 +173,40 @@ public final class SpatialStExtentGeoShapeGroupingAggregatorFunction implements 
   public void addIntermediateInput(int positionOffset, IntVector groups, Page page) {
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     assert channels.size() == intermediateBlockCount();
-    Block minXUncast = page.getBlock(channels.get(0));
-    if (minXUncast.areAllValuesNull()) {
+    Block minNegXUncast = page.getBlock(channels.get(0));
+    if (minNegXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector minX = ((IntBlock) minXUncast).asVector();
-    Block maxXUncast = page.getBlock(channels.get(1));
-    if (maxXUncast.areAllValuesNull()) {
+    IntVector minNegX = ((IntBlock) minNegXUncast).asVector();
+    Block minPosXUncast = page.getBlock(channels.get(1));
+    if (minPosXUncast.areAllValuesNull()) {
       return;
     }
-    IntVector maxX = ((IntBlock) maxXUncast).asVector();
-    Block maxYUncast = page.getBlock(channels.get(2));
+    IntVector minPosX = ((IntBlock) minPosXUncast).asVector();
+    Block maxNegXUncast = page.getBlock(channels.get(2));
+    if (maxNegXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxNegX = ((IntBlock) maxNegXUncast).asVector();
+    Block maxPosXUncast = page.getBlock(channels.get(3));
+    if (maxPosXUncast.areAllValuesNull()) {
+      return;
+    }
+    IntVector maxPosX = ((IntBlock) maxPosXUncast).asVector();
+    Block maxYUncast = page.getBlock(channels.get(4));
     if (maxYUncast.areAllValuesNull()) {
       return;
     }
     IntVector maxY = ((IntBlock) maxYUncast).asVector();
-    Block minYUncast = page.getBlock(channels.get(3));
+    Block minYUncast = page.getBlock(channels.get(5));
     if (minYUncast.areAllValuesNull()) {
       return;
     }
     IntVector minY = ((IntBlock) minYUncast).asVector();
-    assert minX.getPositionCount() == maxX.getPositionCount() && minX.getPositionCount() == maxY.getPositionCount() && minX.getPositionCount() == minY.getPositionCount();
+    assert minNegX.getPositionCount() == minPosX.getPositionCount() && minNegX.getPositionCount() == maxNegX.getPositionCount() && minNegX.getPositionCount() == maxPosX.getPositionCount() && minNegX.getPositionCount() == maxY.getPositionCount() && minNegX.getPositionCount() == minY.getPositionCount();
     for (int groupPosition = 0; groupPosition < groups.getPositionCount(); groupPosition++) {
       int groupId = groups.getInt(groupPosition);
-      SpatialStExtentGeoShapeAggregator.combineIntermediate(state, groupId, minX.getInt(groupPosition + positionOffset), maxX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
+      SpatialStExtentGeoShapeAggregator.combineIntermediate(state, groupId, minNegX.getInt(groupPosition + positionOffset), minPosX.getInt(groupPosition + positionOffset), maxNegX.getInt(groupPosition + positionOffset), maxPosX.getInt(groupPosition + positionOffset), maxY.getInt(groupPosition + positionOffset), minY.getInt(groupPosition + positionOffset));
     }
   }
 
@@ -203,7 +215,7 @@ public final class SpatialStExtentGeoShapeGroupingAggregatorFunction implements 
     if (input.getClass() != getClass()) {
       throw new IllegalArgumentException("expected " + getClass() + "; got " + input.getClass());
     }
-    StExtentGroupingState inState = ((SpatialStExtentGeoShapeGroupingAggregatorFunction) input).state;
+    StExtentGroupingStateWrappedLongitudeState inState = ((SpatialStExtentGeoShapeGroupingAggregatorFunction) input).state;
     state.enableGroupIdTracking(new SeenGroupIds.Empty());
     SpatialStExtentGeoShapeAggregator.combineStates(state, groupId, inState, position);
   }

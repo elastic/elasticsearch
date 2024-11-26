@@ -57,6 +57,7 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Function;
 import java.util.function.Supplier;
@@ -372,10 +373,12 @@ public class ExchangeServiceTests extends ESTestCase {
             AtomicInteger fetched = new AtomicInteger();
             int instance = randomIntBetween(1, 3);
             totalSinks.incrementAndGet();
+            AtomicBoolean sinkFailed = new AtomicBoolean();
             exchangeSourceHandler.addRemoteSink((allSourcesFinished, listener) -> {
                 if (fetched.incrementAndGet() > failAfter) {
                     sinkHandler.fetchPageAsync(true, listener.delegateFailure((l, r) -> {
                         failedRequests.incrementAndGet();
+                        sinkFailed.set(true);
                         listener.onFailure(new CircuitBreakingException("simulated", CircuitBreaker.Durability.PERMANENT));
                     }));
                 } else {
@@ -393,7 +396,13 @@ public class ExchangeServiceTests extends ESTestCase {
                         l.onResponse(new ExchangeResponse(blockFactory, page, r.finished()));
                     }));
                 }
-            }, false, instance, ActionListener.wrap(r -> { completedSinks.incrementAndGet(); }, e -> { failedSinks.incrementAndGet(); }));
+            }, false, instance, ActionListener.wrap(r -> {
+                assertFalse(sinkFailed.get());
+                completedSinks.incrementAndGet();
+            }, e -> {
+                assertTrue(sinkFailed.get());
+                failedSinks.incrementAndGet();
+            }));
             return sinkHandler.createExchangeSink();
         };
         Set<Integer> actualSeqNos = runConcurrentTest(
@@ -404,13 +413,11 @@ public class ExchangeServiceTests extends ESTestCase {
         );
         assertThat(actualSeqNos, equalTo(expectedSeqNos));
         assertThat(completedSinks.get() + failedSinks.get(), equalTo(totalSinks.get()));
+        sourceCompletionFuture.actionGet();
         if (failedRequests.get() > 0) {
             assertThat(failedSinks.get(), greaterThan(0));
-            var failure = expectThrows(CircuitBreakingException.class, () -> sourceCompletionFuture.actionGet(10, TimeUnit.SECONDS));
-            assertThat(failure.getMessage(), equalTo("simulated"));
         } else {
             assertThat(failedSinks.get(), equalTo(0));
-            sourceCompletionFuture.actionGet();
         }
     }
 

@@ -17,6 +17,7 @@ import org.elasticsearch.cluster.ClusterStateListener;
 import org.elasticsearch.cluster.ClusterStateUpdateTask;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.LifecycleExecutionState;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.cluster.metadata.SingleNodeShutdownMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -41,7 +42,6 @@ import org.elasticsearch.xpack.core.XPackField;
 import org.elasticsearch.xpack.core.ilm.CheckShrinkReadyStep;
 import org.elasticsearch.xpack.core.ilm.DownsampleStep;
 import org.elasticsearch.xpack.core.ilm.IndexLifecycleMetadata;
-import org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata;
 import org.elasticsearch.xpack.core.ilm.LifecyclePolicy;
 import org.elasticsearch.xpack.core.ilm.LifecycleSettings;
 import org.elasticsearch.xpack.core.ilm.OperationMode;
@@ -67,7 +67,6 @@ import java.util.stream.Collectors;
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.parseIndexNameAndExtractDate;
 import static org.elasticsearch.xpack.core.ilm.IndexLifecycleOriginationDateParser.shouldParseIndexName;
-import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.EMPTY;
 import static org.elasticsearch.xpack.core.ilm.LifecycleOperationMetadata.currentILMMode;
 
 /**
@@ -181,8 +180,9 @@ public class IndexLifecycleService
 
         // TODO multi-project: this probably needs a per-project iteration
         @FixForMultiProject
-        ProjectMetadata projectMetadata = clusterState.metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
-        if (projectMetadata != null) {
+        final ProjectMetadata projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        final IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
+        if (currentMetadata != null) {
             OperationMode currentMode = currentILMMode(projectMetadata);
             if (OperationMode.STOPPED.equals(currentMode)) {
                 return;
@@ -352,15 +352,17 @@ public class IndexLifecycleService
         }
 
         @FixForMultiProject
-        final ProjectMetadata project = event.state().metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
-        if (project == null) {
+        final IndexLifecycleMetadata ilmMetadata = event.state()
+            .metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .custom(IndexLifecycleMetadata.TYPE);
+        if (ilmMetadata == null) {
             return;
         }
-        final IndexLifecycleMetadata ilmMetadata = project.custom(IndexLifecycleMetadata.TYPE);
-        final ProjectMetadata previousProject = event.previousState().metadata().projects().get(project.id());
-        final IndexLifecycleMetadata previousIlmMetadata = previousProject == null
-            ? null
-            : previousProject.custom(IndexLifecycleMetadata.TYPE);
+        final IndexLifecycleMetadata previousIlmMetadata = event.previousState()
+            .metadata()
+            .getProject(Metadata.DEFAULT_PROJECT_ID)
+            .custom(IndexLifecycleMetadata.TYPE);
         if (event.previousState().nodes().isLocalNodeElectedMaster() == false || ilmMetadata != previousIlmMetadata) {
             policyRegistry.update(ilmMetadata);
         }
@@ -396,19 +398,18 @@ public class IndexLifecycleService
      */
     @FixForMultiProject
     void triggerPolicies(ClusterState clusterState, boolean fromClusterStateChange) {
-        ProjectMetadata projectMetadata = clusterState.metadata().getSingleProjectWithCustom(IndexLifecycleMetadata.TYPE);
+        @FixForMultiProject
+        final var projectMetadata = clusterState.metadata().getProject(Metadata.DEFAULT_PROJECT_ID);
+        IndexLifecycleMetadata currentMetadata = projectMetadata.custom(IndexLifecycleMetadata.TYPE);
 
-        if (projectMetadata == null) {
-            @FixForMultiProject
-            LifecycleOperationMetadata operationMetadata = clusterState.metadata().getSingleProjectCustom(LifecycleOperationMetadata.TYPE);
-            OperationMode currentMode = operationMetadata == null ? EMPTY.getILMOperationMode() : operationMetadata.getILMOperationMode();
+        OperationMode currentMode = currentILMMode(projectMetadata);
+        if (currentMetadata == null) {
             if (currentMode == OperationMode.STOPPING) {
                 // There are no policies and ILM is in stopping mode, so stop ILM and get out of here
                 stopILM();
             }
             return;
         }
-        OperationMode currentMode = currentILMMode(projectMetadata);
 
         if (OperationMode.STOPPED.equals(currentMode)) {
             return;
@@ -529,6 +530,8 @@ public class IndexLifecycleService
             return Collections.emptySet();
         }
 
+        // Returning a set of strings will cause weird behavior with multiple projects
+        @FixForMultiProject
         Set<String> indicesPreventingShutdown = state.metadata()
             .projects()
             .values()

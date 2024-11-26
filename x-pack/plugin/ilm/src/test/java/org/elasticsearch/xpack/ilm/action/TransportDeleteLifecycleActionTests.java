@@ -29,8 +29,8 @@ public class TransportDeleteLifecycleActionTests extends ESTestCase {
             mock(ClusterService.class),
             threadPool,
             mock(ActionFilters.class),
-            mock(IndexNameExpressionResolver.class),
-            mock(ProjectResolver.class)
+            mock(ProjectResolver.class),
+            mock(IndexNameExpressionResolver.class)
         );
         assertEquals(ReservedLifecycleAction.NAME, putAction.reservedStateHandlerName().get());
 

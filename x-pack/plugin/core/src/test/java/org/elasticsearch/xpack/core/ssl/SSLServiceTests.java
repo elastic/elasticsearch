@@ -614,7 +614,8 @@ public class SSLServiceTests extends ESTestCase {
             "xpack.security.authc.realms.ldap.realm1.ssl",
             "xpack.security.authc.realms.saml.realm2.ssl",
             "xpack.monitoring.exporters.mon1.ssl",
-            "xpack.monitoring.exporters.mon2.ssl" };
+            "xpack.monitoring.exporters.mon2.ssl",
+            "xpack.inference.elastic.http.ssl" };
 
         assumeTrue("Not enough cipher suites are available to support this test", getCipherSuites.length >= contextNames.length);
 

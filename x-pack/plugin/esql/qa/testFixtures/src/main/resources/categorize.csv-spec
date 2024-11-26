@@ -181,7 +181,6 @@ COUNT():long | category:keyword
 
 on REVERSE(CONCAT())
 required_capability: categorize
-# NOCOMIT needs fn_reverse_grapheme
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(REVERSE(CONCAT(message, " 👍🏽😊")))

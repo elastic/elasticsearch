@@ -36,13 +36,12 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
 
     @Override
     public void add(Page page, GroupingAggregatorFunction.AddInput addInput) {
-        BytesRefBlock categorizerState = page.getBlock(channel());
-        Map<Integer, Integer> idMap;
-        if (categorizerState.areAllValuesNull() == false) {
-            idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
-        } else {
-            idMap = Collections.emptyMap();
+        if (page.getPositionCount() == 0) {
+            // No categories
+            return;
         }
+        BytesRefBlock categorizerState = page.getBlock(channel());
+        Map<Integer, Integer> idMap = readIntermediate(categorizerState.getBytesRef(0, new BytesRef()));
         try (IntBlock.Builder newIdsBuilder = blockFactory.newIntBlockBuilder(idMap.size())) {
             for (int i = 0; i < idMap.size(); i++) {
                 newIdsBuilder.appendInt(idMap.get(i));
@@ -53,6 +52,11 @@ public class CategorizedIntermediateBlockHash extends AbstractCategorizeBlockHas
         }
     }
 
+    /**
+     * Read intermediate state from a block.
+     *
+     * @return a map from the old category id to the new one. The old ids go from 0 to {@code size - 1}.
+     */
     private Map<Integer, Integer> readIntermediate(BytesRef bytes) {
         Map<Integer, Integer> idMap = new HashMap<>();
         try (StreamInput in = new BytesArray(bytes).streamInput()) {

@@ -72,11 +72,11 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
     }
 
     /**
-     * Serializes the intermediate state into a single BytesRef block, or a Null block if there are no categories.
+     * Serializes the intermediate state into a single BytesRef block, or an empty Null block if there are no categories.
      */
     private Block buildIntermediateBlock() {
         if (categorizer.getCategoryCount() == 0) {
-            return blockFactory.newConstantNullBlock(categorizer.getCategoryCount());
+            return blockFactory.newConstantNullBlock(0);
         }
         try (BytesStreamOutput out = new BytesStreamOutput()) {
             // TODO be more careful here.
@@ -84,6 +84,7 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
             for (SerializableTokenListCategory category : categorizer.toCategoriesById()) {
                 category.writeTo(out);
             }
+            // We're returning a block with N positions just because the Page must have all blocks with the same position count!
             return blockFactory.newConstantBytesRefBlockWith(out.bytes().toBytesRef(), categorizer.getCategoryCount());
         } catch (IOException e) {
             throw new RuntimeException(e);

@@ -13,6 +13,7 @@ import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
@@ -33,10 +34,6 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
         // collect aliases bottom-up
         plan.forEachExpressionUp(Alias.class, a -> {
             var c = a.child();
-            if (c instanceof Categorize) {
-                // Categorize cannot be folded
-                return;
-            }
             boolean shouldCollect = c.foldable();
             // try to resolve the expression based on an existing foldables
             if (shouldCollect == false) {

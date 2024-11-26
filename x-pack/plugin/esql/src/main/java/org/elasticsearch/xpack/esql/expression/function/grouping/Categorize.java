@@ -74,7 +74,8 @@ public class Categorize extends GroupingFunction implements Validatable {
 
     @Override
     public boolean foldable() {
-        return field.foldable();
+        // Categorize cannot be currently folded
+        return false;
     }
 
     @Override

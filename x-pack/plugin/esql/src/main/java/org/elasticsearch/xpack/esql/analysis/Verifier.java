@@ -34,6 +34,7 @@ import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunct
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
@@ -215,6 +216,7 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
+            checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
         });
@@ -230,6 +232,18 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkSort(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof OrderBy ob) {
+            ob.order().forEach(o -> {
+                o.forEachDown(Function.class, f -> {
+                    if (f instanceof AggregateFunction) {
+                        failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                    }
+                });
+            });
+        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
@@ -511,7 +525,7 @@ public class Verifier {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
                 if (DataType.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                    failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
         }
@@ -780,14 +794,19 @@ public class Verifier {
     private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
-            checkCommandsBeforeExpression(
-                plan,
-                condition,
-                QueryString.class,
-                lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
-                qsf -> "[" + qsf.functionName() + "] " + qsf.functionType(),
-                failures
-            );
+
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+
             checkCommandsBeforeExpression(
                 plan,
                 condition,

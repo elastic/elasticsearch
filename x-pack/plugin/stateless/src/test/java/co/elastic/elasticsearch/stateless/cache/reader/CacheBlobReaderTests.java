@@ -153,7 +153,7 @@ public class CacheBlobReaderTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, sharedCacheService.getRegionSize())
             );
             appendCommitsToVbcc(commits, useInternalFilesReplicatedContent);
 

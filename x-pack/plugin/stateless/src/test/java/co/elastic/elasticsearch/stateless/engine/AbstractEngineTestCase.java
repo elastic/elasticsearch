@@ -544,7 +544,7 @@ public abstract class AbstractEngineTestCase extends ESTestCase {
                     fileName -> uploadedBlobLocations.get(fileName),
                     ESTestCase::randomNonNegativeLong,
                     sharedBlobCacheService.getRegionSize(),
-                    randomDoubleBetween(0.0d, 1.0d, true)
+                    randomIntBetween(0, sharedBlobCacheService.getRegionSize())
                 );
 
                 vbcc.appendCommit(

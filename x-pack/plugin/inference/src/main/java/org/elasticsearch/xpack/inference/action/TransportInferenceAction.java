@@ -34,6 +34,7 @@ public class TransportInferenceAction extends BaseTransportInferenceAction<Infer
         StreamingTaskManager streamingTaskManager
     ) {
         super(
+            InferenceAction.NAME,
             transportService,
             actionFilters,
             modelRegistry,

@@ -53,6 +53,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
     private final StreamingTaskManager streamingTaskManager;
 
     public BaseTransportInferenceAction(
+        String inferenceActionName,
         TransportService transportService,
         ActionFilters actionFilters,
         ModelRegistry modelRegistry,
@@ -61,7 +62,7 @@ public abstract class BaseTransportInferenceAction<Request extends BaseInference
         StreamingTaskManager streamingTaskManager,
         Writeable.Reader<Request> requestReader
     ) {
-        super(InferenceAction.NAME, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
+        super(inferenceActionName, transportService, actionFilters, requestReader, EsExecutors.DIRECT_EXECUTOR_SERVICE);
         this.modelRegistry = modelRegistry;
         this.serviceRegistry = serviceRegistry;
         this.inferenceStats = inferenceStats;

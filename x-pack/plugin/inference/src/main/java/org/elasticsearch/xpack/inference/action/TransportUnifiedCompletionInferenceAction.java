@@ -36,6 +36,7 @@ public class TransportUnifiedCompletionInferenceAction extends BaseTransportInfe
         StreamingTaskManager streamingTaskManager
     ) {
         super(
+            UnifiedCompletionAction.NAME,
             transportService,
             actionFilters,
             modelRegistry,

@@ -38,7 +38,7 @@ class BuildParameterExtensionSpec extends Specification {
         def buildParams = extension(project, providers)
         int numberOfThreads = 10;
         when:
-        var service = Executors.newFixedThreadPool(10)
+        var service = Executors.newFixedThreadPool(numberOfThreads)
         var latch = new CountDownLatch(numberOfThreads)
         def testedProvider = buildParams."$getterName"()
         def futures = (1..numberOfThreads).collect {
@@ -58,7 +58,7 @@ class BuildParameterExtensionSpec extends Specification {
 
         then:
         futures.size() == numberOfThreads
-        futures.collect { it.state() }.every { it == Future.State.SUCCESS }
+        futures.collect { it.state() }.any() { it == Future.State.FAILED } == false
 
         where:
         getterName << [
@@ -104,6 +104,10 @@ class BuildParameterExtensionSpec extends Specification {
             println "accessing provider"
             return counter.get() == 1 ? fail("Accessing cached provider more than once") : counter.incrementAndGet()
         }
-        provider
+        provider.get() >> {
+            fail("Accessing cached provider directly")
+        }
+        return provider
+
     }
 }

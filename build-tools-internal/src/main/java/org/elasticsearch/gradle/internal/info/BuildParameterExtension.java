@@ -24,6 +24,7 @@ import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Random;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.function.Supplier;
 
 public abstract class BuildParameterExtension {
     private final Provider<Boolean> inFipsJvm;
@@ -56,7 +57,6 @@ public abstract class BuildParameterExtension {
         JavaVersion gradleJavaVersion,
         String gitRevision,
         String gitOrigin,
-        ZonedDateTime buildDate,
         String testSeed,
         boolean isCi,
         int defaultParallel,
@@ -64,11 +64,11 @@ public abstract class BuildParameterExtension {
         Provider<BwcVersions> bwcVersions
     ) {
         this.inFipsJvm = providers.systemProperty("tests.fips.enabled").map(BuildParameterExtension::parseBoolean);
-        this.runtimeJavaHome = runtimeJavaHome;
-        this.javaToolChainSpec = javaToolChainSpec;
-        this.runtimeJavaVersion = runtimeJavaVersion;
+        this.runtimeJavaHome = cache(providers, runtimeJavaHome);
+        this.javaToolChainSpec = cache(providers, javaToolChainSpec);
+        this.runtimeJavaVersion = cache(providers, runtimeJavaVersion);
         this.isRuntimeJavaHomeSet = isRuntimeJavaHomeSet;
-        this.runtimeJavaDetails = runtimeJavaDetails;
+        this.runtimeJavaDetails = cache(providers, runtimeJavaDetails);
         this.javaVersions = javaVersions;
         this.minimumCompilerVersion = minimumCompilerVersion;
         this.minimumRuntimeVersion = minimumRuntimeVersion;
@@ -80,6 +80,12 @@ public abstract class BuildParameterExtension {
         this.isSnapshotBuild = isSnapshotBuild;
         this.getBwcVersionsProperty().set(bwcVersions);
         this.getGitOriginProperty().set(gitOrigin);
+    }
+
+    // This is a workaround for https://github.com/gradle/gradle/issues/25550
+    private <T> Provider<T> cache(ProviderFactory providerFactory, Provider<T> incomingProvider) {
+        SingleObjectCache<T> cache = new SingleObjectCache<>();
+        return providerFactory.provider(() -> cache.computeIfAbsent(() -> incomingProvider.getOrNull()));
     }
 
     private static boolean parseBoolean(String s) {
@@ -183,5 +189,22 @@ public abstract class BuildParameterExtension {
 
     public Boolean isGraalVmRuntime() {
         return runtimeJavaDetails.get().toLowerCase().contains("graalvm");
+    }
+
+    private static class SingleObjectCache<T> {
+        private T instance;
+
+        public T computeIfAbsent(Supplier<T> supplier) {
+            synchronized (this) {
+                if (instance == null) {
+                    instance = supplier.get();
+                }
+                return instance;
+            }
+        }
+
+        public T get() {
+            return instance;
+        }
     }
 }

@@ -14,7 +14,7 @@ public class QueryAndDocsInputs extends InferenceInputs {
 
     public static QueryAndDocsInputs of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof QueryAndDocsInputs == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, QueryAndDocsInputs.class);
         }
 
         return (QueryAndDocsInputs) inferenceInputs;
@@ -47,4 +47,7 @@ public class QueryAndDocsInputs extends InferenceInputs {
         return stream;
     }
 
+    public int inputSize() {
+        return chunks.size();
+    }
 }

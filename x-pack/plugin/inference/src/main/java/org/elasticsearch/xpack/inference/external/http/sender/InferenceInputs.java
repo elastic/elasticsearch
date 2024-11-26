@@ -10,15 +10,19 @@ package org.elasticsearch.xpack.inference.external.http.sender;
 import org.elasticsearch.common.Strings;
 
 public abstract class InferenceInputs {
-    public static IllegalArgumentException createUnsupportedTypeException(InferenceInputs inferenceInputs) {
-        return new IllegalArgumentException(Strings.format("Unsupported inference inputs type: [%s]", inferenceInputs.getClass()));
+    public static IllegalArgumentException createUnsupportedTypeException(InferenceInputs inferenceInputs, Class<?> clazz) {
+        return new IllegalArgumentException(
+            Strings.format("Unable to convert inference inputs type: [%s] to [%s]", inferenceInputs.getClass(), clazz)
+        );
     }
 
     public <T> T castTo(Class<T> clazz) {
-        if (this.getClass().isInstance(clazz) == false) {
-            throw createUnsupportedTypeException(this);
+        if (clazz.isInstance(this) == false) {
+            throw createUnsupportedTypeException(this, clazz);
         }
 
         return clazz.cast(this);
     }
+
+    public abstract int inputSize();
 }

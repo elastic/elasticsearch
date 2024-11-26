@@ -14,7 +14,7 @@ public class DocumentsOnlyInput extends InferenceInputs {
 
     public static DocumentsOnlyInput of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof DocumentsOnlyInput == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, DocumentsOnlyInput.class);
         }
 
         return (DocumentsOnlyInput) inferenceInputs;
@@ -39,5 +39,9 @@ public class DocumentsOnlyInput extends InferenceInputs {
 
     public boolean stream() {
         return stream;
+    }
+
+    public int inputSize() {
+        return input.size();
     }
 }

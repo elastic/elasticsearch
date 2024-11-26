@@ -18,7 +18,7 @@ public class UnifiedChatInput extends InferenceInputs {
 
     public static UnifiedChatInput of(InferenceInputs inferenceInputs) {
         if (inferenceInputs instanceof UnifiedChatInput == false) {
-            throw createUnsupportedTypeException(inferenceInputs);
+            throw createUnsupportedTypeException(inferenceInputs, UnifiedChatInput.class);
         }
 
         return (UnifiedChatInput) inferenceInputs;
@@ -62,5 +62,9 @@ public class UnifiedChatInput extends InferenceInputs {
 
     public boolean stream() {
         return stream;
+    }
+
+    public int inputSize() {
+        return request.messages().size();
     }
 }

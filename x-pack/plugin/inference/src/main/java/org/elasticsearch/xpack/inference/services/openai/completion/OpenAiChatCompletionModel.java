@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Objects;
 
 import static org.elasticsearch.xpack.inference.services.openai.OpenAiServiceFields.USER;
 
@@ -41,7 +42,24 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
 
     public static OpenAiChatCompletionModel of(OpenAiChatCompletionModel model, UnifiedCompletionRequest request) {
         var requestTaskSettings = OpenAiChatCompletionRequestTaskSettings.fromUnifiedRequest(request);
-        return new OpenAiChatCompletionModel(model, OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings));
+        var originalModelServiceSettings = model.getServiceSettings();
+        var overriddenServiceSettings = new OpenAiChatCompletionServiceSettings(
+            Objects.requireNonNullElse(request.model(), originalModelServiceSettings.modelId()),
+            originalModelServiceSettings.uri(),
+            originalModelServiceSettings.organizationId(),
+            originalModelServiceSettings.maxInputTokens(),
+            originalModelServiceSettings.rateLimitSettings()
+        );
+
+        var overriddenTaskSettings = OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
+        return new OpenAiChatCompletionModel(
+            overriddenServiceSettings.modelId(),
+            model.getTaskType(),
+            model.getConfigurations().getService(),
+            overriddenServiceSettings,
+            overriddenTaskSettings,
+            model.getSecretSettings()
+        );
     }
 
     public OpenAiChatCompletionModel(

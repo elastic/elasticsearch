@@ -34,6 +34,7 @@ import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.mapper.DocumentMapper;
 import org.elasticsearch.index.mapper.DocumentParsingException;
 import org.elasticsearch.index.mapper.FieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
@@ -69,6 +70,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -78,6 +80,7 @@ import java.util.function.BiConsumer;
 import java.util.stream.Stream;
 
 import static java.util.Collections.singletonList;
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_EMBEDDINGS_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKED_TEXT_FIELD;
 import static org.elasticsearch.xpack.inference.mapper.SemanticTextField.CHUNKS_FIELD;
@@ -1080,9 +1083,23 @@ public class SemanticTextFieldMapperTests extends MapperTestCase {
 
     private static void addSemanticTextInferenceResults(XContentBuilder sourceBuilder, List<SemanticTextField> semanticTextInferenceResults)
         throws IOException {
-        for (var field : semanticTextInferenceResults) {
-            sourceBuilder.field(field.fieldName());
-            sourceBuilder.value(field);
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            Map<String, Object> inferenceMetadataFields = new HashMap<>();
+            for (var field : semanticTextInferenceResults) {
+                List<String> originalValues = field.originalValues();
+                if (originalValues.isEmpty() == false) {
+                    sourceBuilder.field(field.fieldName());
+                    sourceBuilder.value(originalValues.size() == 1 ? originalValues.get(0) : originalValues);
+                }
+
+                inferenceMetadataFields.put(field.fieldName(), field);
+            }
+            sourceBuilder.field(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
+        } else {
+            for (var field : semanticTextInferenceResults) {
+                sourceBuilder.field(field.fieldName());
+                sourceBuilder.value(field);
+            }
         }
     }
 

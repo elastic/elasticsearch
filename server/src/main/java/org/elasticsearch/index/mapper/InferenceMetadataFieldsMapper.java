@@ -72,22 +72,46 @@ public class InferenceMetadataFieldsMapper extends MetadataFieldMapper {
 
     @Override
     protected void parseCreateField(DocumentParserContext context) throws IOException {
-        XContentParser parser = context.parser();
-        XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
-        while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
-            XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
-            String fieldName = parser.currentName();
-            Mapper mapper = context.mappingLookup().getMapper(fieldName);
-            if (mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
-                fieldMapper.parseCreateField(new DocumentParserContext.Wrapper(context.parent(), context) {
-                    @Override
-                    public boolean isWithinInferenceMetadata() {
-                        return true;
-                    }
-                });
-            } else {
-                throw new IllegalArgumentException("Field [" + fieldName + "] is not an inference field");
+        final boolean isWithinLeaf = context.path().isWithinLeafObject();
+        try {
+            context.path().setWithinLeafObject(true);
+            XContentParser parser = context.parser();
+            XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                XContentParserUtils.ensureExpectedToken(XContentParser.Token.FIELD_NAME, parser.currentToken(), parser);
+                String fieldName = parser.currentName();
+                Mapper mapper = context.mappingLookup().getMapper(fieldName);
+                if (mapper instanceof InferenceFieldMapper && mapper instanceof FieldMapper fieldMapper) {
+                    fieldMapper.parseCreateField(new InferenceMetadataFieldsParserContext(context.parent(), context, fieldName));
+                } else {
+                    throw new IllegalArgumentException("Field [" + fieldName + "] is not an inference field");
+                }
             }
+        } finally {
+            context.path().setWithinLeafObject(isWithinLeaf);
+        }
+    }
+
+    private static class InferenceMetadataFieldsParserContext extends DocumentParserContext.Wrapper {
+        private final ContentPath path = new ContentPath();
+
+        InferenceMetadataFieldsParserContext(ObjectMapper parent, DocumentParserContext in, String inferenceFieldName) {
+            super(parent, in);
+
+            // Set the path as if we are parsing the inference field value directly
+            for (String fieldNamePart : inferenceFieldName.split("\\.")) {
+                path.add(fieldNamePart);
+            }
+        }
+
+        @Override
+        public boolean isWithinInferenceMetadata() {
+            return true;
+        }
+
+        @Override
+        public ContentPath path() {
+            return path;
         }
     }
 }

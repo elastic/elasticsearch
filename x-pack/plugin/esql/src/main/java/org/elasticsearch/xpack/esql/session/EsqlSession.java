@@ -736,7 +736,7 @@ public class EsqlSession {
         Set<String> fieldNames
     ) {
         ListenerResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new ListenerResult(indices(), lookupIndices(), newEnrichResolution, fieldNames() );
+            return new ListenerResult(indices(), lookupIndices(), newEnrichResolution, fieldNames());
         }
 
         ListenerResult withIndexResolution(IndexResolution newIndexResolution) {

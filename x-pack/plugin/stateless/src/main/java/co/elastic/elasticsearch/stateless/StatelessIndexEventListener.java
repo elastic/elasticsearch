@@ -233,11 +233,7 @@ class StatelessIndexEventListener implements IndexEventListener {
             }
 
             if (batchedCompoundCommit != null) {
-                statelessCommitService.markRecoveredBcc(
-                    indexShard.shardId(),
-                    batchedCompoundCommit,
-                    indexingShardState.unreferencedBlobs()
-                );
+                statelessCommitService.markRecoveredBcc(indexShard.shardId(), batchedCompoundCommit, indexingShardState.otherBlobs());
             }
             statelessCommitService.addConsumerForNewUploadedBcc(indexShard.shardId(), info -> {
                 Set<String> uploadedFiles = info.uploadedBcc()

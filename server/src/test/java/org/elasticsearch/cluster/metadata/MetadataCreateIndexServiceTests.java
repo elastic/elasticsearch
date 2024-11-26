@@ -1605,11 +1605,14 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(applier, notNullValue());
 
         var blocks = ClusterBlocks.builder().blocks(ClusterState.EMPTY_STATE.blocks());
-        applier.accept(blocks, IndexMetadata.builder("test")
-            .settings(settings(IndexVersion.current()))
-            .numberOfShards(1)
-            .numberOfReplicas(randomIntBetween(1, 3))
-            .build());
+        applier.accept(
+            blocks,
+            IndexMetadata.builder("test")
+                .settings(settings(IndexVersion.current()))
+                .numberOfShards(1)
+                .numberOfReplicas(randomIntBetween(1, 3))
+                .build()
+        );
         assertThat(blocks.hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
     }
 

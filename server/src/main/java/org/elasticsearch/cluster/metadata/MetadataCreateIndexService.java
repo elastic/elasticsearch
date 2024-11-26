@@ -134,8 +134,7 @@ public class MetadataCreateIndexService {
     public static final String USE_INDEX_REFRESH_BLOCK_SETTING_NAME = "stateless.indices.use_refresh_block_upon_index_creation";
 
     @FunctionalInterface
-    interface ClusterBlocksTransformer extends BiConsumer<ClusterBlocks.Builder, IndexMetadata> {
-    }
+    interface ClusterBlocksTransformer extends BiConsumer<ClusterBlocks.Builder, IndexMetadata> {}
 
     private final Settings settings;
     private final ClusterService clusterService;

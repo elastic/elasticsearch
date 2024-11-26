@@ -42,7 +42,11 @@ public class MockPluginsService extends PluginsService {
      * @param classpathPlugins Plugins that exist in the classpath which should be loaded
      */
     public MockPluginsService(Settings settings, Environment environment, Collection<Class<? extends Plugin>> classpathPlugins) {
-        super(settings, environment.configFile(), new TestPluginsLoader());
+        super(
+            settings,
+            environment.configFile(),
+            new PluginsLoader(Collections.emptyList(), Collections.emptyList(), Collections.emptyMap())
+        );
 
         List<LoadedPlugin> pluginsLoaded = new ArrayList<>();
 

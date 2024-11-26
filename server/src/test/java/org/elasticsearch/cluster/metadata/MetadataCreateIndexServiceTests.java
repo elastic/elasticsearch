@@ -105,6 +105,8 @@ import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.pars
 import static org.elasticsearch.cluster.metadata.MetadataCreateIndexService.resolveAndValidateAliases;
 import static org.elasticsearch.index.IndexSettings.INDEX_SOFT_DELETES_SETTING;
 import static org.elasticsearch.indices.ShardLimitValidatorTests.createTestShardLimitService;
+import static org.hamcrest.Matchers.aMapWithSize;
+import static org.hamcrest.Matchers.anEmptyMap;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.endsWith;
 import static org.hamcrest.Matchers.equalTo;
@@ -1133,7 +1135,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(
             expectThrows(
                 IllegalStateException.class,
-                () -> clusterStateCreateIndex(currentClusterState, newIndex, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
+                () -> clusterStateCreateIndex(currentClusterState, newIndex, null, null, TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY)
             ).getMessage(),
             startsWith("alias [alias1] has more than one write index [")
         );
@@ -1152,6 +1154,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         ClusterState updatedClusterState = clusterStateCreateIndex(
             currentClusterState,
             newIndexMetadata,
+            null,
             null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
@@ -1198,6 +1201,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             currentClusterState,
             newIndexMetadata,
             metadataTransformer,
+            null,
             TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
         );
         assertTrue(updatedClusterState.metadata().findAllAliases(new String[] { "my-index" }).containsKey("my-index"));
@@ -1545,6 +1549,68 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                 + "Elasticsearch 7.15 or later uses [niofs] for the [simplefs] store type "
                 + "as it offers superior or equivalent performance to [simplefs]."
         );
+    }
+
+    public void testClusterStateCreateIndexWithClusterBlockTransformer() {
+        var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
+        {
+            var updatedClusterState = clusterStateCreateIndex(
+                emptyClusterState,
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(randomIntBetween(1, 3))
+                    .build(),
+                null,
+                MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(Settings.EMPTY),
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            );
+            assertThat(updatedClusterState.blocks().indices(), is(anEmptyMap()));
+            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(false));
+            assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+        }
+        {
+            var settings = Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
+                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true)
+                .build();
+            int nbReplicas = randomIntBetween(0, 1);
+            var updatedClusterState = clusterStateCreateIndex(
+                emptyClusterState,
+                IndexMetadata.builder("test")
+                    .settings(settings(IndexVersion.current()))
+                    .numberOfShards(1)
+                    .numberOfReplicas(nbReplicas)
+                    .build(),
+                null,
+                MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(settings),
+                TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
+            );
+            assertThat(updatedClusterState.blocks().indices(), is(aMapWithSize(nbReplicas)));
+            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(0 < nbReplicas));
+            assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
+        }
+    }
+
+    public void testCreateRefreshBlockUponIndexCreationApplier() {
+        boolean isStateless = randomBoolean();
+        boolean useRefreshBlock = randomBoolean();
+
+        var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
+            Settings.builder()
+                .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, isStateless)
+                .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, useRefreshBlock)
+                .build()
+        );
+        assertThat(applier, notNullValue());
+
+        var blocks = ClusterBlocks.builder().blocks(ClusterState.EMPTY_STATE.blocks());
+        applier.accept(blocks, IndexMetadata.builder("test")
+            .settings(settings(IndexVersion.current()))
+            .numberOfShards(1)
+            .numberOfReplicas(randomIntBetween(1, 3))
+            .build());
+        assertThat(blocks.hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

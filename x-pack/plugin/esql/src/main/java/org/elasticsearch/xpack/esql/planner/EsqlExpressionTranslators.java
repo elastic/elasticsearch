@@ -545,7 +545,7 @@ public final class EsqlExpressionTranslators {
     public static class KqlFunctionTranslator extends ExpressionTranslator<Kql> {
         @Override
         protected Query asQuery(Kql kqlFunction, TranslatorHandler handler) {
-            return new KqlQuery(kqlFunction.source(), kqlFunction.queryAsText());
+            return new KqlQuery(kqlFunction.source(), kqlFunction.queryAsObject());
         }
     }
 }

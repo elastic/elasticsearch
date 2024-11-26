@@ -143,7 +143,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
         }
 
         if (groups.size() == 1) {
-            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), aggregatorMode, blockFactory);
+            return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
         if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
             switch (groups.size()) {
@@ -185,7 +185,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
     /**
      * Creates a specialized hash table that maps a {@link Block} of the given input element type to ids.
      */
-    private static BlockHash newForElementType(int channel, ElementType type, AggregatorMode aggregatorMode, BlockFactory blockFactory) {
+    private static BlockHash newForElementType(int channel, ElementType type, BlockFactory blockFactory) {
         return switch (type) {
             case NULL -> new NullBlockHash(channel, blockFactory);
             case BOOLEAN -> new BooleanBlockHash(channel, blockFactory);

@@ -238,6 +238,8 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testConstantKeywordField
   issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.repositories.s3.RepositoryS3EcsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/117525
 
 # Examples:
 #

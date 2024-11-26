@@ -1572,16 +1572,6 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
-    public void testMatchWithSemanticTextWithCCQ() {
-        assumeTrue("semantic_text support is not enabled", EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled());
-        Analyzer analyzer = AnalyzerTestUtils.analyzerWithSemanticTextMapping(true);
-
-        assertEquals(
-            "1:19: Field [semantic_text_field] of type semantic_text cannot be used with match for cross cluster queries.",
-            error("FROM test | WHERE match(semantic_text_field, \"bla\")", analyzer)
-        );
-    }
-
     public void testToDatePeriodTimeDurationInInvalidPosition() {
         // arithmetic operations in eval
         assertEquals(

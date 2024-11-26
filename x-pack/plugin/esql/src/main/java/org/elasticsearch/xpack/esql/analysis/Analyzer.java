@@ -183,7 +183,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
     }
 
     protected LogicalPlan verify(LogicalPlan plan, BitSet partialMetrics) {
-        Collection<Failure> failures = verifier.verify(plan, partialMetrics, context().isCrossClusterSearch());
+        Collection<Failure> failures = verifier.verify(plan, partialMetrics);
         if (failures.isEmpty() == false) {
             throw new VerificationException(failures);
         }

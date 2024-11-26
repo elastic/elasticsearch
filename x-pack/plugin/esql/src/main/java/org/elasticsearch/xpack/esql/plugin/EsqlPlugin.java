@@ -66,6 +66,7 @@ import org.elasticsearch.xpack.esql.expression.ExpressionWritables;
 import org.elasticsearch.xpack.esql.plan.PlanWritables;
 import org.elasticsearch.xpack.esql.querydsl.query.SingleValueQuery;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 
 import java.lang.invoke.MethodHandles;
 import java.util.ArrayList;
@@ -115,8 +116,7 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
                 new IndexResolver(services.client(), services.clusterService()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                services.client(),
-                services.clusterService()
+                new InferenceResolver(services.client())
             ),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory

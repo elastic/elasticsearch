@@ -99,7 +99,7 @@ public class Verifier {
      * @param partialMetrics a bitset indicating a certain command (or "telemetry feature") is present in the query
      * @return a collection of verification failures; empty if and only if the plan is valid
      */
-    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics, boolean isCrossClusterSearch) {
+    Collection<Failure> verify(LogicalPlan plan, BitSet partialMetrics) {
         assert partialMetrics != null;
         Set<Failure> failures = new LinkedHashSet<>();
         // alias map, collected during the first iteration for better error messages
@@ -216,7 +216,7 @@ public class Verifier {
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
 
-            checkFullTextQueryFunctions(p, isCrossClusterSearch, failures);
+            checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
 
@@ -777,7 +777,7 @@ public class Verifier {
      * @param plan root plan to check
      * @param failures failures found
      */
-    private static void checkFullTextQueryFunctions(LogicalPlan plan, boolean isCrossClusterSearch, Set<Failure> failures) {
+    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
         if (plan instanceof Filter f) {
             Expression condition = f.condition();
             checkCommandsBeforeExpression(
@@ -798,7 +798,6 @@ public class Verifier {
             );
             checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
             checkFullTextFunctionsParents(condition, failures);
-            checkSemanticTextQueries(condition, isCrossClusterSearch, failures);
         } else {
             plan.forEachExpression(FullTextFunction.class, ftf -> {
                 failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
@@ -882,20 +881,5 @@ public class Verifier {
             }
         }
         return null;
-    }
-
-    private static void checkSemanticTextQueries(Expression expression, boolean isCrossClusterSearch, Set<Failure> failures) {
-        expression.forEachDown(Match.class, matchFunction -> {
-            Expression field = matchFunction.field();
-            if (field.dataType() == DataType.SEMANTIC_TEXT && isCrossClusterSearch) {
-                failures.add(
-                    fail(
-                        matchFunction,
-                        "Field [{}] of type semantic_text cannot be used with match for cross cluster queries.",
-                        field.sourceText()
-                    )
-                );
-            }
-        });
     }
 }

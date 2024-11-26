@@ -27,6 +27,7 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -47,6 +48,7 @@ public class Match extends FullTextFunction implements Validatable {
     private final Expression field;
     private InferenceResults inferenceResults;
     private transient Boolean isOperator;
+    private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -61,22 +63,30 @@ public class Match extends FullTextFunction implements Validatable {
             name = "query",
             type = { "keyword", "text" },
             description = "Text you wish to find in the provided field."
-        ) Expression matchQuery
+        ) Expression matchQuery,
+        Configuration configuration
     ) {
         super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
+        this.configuration = configuration;
+    }
+
+    private Match(Source source, Expression field, Expression matchQuery, Configuration configuration, InferenceResults inferenceResults) {
+        this(source, field, matchQuery, configuration);
+        this.inferenceResults = inferenceResults;
     }
 
     private static Match readFrom(StreamInput in) throws IOException {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        Match match = new Match(source, field, query);
-
+        Configuration configuration = null;
+        InferenceResults inferenceResults = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
-            match.setInferenceResults(in.readOptionalNamedWriteable(InferenceResults.class));
+            configuration = ((PlanStreamInput) in).configuration();
+            inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         }
-        return match;
+        return new Match(source, field, query, configuration, inferenceResults);
     }
 
     @Override
@@ -124,14 +134,22 @@ public class Match extends FullTextFunction implements Validatable {
                     )
                 );
             }
+            if (esField instanceof SemanticTextEsField && configuration.isCrossClusterSearch()) {
+                failures.add(
+                    Failure.fail(
+                        field,
+                        "[{}] {} does not allow semantic_text fields with cross cluster queries.",
+                        functionName(),
+                        functionType()
+                    )
+                );
+            }
         }
     }
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        Match newMatch = new Match(source(), newChildren.get(0), newChildren.get(1));
-        newMatch.setInferenceResults(this.inferenceResults);
-        return newMatch;
+        return new Match(source(), newChildren.get(0), newChildren.get(1), configuration, inferenceResults);
     }
 
     public void setInferenceResults(InferenceResults inferenceResults) {
@@ -140,7 +158,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query());
+        return NodeInfo.create(this, Match::new, field, query(), configuration);
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

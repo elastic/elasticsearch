@@ -35,6 +35,7 @@ import org.elasticsearch.xpack.esql.enrich.EnrichPolicyResolver;
 import org.elasticsearch.xpack.esql.execution.PlanExecutor;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.junit.After;
 import org.junit.Before;
@@ -101,6 +102,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("name")).build());
 
         IndexResolver indexResolver = new IndexResolver(esqlClient, clusterService);
+        InferenceResolver inferenceResolver = new InferenceResolver(esqlClient);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];
@@ -109,7 +111,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
             return null;
         }).when(esqlClient).execute(eq(EsqlResolveFieldsAction.TYPE), any(), any());
 
-        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), null, clusterService);
+        var planExecutor = new PlanExecutor(indexResolver, MeterRegistry.NOOP, new XPackLicenseState(() -> 0L), inferenceResolver);
 
         var enrichResolver = mockEnrichResolver();
 

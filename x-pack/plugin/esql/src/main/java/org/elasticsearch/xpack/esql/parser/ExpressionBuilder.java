@@ -44,7 +44,6 @@ import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.FunctionResolutionStrategy;
 import org.elasticsearch.xpack.esql.expression.function.UnresolvedFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.RLike;
 import org.elasticsearch.xpack.esql.expression.function.scalar.string.WildcardLike;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Add;
@@ -923,6 +922,12 @@ public abstract class ExpressionBuilder extends IdentifierBuilder {
 
     @Override
     public Expression visitMatchBooleanExpression(EsqlBaseParser.MatchBooleanExpressionContext ctx) {
-        return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+        // return new Match(source(ctx), expression(ctx.fieldExp), expression(ctx.queryString));
+        return new UnresolvedFunction(
+            source(ctx),
+            "match",
+            FunctionResolutionStrategy.DEFAULT,
+            List.of(expression(ctx.fieldExp), expression(ctx.queryString))
+        );
     }
 }

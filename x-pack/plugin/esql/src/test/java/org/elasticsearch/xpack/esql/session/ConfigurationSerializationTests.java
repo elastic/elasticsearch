@@ -55,7 +55,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
         String query = in.query();
         boolean profile = in.profile();
         Map<String, Map<String, Column>> tables = in.tables();
-        switch (between(0, 9)) {
+        boolean isCrossClusterSearch = in.isCrossClusterSearch();
+        switch (between(0, 10)) {
             case 0 -> zoneId = randomValueOtherThan(zoneId, () -> randomZone().normalized());
             case 1 -> locale = randomValueOtherThan(in.locale(), () -> randomLocale(random()));
             case 2 -> username = randomAlphaOfLength(15);
@@ -67,7 +68,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             case 6 -> resultTruncationDefaultSize += randomIntBetween(3, 10);
             case 7 -> query += randomAlphaOfLength(2);
             case 8 -> profile = false == profile;
-            case 9 -> {
+            case 9 -> isCrossClusterSearch = false == isCrossClusterSearch;
+            case 10 -> {
                 while (true) {
                     Map<String, Map<String, Column>> newTables = null;
                     try {
@@ -103,7 +105,8 @@ public class ConfigurationSerializationTests extends AbstractWireSerializingTest
             query,
             profile,
             tables,
-            System.nanoTime()
+            System.nanoTime(),
+            isCrossClusterSearch
         );
 
     }

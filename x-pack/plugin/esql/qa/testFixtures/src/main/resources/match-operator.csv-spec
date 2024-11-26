@@ -246,3 +246,31 @@ from semantic_text
 semantic_text_field:semantic_text | host:keyword
 live long and prosper             | host1
 ;
+
+testMatchWithSemanticTextMultiValueField
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text metadata _id
+| where st_multi_value:"something" AND match(host, "host1")
+| keep _id, st_multi_value
+;
+
+_id: keyword | st_multi_value:semantic_text
+1            | ["Hello there!", "This is a random value", "for testing purposes"]
+;
+
+testMatchWithSemanticTextWithEvalsAndOtherFunctionsAndStats
+required_capability: match_operator_colon
+required_capability: semantic_text_type
+
+from semantic_text
+| where qstr("description:some*")
+| eval size = mv_count(st_multi_value)
+| where semantic_text_field:"something" AND size > 1 AND match(host, "host1")
+| STATS result = count(*)
+;
+
+result:long
+1
+;

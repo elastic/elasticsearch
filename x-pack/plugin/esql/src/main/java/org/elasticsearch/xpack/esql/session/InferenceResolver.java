@@ -32,13 +32,15 @@ import java.util.function.BiConsumer;
 import static org.elasticsearch.xpack.core.ClientHelper.ML_ORIGIN;
 import static org.elasticsearch.xpack.core.ClientHelper.executeAsyncWithOrigin;
 
-public final class InferenceUtils {
+public class InferenceResolver {
+    private final Client client;
 
-    private InferenceUtils() {}
+    public InferenceResolver(Client client) {
+        this.client = client;
+    }
 
-    public static void setInferenceResults(
+    public void setInferenceResults(
         LogicalPlan plan,
-        Client client,
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
@@ -113,7 +115,7 @@ public final class InferenceUtils {
         return result;
     }
 
-    private static void setInferenceResult(LogicalPlan analyzedPlan, String fieldName, String query, InferenceResults inferenceResults) {
+    private void setInferenceResult(LogicalPlan analyzedPlan, String fieldName, String query, InferenceResults inferenceResults) {
         analyzedPlan.forEachExpressionDown(Match.class, match -> {
             if (match.field().sourceText().equals(fieldName) && match.query().sourceText().equals(query)) {
                 match.setInferenceResults(inferenceResults);

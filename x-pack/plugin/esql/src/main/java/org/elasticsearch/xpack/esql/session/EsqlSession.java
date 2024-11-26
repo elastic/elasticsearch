@@ -11,7 +11,6 @@ import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.OriginalIndices;
 import org.elasticsearch.action.search.ShardSearchFailure;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.regex.Regex;
@@ -110,7 +109,7 @@ public class EsqlSession {
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
     private final PlanningMetrics planningMetrics;
     private final IndicesExpressionGrouper indicesExpressionGrouper;
-    private final Client client;
+    private final InferenceResolver inferenceResolver;
 
     public EsqlSession(
         String sessionId,
@@ -124,7 +123,7 @@ public class EsqlSession {
         Verifier verifier,
         PlanningMetrics planningMetrics,
         IndicesExpressionGrouper indicesExpressionGrouper,
-        Client client
+        InferenceResolver inferenceResolver
     ) {
         this.sessionId = sessionId;
         this.configuration = configuration;
@@ -138,7 +137,7 @@ public class EsqlSession {
         this.physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(configuration));
         this.planningMetrics = planningMetrics;
         this.indicesExpressionGrouper = indicesExpressionGrouper;
-        this.client = client;
+        this.inferenceResolver = inferenceResolver;
     }
 
     public String sessionId() {
@@ -157,9 +156,8 @@ public class EsqlSession {
                 @Override
                 public void onResponse(LogicalPlan analyzedPlan) {
                     try {
-                        InferenceUtils.setInferenceResults(
+                        inferenceResolver.setInferenceResults(
                             analyzedPlan,
-                            client,
                             listener,
                             (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
                         );
@@ -287,10 +285,7 @@ public class EsqlSession {
 
         preAnalyze(parsed, executionInfo, (indices, policies) -> {
             planningMetrics.gatherPreAnalysisMetrics(parsed);
-            Analyzer analyzer = new Analyzer(
-                new AnalyzerContext(configuration, functionRegistry, indices, policies, executionInfo.isCrossClusterSearch()),
-                verifier
-            );
+            Analyzer analyzer = new Analyzer(new AnalyzerContext(configuration, functionRegistry, indices, policies), verifier);
             var plan = analyzer.analyze(parsed);
             plan.setAnalyzed();
             LOGGER.debug("Analyzed plan:\n{}", plan);

@@ -8,8 +8,6 @@
 package org.elasticsearch.xpack.esql.execution;
 
 import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.indices.IndicesExpressionGrouper;
 import org.elasticsearch.license.XPackLicenseState;
 import org.elasticsearch.telemetry.metric.MeterRegistry;
@@ -25,6 +23,7 @@ import org.elasticsearch.xpack.esql.planner.mapper.Mapper;
 import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.session.EsqlSession;
 import org.elasticsearch.xpack.esql.session.IndexResolver;
+import org.elasticsearch.xpack.esql.session.InferenceResolver;
 import org.elasticsearch.xpack.esql.session.Result;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.PlanningMetrics;
@@ -42,15 +41,13 @@ public class PlanExecutor {
     private final Metrics metrics;
     private final Verifier verifier;
     private final PlanningMetricsManager planningMetricsManager;
-    private final Client client;
-    private final ClusterService clusterService;
+    private final InferenceResolver inferenceResolver;
 
     public PlanExecutor(
         IndexResolver indexResolver,
         MeterRegistry meterRegistry,
         XPackLicenseState licenseState,
-        Client client,
-        ClusterService clusterService
+        InferenceResolver inferenceResolver
     ) {
         this.indexResolver = indexResolver;
         this.preAnalyzer = new PreAnalyzer();
@@ -59,8 +56,7 @@ public class PlanExecutor {
         this.metrics = new Metrics(functionRegistry);
         this.verifier = new Verifier(metrics, licenseState);
         this.planningMetricsManager = new PlanningMetricsManager(meterRegistry);
-        this.client = client;
-        this.clusterService = clusterService;
+        this.inferenceResolver = inferenceResolver;
     }
 
     public void esql(
@@ -86,7 +82,7 @@ public class PlanExecutor {
             verifier,
             planningMetrics,
             indicesExpressionGrouper,
-            client
+            inferenceResolver
         );
         QueryMetric clientId = QueryMetric.fromString("rest");
         metrics.total(clientId);

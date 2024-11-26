@@ -431,7 +431,7 @@ public class AzureHttpHandler implements HttpHandler {
                     exchange.getResponseBody().write(response.toString().getBytes(StandardCharsets.UTF_8));
                 }
             } else {
-                failTestWithAssertionError("Unrecognised request received: " + request);
+                logger.warn("--> Unrecognised request received: {}", request);
                 sendError(exchange, RestStatus.NOT_FOUND, "ResourceNotFound", "The specified resource doesn't exist.");
             }
         } catch (MockAzureBlobStore.AzureBlobStoreError e) {

@@ -165,7 +165,7 @@ public class EsqlSessionCCSUtils {
                 entry.getValue().getException()
             );
             if (skipUnavailable) {
-                markClusterEmptyInfo(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
+                markClusterNoShards(execInfo, clusterAlias, Cluster.Status.SKIPPED, e);
             } else {
                 throw e;
             }
@@ -218,7 +218,7 @@ public class EsqlSessionCCSUtils {
                     status = Cluster.Status.SKIPPED;
                     failureException = new VerificationException("Unknown index [" + indexExpression + "]");
                 }
-                markClusterEmptyInfo(executionInfo, c, status, failureException);
+                markClusterNoShards(executionInfo, c, status, failureException);
             }
         }
         if (fatalErrorMessage != null) {
@@ -227,9 +227,10 @@ public class EsqlSessionCCSUtils {
     }
 
     /**
-     * Mark cluster with an empty cluster state with the given status and potentially failure from exception.
+     * Mark cluster with a default cluster state with the given status and potentially failure from exception.
+     * Most metrics are set to 0 except for "took" which is set to the total time taken so far.
      */
-    public static void markClusterEmptyInfo(
+    public static void markClusterNoShards(
         EsqlExecutionInfo executionInfo,
         String clusterAlias,
         Cluster.Status status,

@@ -5,7 +5,10 @@ type: deprecation
 issues: []
 deprecation:
   title: Deprecating `data_frame_transforms` roles
-  area: Machine Learning
-  details: Please describe the details of this change for the release notes. You can
-    use asciidoc.
-  impact: Please describe the impact of this change to users
+  area: Transform
+  details: >-
+    This change removes the `data_frame_transforms_admin`/`data_frame_transforms_user` roles.
+    These roles have been replaced by the equivalent `transform_admin`/`transform_user` roles.
+  impact: >-
+    Usage of the `data_frame_transforms_admin`/`data_frame_transforms_user` roles will no
+    longer succeed. Users should instead use the equivalent `transform_admin`/`transform_user` roles.

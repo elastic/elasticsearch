@@ -126,9 +126,9 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         return String.valueOf(maxConcurrentRequests * maxLookupsPerRequest);
     }, val -> Setting.parseInt(val, 1, Integer.MAX_VALUE, QUEUE_CAPACITY_SETTING_NAME), Setting.Property.NodeScope);
 
-    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache.size";
+    public static final String CACHE_SIZE_SETTING_NAME = "enrich.cache_size";
     public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE = new Setting<>(
-        "enrich.cache.size",
+        CACHE_SIZE_SETTING_NAME,
         (String) null,
         (String s) -> FlatNumberOrByteSizeValue.parse(
             s,
@@ -138,12 +138,28 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Setting.Property.NodeScope
     );
 
+    public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
+    public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
+        CACHE_SIZE_SETTING_BWC_NAME,
+        (String) null,
+        (String s) -> FlatNumberOrByteSizeValue.parse(
+            s,
+            CACHE_SIZE_SETTING_BWC_NAME,
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())))
+        ),
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final Settings settings;
     private final EnrichCache enrichCache;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
         FlatNumberOrByteSizeValue maxSize = CACHE_SIZE.get(settings);
+        if (maxSize == null) {
+            maxSize = CACHE_SIZE_BWC.get(settings);
+        }
         if (maxSize.byteSizeValue() != null) {
             this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
         } else {

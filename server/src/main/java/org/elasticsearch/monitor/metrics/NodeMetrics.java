@@ -645,6 +645,34 @@ public class NodeMetrics extends AbstractLifecycleComponent {
 
         metrics.add(
             registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.low_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_LOW_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getLowWaterMarkSplits)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
+                "es.indexing.coordinating.high_watermark_splits.total",
+                "Total number of times bulk requests are split due to SPLIT_BULK_HIGH_WATERMARK",
+                "operations",
+                () -> new LongWithAttributes(
+                    Optional.ofNullable(stats.getOrRefresh())
+                        .map(NodeStats::getIndexingPressureStats)
+                        .map(IndexingPressureStats::getHighWaterMarkSplits)
+                        .orElse(0L)
+                )
+            )
+        );
+
+        metrics.add(
+            registry.registerLongAsyncCounter(
                 "es.flush.total.time",
                 "The total time flushes have been executed excluding waiting time on locks",
                 "milliseconds",

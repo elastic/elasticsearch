@@ -76,7 +76,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
     record ExpectedCluster(String clusterAlias, String indexExpression, String status, Integer totalShards) {}
 
     @SuppressWarnings("unchecked")
-    public void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
+    void assertExpectedClustersForMissingIndicesTests(Map<String, Object> responseMap, List<ExpectedCluster> expected) {
         Map<String, ?> clusters = (Map<String, ?>) responseMap.get("_clusters");
         assertThat((int) responseMap.get("took"), greaterThan(0));
 
@@ -220,7 +220,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
             );
         }
 
-        // since at least one index of the query matches on some cluster, a wildcarded index on skip_un=true is not an error
+        // since at least one index of the query matches on some cluster, a missing wildcarded index on skip_un=true is not an error
         {
             String q = Strings.format("FROM %s,%s:nomatch*", INDEX1, REMOTE_CLUSTER_ALIAS);
 
@@ -358,7 +358,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
 
             String limit0 = q + " | LIMIT 0";
             e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), Matchers.containsString("Unknown index [nomatch]"));
+            assertThat(e.getMessage(), containsString("Unknown index [nomatch]"));
         }
 
         // missing concrete remote index is not fatal when skip_unavailable=true (as long as an index matches on another cluster)
@@ -371,7 +371,7 @@ public class CrossClusterEsqlRCS1MissingIndicesIT extends AbstractRemoteClusterS
 
             String limit0 = q + " | LIMIT 0";
             e = expectThrows(ResponseException.class, () -> client().performRequest(esqlRequest(limit0)));
-            assertThat(e.getMessage(), Matchers.containsString(Strings.format("Unknown index [%s:nomatch]", REMOTE_CLUSTER_ALIAS)));
+            assertThat(e.getMessage(), containsString(Strings.format("Unknown index [%s:nomatch]", REMOTE_CLUSTER_ALIAS)));
         }
 
         // since there is at least one matching index in the query, the missing wildcarded local index is not an error

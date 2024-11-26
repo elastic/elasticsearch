@@ -97,6 +97,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86
     );
 
+    public static final String RERANKER_ID = ".rerank-v1";
+
     public static final int EMBEDDING_MAX_BATCH_SIZE = 10;
     public static final String DEFAULT_ELSER_ID = ".elser-2-elasticsearch";
     public static final String DEFAULT_E5_ID = ".multilingual-e5-small-elasticsearch";
@@ -223,6 +225,8 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                         )
                     )
                 );
+            } else if (RERANKER_ID.equals(modelId)) {
+                rerankerCase(inferenceEntityId, taskType, config, serviceSettingsMap, chunkingSettings, modelListener);
             } else {
                 customElandCase(inferenceEntityId, taskType, serviceSettingsMap, taskSettingsMap, chunkingSettings, modelListener);
             }
@@ -321,6 +325,31 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
             );
             case PERSISTENT -> new CustomElandInternalServiceSettings(ElasticsearchInternalServiceSettings.fromPersistedMap(settingsMap));
         };
+    }
+
+    private void rerankerCase(
+        String inferenceEntityId,
+        TaskType taskType,
+        Map<String, Object> config,
+        Map<String, Object> serviceSettingsMap,
+        ChunkingSettings chunkingSettings,
+        ActionListener<Model> modelListener
+    ) {
+
+        var esServiceSettingsBuilder = ElasticsearchInternalServiceSettings.fromRequestMap(serviceSettingsMap);
+
+        throwIfNotEmptyMap(config, name());
+        throwIfNotEmptyMap(serviceSettingsMap, name());
+
+        modelListener.onResponse(
+            new ElasticRerankerModel(
+                inferenceEntityId,
+                taskType,
+                NAME,
+                new ElasticRerankerServiceSettings(esServiceSettingsBuilder.build()),
+                chunkingSettings
+            )
+        );
     }
 
     private void e5Case(
@@ -833,6 +862,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
         );
     }
 
+    @Override
     public void defaultConfigs(ActionListener<List<Model>> defaultsListener) {
         preferredModelVariantFn.accept(defaultsListener.delegateFailureAndWrap((delegate, preferredModelVariant) -> {
             if (PreferredModelVariant.LINUX_X86_OPTIMIZED.equals(preferredModelVariant)) {
@@ -863,7 +893,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
             ElserMlNodeTaskSettings.DEFAULT,
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         var defaultE5 = new MultilingualE5SmallModel(
             DEFAULT_E5_ID,
@@ -875,7 +905,7 @@ public class ElasticsearchInternalService extends BaseElasticsearchInternalServi
                 useLinuxOptimizedModel ? MULTILINGUAL_E5_SMALL_MODEL_ID_LINUX_X86 : MULTILINGUAL_E5_SMALL_MODEL_ID,
                 new AdaptiveAllocationsSettings(Boolean.TRUE, 0, 32)
             ),
-            null // default chunking settings
+            ChunkingSettingsBuilder.DEFAULT_SETTINGS
         );
         return List.of(defaultElser, defaultE5);
     }

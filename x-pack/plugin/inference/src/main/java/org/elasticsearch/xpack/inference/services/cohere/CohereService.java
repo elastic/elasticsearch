@@ -45,6 +45,7 @@ import org.elasticsearch.xpack.inference.services.cohere.embeddings.CohereEmbedd
 import org.elasticsearch.xpack.inference.services.cohere.rerank.CohereRerankModel;
 import org.elasticsearch.xpack.inference.services.settings.DefaultSecretSettings;
 import org.elasticsearch.xpack.inference.services.settings.RateLimitSettings;
+import org.elasticsearch.xpack.inference.services.validation.ModelValidatorBuilder;
 
 import java.util.EnumSet;
 import java.util.HashMap;
@@ -293,34 +294,33 @@ public class CohereService extends SenderService {
      */
     @Override
     public void checkModelConfig(Model model, ActionListener<Model> listener) {
-        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
-            ServiceUtils.getEmbeddingSize(
-                model,
-                this,
-                listener.delegateFailureAndWrap((l, size) -> l.onResponse(updateModelWithEmbeddingDetails(embeddingsModel, size)))
-            );
-        } else {
-            listener.onResponse(model);
-        }
+        // TODO: Remove this function once all services have been updated to use the new model validators
+        ModelValidatorBuilder.buildModelValidator(model.getTaskType()).validate(this, model, listener);
     }
 
-    private CohereEmbeddingsModel updateModelWithEmbeddingDetails(CohereEmbeddingsModel model, int embeddingSize) {
-        var userDefinedSimilarity = model.getServiceSettings().similarity();
-        var similarityToUse = userDefinedSimilarity == null ? defaultSimilarity() : userDefinedSimilarity;
+    @Override
+    public Model updateModelWithEmbeddingDetails(Model model, int embeddingSize) {
+        if (model instanceof CohereEmbeddingsModel embeddingsModel) {
+            var serviceSettings = embeddingsModel.getServiceSettings();
+            var similarityFromModel = serviceSettings.similarity();
+            var similarityToUse = similarityFromModel == null ? defaultSimilarity() : similarityFromModel;
 
-        CohereEmbeddingsServiceSettings serviceSettings = new CohereEmbeddingsServiceSettings(
-            new CohereServiceSettings(
-                model.getServiceSettings().getCommonSettings().uri(),
-                similarityToUse,
-                embeddingSize,
-                model.getServiceSettings().getCommonSettings().maxInputTokens(),
-                model.getServiceSettings().getCommonSettings().modelId(),
-                model.getServiceSettings().getCommonSettings().rateLimitSettings()
-            ),
-            model.getServiceSettings().getEmbeddingType()
-        );
+            var updatedServiceSettings = new CohereEmbeddingsServiceSettings(
+                new CohereServiceSettings(
+                    serviceSettings.getCommonSettings().uri(),
+                    similarityToUse,
+                    embeddingSize,
+                    serviceSettings.getCommonSettings().maxInputTokens(),
+                    serviceSettings.getCommonSettings().modelId(),
+                    serviceSettings.getCommonSettings().rateLimitSettings()
+                ),
+                serviceSettings.getEmbeddingType()
+            );
 
-        return new CohereEmbeddingsModel(model, serviceSettings);
+            return new CohereEmbeddingsModel(embeddingsModel, updatedServiceSettings);
+        } else {
+            throw ServiceUtils.invalidModelTypeForUpdateModelWithEmbeddingDetails(model.getClass());
+        }
     }
 
     /**

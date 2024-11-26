@@ -36,6 +36,7 @@ import org.elasticsearch.cluster.routing.allocation.allocator.BalancedShardsAllo
 import org.elasticsearch.cluster.routing.allocation.decider.AllocationDeciders;
 import org.elasticsearch.cluster.routing.allocation.decider.MaxRetryAllocationDecider;
 import org.elasticsearch.cluster.service.ClusterService;
+import org.elasticsearch.cluster.version.CompatibilityVersions;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.compress.CompressedXContent;
 import org.elasticsearch.common.settings.IndexScopedSettings;
@@ -1553,8 +1554,8 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     }
 
     public void testClusterStateCreateIndexWithClusterBlockTransformer() {
-        var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
         {
+            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE).build();
             var updatedClusterState = clusterStateCreateIndex(
                 emptyClusterState,
                 IndexMetadata.builder("test")
@@ -1571,6 +1572,11 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
             assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         }
         {
+            var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
+            var emptyClusterState = ClusterState.builder(ClusterState.EMPTY_STATE)
+                .nodes(DiscoveryNodes.builder().add(DiscoveryNodeUtils.create("_node_id")).build())
+                .putCompatibilityVersions("_node_id", new CompatibilityVersions(minTransportVersion, Map.of()))
+                .build();
             var settings = Settings.builder()
                 .put(DiscoveryNode.STATELESS_ENABLED_SETTING_NAME, true)
                 .put(MetadataCreateIndexService.USE_INDEX_REFRESH_BLOCK_SETTING_NAME, true)
@@ -1582,18 +1588,21 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
                     .settings(settings(IndexVersion.current()))
                     .numberOfShards(1)
                     .numberOfReplicas(nbReplicas)
-                    .build(),
+                    .build()
+                    .withTimestampRanges(IndexLongFieldRange.UNKNOWN, IndexLongFieldRange.UNKNOWN, minTransportVersion),
                 null,
                 MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(settings),
                 TestShardRoutingRoleStrategies.DEFAULT_ROLE_ONLY
             );
-            assertThat(updatedClusterState.blocks().indices(), is(aMapWithSize(nbReplicas)));
-            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(0 < nbReplicas));
+
+            var expectRefreshBlock = 0 < nbReplicas && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK);
+            assertThat(updatedClusterState.blocks().indices(), is(aMapWithSize(expectRefreshBlock ? 1 : 0)));
+            assertThat(updatedClusterState.blocks().hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(expectRefreshBlock));
             assertThat(updatedClusterState.routingTable().index("test"), is(notNullValue()));
         }
     }
 
-    public void testCreateRefreshBlockUponIndexCreationApplier() {
+    public void testCreateClusterBlocksTransformerForIndexCreation() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
         var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());

@@ -1160,8 +1160,7 @@ FROM sample_data*
 ;
 
 count:long  |  message:keyword
-4           |  Connected to 10.1.0.3
-1           |  Banana
+3           |  Connected to 10.1.0.3
 ;
 
 multiIndexWhereIpStringLikeTsLong
@@ -1195,8 +1194,7 @@ FROM sample_data*
 ;
 
 count:long  |  message:keyword
-4           |  Connected to 10.1.0.3
-1           |  Banana
+3           |  Connected to 10.1.0.3
 ;
 
 multiIndexMultiColumnTypesRename
@@ -1211,11 +1209,11 @@ FROM sample_data* METADATA _index
 | SORT _index ASC, ts DESC
 ;
 
-@timestamp:null | client_ip:null | event_duration:long | message:keyword            | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
-null            | null           |  8268153            | Connection error           | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error           | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error           | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
-null            | null           |  8268153            | Connection error           | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
+@timestamp:null | client_ip:null | event_duration:long | message:keyword  | _index:keyword       | ts:date                   | ts_str:keyword                 | ts_l:long           |  ip:ip         |  ip_str:k
+null            | null           |  8268153            | Connection error | sample_data          | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_str      | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015Z       | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_ts_long  | 2023-10-23T13:52:55.015Z  | 1698069175015                  | 1698069175015       |  172.21.3.15   |  172.21.3.15
+null            | null           |  8268153            | Connection error | sample_data_ts_nanos | 2023-10-23T13:52:55.015Z  | 2023-10-23T13:52:55.015123456Z | 1698069175015123456 |  172.21.3.15   |  172.21.3.15
 ;
 
 multiIndexMultiColumnTypesRenameAndKeep

@@ -59,10 +59,7 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     protected static List<Set<DataType>> supportedParams() {
         Set<DataType> supportedTextParams = Set.of(DataType.KEYWORD, DataType.TEXT);
-        List<Set<DataType>> supportedPerPosition = List.of(
-            supportedTextParams,
-            Match.DATA_TYPES
-        );
+        List<Set<DataType>> supportedPerPosition = List.of(supportedTextParams, Match.DATA_TYPES);
         return supportedPerPosition;
     }
 

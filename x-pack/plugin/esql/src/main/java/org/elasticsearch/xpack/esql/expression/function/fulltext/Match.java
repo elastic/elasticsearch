@@ -67,7 +67,8 @@ public class Match extends FullTextFunction implements Validatable {
         IP,
         LONG,
         UNSIGNED_LONG,
-        VERSION);
+        VERSION
+    );
 
     @FunctionInfo(
         returnType = "boolean",

@@ -535,7 +535,7 @@ public final class EsqlExpressionTranslators {
     public static class QueryStringFunctionTranslator extends ExpressionTranslator<QueryString> {
         @Override
         protected Query asQuery(QueryString queryString, TranslatorHandler handler) {
-            return new QueryStringQuery(queryString.source(), queryString.queryAsText(), Map.of(), Map.of());
+            return new QueryStringQuery(queryString.source(), (String) queryString.queryAsObject(), Map.of(), Map.of());
         }
     }
 }

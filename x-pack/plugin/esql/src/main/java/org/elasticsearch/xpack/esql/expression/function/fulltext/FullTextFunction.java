@@ -14,10 +14,10 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
+import org.elasticsearch.xpack.esql.core.util.NumericUtils;
 
 import java.util.List;
 
-import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNullAndFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
@@ -73,30 +73,16 @@ public abstract class FullTextFunction extends Function {
     }
 
     /**
-     * Returns the resulting query as a String
+     * Returns the resulting query as an object
      *
-     * @return query expression as a string
-     */
-    public final String queryAsText() {
-        Object queryAsObject = query().fold();
-        if (queryAsObject instanceof BytesRef bytesRef) {
-            return bytesRef.utf8ToString();
-        }
-
-        throw new IllegalArgumentException(
-            format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
-        );
-    }
-
-    /**
-     * Returns the resulting query as a String
-     *
-     * @return query expression as a string
+     * @return query expression as an object
      */
     public final Object queryAsObject() {
         Object queryAsObject = query().fold();
         if (queryAsObject instanceof BytesRef bytesRef) {
             return bytesRef.utf8ToString();
+        } else if (query().dataType() == DataType.UNSIGNED_LONG) {
+            return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
         }
 
         return queryAsObject;

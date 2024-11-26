@@ -48,8 +48,11 @@ public class OpenAiCompletionRequestManager extends OpenAiRequestManager {
     ) {
 
         // TODO check and see if this works
-//        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(UnifiedChatInput.of(inferenceInputs), model);
-        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(inferenceInputs.castTo(UnifiedChatInput.class), model);
+        // OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(UnifiedChatInput.of(inferenceInputs), model);
+        OpenAiUnifiedChatCompletionRequest request = new OpenAiUnifiedChatCompletionRequest(
+            inferenceInputs.castTo(UnifiedChatInput.class),
+            model
+        );
 
         execute(new ExecutableInferenceRequest(requestSender, logger, request, HANDLER, hasRequestCompletedFunction, listener));
     }

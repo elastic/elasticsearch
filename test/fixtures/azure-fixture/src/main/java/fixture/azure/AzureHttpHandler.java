@@ -14,7 +14,6 @@ import com.sun.net.httpserver.HttpHandler;
 
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.Streams;
@@ -438,7 +437,7 @@ public class AzureHttpHandler implements HttpHandler {
         } catch (MockAzureBlobStore.AzureBlobStoreError e) {
             sendError(exchange, e);
         } catch (Exception e) {
-            ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError("Uncaught exception", e));
+            failTestWithAssertionError("Uncaught exception", e);
             sendError(exchange, RestStatus.INTERNAL_SERVER_ERROR, "InternalError", e.getMessage());
         } finally {
             exchange.close();

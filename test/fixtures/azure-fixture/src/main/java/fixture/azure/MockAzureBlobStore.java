@@ -145,6 +145,10 @@ public class MockAzureBlobStore {
         ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message));
     }
 
+    static void failTestWithAssertionError(String message, Throwable throwable) {
+        ExceptionsHelper.maybeDieOnAnotherThread(new AssertionError(message, throwable));
+    }
+
     public class AzureBlockBlob {
         private final Object writeLock = new Object();
         private final Lease lease = new Lease();

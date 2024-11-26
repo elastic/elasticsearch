@@ -254,7 +254,6 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
         } else if (exp instanceof FullTextFunction) {
             return true;
         }
-
         return false;
     }
 

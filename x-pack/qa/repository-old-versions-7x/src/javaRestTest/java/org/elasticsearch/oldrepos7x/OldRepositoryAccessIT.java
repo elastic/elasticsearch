@@ -37,20 +37,26 @@ import org.elasticsearch.test.rest.ObjectPath;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.elasticsearch.xcontent.XContentType;
+import org.junit.BeforeClass;
 import org.junit.ClassRule;
 import org.junit.rules.RuleChain;
 import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
+import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
+import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -63,11 +69,6 @@ import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.startsWith;
 
 public class OldRepositoryAccessIT extends ESRestTestCase {
-
-    @Override
-    protected boolean preserveClusterUponCompletion() {
-        return true;
-    }
 
     public static TemporaryFolder repoDirectory = new TemporaryFolder();
 
@@ -97,10 +98,103 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     @ClassRule
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(oldCluster).around(currentCluster);
 
-    private static boolean repoRestored = false;
-    private static String repoLocation;
-    private static String repoName;
-    private static String snapshotName;
+    private static final String REPO_LOCATION_BASE = "source_only_";
+
+    private static final Map<String, Set<String>> expectedTestIds = new HashMap<>();
+
+    private static final Map<String, Integer> expectedNumberOfShards = new HashMap<>();
+
+    private static final int numDocs = 10;
+    private static final int extraDocs = 1;
+
+    @BeforeClass
+    public static void setupOldRepo() throws IOException {
+        String repoLocationBase = repoDirectory.getRoot().getPath();
+
+        List<HttpHost> oldClusterHosts = parseOldClusterHosts(oldCluster.getHttpAddresses());
+        try (RestClient oldEs = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build()) {
+            for (boolean sourceOnlyRepository : new boolean[] { true, false }) {
+                String repoLocation = PathUtils.get(repoLocationBase).resolve(REPO_LOCATION_BASE + sourceOnlyRepository).toString();
+                Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+                assumeTrue(
+                    "source only repositories only supported since ES 6.5.0",
+                    sourceOnlyRepository == false || oldVersion.onOrAfter(Version.fromString("6.5.0"))
+                );
+
+                assertThat("Index version should be added to archive tests", oldVersion, lessThan(Version.V_8_10_0));
+                IndexVersion indexVersion = IndexVersion.fromId(oldVersion.id);
+                String indexName;
+                if (sourceOnlyRepository) {
+                    indexName = "source_only_test_index";
+                } else {
+                    indexName = "test_index";
+                }
+
+                String repoName = "repo_" + indexName;
+                String snapshotName = "snap_" + indexName;
+                Request createIndex = new Request("PUT", "/" + indexName);
+                int numShards = randomIntBetween(1, 3);
+                expectedNumberOfShards.put(repoLocation, numShards);
+
+                XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
+                settingsBuilder.field("index.number_of_shards", numShards);
+
+                // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
+                if (oldVersion.onOrAfter(Version.fromString("6.5.0"))
+                    && oldVersion.before(Version.fromString("7.0.0"))
+                    && randomBoolean()) {
+                    settingsBuilder.field("index.soft_deletes.enabled", true);
+                }
+
+                settingsBuilder.endObject().endObject();
+
+                createIndex.setJsonEntity(Strings.toString(settingsBuilder));
+                assertOK(oldEs.performRequest(createIndex));
+
+                // TODO maybe go back to using multiple types for ES versions < 6.0.0 if we migrate them to this qa project
+                String type = "_doc";
+                Set<String> expectedIds = new HashSet<>();
+                for (int i = 0; i < numDocs + extraDocs; i++) {
+                    String id = "testdoc" + i;
+                    expectedIds.add(id);
+                    Request doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id);
+                    doc.addParameter("refresh", "true");
+                    doc.setJsonEntity(sourceForDoc(i));
+                    assertOK(oldEs.performRequest(doc));
+                }
+
+                for (int i = 0; i < extraDocs; i++) {
+                    String id = randomFrom(expectedIds);
+                    expectedIds.remove(id);
+                    Request doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id);
+                    doc.addParameter("refresh", "true");
+                    oldEs.performRequest(doc);
+                }
+                expectedTestIds.put(repoLocation, expectedIds);
+
+                // register repo on old ES and take snapshot
+                Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
+                createRepoRequest.setJsonEntity(sourceOnlyRepository ? Strings.format("""
+                    {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
+                    """, repoLocation) : Strings.format("""
+                    {"type":"fs","settings":{"location":"%s"}}
+                    """, repoLocation));
+                assertOK(oldEs.performRequest(createRepoRequest));
+
+                Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
+                createSnapshotRequest.addParameter("wait_for_completion", "true");
+                createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
+                assertOK(oldEs.performRequest(createSnapshotRequest));
+            }
+        }
+    }
+
+    public static Set<String> listFilesUsingJavaIO(String dir) {
+        return Stream.of(new File(dir).listFiles())
+            .filter(file -> file.isDirectory() == false)
+            .map(File::getName)
+            .collect(Collectors.toSet());
+    }
 
     @Override
     protected String getTestRestCluster() {
@@ -111,14 +205,14 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         runTest(false);
     }
 
-    // public void testOldSourceOnlyRepoAccess() throws IOException {
-    // runTest(true);
-    // }
+    public void testOldSourceOnlyRepoAccess() throws IOException {
+        runTest(true);
+    }
 
     public void runTest(boolean sourceOnlyRepository) throws IOException {
         // boolean afterRestart = Booleans.parseBoolean(System.getProperty("tests.after_restart"));
         String repoLocation = repoDirectory.getRoot().getPath();
-        repoLocation = PathUtils.get(repoLocation).resolve("source_only_" + sourceOnlyRepository).toString();
+        repoLocation = PathUtils.get(repoLocation).resolve(REPO_LOCATION_BASE + sourceOnlyRepository).toString();
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
         assumeTrue(
             "source only repositories only supported since ES 6.5.0",
@@ -128,95 +222,16 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         assertThat("Index version should be added to archive tests", oldVersion, lessThan(Version.V_8_10_0));
         IndexVersion indexVersion = IndexVersion.fromId(oldVersion.id);
 
-        System.out.println("Here");
-        String httpAddresses = oldCluster.getHttpAddresses();
-        System.out.println(httpAddresses);
-        List<HttpHost> oldClusterHosts = parseClusterHosts(httpAddresses);
-        System.out.println("oldCH: " + oldClusterHosts);
         String indexName;
         if (sourceOnlyRepository) {
             indexName = "source_only_test_index";
         } else {
             indexName = "test_index";
         }
-        int numDocs = 10;
-        int extraDocs = 1;
-        try (RestClient oldEs = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build()) {
-            // if (afterRestart == false) {
-            beforeRestart(sourceOnlyRepository, repoLocation, oldVersion, indexVersion, numDocs, extraDocs, oldEs, indexName);
-            // } else {
-            // afterRestart(indexName);
-            // }
-        }
-    }
-
-    // private void afterRestart(String indexName) throws IOException {
-    // ensureGreen("restored_" + indexName);
-    // ensureGreen("mounted_full_copy_" + indexName);
-    // ensureGreen("mounted_shared_cache_" + indexName);
-    // }
-
-    private void beforeRestart(
-        boolean sourceOnlyRepository,
-        String repoLocation,
-        Version oldVersion,
-        IndexVersion indexVersion,
-        int numDocs,
-        int extraDocs,
-        RestClient oldEs,
-        String indexName
-    ) throws IOException {
         String repoName = "repo_" + indexName;
         String snapshotName = "snap_" + indexName;
-        Request createIndex = new Request("PUT", "/" + indexName);
-        int numberOfShards = randomIntBetween(1, 3);
-
-        XContentBuilder settingsBuilder = XContentFactory.jsonBuilder().startObject().startObject("settings");
-        settingsBuilder.field("index.number_of_shards", numberOfShards);
-
-        // 6.5.0 started using soft-deletes, but it was only enabled by default on 7.0
-        if (oldVersion.onOrAfter(Version.fromString("6.5.0")) && oldVersion.before(Version.fromString("7.0.0")) && randomBoolean()) {
-            settingsBuilder.field("index.soft_deletes.enabled", true);
-        }
-
-        settingsBuilder.endObject().endObject();
-
-        createIndex.setJsonEntity(Strings.toString(settingsBuilder));
-        assertOK(oldEs.performRequest(createIndex));
-
-        // TODO maybe go bak to using multiple types for ES versions < 6.0.0 if we migrate them to this qa project
-        String type = "_doc"; //
-        Set<String> expectedIds = new HashSet<>();
-        for (int i = 0; i < numDocs + extraDocs; i++) {
-            String id = "testdoc" + i;
-            expectedIds.add(id);
-            Request doc = new Request("PUT", "/" + indexName + "/" + type + "/" + id);
-            doc.addParameter("refresh", "true");
-            doc.setJsonEntity(sourceForDoc(i));
-            assertOK(oldEs.performRequest(doc));
-        }
-
-        for (int i = 0; i < extraDocs; i++) {
-            String id = randomFrom(expectedIds);
-            expectedIds.remove(id);
-            Request doc = new Request("DELETE", "/" + indexName + "/" + type + "/" + id);
-            doc.addParameter("refresh", "true");
-            oldEs.performRequest(doc);
-        }
-
-        // register repo on old ES and take snapshot
-        Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
-        createRepoRequest.setJsonEntity(sourceOnlyRepository ? Strings.format("""
-            {"type":"source","settings":{"location":"%s","delegate_type":"fs"}}
-            """, repoLocation) : Strings.format("""
-            {"type":"fs","settings":{"location":"%s"}}
-            """, repoLocation));
-        assertOK(oldEs.performRequest(createRepoRequest));
-
-        Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
-        createSnapshotRequest.addParameter("wait_for_completion", "true");
-        createSnapshotRequest.setJsonEntity("{\"indices\":\"" + indexName + "\"}");
-        assertOK(oldEs.performRequest(createSnapshotRequest));
+        Set<String> expectedIds = expectedTestIds.get(repoLocation);
+        int numberOfShards = expectedNumberOfShards.get(repoLocation);
 
         // register repo on new ES
         Settings.Builder repoSettingsBuilder = Settings.builder().put("location", repoLocation);
@@ -284,7 +299,22 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         closeIndex(client(), "mounted_shared_cache_" + indexName);
 
         // restore / mount again
-        restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, oldVersion, indexName, repoName, snapshotName);
+        restoreMountAndVerify(
+            numDocs,
+            expectedIds,
+            numberOfShards,
+            sourceOnlyRepository,
+            oldVersion,
+            indexName,
+            repoName,
+            snapshotName
+        );
+
+        // TODO restart current cluster
+
+        // ensureGreen("restored_" + indexName);
+        // ensureGreen("mounted_full_copy_" + indexName);
+        // ensureGreen("mounted_shared_cache_" + indexName);
     }
 
     private static String sourceForDoc(int i) {
@@ -531,5 +561,20 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Request request = new Request("POST", "/" + index + "/_close");
         ObjectPath doc = ObjectPath.createFromResponse(client.performRequest(request));
         assertTrue(doc.evaluate("shards_acknowledged"));
+    }
+
+    private static List<HttpHost> parseOldClusterHosts(String hostsString) {
+        String[] stringUrls = hostsString.split(",");
+        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
+        for (String stringUrl : stringUrls) {
+            int portSeparator = stringUrl.lastIndexOf(':');
+            if (portSeparator < 0) {
+                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
+            }
+            String host = stringUrl.substring(0, portSeparator);
+            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
+            hosts.add(new HttpHost(host, port));
+        }
+        return unmodifiableList(hosts);
     }
 }

@@ -313,7 +313,7 @@ public class EsqlSession {
                     .collect(Collectors.toSet());
                 // get the field names from the parsed plan combined with the ENRICH match fields from the ENRICH policy
                 var fieldNames = fieldNames(parsed, enrichMatchFields);
-                ListenerResult listenerResult = new ListenerResult(enrichResolution, fieldNames, null, null);
+                ListenerResult listenerResult = new ListenerResult(null, null, enrichResolution, fieldNames);
 
                 // first resolve the lookup indices, then the main indices
                 preAnalyzeLookupIndices(preAnalysis.lookupIndices, listenerResult, l);
@@ -377,17 +377,17 @@ public class EsqlSession {
                 table.index(),
                 listenerResult.fieldNames(),
                 null,
-                new ListenerResultWrappingListener<>(listener, listenerResult, listenerResult::withIndexResolution)
+                new ListenerResultWrappingListener<>(listener, listenerResult, listenerResult::withLookupIndexResolution)
             );
         } else {
             try {
                 // No lookup indices specified
                 listener.onResponse(
                     new ListenerResult(
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames,
+                        listenerResult.indices,
                         IndexResolution.invalid("[none specified]"),
-                        listenerResult.indices
+                        listenerResult.enrichResolution,
+                        listenerResult.fieldNames
                     )
                 );
             } catch (Exception ex) {
@@ -444,10 +444,10 @@ public class EsqlSession {
                 // if this was a pure remote CCS request (no local indices) and all remotes are offline, return an empty IndexResolution
                 listener.onResponse(
                     new ListenerResult(
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames,
+                        IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of())),
                         listenerResult.lookupIndices,
-                        IndexResolution.valid(new EsIndex(table.index(), Map.of(), Map.of()))
+                        listenerResult.enrichResolution,
+                        listenerResult.fieldNames
                     )
                 );
             } else {
@@ -464,10 +464,10 @@ public class EsqlSession {
                 // occurs when dealing with local relations (row a = 1)
                 listener.onResponse(
                     new ListenerResult(
-                        listenerResult.enrichResolution,
-                        listenerResult.fieldNames,
+                        IndexResolution.invalid("[none specified]"),
                         listenerResult.lookupIndices,
-                        IndexResolution.invalid("[none specified]")
+                        listenerResult.enrichResolution,
+                        listenerResult.fieldNames
                     )
                 );
             } catch (Exception ex) {
@@ -730,17 +730,21 @@ public class EsqlSession {
     }
 
     private record ListenerResult(
-        EnrichResolution enrichResolution,
-        Set<String> fieldNames,
+        IndexResolution indices,
         IndexResolution lookupIndices,
-        IndexResolution indices
+        EnrichResolution enrichResolution,
+        Set<String> fieldNames
     ) {
         ListenerResult withEnrichResolution(EnrichResolution newEnrichResolution) {
-            return new ListenerResult(newEnrichResolution, fieldNames(), lookupIndices(), indices());
+            return new ListenerResult(indices(), lookupIndices(), newEnrichResolution, fieldNames() );
         }
 
         ListenerResult withIndexResolution(IndexResolution newIndexResolution) {
-            return new ListenerResult(enrichResolution(), fieldNames(), lookupIndices(), newIndexResolution);
+            return new ListenerResult(newIndexResolution, lookupIndices(), enrichResolution(), fieldNames());
+        }
+
+        ListenerResult withLookupIndexResolution(IndexResolution newIndexResolution) {
+            return new ListenerResult(indices(), newIndexResolution, enrichResolution(), fieldNames());
         }
     };
 }

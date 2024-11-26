@@ -673,7 +673,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
-                indexingShardState.unreferencedBlobs()
+                indexingShardState.otherBlobs()
             );
 
             testHarness.commitService.onCommitCreation(commitRef);
@@ -1295,7 +1295,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
-                indexingShardState.unreferencedBlobs()
+                indexingShardState.otherBlobs()
             );
 
             var mergedCommit = testHarness.generateIndexCommits(1, true, false, generation -> {}).get(0);
@@ -1432,7 +1432,7 @@ public class StatelessCommitServiceTests extends ESTestCase {
             testHarness.commitService.markRecoveredBcc(
                 testHarness.shardId,
                 indexingShardState.latestCommit(),
-                indexingShardState.unreferencedBlobs()
+                indexingShardState.otherBlobs()
             );
 
             StatelessCommitRef recoveryCommit = mergedCommit;

@@ -33,7 +33,6 @@ import org.apache.lucene.store.IndexOutput;
 import org.apache.lucene.store.Lock;
 import org.apache.lucene.store.LockFactory;
 import org.apache.lucene.store.SingleInstanceLockFactory;
-import org.apache.lucene.util.SetOnce;
 import org.elasticsearch.blobcache.shared.SharedBlobCacheService;
 import org.elasticsearch.common.blobstore.BlobContainer;
 import org.elasticsearch.core.Assertions;
@@ -67,7 +66,7 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
 
     protected final ShardId shardId;
     protected final StatelessSharedBlobCacheService cacheService;
-    protected final SetOnce<LongFunction<BlobContainer>> blobContainer = new SetOnce<>();
+    protected final AtomicReference<LongFunction<BlobContainer>> blobContainer = new AtomicReference<>();
 
     private final AtomicReference<String> corruptionMarker = new AtomicReference<>();
     private final LockFactory lockFactory = new SingleInstanceLockFactory();
@@ -98,8 +97,8 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         return lockFactory.obtainLock(this, name);
     }
 
-    public void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
-        this.blobContainer.set(blobContainer);
+    public final void setBlobContainer(LongFunction<BlobContainer> blobContainer) {
+        this.blobContainer.compareAndSet(null, blobContainer); // set once
     }
 
     public boolean containsFile(String name) {
@@ -309,8 +308,10 @@ public abstract class BlobStoreCacheDirectory extends ByteSizeDirectory {
         logger.warn("[{}] force evicted [{}] blob cache entries for ShardId {}", this, n, shardId);
     }
 
-    public BlobContainer getBlobContainer(long primaryTerm) {
-        return blobContainer.get().apply(primaryTerm);
+    public final BlobContainer getBlobContainer(long primaryTerm) {
+        var applier = blobContainer.get();
+        assert applier != null : "blob container not set";
+        return applier.apply(primaryTerm);
     }
 
     public ShardId getShardId() {

@@ -248,17 +248,13 @@ public class RecoveryMetricsIT extends AbstractStatelessIntegTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://elasticco.atlassian.net/browse/ES-9768") // Adjust the test once ES-9768 is merged
     public void testRecoveryMetricPublicationBytesReadToCache() {
         startMasterOnlyNode();
         // in scenarios where cache is disabled (see AbstractStatelessIntegTestCase#settingsForRoles)
         // nothing is copied to cache and so metric in SharedBlobCacheWarmingService is not incremented
         var cacheSettings = Settings.builder()
-            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(randomIntBetween(1, 8)).getStringRep())
-            .put(
-                SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(),
-                ByteSizeValue.ofBytes(randomIntBetween(1, 10) * PAGE_SIZE).getStringRep()
-            )
+            .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), ByteSizeValue.ofMb(1).getStringRep())
+            .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), ByteSizeValue.ofBytes(2L * PAGE_SIZE).getStringRep())
             .build();
 
         var indexingNode1 = startIndexNode(cacheSettings);

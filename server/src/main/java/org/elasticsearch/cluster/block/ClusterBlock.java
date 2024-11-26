@@ -193,7 +193,7 @@ public class ClusterBlock implements Writeable, ToXContentFragment {
         return allowReleaseResources;
     }
 
-    private static EnumSet<ClusterBlockLevel> filterLevels(EnumSet<ClusterBlockLevel> levels, Predicate<ClusterBlockLevel> predicate) {
+    static EnumSet<ClusterBlockLevel> filterLevels(EnumSet<ClusterBlockLevel> levels, Predicate<ClusterBlockLevel> predicate) {
         assert levels != null;
         int size = levels.size();
         if (size == 0 || (size == 1 && predicate.test(levels.iterator().next()))) {

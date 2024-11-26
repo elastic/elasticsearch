@@ -66,6 +66,7 @@ import org.elasticsearch.indices.SystemIndices;
 import org.elasticsearch.snapshots.EmptySnapshotsInfoService;
 import org.elasticsearch.test.ClusterServiceUtils;
 import org.elasticsearch.test.ESTestCase;
+import org.elasticsearch.test.TransportVersionUtils;
 import org.elasticsearch.test.gateway.TestGatewayAllocator;
 import org.elasticsearch.test.index.IndexVersionUtils;
 import org.elasticsearch.threadpool.TestThreadPool;
@@ -1595,6 +1596,7 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
     public void testCreateRefreshBlockUponIndexCreationApplier() {
         boolean isStateless = randomBoolean();
         boolean useRefreshBlock = randomBoolean();
+        var minTransportVersion = TransportVersionUtils.randomCompatibleVersion(random());
 
         var applier = MetadataCreateIndexService.createClusterBlocksTransformerForIndexCreation(
             Settings.builder()
@@ -1605,15 +1607,19 @@ public class MetadataCreateIndexServiceTests extends ESTestCase {
         assertThat(applier, notNullValue());
 
         var blocks = ClusterBlocks.builder().blocks(ClusterState.EMPTY_STATE.blocks());
-        applier.accept(
+        applier.apply(
             blocks,
             IndexMetadata.builder("test")
                 .settings(settings(IndexVersion.current()))
                 .numberOfShards(1)
                 .numberOfReplicas(randomIntBetween(1, 3))
-                .build()
+                .build(),
+            minTransportVersion
         );
-        assertThat(blocks.hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK), is(isStateless && useRefreshBlock));
+        assertThat(
+            blocks.hasIndexBlock("test", IndexMetadata.INDEX_REFRESH_BLOCK),
+            is(isStateless && useRefreshBlock && minTransportVersion.onOrAfter(TransportVersions.NEW_REFRESH_CLUSTER_BLOCK))
+        );
     }
 
     private IndexTemplateMetadata addMatchingTemplate(Consumer<IndexTemplateMetadata.Builder> configurator) {

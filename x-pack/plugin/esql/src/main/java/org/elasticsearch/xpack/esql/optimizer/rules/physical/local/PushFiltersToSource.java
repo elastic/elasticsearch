@@ -30,9 +30,13 @@ import org.elasticsearch.xpack.esql.core.querydsl.query.Query;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.CollectionUtils;
 import org.elasticsearch.xpack.esql.core.util.Queries;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
+<<<<<<< HEAD
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Term;
+=======
+>>>>>>> ed33bea30cd898936e43e24a7927290409f30b18
 import org.elasticsearch.xpack.esql.expression.function.scalar.ip.CIDRMatch;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.BinarySpatialFunction;
 import org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesFunction;
@@ -253,12 +257,12 @@ public class PushFiltersToSource extends PhysicalOptimizerRules.ParameterizedOpt
                 && Expressions.foldable(cidrMatch.matches());
         } else if (exp instanceof SpatialRelatesFunction spatial) {
             return canPushSpatialFunctionToSource(spatial, lucenePushdownPredicates);
-        } else if (exp instanceof QueryString) {
-            return true;
         } else if (exp instanceof Match mf) {
             return mf.field() instanceof FieldAttribute && DataType.isString(mf.field().dataType());
         } else if (exp instanceof Term term) {
             return term.field() instanceof FieldAttribute && DataType.isString(term.field().dataType());
+        } else if (exp instanceof FullTextFunction) {
+            return true;
         }
         return false;
     }

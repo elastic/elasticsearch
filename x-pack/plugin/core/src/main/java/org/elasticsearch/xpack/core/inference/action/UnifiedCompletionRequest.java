@@ -16,6 +16,8 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.xcontent.ConstructingObjectParser;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
+import org.elasticsearch.xcontent.ToXContent;
+import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParseException;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -38,6 +40,8 @@ public record UnifiedCompletionRequest(
     @Nullable Float topP,
     @Nullable String user
 ) implements Writeable {
+
+    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
 
     @SuppressWarnings("unchecked")
     static final ConstructingObjectParser<UnifiedCompletionRequest, Void> PARSER = new ConstructingObjectParser<>(
@@ -153,8 +157,6 @@ public record UnifiedCompletionRequest(
         }
     }
 
-    public sealed interface Content extends NamedWriteable permits ContentObjects, ContentString {}
-
     public record ContentObjects(List<ContentObject> contentObjects) implements Content, Writeable {
 
         public static final String NAME = "content_objects";
@@ -194,6 +196,7 @@ public record UnifiedCompletionRequest(
             out.writeString(text);
             out.writeString(type);
         }
+
     }
 
     public record ContentString(String content) implements Content, NamedWriteable {
@@ -216,6 +219,10 @@ public record UnifiedCompletionRequest(
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public void toXContent(XContentBuilder builder, ToXContent.Params params) throws IOException {
+            builder.value(content);
         }
     }
 
@@ -432,7 +439,7 @@ public record UnifiedCompletionRequest(
         public record FunctionField(
             @Nullable String description,
             String name,
-            @Nullable Map<String, Object> parameters,
+            @Nullable Map<String, Object> parameters, // TODO can we parse this as a string?
             @Nullable Boolean strict
         ) implements Writeable {
 

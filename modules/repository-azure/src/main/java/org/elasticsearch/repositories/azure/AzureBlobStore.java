@@ -743,7 +743,7 @@ public class AzureBlobStore implements BlobStore {
             this(new LongAdder(), new LongAdder());
         }
 
-        EndpointStats getStats() {
+        EndpointStats getEndpointStats() {
             return new EndpointStats(operations.sum(), requests.sum(), operations.sum());
         }
 
@@ -768,7 +768,7 @@ public class AzureBlobStore implements BlobStore {
             if (stateless) {
                 return statsCounters.entrySet()
                     .stream()
-                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().getStats()));
+                    .collect(Collectors.toUnmodifiableMap(e -> e.getKey().toString(), e -> e.getValue().getEndpointStats()));
             } else {
                 Map<String, EndpointStats> normalisedStats = Arrays.stream(Operation.values())
                     .collect(Collectors.toMap(Operation::getKey, o -> EndpointStats.ZERO));

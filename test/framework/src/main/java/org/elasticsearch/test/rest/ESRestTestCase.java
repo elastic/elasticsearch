@@ -112,7 +112,6 @@ import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
@@ -1835,9 +1834,10 @@ public abstract class ESRestTestCase extends ESTestCase {
 
         if (settings != null && settings.getAsBoolean(IndexSettings.INDEX_SOFT_DELETES_SETTING.getKey(), true) == false) {
             expectSoftDeletesWarning(request, name);
-        } else if (isSyntheticSourceConfiguredInMapping(mapping)) {
-            request.setOptions(expectVersionSpecificWarnings(v -> v.compatible(SourceFieldMapper.DEPRECATION_WARNING)));
-        }
+        } else if (isSyntheticSourceConfiguredInMapping(mapping)
+            && SourceFieldMapper.onOrAfterDeprecateModeVersion(minimumIndexVersion())) {
+                request.setOptions(expectVersionSpecificWarnings(v -> v.current(SourceFieldMapper.DEPRECATION_WARNING)));
+            }
         final Response response = client.performRequest(request);
         try (var parser = responseAsParser(response)) {
             return TestResponseParsers.parseCreateIndexResponse(parser);
@@ -1898,8 +1898,30 @@ public abstract class ESRestTestCase extends ESTestCase {
         if (sourceMapper == null) {
             return false;
         }
-        Object mode = sourceMapper.get("mode");
-        return mode != null && mode.toString().toLowerCase(Locale.ROOT).equals("synthetic");
+        return sourceMapper.get("mode") != null;
+    }
+
+    @SuppressWarnings("unchecked")
+    protected static boolean isSyntheticSourceConfiguredInTemplate(String template) {
+        if (template == null) {
+            return false;
+        }
+        var values = XContentHelper.convertToMap(JsonXContent.jsonXContent, template, false);
+        for (Object value : values.values()) {
+            Map<String, Object> mappings = (Map<String, Object>) ((Map<String, Object>) value).get("mappings");
+            if (mappings == null) {
+                continue;
+            }
+            Map<String, Object> sourceMapper = (Map<String, Object>) mappings.get(SourceFieldMapper.NAME);
+            if (sourceMapper == null) {
+                continue;
+            }
+            Object mode = sourceMapper.get("mode");
+            if (mode != null) {
+                return true;
+            }
+        }
+        return false;
     }
 
     protected static Map<String, Object> getIndexSettings(String index) throws IOException {

@@ -22,7 +22,6 @@ public class LogsdbWithBasicRestIT extends ESRestTestCase {
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .systemProperty("es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override", "2027-12-31T23:59")
-        .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.security.enabled", "false")
         .setting("cluster.logsdb.enabled", "true")
         .build();

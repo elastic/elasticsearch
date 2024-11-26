@@ -97,7 +97,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         suppliers.addAll(List.of(new TestCaseSupplier("Duration", List.of(DataType.TIME_DURATION), () -> {
             Duration arg = (Duration) randomLiteral(DataType.TIME_DURATION).value();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.TIME_DURATION, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.TIME_DURATION, "arg").forceLiteral()),
                 "No evaluator since this expression is only folded",
                 DataType.TIME_DURATION,
                 equalTo(arg.negated())
@@ -105,7 +105,7 @@ public class NegTests extends AbstractScalarFunctionTestCase {
         }), new TestCaseSupplier("Period", List.of(DataType.DATE_PERIOD), () -> {
             Period arg = (Period) randomLiteral(DataType.DATE_PERIOD).value();
             return new TestCaseSupplier.TestCase(
-                List.of(new TestCaseSupplier.TypedData(arg, DataType.DATE_PERIOD, "arg")),
+                List.of(new TestCaseSupplier.TypedData(arg, DataType.DATE_PERIOD, "arg").forceLiteral()),
                 "No evaluator since this expression is only folded",
                 DataType.DATE_PERIOD,
                 equalTo(arg.negated())

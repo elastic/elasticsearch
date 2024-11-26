@@ -50,7 +50,7 @@ public class CCSPartialResultsIT extends AbstractMultiClustersTestCase {
         return false;
     }
 
-    public void testFailuresFromRemote() throws ExecutionException, InterruptedException, IOException {
+    public void testPartialResults() throws ExecutionException, InterruptedException, IOException {
         final Client remoteClient = client(REMOTE_CLUSTER);
         final String remoteNode = cluster(REMOTE_CLUSTER).startDataOnlyNode();
         final String remoteNode2 = cluster(REMOTE_CLUSTER).startDataOnlyNode();

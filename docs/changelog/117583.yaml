@@ -5,7 +5,7 @@ type: deprecation
 issues: []
 deprecation:
   title: Removing index alias creation for deprecated transforms notification index
-  area: REST API
+  area: Transform
   details: >-
     As part of the migration from 7.x to 8.x, the `.data-frame-notifications-1` index
     was deprecated and replaced with the `.transform-notifications-000002` index.

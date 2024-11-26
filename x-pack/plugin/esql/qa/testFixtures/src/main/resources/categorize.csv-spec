@@ -208,6 +208,31 @@ COUNT():long | category:keyword
            1 | .*?disconnected.*?
 ;
 
+on const empty string
+required_capability: categorize
+
+FROM sample_data
+  | STATS COUNT() BY category=CATEGORIZE("")
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | .*?.*?
+;
+
+on const empty string from eval
+required_capability: categorize
+
+FROM sample_data
+  | EVAL x = ""
+  | STATS COUNT() BY category=CATEGORIZE(x)
+  | SORT category
+;
+
+COUNT():long | category:keyword
+           7 | .*?.*?
+;
+
 on null
 required_capability: categorize
 

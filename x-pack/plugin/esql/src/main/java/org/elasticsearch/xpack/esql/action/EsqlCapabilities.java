@@ -529,6 +529,11 @@ public class EsqlCapabilities {
         FIX_NESTED_FIELDS_NAME_CLASH_IN_INDEXRESOLVER,
 
         /**
+         * support for aggregations on semantic_text
+         */
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
          * Support the "METADATA _score" directive to enable _score column.
          */
         METADATA_SCORE(Build.current().isSnapshot());

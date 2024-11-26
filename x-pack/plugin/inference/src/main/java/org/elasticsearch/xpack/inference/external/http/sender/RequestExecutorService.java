@@ -335,6 +335,8 @@ public class RequestExecutorService implements RequestExecutor {
         private final RateLimiter rateLimiter;
         private final RequestExecutorServiceSettings requestExecutorServiceSettings;
         private final RateLimitSettings rateLimitSettings;
+        private final Long originalRequestsPerTimeUnit;
+        private Double currentRequestsPerTimeUnit;
 
         RateLimitingEndpointHandler(
             String id,
@@ -353,6 +355,8 @@ public class RequestExecutorService implements RequestExecutor {
             this.clock = Objects.requireNonNull(clock);
             this.isShutdownMethod = Objects.requireNonNull(isShutdownMethod);
             this.rateLimitSettings = Objects.requireNonNull(rateLimitSettings);
+            this.originalRequestsPerTimeUnit = rateLimitSettings.requestsPerTimeUnit();
+            this.currentRequestsPerTimeUnit = (double) rateLimitSettings.requestsPerTimeUnit();
 
             Objects.requireNonNull(rateLimiterCreator);
             rateLimiter = rateLimiterCreator.create(
@@ -379,10 +383,15 @@ public class RequestExecutorService implements RequestExecutor {
 
         public synchronized void updateTokensPerTimeUnit(double newTokensPerTimeUnit) {
             rateLimiter.setRate(ACCUMULATED_TOKENS_LIMIT, newTokensPerTimeUnit, rateLimitSettings.timeUnit());
+            this.currentRequestsPerTimeUnit = newTokensPerTimeUnit;
         }
 
-        public synchronized long requestsPerTimeUnit() {
-            return rateLimitSettings.requestsPerTimeUnit();
+        public synchronized long originalRequestsPerTimeUnit() {
+            return originalRequestsPerTimeUnit;
+        }
+
+        public synchronized long currentRequestsPerTimeUnit(){
+            return currentRequestsPerTimeUnit.longValue();
         }
 
         public String id() {

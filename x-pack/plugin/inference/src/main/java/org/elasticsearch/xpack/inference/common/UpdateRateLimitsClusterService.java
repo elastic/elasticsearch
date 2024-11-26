@@ -71,15 +71,24 @@ public class UpdateRateLimitsClusterService implements ClusterStateListener {
             LOGGER.info("Updating rate limits for {} endpoints", httpRequestSender.rateLimitingEndpointHandlers().size());
             for (RequestExecutorService.RateLimitingEndpointHandler rateLimitingEndpointHandler : httpRequestSender
                 .rateLimitingEndpointHandlers()) {
-                // TODO: keep the original rate limit and always divide by the number of nodes to handle node leaving/joining correctly
-                var oldRequestsPerTimeUnit = rateLimitingEndpointHandler.requestsPerTimeUnit();
-                var clusterAwareTokenLimit = oldRequestsPerTimeUnit / numNodes;
-                LOGGER.info(
-                    "Updating rate limit for endpoint {} from {} to {} tokens per time unit",
-                    rateLimitingEndpointHandler.id(),
-                    oldRequestsPerTimeUnit,
-                    clusterAwareTokenLimit
-                );
+                var originalRequestsPerTimeUnit = rateLimitingEndpointHandler.originalRequestsPerTimeUnit();
+                var clusterAwareTokenLimit = originalRequestsPerTimeUnit / numNodes;
+
+                if(event.nodesAdded()){
+                    LOGGER.info(
+                        "Decreasing per node rate limit for endpoint {} from {} to {} tokens per time unit (node added)",
+                        rateLimitingEndpointHandler.id(),
+                        rateLimitingEndpointHandler.currentRequestsPerTimeUnit(),
+                        clusterAwareTokenLimit
+                    );
+                } else if(event.nodesRemoved()){
+                    LOGGER.info(
+                        "Increasing per node rate limit for endpoint {} from {} to {} tokens per time unit (node removed)",
+                        rateLimitingEndpointHandler.id(),
+                        rateLimitingEndpointHandler.currentRequestsPerTimeUnit(),
+                        clusterAwareTokenLimit
+                    );
+                }
 
                 rateLimitingEndpointHandler.updateTokensPerTimeUnit(clusterAwareTokenLimit);
             }

@@ -8,10 +8,7 @@
 package org.elasticsearch.xpack.inference.common;
 
 import org.apache.logging.log4j.Level;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.bytes.BytesArray;
-import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.inference.InputType;
@@ -27,14 +24,11 @@ import org.elasticsearch.xpack.core.inference.action.PutInferenceModelAction;
 import org.elasticsearch.xpack.inference.InferencePlugin;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings;
 
+import java.io.IOException;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
-
-import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_INTERVAL_SETTING;
-import static org.elasticsearch.cluster.coordination.LeaderChecker.LEADER_CHECK_RETRY_COUNT_SETTING;
-import static org.elasticsearch.discovery.PeerFinder.DISCOVERY_FIND_PEERS_INTERVAL_SETTING;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.SUITE, numDataNodes = 0)
 public class UpdateRateLimitsClusterServiceTests extends ESIntegTestCase {
@@ -51,7 +45,7 @@ public class UpdateRateLimitsClusterServiceTests extends ESIntegTestCase {
         super.tearDown();
     }
 
-    public void testNodeJoinsRateLimitsUpdated() {
+    public void testNodeJoinsRateLimitsUpdated() throws IOException {
         // TODO: Expectation does not work, but I see the correct log message
         final String rateLimitUpdatedPattern = "Updating rate limit for endpoint";
         final MockLog.LoggingExpectation rateLimitUpdatedExpectation = new MockLog.SeenEventExpectation(
@@ -117,12 +111,14 @@ public class UpdateRateLimitsClusterServiceTests extends ESIntegTestCase {
         );
         client().execute(InferenceAction.INSTANCE, performInferenceRequest).actionGet();
 
-        internalCluster.startNode(
-            Settings.builder()
-                .build()
-        );
+        // Start node two -> rate limit should be halved
+        var nodeTwoName = internalCluster.startNode();
         ensureStableCluster(2);
         client().admin().cluster().prepareNodesStats().get(TimeValue.timeValueSeconds(10));
+
+        // Stop node two -> rate limit should be back at original value
+        internalCluster.stopNode(nodeTwoName);
+        ensureStableCluster(1);
 
         mockLog.assertAllExpectationsMatched();
     }

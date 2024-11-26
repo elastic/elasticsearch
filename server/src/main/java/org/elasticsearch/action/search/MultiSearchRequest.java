@@ -20,8 +20,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.rest.action.search.RestMultiSearchAction;
 import org.elasticsearch.rest.action.search.RestSearchAction;
 import org.elasticsearch.tasks.CancellableTask;
 import org.elasticsearch.tasks.Task;
@@ -214,11 +212,11 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                 break;
             }
             // support first line with \n
-            if (parserConfig.restApiVersion() == RestApiVersion.V_7 && nextMarker == 0) {
+            /* if (parserConfig.restApiVersion() == RestApiVersion.V_7 && nextMarker == 0) {
                 deprecationLogger.compatibleCritical("msearch_first_line_empty", FIRST_LINE_EMPTY_DEPRECATION_MESSAGE);
                 from = nextMarker + 1;
                 continue;
-            }
+            }*/
 
             SearchRequest searchRequest = new SearchRequest();
             if (indices != null) {
@@ -281,14 +279,13 @@ public class MultiSearchRequest extends ActionRequest implements CompositeIndice
                             allowNoIndices = value;
                         } else if ("ignore_throttled".equals(entry.getKey()) || "ignoreThrottled".equals(entry.getKey())) {
                             ignoreThrottled = value;
-                        } else if (parserConfig.restApiVersion() == RestApiVersion.V_7
-                            && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
-                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);
-                            } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
-                                // Skip, the parser handled the key/value
-                            } else {
-                                throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
-                            }
+                            /*} else if (parserConfig.restApiVersion() == RestApiVersion.V_7 && ("type".equals(entry.getKey()) || "types".equals(entry.getKey()))) {
+                                deprecationLogger.compatibleCritical("msearch_with_types", RestMultiSearchAction.TYPES_DEPRECATION_MESSAGE);*/
+                        } else if (extraParamParser.apply(entry.getKey(), value, searchRequest)) {
+                            // Skip, the parser handled the key/value
+                        } else {
+                            throw new IllegalArgumentException("key [" + entry.getKey() + "] is not supported in the metadata section");
+                        }
                     }
                     defaultOptions = IndicesOptions.fromParameters(
                         expandWildcards,

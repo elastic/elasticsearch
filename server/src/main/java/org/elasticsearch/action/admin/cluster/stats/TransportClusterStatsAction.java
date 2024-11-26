@@ -104,6 +104,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final RepositoriesService repositoriesService;
     private final SearchUsageHolder searchUsageHolder;
     private final CCSUsageTelemetry ccsUsageHolder;
+    private final CCSUsageTelemetry esqlUsageHolder;
 
     private final Executor clusterStateStatsExecutor;
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
@@ -136,6 +137,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.repositoriesService = repositoriesService;
         this.searchUsageHolder = usageService.getSearchUsageHolder();
         this.ccsUsageHolder = usageService.getCcsUsageHolder();
+        this.esqlUsageHolder = usageService.getEsqlUsageHolder();
         this.clusterStateStatsExecutor = threadPool.executor(ThreadPool.Names.MANAGEMENT);
         this.mappingStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), MappingStats::of);
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
@@ -294,6 +296,7 @@ public class TransportClusterStatsAction extends TransportNodesAction<
 
         final RepositoryUsageStats repositoryUsageStats = repositoriesService.getUsageStats();
         final CCSTelemetrySnapshot ccsTelemetry = ccsUsageHolder.getCCSTelemetrySnapshot();
+        final CCSTelemetrySnapshot esqlTelemetry = esqlUsageHolder.getCCSTelemetrySnapshot();
 
         return new ClusterStatsNodeResponse(
             nodeInfo.getNode(),
@@ -303,7 +306,8 @@ public class TransportClusterStatsAction extends TransportNodesAction<
             shardsStats.toArray(new ShardStats[shardsStats.size()]),
             searchUsageStats,
             repositoryUsageStats,
-            ccsTelemetry
+            ccsTelemetry,
+            esqlTelemetry
         );
     }
 

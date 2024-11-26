@@ -511,8 +511,9 @@ In this tutorial scenario it's useful for when users have complex requirements f
 
 Let's create a query that addresses the following user needs:
 
-* Must be a vegetarian main course
+* Must be a vegetarian recipe
 * Should contain "curry" or "spicy" in the title or description
+* Should be a main course
 * Must not be a dessert
 * Must have a rating of at least 4.5
 * Should prefer recipes published in the last month
@@ -524,6 +525,7 @@ GET /cooking_blog/_search
   "query": {
     "bool": {
       "must": [
+        { "term": { "tags": "vegetarian" } },
         {
           "range": {
             "rating": {
@@ -617,7 +619,7 @@ GET /cooking_blog/_search
 <1> The title contains "Spicy" and "Curry", matching our should condition. With the default <<type-best-fields,best_fields>> behavior, this field contributes most to the relevance score.
 <2> While the description also contains matching terms, only the best matching field's score is used by default.
 <3> The recipe was published within the last month, satisfying our recency preference.
-<4> The "Main Course" category matches our `must` condition.
+<4> The "Main Course" category satisfies another `should` condition.
 <5> The "vegetarian" tag satisfies another `must` condition, while "curry" and "spicy" tags align with our `should` preferences.
 <6> The rating of 4.6 meets our minimum rating requirement of 4.5.
 ==============

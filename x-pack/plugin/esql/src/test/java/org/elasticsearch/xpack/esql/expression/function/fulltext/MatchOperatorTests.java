@@ -32,10 +32,11 @@ public class MatchOperatorTests extends MatchTests {
     public static Iterable<Object[]> parameters() {
         // Have a minimal test so that we can generate the appropriate types in the docs
         List<TestCaseSupplier> suppliers = new LinkedList<>();
-        addPositiveTestCase(List.of(DataType.KEYWORD, DataType.KEYWORD), suppliers);
-        addPositiveTestCase(List.of(DataType.TEXT, DataType.TEXT), suppliers);
-        addPositiveTestCase(List.of(DataType.KEYWORD, DataType.TEXT), suppliers);
-        addPositiveTestCase(List.of(DataType.TEXT, DataType.KEYWORD), suppliers);
+        for (DataType fieldType : Match.DATA_TYPES) {
+            for (DataType queryType : Match.DATA_TYPES) {
+                addPositiveTestCase(List.of(fieldType, queryType), suppliers);
+            }
+        }
         return parameterSuppliersFromTypedData(suppliers);
     }
 }

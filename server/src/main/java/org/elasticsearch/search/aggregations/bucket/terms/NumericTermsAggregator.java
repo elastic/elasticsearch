@@ -177,7 +177,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                     try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
                         B spare = null;
                         BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningBucketOrd);
-                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningBucketOrd);
+                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder();
                         while (ordsEnum.next()) {
                             long docCount = bucketDocCount(ordsEnum.ord());
                             otherDocCounts.increment(ordIdx, docCount);
@@ -188,7 +188,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
                                 checkRealMemoryCBForInternalBucket();
                                 spare = emptyBucketBuilder.get();
                             }
-                            updateBucket(spare, ordsEnum, docCount);
+                            updateBucket(owningBucketOrd, spare, ordsEnum, docCount);
                             spare = ordered.insertWithOverflow(spare);
                         }
 
@@ -244,13 +244,13 @@ public final class NumericTermsAggregator extends TermsAggregator {
          * buckets. Those buckets will then be {@link #updateBucket updated}
          * for each collected bucket.
          */
-        abstract Supplier<B> emptyBucketBuilder(long owningBucketOrd);
+        abstract Supplier<B> emptyBucketBuilder();
 
         /**
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract void updateBucket(B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
+        abstract void updateBucket(long owningBucketOrd, B spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException;
 
         /**
          * Build a {@link ObjectArrayPriorityQueue} to sort the buckets. After we've
@@ -306,7 +306,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        Supplier<B> emptyBucketBuilder(long owningBucketOrd) {
+        Supplier<B> emptyBucketBuilder() {
             return this::buildEmptyBucket;
         }
 
@@ -375,7 +375,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
+        void updateBucket(long owningBucketOrd, LongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
             spare.term = ordsEnum.value();
             spare.docCount = docCount;
             spare.bucketOrd = ordsEnum.ord();
@@ -457,7 +457,7 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        void updateBucket(DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
+        void updateBucket(long owningBucketOrd, DoubleTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) {
             spare.term = NumericUtils.sortableLongToDouble(ordsEnum.value());
             spare.docCount = docCount;
             spare.bucketOrd = ordsEnum.ord();
@@ -565,20 +565,20 @@ public final class NumericTermsAggregator extends TermsAggregator {
         }
 
         @Override
-        Supplier<SignificantLongTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
-            return () -> new SignificantLongTerms.Bucket(0, subsetSize, 0, supersetSize, 0, null, format, 0);
+        Supplier<SignificantLongTerms.Bucket> emptyBucketBuilder() {
+            return () -> new SignificantLongTerms.Bucket(0, 0, 0, null, format, 0);
         }
 
         @Override
-        void updateBucket(SignificantLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount) throws IOException {
+        void updateBucket(long owningBucketOrd, SignificantLongTerms.Bucket spare, BucketOrdsEnum ordsEnum, long docCount)
+            throws IOException {
             spare.term = ordsEnum.value();
             spare.subsetDf = docCount;
             spare.supersetDf = backgroundFrequencies.freq(spare.term);
             spare.bucketOrd = ordsEnum.ord();
             // During shard-local down-selection we use subset/superset stats that are for this shard only
             // Back at the central reducer these properties will be updated with global stats
-            spare.updateScore(significanceHeuristic);
+            spare.updateScore(significanceHeuristic, subsetSizes.get(owningBucketOrd), supersetSize);
         }
 
         @Override

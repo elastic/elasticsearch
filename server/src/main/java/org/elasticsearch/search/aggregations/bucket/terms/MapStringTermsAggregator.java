@@ -296,7 +296,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                     try (ObjectArrayPriorityQueue<B> ordered = buildPriorityQueue(size)) {
                         B spare = null;
                         BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum = bucketOrds.ordsEnum(owningOrd);
-                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder(owningOrd);
+                        Supplier<B> emptyBucketBuilder = emptyBucketBuilder();
                         while (ordsEnum.next()) {
                             long docCount = bucketDocCount(ordsEnum.ord());
                             otherDocCounts.increment(ordIdx, docCount);
@@ -307,7 +307,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
                                 checkRealMemoryCBForInternalBucket();
                                 spare = emptyBucketBuilder.get();
                             }
-                            updateBucket(spare, ordsEnum, docCount);
+                            updateBucket(owningOrd, spare, ordsEnum, docCount);
                             spare = ordered.insertWithOverflow(spare);
                         }
 
@@ -350,7 +350,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         /**
          * Build an empty temporary bucket.
          */
-        abstract Supplier<B> emptyBucketBuilder(long owningBucketOrd);
+        abstract Supplier<B> emptyBucketBuilder();
 
         /**
          * Build a {@link PriorityQueue} to sort the buckets. After we've
@@ -362,7 +362,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
          * Update fields in {@code spare} to reflect information collected for
          * this bucket ordinal.
          */
-        abstract void updateBucket(B spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount) throws IOException;
+        abstract void updateBucket(long globalSubsetSize, B spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount)
+            throws IOException;
 
         /**
          * Build an array to hold the "top" buckets for each ordinal.
@@ -490,7 +491,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        Supplier<StringTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {
+        Supplier<StringTerms.Bucket> emptyBucketBuilder() {
             return () -> new StringTerms.Bucket(new BytesRef(), 0, null, showTermDocCountError, 0, format);
         }
 
@@ -500,7 +501,7 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void updateBucket(StringTerms.Bucket spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount) throws IOException {
+        void updateBucket(long owningBucketOrd, StringTerms.Bucket spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount) {
             ordsEnum.readValue(spare.termBytes);
             spare.docCount = docCount;
             spare.bucketOrd = ordsEnum.ord();
@@ -615,9 +616,8 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         void collectZeroDocEntriesIfNeeded(long owningBucketOrd, boolean excludeDeletedDocs) throws IOException {}
 
         @Override
-        Supplier<SignificantStringTerms.Bucket> emptyBucketBuilder(long owningBucketOrd) {
-            long subsetSize = subsetSizes.get(owningBucketOrd);
-            return () -> new SignificantStringTerms.Bucket(new BytesRef(), 0, subsetSize, 0, 0, null, format, 0);
+        Supplier<SignificantStringTerms.Bucket> emptyBucketBuilder() {
+            return () -> new SignificantStringTerms.Bucket(new BytesRef(), 0, 0, null, format, 0);
         }
 
         @Override
@@ -626,20 +626,23 @@ public final class MapStringTermsAggregator extends AbstractStringTermsAggregato
         }
 
         @Override
-        void updateBucket(SignificantStringTerms.Bucket spare, BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum, long docCount)
-            throws IOException {
+        void updateBucket(
+            long owningBucketOrd,
+            SignificantStringTerms.Bucket spare,
+            BytesKeyedBucketOrds.BucketOrdsEnum ordsEnum,
+            long docCount
+        ) throws IOException {
 
             ordsEnum.readValue(spare.termBytes);
             spare.bucketOrd = ordsEnum.ord();
             spare.subsetDf = docCount;
             spare.supersetDf = backgroundFrequencies.freq(spare.termBytes);
-            spare.supersetSize = supersetSize;
             /*
              * During shard-local down-selection we use subset/superset stats
              * that are for this shard only. Back at the central reducer these
              * properties will be updated with global stats.
              */
-            spare.updateScore(significanceHeuristic);
+            spare.updateScore(significanceHeuristic, subsetSizes.get(owningBucketOrd), supersetSize);
         }
 
         @Override

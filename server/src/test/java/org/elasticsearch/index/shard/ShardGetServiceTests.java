@@ -21,6 +21,7 @@ import org.elasticsearch.index.engine.LiveVersionMapTestUtils;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
 import org.elasticsearch.index.get.GetResult;
 import org.elasticsearch.index.mapper.RoutingFieldMapper;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.search.fetch.subphase.FetchSourceContext;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -114,6 +115,7 @@ public class ShardGetServiceTests extends IndexShardTestCase {
             "mode": "synthetic"
             """;
         runGetFromTranslogWithOptions(docToIndex, sourceOptions, expectedFetchedSource, "\"long\"", 7L, true);
+        assertWarnings(SourceFieldMapper.DEPRECATION_WARNING);
     }
 
     public void testGetFromTranslogWithDenseVector() throws IOException {

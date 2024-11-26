@@ -55,7 +55,7 @@ public abstract class FullTextFunction extends Function {
      *
      * @return type resolution for query parameter
      */
-    private TypeResolution resolveQueryParamType() {
+    protected TypeResolution resolveQueryParamType() {
         return isString(query(), sourceText(), queryParamOrdinal()).and(isNotNullAndFoldable(query(), sourceText(), queryParamOrdinal()));
     }
 
@@ -86,6 +86,20 @@ public abstract class FullTextFunction extends Function {
         throw new IllegalArgumentException(
             format(null, "{} argument in {} function needs to be resolved to a string", queryParamOrdinal(), functionName())
         );
+    }
+
+    /**
+     * Returns the resulting query as a String
+     *
+     * @return query expression as a string
+     */
+    public final Object queryAsObject() {
+        Object queryAsObject = query().fold();
+        if (queryAsObject instanceof BytesRef bytesRef) {
+            return bytesRef.utf8ToString();
+        }
+
+        return queryAsObject;
     }
 
     /**

@@ -19,6 +19,7 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
+import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -27,11 +28,22 @@ import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
+import java.util.Set;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isNotNull;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isString;
+import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
+import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATETIME;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DATE_NANOS;
+import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
+import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
+import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
+import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
+import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
+import static org.elasticsearch.xpack.esql.core.type.DataType.VERSION;
 
 /**
  * Full text function that performs a {@link QueryStringQuery} .
@@ -44,6 +56,19 @@ public class Match extends FullTextFunction implements Validatable {
 
     private transient Boolean isOperator;
 
+    public static final Set<DataType> DATA_TYPES = Set.of(
+        KEYWORD,
+        TEXT,
+        BOOLEAN,
+        DATETIME,
+        DATE_NANOS,
+        DOUBLE,
+        INTEGER,
+        IP,
+        LONG,
+        UNSIGNED_LONG,
+        VERSION);
+
     @FunctionInfo(
         returnType = "boolean",
         preview = true,
@@ -52,10 +77,14 @@ public class Match extends FullTextFunction implements Validatable {
     )
     public Match(
         Source source,
-        @Param(name = "field", type = { "keyword", "text" }, description = "Field that the query will target.") Expression field,
+        @Param(
+            name = "field",
+            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
+            description = "Field that the query will target."
+        ) Expression field,
         @Param(
             name = "query",
-            type = { "keyword", "text" },
+            type = { "keyword", "text", "boolean", "date", "date_nanos", "double", "integer", "ip", "long", "unsigned_long", "version" },
             description = "Text you wish to find in the provided field."
         ) Expression matchQuery
     ) {
@@ -84,7 +113,24 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected TypeResolution resolveNonQueryParamTypes() {
-        return isNotNull(field, sourceText(), FIRST).and(isString(field, sourceText(), FIRST)).and(super.resolveNonQueryParamTypes());
+        return isType(
+            field,
+            DATA_TYPES::contains,
+            functionName(),
+            FIRST,
+            "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+        );
+    }
+
+    @Override
+    protected TypeResolution resolveQueryParamType() {
+        return isType(
+            query(),
+            DATA_TYPES::contains,
+            functionName(),
+            queryParamOrdinal(),
+            "keyword, text, boolean, date, date_nanos, double, integer, ip, long, unsigned_long, version"
+        );
     }
 
     @Override

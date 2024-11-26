@@ -51,7 +51,7 @@ public final class RestSearchActionTests extends RestActionTestCase {
             .withParams(params)
             .build();
 
-        action.handleRequest(request, new FakeRestChannel(request, false, 1), verifyingClient);
+        action.handleRequest(request, new FakeRestChannel(request, randomBoolean(), 1), verifyingClient);
     }
 
     public void testValidateSearchRequest() {

@@ -15,8 +15,8 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.transport.Transport;
 
 import java.io.IOException;
-import java.io.UncheckedIOException;
 import java.util.Objects;
+import java.util.function.Function;
 
 /**
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
@@ -35,21 +35,26 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
         return name;
     }
 
-    public void start() {
-        try {
-            run();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    protected String missingShardsErrorMessage(StringBuilder missingShards) {
+        return makeMissingShardsError(missingShards);
     }
 
-    protected String missingShardsErrorMessage(StringBuilder missingShards) {
+    protected static String makeMissingShardsError(StringBuilder missingShards) {
         return "Search rejected due to missing shards ["
             + missingShards
             + "]. Consider using `allow_partial_search_results` setting to bypass this error.";
     }
 
     protected void doCheckNoMissingShards(String phaseName, SearchRequest request, GroupShardsIterator<SearchShardIterator> shardsIts) {
+        doCheckNoMissingShards(phaseName, request, shardsIts, this::missingShardsErrorMessage);
+    }
+
+    protected static void doCheckNoMissingShards(
+        String phaseName,
+        SearchRequest request,
+        GroupShardsIterator<SearchShardIterator> shardsIts,
+        Function<StringBuilder, String> makeErrorMessage
+    ) {
         assert request.allowPartialSearchResults() != null : "SearchRequest missing setting for allowPartialSearchResults";
         if (request.allowPartialSearchResults() == false) {
             final StringBuilder missingShards = new StringBuilder();
@@ -65,7 +70,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             }
             if (missingShards.isEmpty() == false) {
                 // Status red - shard is missing all copies and would produce partial results for an index search
-                final String msg = missingShardsErrorMessage(missingShards);
+                final String msg = makeErrorMessage.apply(missingShards);
                 throw new SearchPhaseExecutionException(phaseName, msg, null, ShardSearchFailure.EMPTY_ARRAY);
             }
         }

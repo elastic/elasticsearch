@@ -1,6 +1,0 @@
-pr: 116015
-summary: Empty percentile results no longer throw no_such_element_exception in Anomaly Detection jobs
-area: Machine Learning
-type: bug
-issues:
- - 116013

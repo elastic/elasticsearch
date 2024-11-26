@@ -25,6 +25,7 @@ import java.util.Map;
 
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.is;
@@ -136,14 +137,11 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test").setMapping("_size", "enabled=false"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
         indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        assertResponse(
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
             prepareSearch("test").addFetchField("_size"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
             prepareSearch("test").addFetchField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+            prepareSearch("test").addStoredField("*")
         );
 
         assertResponse(
@@ -156,19 +154,11 @@ public class SizeMappingIT extends ESIntegTestCase {
         assertAcked(prepareCreate("test"));
         final String source = "{\"f\":\"" + randomAlphaOfLengthBetween(1, 100) + "\"}";
         indexRandom(true, prepareIndex("test").setId("1").setSource(source, XContentType.JSON));
-        assertResponse(
+        assertResponses(
+            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size")),
             prepareSearch("test").addFetchField("_size"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
             prepareSearch("test").addFetchField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
-        );
-
-        assertResponse(
-            prepareSearch("test").addStoredField("*"),
-            response -> assertNull(response.getHits().getHits()[0].getFields().get("_size"))
+            prepareSearch("test").addStoredField("*")
         );
     }
 }

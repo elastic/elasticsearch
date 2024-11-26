@@ -7,6 +7,12 @@ You can also deploy ELSER by using the <<infer-service-elasticsearch>>.
 NOTE: The API request will automatically download and deploy the ELSER model if
 it isn't already downloaded.
 
+[WARNING]
+.Deprecated in 8.16
+====
+The elser service is deprecated and will be removed in a future release. 
+Use the <<infer-service-elasticsearch>> instead, with model_id included in the service_settings.
+====
 
 [discrete]
 [[infer-service-elser-api-request]]

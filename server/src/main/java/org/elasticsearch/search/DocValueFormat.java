@@ -12,6 +12,7 @@ package org.elasticsearch.search;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.TransportVersions;
+import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.NamedWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
@@ -260,7 +261,7 @@ public interface DocValueFormat extends NamedWriteable {
             this.formatSortValues = formatSortValues;
         }
 
-        public DateTime(StreamInput in) throws IOException {
+        private DateTime(StreamInput in) throws IOException {
             String formatterPattern = in.readString();
             Locale locale = in.getTransportVersion().onOrAfter(TransportVersions.DATE_TIME_DOC_VALUES_LOCALES)
                 ? LocaleUtils.parse(in.readString())
@@ -283,6 +284,14 @@ public interface DocValueFormat extends NamedWriteable {
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public static DateTime readFrom(StreamInput in) throws IOException {
+            final DateTime dateTime = new DateTime(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(dateTime);
+            }
+            return dateTime;
         }
 
         @Override
@@ -528,13 +537,21 @@ public interface DocValueFormat extends NamedWriteable {
             this.format = new DecimalFormat(pattern, SYMBOLS);
         }
 
-        public Decimal(StreamInput in) throws IOException {
+        private Decimal(StreamInput in) throws IOException {
             this(in.readString());
         }
 
         @Override
         public String getWriteableName() {
             return NAME;
+        }
+
+        public static Decimal readFrom(StreamInput in) throws IOException {
+            final Decimal decimal = new Decimal(in);
+            if (in instanceof DelayableWriteable.Deduplicator d) {
+                return d.deduplicate(decimal);
+            }
+            return decimal;
         }
 
         @Override

@@ -1,0 +1,5 @@
+pr: 116918
+summary: Split searchable snapshot into multiple repo operations
+area: Snapshot/Restore
+type: enhancement
+issues: []

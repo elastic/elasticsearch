@@ -1,7 +1,6 @@
 [role="xpack"]
 [[security-api-bulk-delete-role]]
 === Bulk delete roles API
-preview::[]
 ++++
 <titleabbrev>Bulk delete roles API</titleabbrev>
 ++++

@@ -558,7 +558,7 @@ GET /cooking_blog/_search
       "must_not": [ <1>
         {
           "term": {
-            "category": "Dessert"
+            "category.keyword": "Dessert"
           }
         }
       ]

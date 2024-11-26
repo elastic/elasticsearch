@@ -73,7 +73,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     uploadedBlobLocations::get,
                     ESTestCase::randomNonNegativeLong,
                     fakeNode.sharedCacheService.getRegionSize(),
-                    randomDoubleBetween(0.0d, 1.0d, true)
+                    randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
                 );
                 for (StatelessCommitRef statelessCommitRef : indexCommits) {
                     assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
@@ -151,7 +151,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 fakeNode.sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
 
             for (StatelessCommitRef commit : commits) {
@@ -188,7 +188,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 fakeNode.sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
             for (StatelessCommitRef statelessCommitRef : commits) {
                 assertTrue(virtualBatchedCompoundCommit.appendCommit(statelessCommitRef, randomBoolean()));
@@ -294,7 +294,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 fakeNode.sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
 
             if (randomBoolean()) {
@@ -366,7 +366,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 fakeNode.sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
 
             for (StatelessCommitRef commit : commits) {
@@ -404,7 +404,7 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                 },
                 ESTestCase::randomNonNegativeLong,
                 fakeNode.sharedCacheService.getRegionSize(),
-                randomDoubleBetween(0.0d, 1.0d, true)
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
             );
 
             for (StatelessCommitRef commit : commits) {

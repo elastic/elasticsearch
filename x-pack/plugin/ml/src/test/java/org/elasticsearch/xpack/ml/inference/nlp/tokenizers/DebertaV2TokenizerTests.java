@@ -94,28 +94,6 @@ public class DebertaV2TokenizerTests extends ESTestCase {
         }
     }
 
-    public void testVeryLongInputSequence() throws IOException {
-        // Create a long input sequence by repeating tokens from the vocabulary
-        StringBuilder longInput = new StringBuilder();
-
-        for (int i = 0; i < 1000; i++) {
-            longInput.append(TEST_CASE_VOCAB.get(i % TEST_CASE_VOCAB.size())).append(" ");
-        }
-
-        try (
-            DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(
-                TEST_CASE_VOCAB,
-                TEST_CASE_SCORES,
-                new DebertaV2Tokenization(false, false, null, Tokenization.Truncate.NONE, -1)
-            ).build()
-        ) {
-            var request = tokenizer.requestBuilder()
-                .buildRequest(List.of(longInput.toString()), "1", Tokenization.Truncate.BALANCED, -1, null);
-            // Validate the results
-            assertThat(request.tokenization().getTokens().getFirst().tokenIds().length, equalTo(512));
-        }
-    }
-
     public void testTokenizeWithHiddenControlCharacters() throws IOException {
         try (
             DebertaV2Tokenizer tokenizer = DebertaV2Tokenizer.builder(

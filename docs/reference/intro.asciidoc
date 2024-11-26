@@ -85,7 +85,7 @@ You can deploy {es} in various ways.
 **Hosted options**
 
 * {cloud}/ec-getting-started-trial.html[*Elastic Cloud Hosted*]: {es} is available as part of the hosted Elastic Stack offering, deployed in the cloud with your provider of choice. Sign up for a https://cloud.elastic.co/registration[14-day free trial].
-* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless* (technical preview)]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
+* {serverless-docs}/general/sign-up-trial[*Elastic Cloud Serverless*]: Create serverless projects for autoscaled and fully managed {es} deployments. Sign up for a https://cloud.elastic.co/serverless-registration[14-day free trial].
 
 **Advanced options**
 

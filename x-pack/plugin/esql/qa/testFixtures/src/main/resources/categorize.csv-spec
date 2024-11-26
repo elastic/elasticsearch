@@ -35,7 +35,7 @@ values:keyword                                                        |      top
 mv
 required_capability: categorize
 
-FROM sample_data_mv
+FROM mv_sample_data
   | STATS COUNT() BY category=CATEGORIZE(message)
   | SORT category
 ;

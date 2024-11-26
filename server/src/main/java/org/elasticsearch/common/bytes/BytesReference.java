@@ -75,29 +75,6 @@ public interface BytesReference extends Comparable<BytesReference>, ToXContentFr
     }
 
     /**
-     * Allocates new buffer and copy bytes from given BytesReference.
-     *
-     * @deprecated copying bytes is a right place for performance regression and unnecessary allocations.
-     * This method exists to serve very few places that struggle to handle reference counted buffers.
-     */
-    @Deprecated(forRemoval = true)
-    static BytesReference copyBytes(BytesReference bytesReference) {
-        byte[] arr = new byte[bytesReference.length()];
-        int offset = 0;
-        final BytesRefIterator iterator = bytesReference.iterator();
-        try {
-            BytesRef slice;
-            while ((slice = iterator.next()) != null) {
-                System.arraycopy(slice.bytes, slice.offset, arr, offset, slice.length);
-                offset += slice.length;
-            }
-            return new BytesArray(arr);
-        } catch (IOException e) {
-            throw new AssertionError(e);
-        }
-    }
-
-    /**
      * Returns BytesReference composed of the provided ByteBuffers.
      */
     static BytesReference fromByteBuffers(ByteBuffer[] buffers) {

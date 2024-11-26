@@ -1263,9 +1263,72 @@ public class VerifierTests extends ESTestCase {
         );
     }
 
+    public void testKqlFunctionsNotAllowedAfterCommands() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        // Source commands
+        assertEquals("1:13: [KQL] function cannot be used after SHOW", error("show info | where kql(\"8.16.0\")"));
+        assertEquals("1:17: [KQL] function cannot be used after ROW", error("row a= \"Anna\" | where kql(\"Anna\")"));
+
+        // Processing commands
+        assertEquals(
+            "1:43: [KQL] function cannot be used after DISSECT",
+            error("from test | dissect first_name \"%{foo}\" | where kql(\"Connection\")")
+        );
+        assertEquals("1:27: [KQL] function cannot be used after DROP", error("from test | drop emp_no | where kql(\"Anna\")"));
+        assertEquals(
+            "1:71: [KQL] function cannot be used after ENRICH",
+            error("from test | enrich languages on languages with lang = language_name | where kql(\"Anna\")")
+        );
+        assertEquals("1:26: [KQL] function cannot be used after EVAL", error("from test | eval z = 2 | where kql(\"Anna\")"));
+        assertEquals(
+            "1:44: [KQL] function cannot be used after GROK",
+            error("from test | grok last_name \"%{WORD:foo}\" | where kql(\"Anna\")")
+        );
+        assertEquals("1:27: [KQL] function cannot be used after KEEP", error("from test | keep emp_no | where kql(\"Anna\")"));
+        assertEquals("1:24: [KQL] function cannot be used after LIMIT", error("from test | limit 10 | where kql(\"Anna\")"));
+        assertEquals("1:35: [KQL] function cannot be used after MV_EXPAND", error("from test | mv_expand last_name | where kql(\"Anna\")"));
+        assertEquals(
+            "1:45: [KQL] function cannot be used after RENAME",
+            error("from test | rename last_name as full_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [KQL] function cannot be used after STATS",
+            error("from test | STATS c = COUNT(emp_no) BY languages | where kql(\"Anna\")")
+        );
+
+        // Some combination of processing commands
+        assertEquals("1:38: [KQL] function cannot be used after LIMIT", error("from test | keep emp_no | limit 10 | where kql(\"Anna\")"));
+        assertEquals(
+            "1:46: [KQL] function cannot be used after MV_EXPAND",
+            error("from test | limit 10 | mv_expand last_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:52: [KQL] function cannot be used after KEEP",
+            error("from test | mv_expand last_name | keep last_name | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:77: [KQL] function cannot be used after RENAME",
+            error("from test | STATS c = COUNT(emp_no) BY languages | rename c as total_emps | where kql(\"Anna\")")
+        );
+        assertEquals(
+            "1:54: [KQL] function cannot be used after DROP",
+            error("from test | rename last_name as name | drop emp_no | where kql(\"Anna\")")
+        );
+    }
+
     public void testQueryStringFunctionOnlyAllowedInWhere() throws Exception {
         assertEquals("1:9: [QSTR] function is only supported in WHERE commands", error("row a = qstr(\"Anna\")"));
         checkFullTextFunctionsOnlyAllowedInWhere("QSTR", "qstr(\"Anna\")", "function");
+    }
+
+    public void testKqlFunctionOnlyAllowedInWhere() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        assertEquals("1:9: [KQL] function is only supported in WHERE commands", error("row a = kql(\"Anna\")"));
+        checkFullTextFunctionsOnlyAllowedInWhere("KQL", "kql(\"Anna\")", "function");
     }
 
     public void testMatchFunctionOnlyAllowedInWhere() throws Exception {
@@ -1309,8 +1372,27 @@ public class VerifierTests extends ESTestCase {
         // Other value types are tested in QueryStringFunctionTests
     }
 
+    public void testKqlFunctionArgNotNullOrConstant() throws Exception {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        assertEquals(
+            "1:19: argument of [kql(first_name)] must be a constant, received [first_name]",
+            error("from test | where kql(first_name)")
+        );
+        assertEquals("1:19: argument of [kql(null)] cannot be null, received [null]", error("from test | where kql(null)"));
+        // Other value types are tested in KqlFunctionTests
+    }
+
     public void testQueryStringWithDisjunctions() {
         checkWithDisjunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+    }
+
+    public void testKqlFunctionWithDisjunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        checkWithDisjunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
     public void testMatchFunctionWithDisjunctions() {
@@ -1366,6 +1448,13 @@ public class VerifierTests extends ESTestCase {
 
     public void testQueryStringFunctionWithNonBooleanFunctions() {
         checkFullTextFunctionsWithNonBooleanFunctions("QSTR", "qstr(\"first_name: Anna\")", "function");
+    }
+
+    public void testKqlFunctionWithNonBooleanFunctions() {
+        // Skip test if the kql function is not enabled.
+        assumeTrue("kql function capability not available", EsqlCapabilities.Cap.KQL_FUNCTION.isEnabled());
+
+        checkFullTextFunctionsWithNonBooleanFunctions("KQL", "kql(\"first_name: Anna\")", "function");
     }
 
     public void testMatchFunctionWithNonBooleanFunctions() {

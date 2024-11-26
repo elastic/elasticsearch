@@ -303,7 +303,7 @@ class PublishPluginFuncTest extends AbstractGradleFuncTest {
         """
 
         when:
-        def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateHistoricalFeaturesMetadata').build()
+        def result = gradleRunner('assemble', '--stacktrace', '-x', 'generateClusterFeaturesMetadata').build()
 
         then:
         result.task(":generatePom").outcome == TaskOutcome.SUCCESS

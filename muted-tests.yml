@@ -1,7 +1,4 @@
 tests:
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-async-query-api/line_17}
-  issue: https://github.com/elastic/elasticsearch/issues/109260
 - class: "org.elasticsearch.client.RestClientSingleHostIntegTests"
   issue: "https://github.com/elastic/elasticsearch/issues/102717"
   method: "testRequestResetAndAbort"
@@ -14,12 +11,6 @@ tests:
 - class: org.elasticsearch.smoketest.WatcherYamlRestIT
   method: test {p0=watcher/usage/10_basic/Test watcher usage stats output}
   issue: https://github.com/elastic/elasticsearch/issues/112189
-- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
-  method: testRejection
-  issue: https://github.com/elastic/elasticsearch/issues/112406
-- class: org.elasticsearch.xpack.esql.action.ManyShardsIT
-  method: testConcurrentQueries
-  issue: https://github.com/elastic/elasticsearch/issues/112424
 - class: org.elasticsearch.ingest.geoip.IngestGeoIpClientYamlTestSuiteIT
   issue: https://github.com/elastic/elasticsearch/issues/111497
 - class: org.elasticsearch.packaging.test.PackagesSecurityAutoConfigurationTests
@@ -127,12 +118,6 @@ tests:
 - class: org.elasticsearch.search.SearchServiceTests
   method: testParseSourceValidation
   issue: https://github.com/elastic/elasticsearch/issues/115936
-- class: org.elasticsearch.index.reindex.ReindexNodeShutdownIT
-  method: testReindexWithShutdown
-  issue: https://github.com/elastic/elasticsearch/issues/115996
-- class: org.elasticsearch.search.query.SearchQueryIT
-  method: testAllDocsQueryString
-  issue: https://github.com/elastic/elasticsearch/issues/115728
 - class: org.elasticsearch.xpack.application.connector.ConnectorIndexServiceTests
   issue: https://github.com/elastic/elasticsearch/issues/116087
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
@@ -183,9 +168,6 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.SearchableSnapshotsCanMatchOnCoordinatorIntegTests
   method: testSearchableSnapshotShardsAreSkippedBySearchRequestWithoutQueryingAnyNodeWhenTheyAreOutsideOfTheQueryRange
   issue: https://github.com/elastic/elasticsearch/issues/116523
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
-  method: testMatchAllQuery
-  issue: https://github.com/elastic/elasticsearch/issues/116536
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/116434
@@ -203,9 +185,6 @@ tests:
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=snapshot/20_operator_privileges_disabled/Operator only settings can be set and restored by non-operator user when operator privileges is disabled}
   issue: https://github.com/elastic/elasticsearch/issues/116775
-- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
-  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
-  issue: https://github.com/elastic/elasticsearch/issues/116777
 - class: org.elasticsearch.xpack.searchablesnapshots.hdfs.SecureHdfsSearchableSnapshotsIT
   issue: https://github.com/elastic/elasticsearch/issues/116851
 - class: org.elasticsearch.search.basic.SearchWithRandomIOExceptionsIT
@@ -217,18 +196,12 @@ tests:
 - class: org.elasticsearch.upgrades.QueryBuilderBWCIT
   method: testQueryBuilderBWC {cluster=UPGRADED}
   issue: https://github.com/elastic/elasticsearch/issues/116990
-- class: org.elasticsearch.smoketest.DocsClientYamlTestSuiteIT
-  method: test {yaml=reference/esql/esql-across-clusters/line_197}
-  issue: https://github.com/elastic/elasticsearch/issues/117099
 - class: org.elasticsearch.xpack.apmdata.APMYamlTestSuiteIT
   method: test {yaml=/10_apm/Test template reinstallation}
   issue: https://github.com/elastic/elasticsearch/issues/116445
 - class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
   method: testMultipleInferencesTriggeringDownloadAndDeploy
   issue: https://github.com/elastic/elasticsearch/issues/117208
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsStoredSourceChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/117212
 - class: org.elasticsearch.ingest.geoip.EnterpriseGeoIpDownloaderIT
   method: testEnterpriseDownloaderTask
   issue: https://github.com/elastic/elasticsearch/issues/115163
@@ -244,6 +217,32 @@ tests:
 - class: org.elasticsearch.xpack.searchablesnapshots.RetrySearchIntegTests
   method: testRetryPointInTime
   issue: https://github.com/elastic/elasticsearch/issues/117116
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testInferDeploysDefaultElser
+  issue: https://github.com/elastic/elasticsearch/issues/114913
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/40_semantic_text_query/Query a field that uses the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/117027
+- class: org.elasticsearch.xpack.inference.InferenceRestIT
+  method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
+  issue: https://github.com/elastic/elasticsearch/issues/117349
+- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
+  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
+  issue: https://github.com/elastic/elasticsearch/issues/102992
+- class: org.elasticsearch.xpack.test.rest.XPackRestIT
+  method: test {p0=transform/transforms_reset/Test reset running transform}
+  issue: https://github.com/elastic/elasticsearch/issues/117473
+- class: org.elasticsearch.xpack.esql.qa.single_node.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.repositories.s3.RepositoryS3EcsClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/117525
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117531
 
 # Examples:
 #

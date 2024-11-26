@@ -17,7 +17,6 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.node.MockNode;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.fetch.FetchPhase;
@@ -85,7 +84,6 @@ public class MockSearchService extends SearchService {
         BigArrays bigArrays,
         RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -98,7 +96,6 @@ public class MockSearchService extends SearchService {
             bigArrays,
             rankFeatureShardPhase,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
             tracer

@@ -73,7 +73,6 @@ import org.elasticsearch.indices.ExecutorSelector;
 import org.elasticsearch.indices.IndicesService;
 import org.elasticsearch.indices.breaker.CircuitBreakerService;
 import org.elasticsearch.indices.cluster.IndicesClusterStateService.AllocatedIndices.IndexRemovalReason;
-import org.elasticsearch.node.ResponseCollectorService;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.search.aggregations.AggregationInitializationException;
@@ -279,8 +278,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
 
     private final ScriptService scriptService;
 
-    private final ResponseCollectorService responseCollectorService;
-
     private final ExecutorSelector executorSelector;
 
     private final BigArrays bigArrays;
@@ -327,7 +324,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         BigArrays bigArrays,
         RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -337,7 +333,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
         this.clusterService = clusterService;
         this.indicesService = indicesService;
         this.scriptService = scriptService;
-        this.responseCollectorService = responseCollectorService;
         this.bigArrays = bigArrays;
         this.rankFeatureShardPhase = rankFeatureShardPhase;
         this.fetchPhase = fetchPhase;
@@ -1536,10 +1531,6 @@ public class SearchService extends AbstractLifecycleComponent implements IndexEv
      */
     public int getOpenScrollContexts() {
         return openScrollContexts.get();
-    }
-
-    public ResponseCollectorService getResponseCollectorService() {
-        return this.responseCollectorService;
     }
 
     public long getDefaultKeepAliveInMillis() {

@@ -121,7 +121,6 @@ class NodeServiceProvider {
         BigArrays bigArrays,
         RankFeatureShardPhase rankFeatureShardPhase,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -134,7 +133,6 @@ class NodeServiceProvider {
             bigArrays,
             rankFeatureShardPhase,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
             tracer

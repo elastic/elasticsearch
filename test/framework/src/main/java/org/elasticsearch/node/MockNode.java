@@ -102,7 +102,6 @@ public class MockNode extends Node {
             BigArrays bigArrays,
             RankFeatureShardPhase rankFeatureShardPhase,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer
@@ -117,7 +116,6 @@ public class MockNode extends Node {
                     bigArrays,
                     rankFeatureShardPhase,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
                     tracer
@@ -131,7 +129,6 @@ public class MockNode extends Node {
                 bigArrays,
                 rankFeatureShardPhase,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
                 tracer

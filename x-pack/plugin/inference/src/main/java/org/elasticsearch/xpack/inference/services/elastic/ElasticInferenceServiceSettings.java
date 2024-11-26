@@ -42,7 +42,7 @@ public class ElasticInferenceServiceSettings {
         false
     );
 
-    public static final Setting<Boolean> EIS_SSL_ENABLED = Setting.boolSetting(
+    public static final Setting<Boolean> ELASTIC_INFERENCE_SERVICE_SSL_ENABLED = Setting.boolSetting(
         SSL_CONFIGURATION_PREFIX + "enabled",
         true,
         Setting.Property.NodeScope

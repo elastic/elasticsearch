@@ -30,7 +30,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.elasticsearch.xpack.inference.InferencePlugin.UTILITY_THREAD_POOL_NAME;
 
 /**
- * A class for providing a more friendly interface for sending an inference request to a 3rd party service.
+ * A class for providing a more friendly interface for sending an inference request to the Elastic Inference Service.
  */
 public class ElasticInferenceServiceRequestSender implements Sender {
 

@@ -37,7 +37,7 @@ public record UnifiedCompletionRequest(
     @Nullable Stop stop,
     @Nullable Float temperature,
     @Nullable ToolChoice toolChoice,
-    @Nullable List<Tool> tool,
+    @Nullable List<Tool> tools,
     @Nullable Float topP,
     @Nullable String user
 ) implements Writeable {
@@ -114,7 +114,7 @@ public record UnifiedCompletionRequest(
         out.writeOptionalNamedWriteable(stop);
         out.writeOptionalFloat(temperature);
         out.writeOptionalNamedWriteable(toolChoice);
-        out.writeOptionalCollection(tool);
+        out.writeOptionalCollection(tools);
         out.writeOptionalFloat(topP);
         out.writeOptionalString(user);
     }

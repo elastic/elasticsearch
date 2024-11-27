@@ -439,11 +439,21 @@ public class AzureHttpHandler implements HttpHandler {
                         "ContainerNotFound",
                         "The specified container does not exist."
                     );
-                } else {
-                    final String message = "You sent a request that is not supported by AzureHttpHandler: " + request;
-                    failTestWithAssertionError(message);
-                    throw new MockAzureBlobStore.BadRequestException("UnrecognisedRequest", message);
-                }
+                } else if (Regex.simpleMatch("GET /*/*restype=container*comp=list*", request)
+                    && Regex.simpleMatch("GET /" + account + "/" + container + "*", request) == false) {
+                        // An attempt to list the contents of a different container. This is probably
+                        // org.elasticsearch.repositories.blobstore.BlobStoreRepository#startVerification for a read-only
+                        // repository
+                        throw new MockAzureBlobStore.AzureBlobStoreError(
+                            RestStatus.NOT_FOUND,
+                            "ContainerNotFound",
+                            "The specified container does not exist."
+                        );
+                    } else {
+                        final String message = "You sent a request that is not supported by AzureHttpHandler: " + request;
+                        failTestWithAssertionError(message);
+                        throw new MockAzureBlobStore.BadRequestException("UnrecognisedRequest", message);
+                    }
         } catch (MockAzureBlobStore.AzureBlobStoreError e) {
             sendError(exchange, e);
         } catch (Exception e) {

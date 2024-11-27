@@ -145,6 +145,7 @@ public class EsqlSession {
      * Execute an ESQL request.
      */
     public void execute(EsqlQueryRequest request, EsqlExecutionInfo executionInfo, PlanRunner planRunner, ActionListener<Result> listener) {
+        assert executionInfo != null : "Null EsqlExecutionInfo";
         LOGGER.debug("ESQL query:\n{}", request.query());
         analyzedPlan(
             parse(request.query(), request.params()),

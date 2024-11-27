@@ -61,6 +61,10 @@ import static org.hamcrest.Matchers.lessThanOrEqualTo;
 public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     private static final String REMOTE_CLUSTER_1 = "cluster-a";
     private static final String REMOTE_CLUSTER_2 = "remote-b";
+    private static String LOCAL_INDEX = "logs-1";
+    private static String IDX_ALIAS = "alias1";
+    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
+    private static String REMOTE_INDEX = "logs-2";
 
     @Override
     protected Collection<String> remoteClusterAlias() {
@@ -1297,11 +1301,6 @@ public class CrossClustersQueryIT extends AbstractMultiClustersTestCase {
     Map<String, Object> setupTwoClusters() {
         return setupClusters(2);
     }
-
-    private static String LOCAL_INDEX = "logs-1";
-    private static String IDX_ALIAS = "alias1";
-    private static String FILTERED_IDX_ALIAS = "alias-filtered-1";
-    private static String REMOTE_INDEX = "logs-2";
 
     Map<String, Object> setupClusters(int numClusters) {
         assert numClusters == 2 || numClusters == 3 : "2 or 3 clusters supported not: " + numClusters;

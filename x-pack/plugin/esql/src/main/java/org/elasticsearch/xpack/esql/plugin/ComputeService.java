@@ -184,6 +184,7 @@ public class ComputeService {
                 null
             );
             String local = RemoteClusterAware.LOCAL_CLUSTER_GROUP_KEY;
+            updateShardCountForCoordinatorOnlyQuery(execInfo);
             try (var computeListener = ComputeListener.create(local, transportService, rootTask, execInfo, listener.map(r -> {
                 updateExecutionInfoAfterCoordinatorOnlyQuery(execInfo);
                 return new Result(physicalPlan.output(), collectedPages, r.getProfiles(), execInfo);
@@ -267,17 +268,29 @@ public class ComputeService {
     }
 
     // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
+    private static void updateShardCountForCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
+        if (execInfo.isCrossClusterSearch()) {
+            for (String clusterAlias : execInfo.clusterAliases()) {
+                execInfo.swapCluster(
+                    clusterAlias,
+                    (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(0)
+                        .setSuccessfulShards(0)
+                        .setSkippedShards(0)
+                        .setFailedShards(0)
+                        .build()
+                );
+            }
+        }
+    }
+
+    // For queries like: FROM logs* | LIMIT 0 (including cross-cluster LIMIT 0 queries)
     private static void updateExecutionInfoAfterCoordinatorOnlyQuery(EsqlExecutionInfo execInfo) {
         execInfo.markEndQuery();  // TODO: revisit this time recording model as part of INLINESTATS improvements
         if (execInfo.isCrossClusterSearch()) {
             assert execInfo.planningTookTime() != null : "Planning took time should be set on EsqlExecutionInfo but is null";
             for (String clusterAlias : execInfo.clusterAliases()) {
                 execInfo.swapCluster(clusterAlias, (k, v) -> {
-                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook())
-                        .setTotalShards(0)
-                        .setSuccessfulShards(0)
-                        .setSkippedShards(0)
-                        .setFailedShards(0);
+                    var builder = new EsqlExecutionInfo.Cluster.Builder(v).setTook(execInfo.overallTook());
                     if (v.getStatus() == EsqlExecutionInfo.Cluster.Status.RUNNING) {
                         builder.setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL);
                     }
@@ -330,9 +343,8 @@ public class ComputeService {
                 executionInfo.swapCluster(
                     clusterAlias,
                     (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(dataNodeResult.totalShards())
-                        .setSuccessfulShards(dataNodeResult.totalShards())
+                        // do not set successful or failed shard count here - do it when search is done
                         .setSkippedShards(dataNodeResult.skippedShards())
-                        .setFailedShards(0)
                         .build()
                 );
 

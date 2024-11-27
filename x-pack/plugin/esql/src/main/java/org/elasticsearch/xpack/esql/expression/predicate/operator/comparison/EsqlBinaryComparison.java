@@ -21,10 +21,12 @@ import org.elasticsearch.xpack.esql.evaluator.mapper.EvaluatorMapper;
 import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.EsqlArithmeticOperation;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
+import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Map;
+import java.util.Set;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
@@ -209,7 +211,9 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
     }
 
     /**
-     * Check if the two input types are compatible for this operation
+     * Check if the two input types are compatible for this operation.
+     * NOTE: this method should be consistent with
+     * {@link org.elasticsearch.xpack.esql.analysis.Verifier#validateBinaryComparison(BinaryComparison)}
      *
      * @return TypeResolution.TYPE_RESOLVED iff the types are compatible.  Otherwise, an appropriate type resolution error.
      */
@@ -225,6 +229,7 @@ public abstract class EsqlBinaryComparison extends BinaryComparison implements E
 
         if ((leftType.isNumeric() && rightType.isNumeric())
             || (DataType.isString(leftType) && DataType.isString(rightType))
+            || (leftType.isDate() && rightType.isDate()) // Millis and Nanos
             || leftType.equals(rightType)
             || DataType.isNull(leftType)
             || DataType.isNull(rightType)) {

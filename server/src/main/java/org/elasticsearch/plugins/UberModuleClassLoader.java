@@ -28,6 +28,7 @@ import java.security.CodeSource;
 import java.security.PrivilegedAction;
 import java.security.SecureClassLoader;
 import java.util.Enumeration;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -58,27 +59,48 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private final ModuleLayer.Controller moduleController;
     private final Set<String> packageNames;
 
-    private static Map<String, Set<String>> getModuleToServiceMap(List<ModuleLayer> moduleLayers) {
-        Set<String> unqualifiedExports = moduleLayers.stream().flatMap(x -> x.modules().stream())
+    private static Set<String> unqualifiedExportsForLayer(ModuleLayer layer) {
+        return layer.modules()
+            .stream()
             .flatMap(module -> module.getDescriptor().exports().stream())
             .filter(Predicate.not(ModuleDescriptor.Exports::isQualified))
             .map(ModuleDescriptor.Exports::source)
             .collect(Collectors.toSet());
-        return moduleLayers.stream().flatMap(x -> x.modules().stream())
+    }
+
+    private static Set<ModuleDescriptor> readableModulesForLayer(ModuleLayer layer) {
+        return layer.modules()
+            .stream()
             .map(Module::getDescriptor)
-            .filter(ModuleSupport::hasAtLeastOneUnqualifiedExport)
+            .filter(md -> ModuleSupport.hasAtLeastOneUnqualifiedExport(md) || md.isOpen() || md.isAutomatic())
+            .collect(Collectors.toSet());
+    }
+
+    private static Map<String, Set<String>> getModuleToServiceMap(List<ModuleLayer> moduleLayers) {
+        Set<String> allUnqualifiedExports = new HashSet<>();
+        Set<ModuleDescriptor> allReadableModules = new HashSet<>();
+        for (var layer : moduleLayers) {
+            allUnqualifiedExports.addAll(unqualifiedExportsForLayer(layer));
+            allReadableModules.addAll(readableModulesForLayer(layer));
+            for (var parentLayer : layer.parents()) {
+                // ModuleLayer.boot() contains all ES libs too, so we want it to be an explicit parent
+                if (parentLayer != ModuleLayer.boot()) {
+                    allUnqualifiedExports.addAll(unqualifiedExportsForLayer(parentLayer));
+                    allReadableModules.addAll(readableModulesForLayer(parentLayer));
+                    // TODO: recurse?
+                }
+            }
+        }
+
+        return allReadableModules.stream()
             .collect(
                 Collectors.toMap(
                     ModuleDescriptor::name,
                     md -> md.provides()
                         .stream()
                         .map(ModuleDescriptor.Provides::service)
-                        .filter(name -> unqualifiedExports.contains(packageName(name)))
-                        .collect(Collectors.toSet()),
-                    (set1, set2) -> {
-                        assert set1.containsAll(set2) && set2.containsAll(set1);
-                        return set1;
-                    }
+                        .filter(name -> allUnqualifiedExports.contains(packageName(name)))
+                        .collect(Collectors.toSet())
                 )
             );
     }
@@ -115,8 +137,12 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
             s -> isPackageInLayers(s, parentLayers)
         );
         // TODO: check that denied modules are not brought as transitive dependencies (or switch to allow-list?)
-        Configuration cf = Configuration.resolve(finder, parentLayers.stream().map(ModuleLayer::configuration).toList(),
-            ModuleFinder.of(), Set.of(moduleName));
+        Configuration cf = Configuration.resolve(
+            finder,
+            parentLayers.stream().map(ModuleLayer::configuration).toList(),
+            ModuleFinder.of(),
+            Set.of(moduleName)
+        );
 
         Set<String> packageNames = finder.find(moduleName).map(ModuleReference::descriptor).map(ModuleDescriptor::packages).orElseThrow();
 
@@ -135,7 +161,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
         if (moduleLayers.stream().flatMap(x -> x.modules().stream()).map(Module::getPackages).anyMatch(p -> p.contains(packageName))) {
             return true;
         }
-        for (var moduleLayer: moduleLayers) {
+        for (var moduleLayer : moduleLayers) {
             if (moduleLayer.parents().equals(List.of(ModuleLayer.empty()))) {
                 continue;
             }

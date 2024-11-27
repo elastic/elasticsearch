@@ -40,9 +40,8 @@ public class SemanticQuery extends Query {
         } else if (inferenceResults instanceof MlTextEmbeddingResults) {
             childQueryBuilder = knnQueryBuilder((MlTextEmbeddingResults) inferenceResults);
         } else {
-
             // This should never happen, but we handle it here either way
-            throw new IllegalStateException("Cannot handle inference results");
+            assert false : "Unexpected inference result type " + inferenceResults.getClass();
         }
 
         String nestedFieldPath = name.concat(".inference.chunks");

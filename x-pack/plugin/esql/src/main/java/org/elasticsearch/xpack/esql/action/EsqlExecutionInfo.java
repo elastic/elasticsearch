@@ -160,17 +160,6 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         overallTook = new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
     }
 
-    /**
-     * How much time the query took since starting.
-     */
-    public TimeValue tookSoFar() {
-        if (relativeStartNanos == null) {
-            return new TimeValue(0);
-        } else {
-            return new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
-        }
-    }
-
     // for testing only - use markEndQuery in production code
     void overallTook(TimeValue took) {
         this.overallTook = took;

@@ -138,8 +138,7 @@ final class ComputeListener implements Releasable {
 
     private static void setFinalStatusAndShardCounts(String clusterAlias, EsqlExecutionInfo executionInfo) {
         executionInfo.swapCluster(clusterAlias, (k, v) -> {
-            // TODO: once PARTIAL status is supported (partial results work to come), modify this code as needed
-            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED) {
+            if (v.getStatus() != EsqlExecutionInfo.Cluster.Status.SKIPPED && v.getStatus() != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
                 assert v.getTotalShards() != null && v.getSkippedShards() != null : "Null total or skipped shard count: " + v;
                 return new EsqlExecutionInfo.Cluster.Builder(v).setStatus(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL)
                     /*

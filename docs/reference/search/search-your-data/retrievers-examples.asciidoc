@@ -136,6 +136,9 @@ GET /retrievers_example/_search
 
 Which would return the following response based on the final rrf score for each result
 
+.Example response
+[%collapsible]
+==============
 [source,console-result]
 ----
 {
@@ -174,6 +177,7 @@ Which would return the following response based on the final rrf score for each 
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
 
 [discrete]
 [[retrievers-examples-collapsing-retriever-results]]
@@ -232,6 +236,9 @@ GET /retrievers_example/_search
 
 Which would return the following response collapsed results
 
+.Example response
+[%collapsible]
+==============
 [source,console-result]
 ----
 {
@@ -325,7 +332,7 @@ Which would return the following response collapsed results
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-
+==============
 
 [discrete]
 [[retrievers-examples-highlighting-retriever-results]]
@@ -385,6 +392,9 @@ GET /retrievers_example/_search
 This would highlight the `text` field, based on the matches produced by the `standard` retriever. The highlighted snippets
 would then be included in the response as usual, i.e. under each search hit.
 
+.Example response
+[%collapsible]
+==============
 [source,console-result]
 ----
 {
@@ -433,7 +443,7 @@ would then be included in the response as usual, i.e. under each search hit.
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
-
+==============
 
 [discrete]
 [[retrievers-examples-inner-hits-retriever-results]]
@@ -593,7 +603,9 @@ GET /retrievers_example_nested/_search
 This would propagate the `inner_hits` defined for the `knn` query to the `rrf` retriever, and compute inner hits for `rrf`'s top results.
 The response would look like the following:
 
-
+.Example response
+[%collapsible]
+==============
 [source,console-result]
 ----
 {
@@ -757,6 +769,7 @@ The response would look like the following:
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
 
 Note:: if using more than one `inner_hits` we currently need to provide custom names for each `inner_hits` so that they
 are unique across all retrievers within the request.
@@ -816,6 +829,9 @@ GET retrievers_example/_search
 ----
 // TEST[continued]
 
+.Example response
+[%collapsible]
+==============
 The output of which would look like the following:
 [source, console-result]
 ----
@@ -900,6 +916,7 @@ The output of which would look like the following:
 }
 ----
 // TESTRESPONSE[s/"took": 42/"took": $body.took/]
+==============
 
 [discrete]
 [[retrievers-examples-explain-multiple-rrf]]
@@ -967,6 +984,9 @@ GET /retrievers_example/_search
 // TEST[continued]
 
 The output of which, albeit a bit verbose, will provide all the necessary info to assist in debugging and reason with ranking
+.Example response
+[%collapsible]
+==============
 [source, console-result]
 ----
 {
@@ -1066,6 +1086,7 @@ The output of which, albeit a bit verbose, will provide all the necessary info t
 // TESTRESPONSE[s/\.\.\./$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.0.details.0/]
 // TESTRESPONSE[s/\*\*\*/$body.hits.hits.0._explanation.details.1.details.0.details.0.details.0.details.1.details.0/]
 // TESTRESPONSE[s/jnrdZFKS3abUgWVsVdj2Vg/$body.hits.hits.0._node/]
+==============
 
 [discrete]
 [[retrievers-examples-text-similarity-reranker-on-top-of-rrf]]

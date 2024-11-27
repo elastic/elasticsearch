@@ -23,6 +23,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.MemorySizeValue;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.indices.SystemIndexDescriptor;
 import org.elasticsearch.ingest.Processor;
@@ -138,16 +139,52 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
         Setting.Property.NodeScope
     );
 
+    /**
+     * This setting solely exists because the original setting was accidentally renamed in
+     * https://github.com/elastic/elasticsearch/pull/111412.
+     */
+    @UpdateForV10(owner = UpdateForV10.Owner.DATA_MANAGEMENT)
+    public static final String CACHE_SIZE_SETTING_BWC_NAME = "enrich.cache.size";
+    public static final Setting<FlatNumberOrByteSizeValue> CACHE_SIZE_BWC = new Setting<>(
+        CACHE_SIZE_SETTING_BWC_NAME,
+        (String) null,
+        (String s) -> FlatNumberOrByteSizeValue.parse(
+            s,
+            CACHE_SIZE_SETTING_BWC_NAME,
+            new FlatNumberOrByteSizeValue(ByteSizeValue.ofBytes((long) (0.01 * JvmInfo.jvmInfo().getConfiguredMaxHeapSize())))
+        ),
+        Setting.Property.NodeScope,
+        Setting.Property.Deprecated
+    );
+
     private final Settings settings;
     private final EnrichCache enrichCache;
+    private final long maxCacheSize;
 
     public EnrichPlugin(final Settings settings) {
         this.settings = settings;
-        FlatNumberOrByteSizeValue maxSize = CACHE_SIZE.get(settings);
+        FlatNumberOrByteSizeValue maxSize;
+        if (settings.hasValue(CACHE_SIZE_SETTING_BWC_NAME)) {
+            if (settings.hasValue(CACHE_SIZE_SETTING_NAME)) {
+                throw new IllegalArgumentException(
+                    Strings.format(
+                        "Both [{}] and [{}] are set, please use [{}]",
+                        CACHE_SIZE_SETTING_NAME,
+                        CACHE_SIZE_SETTING_BWC_NAME,
+                        CACHE_SIZE_SETTING_NAME
+                    )
+                );
+            }
+            maxSize = CACHE_SIZE_BWC.get(settings);
+        } else {
+            maxSize = CACHE_SIZE.get(settings);
+        }
         if (maxSize.byteSizeValue() != null) {
             this.enrichCache = new EnrichCache(maxSize.byteSizeValue());
+            this.maxCacheSize = maxSize.byteSizeValue().getBytes();
         } else {
             this.enrichCache = new EnrichCache(maxSize.flatNumber());
+            this.maxCacheSize = maxSize.flatNumber();
         }
     }
 
@@ -284,6 +321,11 @@ public class EnrichPlugin extends Plugin implements SystemIndexPlugin, IngestPlu
     @Override
     public String getFeatureDescription() {
         return "Manages data related to Enrich policies";
+    }
+
+    // Visible for testing
+    long getMaxCacheSize() {
+        return maxCacheSize;
     }
 
     /**

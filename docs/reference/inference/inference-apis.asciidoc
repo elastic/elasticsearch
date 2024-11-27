@@ -43,7 +43,7 @@ Adaptive allocations allow inference services to dynamically adjust the number o
 
 When adaptive allocations are enabled:
 
-- The number of allocations scales up automatically when the load increases.
+* The number of allocations scales up automatically when the load increases.
 - Allocations scale down to a minimum of 0 when the load decreases, saving resources.
 
 For more information about adaptive allocations and resources, refer to the {ml-docs}/ml-nlp-auto-scale.html[trained model autoscaling] documentation.

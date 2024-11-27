@@ -629,8 +629,8 @@ steps:
             - signal_reason: agent_stop
               limit: 3
 
-      - label: 8.15.4 / bwc
-        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.4#bwcTest
+      - label: 8.15.6 / bwc
+        command: .ci/scripts/run-gradle.sh -Dbwc.checkout.align=true v8.15.6#bwcTest
         timeout_in_minutes: 300
         agents:
           provider: gcp
@@ -639,7 +639,7 @@ steps:
           buildDirectory: /dev/shm/bk
           preemptible: true
         env:
-          BWC_VERSION: 8.15.4
+          BWC_VERSION: 8.15.6
         retry:
           automatic:
             - exit_status: "-1"

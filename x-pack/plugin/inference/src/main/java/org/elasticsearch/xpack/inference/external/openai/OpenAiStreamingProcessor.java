@@ -22,11 +22,12 @@ import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentE
 
 import java.io.IOException;
 import java.util.ArrayDeque;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Deque;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Objects;
-import java.util.function.Predicate;
 
 import static org.elasticsearch.common.xcontent.XContentParserUtils.ensureExpectedToken;
 import static org.elasticsearch.common.xcontent.XContentParserUtils.parseList;
@@ -111,6 +112,8 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
     private static final String DELTA_FIELD = "delta";
     private static final String CONTENT_FIELD = "content";
     private static final String DONE_MESSAGE = "[done]";
+    private static final String REFUSAL_FIELD = "refusal";
+    private static final String TOOL_CALLS_FIELD = "tool_calls";
 
     @Override
     protected void next(Deque<ServerSentEvent> item) throws Exception {
@@ -159,6 +162,10 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
 
                 ensureExpectedToken(XContentParser.Token.START_OBJECT, currentToken, parser);
 
+                String content = null;
+                String refusal = null;
+                List<StreamingChatCompletionResults.ToolCall> toolCalls = new ArrayList<>();
+
                 currentToken = parser.nextToken();
 
                 // continue until the end of delta
@@ -167,25 +174,84 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                         parser.skipChildren();
                     }
 
-                    if (currentToken == XContentParser.Token.FIELD_NAME && parser.currentName().equals(CONTENT_FIELD)) {
-                        parser.nextToken();
-                        ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                        var content = parser.text();
-                        consumeUntilObjectEnd(parser); // end delta
-                        consumeUntilObjectEnd(parser); // end choices
-                        return content;
+                    if (currentToken == XContentParser.Token.FIELD_NAME) {
+                        switch (parser.currentName()) {
+                            case CONTENT_FIELD:
+                                parser.nextToken();
+                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                                content = parser.text();
+                                break;
+                            case REFUSAL_FIELD:
+                                parser.nextToken();
+                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                                refusal = parser.text();
+                                break;
+                            case TOOL_CALLS_FIELD:
+                                parser.nextToken();
+                                ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.currentToken(), parser);
+                                toolCalls = parseToolCalls(parser);
+                                break;
+                        }
                     }
 
                     currentToken = parser.nextToken();
                 }
 
+                consumeUntilObjectEnd(parser); // end delta
                 consumeUntilObjectEnd(parser); // end choices
-                return ""; // stopped
-            }).stream()
-                .filter(Objects::nonNull)
-                .filter(Predicate.not(String::isEmpty))
-                .map(StreamingChatCompletionResults.Result::new)
-                .iterator();
+
+                return new StreamingChatCompletionResults.Result(content, refusal, toolCalls);
+            }).stream().filter(Objects::nonNull).iterator();
         }
+    }
+
+    private List<StreamingChatCompletionResults.ToolCall> parseToolCalls(XContentParser parser) throws IOException {
+        List<StreamingChatCompletionResults.ToolCall> toolCalls = new ArrayList<>();
+        while (parser.nextToken() != XContentParser.Token.END_ARRAY) {
+            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+            int index = -1;
+            String id = null;
+            String functionName = null;
+            String functionArguments = null;
+
+            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                    switch (parser.currentName()) {
+                        case "index":
+                            parser.nextToken();
+                            ensureExpectedToken(XContentParser.Token.VALUE_NUMBER, parser.currentToken(), parser);
+                            index = parser.intValue();
+                            break;
+                        case "id":
+                            parser.nextToken();
+                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                            id = parser.text();
+                            break;
+                        case "function":
+                            parser.nextToken();
+                            ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.currentToken(), parser);
+                            while (parser.nextToken() != XContentParser.Token.END_OBJECT) {
+                                if (parser.currentToken() == XContentParser.Token.FIELD_NAME) {
+                                    switch (parser.currentName()) {
+                                        case "name":
+                                            parser.nextToken();
+                                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                                            functionName = parser.text();
+                                            break;
+                                        case "arguments":
+                                            parser.nextToken();
+                                            ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
+                                            functionArguments = parser.text();
+                                            break;
+                                    }
+                                }
+                            }
+                            break;
+                    }
+                }
+            }
+            toolCalls.add(new StreamingChatCompletionResults.ToolCall(index, id, functionName, functionArguments));
+        }
+        return toolCalls;
     }
 }

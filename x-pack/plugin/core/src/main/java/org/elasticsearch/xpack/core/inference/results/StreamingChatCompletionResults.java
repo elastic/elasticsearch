@@ -20,6 +20,7 @@ import java.util.Deque;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.concurrent.Flow;
 
 import static org.elasticsearch.xpack.core.inference.results.ChatCompletionResults.COMPLETION;
@@ -77,16 +78,102 @@ public record StreamingChatCompletionResults(Flow.Publisher<? extends ChunkedToX
         }
     }
 
-    public record Result(String delta) implements ChunkedToXContent {
+    public record Result(String delta, String refusal, List<ToolCall> toolCalls) implements ChunkedToXContent {
+
         private static final String RESULT = "delta";
+        private static final String REFUSAL = "refusal";
+        private static final String TOOL_CALLS = "tool_calls";
+
+        public Result(String delta) {
+            this(delta, "", List.of());
+        }
 
         @Override
         public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
             return Iterators.concat(
                 ChunkedToXContentHelper.startObject(),
                 ChunkedToXContentHelper.field(RESULT, delta),
+                ChunkedToXContentHelper.field(REFUSAL, refusal),
+                ChunkedToXContentHelper.startArray(TOOL_CALLS),
+                Iterators.flatMap(toolCalls.iterator(), t -> t.toXContentChunked(params)),
+                ChunkedToXContentHelper.endArray(),
                 ChunkedToXContentHelper.endObject()
             );
+        }
+    }
+
+    public static class ToolCall implements ChunkedToXContent {
+        private final int index;
+        private final String id;
+        private final String functionName;
+        private final String functionArguments;
+
+        public ToolCall(int index, String id, String functionName, String functionArguments) {
+            this.index = index;
+            this.id = id;
+            this.functionName = functionName;
+            this.functionArguments = functionArguments;
+        }
+
+        public int getIndex() {
+            return index;
+        }
+
+        public String getId() {
+            return id;
+        }
+
+        public String getFunctionName() {
+            return functionName;
+        }
+
+        public String getFunctionArguments() {
+            return functionArguments;
+        }
+
+        @Override
+        public boolean equals(Object o) {
+            if (this == o) return true;
+            if (o == null || getClass() != o.getClass()) return false;
+            ToolCall toolCall = (ToolCall) o;
+            return index == toolCall.index
+                && Objects.equals(id, toolCall.id)
+                && Objects.equals(functionName, toolCall.functionName)
+                && Objects.equals(functionArguments, toolCall.functionArguments);
+        }
+
+        @Override
+        public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
+            return Iterators.concat(
+                ChunkedToXContentHelper.startObject(),
+                ChunkedToXContentHelper.field("index", index),
+                ChunkedToXContentHelper.field("id", id),
+                ChunkedToXContentHelper.field("functionName", functionName),
+                ChunkedToXContentHelper.field("functionArguments", functionArguments),
+                ChunkedToXContentHelper.endObject()
+            );
+        }
+
+        @Override
+        public int hashCode() {
+            return Objects.hash(index, id, functionName, functionArguments);
+        }
+
+        @Override
+        public String toString() {
+            return "ToolCall{"
+                + "index="
+                + index
+                + ", id='"
+                + id
+                + '\''
+                + ", functionName='"
+                + functionName
+                + '\''
+                + ", functionArguments='"
+                + functionArguments
+                + '\''
+                + '}';
         }
     }
 }

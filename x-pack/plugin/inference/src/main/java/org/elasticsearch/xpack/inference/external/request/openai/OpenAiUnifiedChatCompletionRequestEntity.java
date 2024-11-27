@@ -174,8 +174,6 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         builder.field(STREAM_FIELD, stream);
         builder.endObject();
 
-        System.out.println(Strings.toString(builder));
-
         return builder;
     }
 }

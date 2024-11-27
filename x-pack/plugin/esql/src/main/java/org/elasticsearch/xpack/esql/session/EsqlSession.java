@@ -511,7 +511,7 @@ public class EsqlSession {
             // remove any already discovered UnresolvedAttributes that are in fact aliases defined later down in the tree
             // for example "from test | eval x = salary | stats max = max(x) by gender"
             // remove the UnresolvedAttribute "x", since that is an Alias defined in "eval"
-            AttributeSet planRefs = Expressions.references(p.expressions());
+            AttributeSet planRefs = p.references();
             p.forEachExpressionDown(Alias.class, alias -> {
                 // do not remove the UnresolvedAttribute that has the same name as its alias, ie "rename id = id"
                 // or the UnresolvedAttributes that are used in Functions that have aliases "STATS id = MAX(id)"

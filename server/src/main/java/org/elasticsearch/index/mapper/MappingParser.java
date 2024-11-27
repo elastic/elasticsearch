@@ -10,8 +10,11 @@
 package org.elasticsearch.index.mapper;
 
 import org.elasticsearch.common.compress.CompressedXContent;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.mapper.MapperService.MergeReason;
 import org.elasticsearch.xcontent.XContentType;
 
@@ -31,6 +34,7 @@ public final class MappingParser {
     private final Supplier<Map<Class<? extends MetadataFieldMapper>, MetadataFieldMapper>> metadataMappersSupplier;
     private final Map<String, MetadataFieldMapper.TypeParser> metadataMapperParsers;
     private final Function<String, String> documentTypeResolver;
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(MappingParser.class);
 
     MappingParser(
         Supplier<MappingParserContext> mappingParserContextSupplier,
@@ -144,6 +148,12 @@ public final class MappingParser {
                 }
                 @SuppressWarnings("unchecked")
                 Map<String, Object> fieldNodeMap = (Map<String, Object>) fieldNode;
+                if (reason == MergeReason.INDEX_TEMPLATE
+                    && SourceFieldMapper.NAME.equals(fieldName)
+                    && fieldNodeMap.containsKey("mode")
+                    && mappingParserContext.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)) {
+                    deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
+                }
                 MetadataFieldMapper metadataFieldMapper = typeParser.parse(fieldName, fieldNodeMap, mappingParserContext).build();
                 metadataMappers.put(metadataFieldMapper.getClass(), metadataFieldMapper);
                 assert fieldNodeMap.isEmpty();

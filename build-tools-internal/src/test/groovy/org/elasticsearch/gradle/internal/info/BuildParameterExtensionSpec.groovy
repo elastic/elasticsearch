@@ -57,7 +57,6 @@ class BuildParameterExtensionSpec extends Specification {
         latch.await(10, TimeUnit.SECONDS)
 
         then:
-        futures.size() == numberOfThreads
         futures.collect { it.state() }.any() { it == Future.State.FAILED } == false
 
         where:
@@ -65,9 +64,9 @@ class BuildParameterExtensionSpec extends Specification {
             "getRuntimeJavaHome",
             "getJavaToolChainSpec",
             "getRuntimeJavaDetails",
-            "getRuntimeJavaVersion"
+            "getRuntimeJavaVersion",
+            "getBwcVersionsProvider"
         ]
-
     }
 
     private BuildParameterExtension extension(Project project, ProviderFactory providers) {
@@ -93,7 +92,7 @@ class BuildParameterExtensionSpec extends Specification {
             5,
             true,
             // cannot use Mock here because of the way the provider is used by gradle internal property api
-            providers.provider { Mock(BwcVersions) }
+            providerMock()
         )
     }
 

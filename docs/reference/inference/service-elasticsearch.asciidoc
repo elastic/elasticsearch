@@ -69,14 +69,14 @@ include::inference-shared.asciidoc[tag=service-settings]
 These settings are specific to the `elasticsearch` service.
 --
 
-`adaptive_allocations`:::
-(Optional, object)
-include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
-
 `deployment_id`:::
 (Optional, string)
 The `deployment_id` of an existing trained model deployment.
 When `deployment_id` is used the `model_id` is optional.
+
+`adaptive_allocations`:::
+(Optional, object)
+include::{es-ref-dir}/ml/ml-shared.asciidoc[tag=adaptive-allocation]
 
 `enabled`::::
 (Optional, Boolean)
@@ -136,7 +136,7 @@ PUT _inference/sparse_embedding/my-elser-model
     "adaptive_allocations": { <1>
       "enabled": true,
       "min_number_of_allocations": 1,
-      "max_number_of_allocations": 10
+      "max_number_of_allocations": 4
     },
     "num_threads": 1,
     "model_id": ".elser_model_2" <2>
@@ -169,7 +169,7 @@ PUT _inference/rerank/my-elastic-rerank
     "adaptive_allocations": { <2>
       "enabled": true,
       "min_number_of_allocations": 1,
-      "max_number_of_allocations": 10
+      "max_number_of_allocations": 4
     }
   }
 }

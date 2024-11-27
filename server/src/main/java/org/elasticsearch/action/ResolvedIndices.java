@@ -11,12 +11,10 @@ package org.elasticsearch.action;
 
 import org.elasticsearch.action.search.SearchContextId;
 import org.elasticsearch.action.support.IndicesOptions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
@@ -133,27 +131,6 @@ public class ResolvedIndices {
     @Nullable
     public SearchContextId getSearchContextId() {
         return searchContextId;
-    }
-
-    /**
-     * @see #resolveWithIndicesRequest(IndicesRequest, ProjectMetadata, IndexNameExpressionResolver, RemoteClusterService, long)
-     */
-    @Deprecated
-    @FixForMultiProject
-    public static ResolvedIndices resolveWithIndicesRequest(
-        IndicesRequest request,
-        ClusterState clusterState,
-        IndexNameExpressionResolver indexNameExpressionResolver,
-        RemoteClusterService remoteClusterService,
-        long startTimeInMillis
-    ) {
-        return resolveWithIndicesRequest(
-            request,
-            clusterState.getMetadata().getProject(),
-            indexNameExpressionResolver,
-            remoteClusterService,
-            startTimeInMillis
-        );
     }
 
     /**

@@ -33,9 +33,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.TransportVersions.FAST_REFRESH_RCO_2;
-import static org.elasticsearch.index.IndexSettings.INDEX_FAST_REFRESH_SETTING;
-
 public class OperationRouting {
 
     public static final Setting<Boolean> USE_ADAPTIVE_REPLICA_SELECTION_SETTING = Setting.boolSetting(
@@ -148,7 +145,7 @@ public class OperationRouting {
     }
 
     private static List<ShardRouting> statelessShardsThatHandleSearches(ProjectState project, ShardIterator iterator) {
-        return iterator.getShardRoutings().stream().filter(shardRouting -> canSearchShard(shardRouting, project)).toList();
+        return iterator.getShardRoutings().stream().filter(ShardRouting::isSearchable).toList();
     }
 
     public static ShardIterator getShards(RoutingTable routingTable, ShardId shardId) {
@@ -300,19 +297,5 @@ public class OperationRouting {
     public ShardId shardId(ProjectMetadata projectMetadata, String index, String id, @Nullable String routing) {
         IndexMetadata indexMetadata = indexMetadata(projectMetadata, index);
         return new ShardId(indexMetadata.getIndex(), IndexRouting.fromIndexMetadata(indexMetadata).getShard(id, routing));
-    }
-
-    public static boolean canSearchShard(ShardRouting shardRouting, ProjectState project) {
-        // TODO: remove if and always return isSearchable (ES-9563)
-        if (INDEX_FAST_REFRESH_SETTING.get(project.metadata().index(shardRouting.index()).getSettings())) {
-            // Until all the cluster is upgraded, we send searches/gets to the primary (even if it has been upgraded) to execute locally.
-            if (project.cluster().getMinTransportVersion().onOrAfter(FAST_REFRESH_RCO_2)) {
-                return shardRouting.isSearchable();
-            } else {
-                return shardRouting.isPromotableToPrimary();
-            }
-        } else {
-            return shardRouting.isSearchable();
-        }
     }
 }

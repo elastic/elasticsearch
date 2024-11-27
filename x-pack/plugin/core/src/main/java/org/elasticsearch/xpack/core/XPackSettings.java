@@ -76,6 +76,9 @@ public class XPackSettings {
     /** Setting for enabling or disabling graph. Defaults to true. */
     public static final Setting<Boolean> GRAPH_ENABLED = Setting.boolSetting("xpack.graph.enabled", true, Setting.Property.NodeScope);
 
+    /** Setting for enabling or disabling entity analytics. Defaults to true. */
+    public static final Setting<Boolean> ENTITY_ANALYTICS_ENABLED = Setting.boolSetting("xpack.entityanalytics.enabled", true, Setting.Property.NodeScope);
+
     /** Setting for enabling or disabling machine learning. Defaults to true. */
     public static final Setting<Boolean> MACHINE_LEARNING_ENABLED = Setting.boolSetting(
         "xpack.ml.enabled",

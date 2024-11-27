@@ -137,9 +137,10 @@ class Elasticsearch {
             BootstrapInfo.setConsole(ConsoleLoader.loadConsole(nodeEnv));
 
             // DO NOT MOVE THIS
-            // Logging must remain the last step of phase 1. Anything init steps needing logging should be in phase 2.
+            // Logging must remain the last step of phase 1. Any init steps needing logging should be in phase 2.
             LogConfigurator.setNodeName(Node.NODE_NAME_SETTING.get(args.nodeSettings()));
-            LogConfigurator.configure(nodeEnv, args.quiet() == false);
+            boolean console = args.quiet() == false && LogConfigurator.CONSOLE_ENABLED.get(args.nodeSettings());
+            LogConfigurator.configure(nodeEnv, console);
         } catch (Throwable t) {
             // any exception this early needs to be fully printed and fail startup
             t.printStackTrace(err);

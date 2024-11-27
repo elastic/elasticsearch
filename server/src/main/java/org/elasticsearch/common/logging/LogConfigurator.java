@@ -36,6 +36,7 @@ import org.apache.logging.log4j.status.StatusLogger;
 import org.apache.logging.log4j.util.Unbox;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.common.logging.internal.LoggerFactoryImpl;
+import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.SuppressForbidden;
 import org.elasticsearch.env.Environment;
@@ -83,6 +84,8 @@ public class LogConfigurator {
     };
 
     private static Appender consoleAppender;
+
+    public static final Setting<Boolean> CONSOLE_ENABLED = Setting.boolSetting("logging.console.enabled", true, Setting.Property.NodeScope);
 
     /**
      * Registers a listener for status logger errors. This listener should be registered as early as possible to ensure that no errors are

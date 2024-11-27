@@ -60,6 +60,7 @@ import org.elasticsearch.cluster.routing.allocation.shards.ShardsAvailabilityHea
 import org.elasticsearch.cluster.service.ClusterApplierService;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.cluster.service.MasterService;
+import org.elasticsearch.common.logging.LogConfigurator;
 import org.elasticsearch.common.logging.Loggers;
 import org.elasticsearch.common.network.NetworkModule;
 import org.elasticsearch.common.network.NetworkService;
@@ -479,6 +480,7 @@ public final class ClusterSettings extends AbstractScopedSettings {
         Node.NODE_EXTERNAL_ID_SETTING,
         Node.NODE_NAME_SETTING,
         Node.NODE_ATTRIBUTES,
+        LogConfigurator.CONSOLE_ENABLED,
         NodeRoleSettings.NODE_ROLES_SETTING,
         AutoCreateIndex.AUTO_CREATE_INDEX_SETTING,
         BaseRestHandler.MULTI_ALLOW_EXPLICIT_INDEX,

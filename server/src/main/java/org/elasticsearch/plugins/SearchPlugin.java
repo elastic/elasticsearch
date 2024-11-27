@@ -129,8 +129,8 @@ public interface SearchPlugin {
         return emptyList();
     }
 
-    default Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> getQueryBuilders() {
-        return Map.of();
+    default BiFunction<String, String, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
+        return null;
     }
 
     /**

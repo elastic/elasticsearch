@@ -8,10 +8,10 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.common.collect.ImmutableOpenMap;
 import org.elasticsearch.plugins.PluginsService;
 import org.elasticsearch.plugins.SearchPlugin;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
@@ -27,14 +27,21 @@ public class QueryBuilderServiceBuilder {
     public QueryBuilderService build() {
         Objects.requireNonNull(pluginsService);
 
-        ImmutableOpenMap.Builder<String, BiFunction<String, String, AbstractQueryBuilder<?>>> functionMapBuilder = ImmutableOpenMap
-            .builder();
+        List<BiFunction<String, String, AbstractQueryBuilder<?>>> definedInferenceQueryBuilders = new ArrayList<>();
+
         List<SearchPlugin> searchPlugins = pluginsService.filterPlugins(SearchPlugin.class).toList();
         for (SearchPlugin searchPlugin : searchPlugins) {
-            // TODO: Detect query name conflicts before adding to map
-            functionMapBuilder.putAllFromMap(searchPlugin.getQueryBuilders());
+            if (searchPlugin.getDefaultInferenceQueryBuilder() != null) {
+                definedInferenceQueryBuilders.add(searchPlugin.getDefaultInferenceQueryBuilder());
+            }
         }
 
-        return new QueryBuilderService(functionMapBuilder.build());
+        if (definedInferenceQueryBuilders.size() != 1) {
+            throw new IllegalStateException(
+                "Expected exactly one default inference query builder, but found " + definedInferenceQueryBuilders.size()
+            );
+        }
+
+        return new QueryBuilderService(definedInferenceQueryBuilders.getFirst());
     }
 }

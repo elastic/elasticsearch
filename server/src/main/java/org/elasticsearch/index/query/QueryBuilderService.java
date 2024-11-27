@@ -8,28 +8,16 @@
 
 package org.elasticsearch.index.query;
 
-import org.elasticsearch.ElasticsearchStatusException;
-import org.elasticsearch.rest.RestStatus;
-
-import java.util.Map;
 import java.util.function.BiFunction;
 
 public class QueryBuilderService {
-    private final Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> functionMap;
+    private final BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
 
-    QueryBuilderService(Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> functionMap) {
-        this.functionMap = functionMap;
+    QueryBuilderService(BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
+        this.defaultInferenceQueryBuilder = defaultInferenceQueryBuilder;
     }
 
-    public AbstractQueryBuilder<?> getQueryBuilder(String queryName, String fieldName, String query) {
-        BiFunction<String, String, AbstractQueryBuilder<?>> function = functionMap.get(queryName);
-        if (function == null) {
-            throw new ElasticsearchStatusException(
-                "No query builder registered for query [" + queryName + "]",
-                RestStatus.INTERNAL_SERVER_ERROR
-            );
-        }
-
-        return function.apply(fieldName, query);
+    public AbstractQueryBuilder<?> getDefaultInferenceQueryBuilder(String fieldName, String query) {
+        return defaultInferenceQueryBuilder.apply(fieldName, query);
     }
 }

@@ -381,17 +381,10 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                 Collection<IndexMetadata> indexMetadataCollection = resolvedIndices.getConcreteLocalIndicesMetadata().values();
                 List<String> inferenceIndices = new ArrayList<>();
                 List<String> nonInferenceIndices = new ArrayList<>();
-                String inferenceFieldQueryName = null;
                 for (IndexMetadata indexMetadata : indexMetadataCollection) {
                     String indexName = indexMetadata.getIndex().getName();
                     InferenceFieldMetadata inferenceFieldMetadata = indexMetadata.getInferenceFields().get(fieldName);
                     if (inferenceFieldMetadata != null) {
-                        if (inferenceFieldQueryName != null
-                            && inferenceFieldMetadata.getQueryName().equals(inferenceFieldQueryName) == false) {
-                            throw new IllegalArgumentException("Detected incompatible inference field queries");
-                        }
-
-                        inferenceFieldQueryName = inferenceFieldMetadata.getQueryName();
                         inferenceIndices.add(indexName);
                     } else {
                         nonInferenceIndices.add(indexName);
@@ -401,23 +394,15 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
                 if (inferenceIndices.isEmpty() == false && nonInferenceIndices.isEmpty() == false) {
                     BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
                     for (String inferenceIndexName : inferenceIndices) {
+                        // Add a separate clause for each inference query, because they may be using different inference endpoints
                         boolQueryBuilder.should(
-                            createInferenceSubQuery(
-                                queryRewriteContext.getQueryBuilderService(),
-                                inferenceFieldQueryName,
-                                inferenceIndexName,
-                                fieldName,
-                                value
-                            )
+                            createInferenceSubQuery(queryRewriteContext.getQueryBuilderService(), inferenceIndexName, fieldName, value)
                         );
                     }
-                    for (String nonInferenceIndexName : nonInferenceIndices) {
-                        boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndexName, rewritten));
-                    }
+                    boolQueryBuilder.should(createNonInferenceSubQuery(nonInferenceIndices, rewritten));
                     rewritten = boolQueryBuilder;
-                } else if (inferenceFieldQueryName != null) {
-                    rewritten = queryRewriteContext.getQueryBuilderService()
-                        .getQueryBuilder(inferenceFieldQueryName, fieldName, value.toString());
+                } else if (inferenceIndices.isEmpty() == false) {
+                    rewritten = queryRewriteContext.getQueryBuilderService().getDefaultInferenceQueryBuilder(fieldName, value.toString());
                 }
             }
         }
@@ -427,21 +412,20 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
 
     private QueryBuilder createInferenceSubQuery(
         QueryBuilderService queryBuilderService,
-        String inferenceFieldQueryName,
         String indexName,
         String fieldName,
         Object value
     ) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(queryBuilderService.getQueryBuilder(inferenceFieldQueryName, fieldName, value.toString()));
+        boolQueryBuilder.must(queryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString()));
         boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }
 
-    private QueryBuilder createNonInferenceSubQuery(String indexName, QueryBuilder rewritten) {
+    private QueryBuilder createNonInferenceSubQuery(List<String> indices, QueryBuilder rewritten) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
         boolQueryBuilder.must(rewritten);
-        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indexName));
+        boolQueryBuilder.filter(new TermsQueryBuilder(IndexFieldMapper.NAME, indices));
         return boolQueryBuilder;
     }
 

@@ -407,8 +407,8 @@ public class InferencePlugin extends Plugin implements ActionPlugin, ExtensibleP
     }
 
     @Override
-    public Map<String, BiFunction<String, String, AbstractQueryBuilder<?>>> getQueryBuilders() {
-        return Map.of(SemanticQueryBuilder.NAME, SemanticQueryBuilder::new);
+    public BiFunction<String, String, AbstractQueryBuilder<?>> getDefaultInferenceQueryBuilder() {
+        return SemanticQueryBuilder::new;
     }
 
     @Override

@@ -59,7 +59,6 @@ public class ConfigurationTestUtils {
         var truncation = randomNonNegativeInt();
         var defaultTruncation = randomNonNegativeInt();
         boolean profile = randomBoolean();
-        boolean isCrossClusterSearch = randomBoolean();
 
         return new Configuration(
             zoneId,
@@ -72,8 +71,7 @@ public class ConfigurationTestUtils {
             query,
             profile,
             tables,
-            System.nanoTime(),
-            isCrossClusterSearch
+            System.nanoTime()
         );
     }
 

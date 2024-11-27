@@ -52,7 +52,6 @@ public class Configuration implements Writeable {
 
     private final Map<String, Map<String, Column>> tables;
     private final long queryStartTimeNanos;
-    private final boolean isCrossClusterSearch;
 
     public Configuration(
         ZoneId zi,
@@ -65,8 +64,7 @@ public class Configuration implements Writeable {
         String query,
         boolean profile,
         Map<String, Map<String, Column>> tables,
-        long queryStartTimeNanos,
-        boolean isCrossClusterSearch
+        long queryStartTimeNanos
     ) {
         this.zoneId = zi.normalized();
         this.now = ZonedDateTime.now(Clock.tick(Clock.system(zoneId), Duration.ofNanos(1)));
@@ -81,7 +79,6 @@ public class Configuration implements Writeable {
         this.tables = tables;
         assert tables != null;
         this.queryStartTimeNanos = queryStartTimeNanos;
-        this.isCrossClusterSearch = isCrossClusterSearch;
     }
 
     public Configuration(BlockStreamInput in) throws IOException {
@@ -109,11 +106,6 @@ public class Configuration implements Writeable {
         } else {
             this.queryStartTimeNanos = -1;
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
-            this.isCrossClusterSearch = in.readBoolean();
-        } else {
-            this.isCrossClusterSearch = false;
-        }
     }
 
     @Override
@@ -137,9 +129,6 @@ public class Configuration implements Writeable {
         }
         if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_CCS_EXECUTION_INFO)) {
             out.writeLong(queryStartTimeNanos);
-        }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
-            out.writeBoolean(isCrossClusterSearch);
         }
     }
 
@@ -177,10 +166,6 @@ public class Configuration implements Writeable {
 
     public String query() {
         return query;
-    }
-
-    public boolean isCrossClusterSearch() {
-        return isCrossClusterSearch;
     }
 
     /**

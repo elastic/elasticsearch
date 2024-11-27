@@ -359,8 +359,7 @@ public final class EsqlTestUtils {
             query,
             false,
             TABLES,
-            System.nanoTime(),
-            false
+            System.nanoTime()
         );
     }
 

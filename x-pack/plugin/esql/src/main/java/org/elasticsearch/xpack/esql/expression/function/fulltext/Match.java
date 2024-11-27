@@ -25,7 +25,6 @@ import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
-import org.elasticsearch.xpack.esql.session.Configuration;
 
 import java.io.IOException;
 import java.util.List;
@@ -46,7 +45,6 @@ public class Match extends FullTextFunction implements Validatable {
     private final Expression field;
     private InferenceResults inferenceResults;
     private transient Boolean isOperator;
-    private final Configuration configuration;
 
     @FunctionInfo(
         returnType = "boolean",
@@ -61,16 +59,14 @@ public class Match extends FullTextFunction implements Validatable {
             name = "query",
             type = { "keyword", "text" },
             description = "Text you wish to find in the provided field."
-        ) Expression matchQuery,
-        Configuration configuration
+        ) Expression matchQuery
     ) {
         super(source, matchQuery, List.of(field, matchQuery));
         this.field = field;
-        this.configuration = configuration;
     }
 
-    private Match(Source source, Expression field, Expression matchQuery, Configuration configuration, InferenceResults inferenceResults) {
-        this(source, field, matchQuery, configuration);
+    private Match(Source source, Expression field, Expression matchQuery, InferenceResults inferenceResults) {
+        this(source, field, matchQuery);
         this.inferenceResults = inferenceResults;
     }
 
@@ -78,13 +74,11 @@ public class Match extends FullTextFunction implements Validatable {
         Source source = Source.readFrom((PlanStreamInput) in);
         Expression field = in.readNamedWriteable(Expression.class);
         Expression query = in.readNamedWriteable(Expression.class);
-        Configuration configuration = null;
         InferenceResults inferenceResults = null;
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_MATCH_WITH_SEMANTIC_TEXT)) {
-            configuration = ((PlanStreamInput) in).configuration();
             inferenceResults = in.readOptionalNamedWriteable(InferenceResults.class);
         }
-        return new Match(source, field, query, configuration, inferenceResults);
+        return new Match(source, field, query, inferenceResults);
     }
 
     @Override
@@ -124,7 +118,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     public Expression replaceChildren(List<Expression> newChildren) {
-        return new Match(source(), newChildren.get(0), newChildren.get(1), configuration, inferenceResults);
+        return new Match(source(), newChildren.get(0), newChildren.get(1), inferenceResults);
     }
 
     public void setInferenceResults(InferenceResults inferenceResults) {
@@ -133,7 +127,7 @@ public class Match extends FullTextFunction implements Validatable {
 
     @Override
     protected NodeInfo<? extends Expression> info() {
-        return NodeInfo.create(this, Match::new, field, query(), configuration);
+        return NodeInfo.create(this, Match::new, field, query());
     }
 
     protected TypeResolutions.ParamOrdinal queryParamOrdinal() {

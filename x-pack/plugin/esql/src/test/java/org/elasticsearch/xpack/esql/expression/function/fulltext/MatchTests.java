@@ -25,7 +25,6 @@ import java.util.List;
 import java.util.Set;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.xpack.esql.ConfigurationTestUtils.randomConfiguration;
 import static org.hamcrest.Matchers.equalTo;
 
 @FunctionName("match")
@@ -128,6 +127,6 @@ public class MatchTests extends AbstractFunctionTestCase {
 
     @Override
     protected Expression build(Source source, List<Expression> args) {
-        return new Match(source, args.get(0), args.get(1), randomConfiguration());
+        return new Match(source, args.get(0), args.get(1));
     }
 }

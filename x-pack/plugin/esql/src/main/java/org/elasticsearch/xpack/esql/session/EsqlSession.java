@@ -158,6 +158,7 @@ public class EsqlSession {
                     try {
                         inferenceResolver.setInferenceResults(
                             analyzedPlan,
+                            executionInfo,
                             listener,
                             (newPlan, next) -> executeOptimizedPlan(request, executionInfo, planRunner, optimizedPlan(newPlan), next)
                         );

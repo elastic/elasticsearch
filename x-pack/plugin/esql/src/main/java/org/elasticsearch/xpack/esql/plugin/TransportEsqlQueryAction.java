@@ -155,11 +155,6 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     }
 
     private void innerExecute(Task task, EsqlQueryRequest request, ActionListener<EsqlQueryResponse> listener) {
-        String sessionId = sessionID(task);
-        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
-            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
-            request.includeCCSMetadata()
-        );
         Configuration configuration = new Configuration(
             ZoneOffset.UTC,
             request.locale() != null ? request.locale() : Locale.US,
@@ -172,8 +167,12 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
             request.query(),
             request.profile(),
             request.tables(),
-            System.nanoTime(),
-            executionInfo.isCrossClusterSearch()
+            System.nanoTime()
+        );
+        String sessionId = sessionID(task);
+        EsqlExecutionInfo executionInfo = new EsqlExecutionInfo(
+            clusterAlias -> remoteClusterService.isSkipUnavailable(clusterAlias),
+            request.includeCCSMetadata()
         );
         PlanRunner planRunner = (plan, resultListener) -> computeService.execute(
             sessionId,

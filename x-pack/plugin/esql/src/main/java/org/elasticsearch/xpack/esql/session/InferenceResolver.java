@@ -19,7 +19,9 @@ import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.ml.action.InferModelAction;
 import org.elasticsearch.xpack.core.ml.inference.utils.SemanticTextInferenceUtils;
+import org.elasticsearch.xpack.esql.VerificationException;
 import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
+import org.elasticsearch.xpack.esql.action.EsqlExecutionInfo;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
 import org.elasticsearch.xpack.esql.core.type.DataType;
@@ -51,6 +53,7 @@ public class InferenceResolver {
 
     public void setInferenceResults(
         LogicalPlan plan,
+        EsqlExecutionInfo executionInfo,
         ActionListener<Result> listener,
         BiConsumer<LogicalPlan, ActionListener<Result>> callback
     ) {
@@ -60,7 +63,11 @@ public class InferenceResolver {
         }
 
         Set<Failure> failures = new LinkedHashSet<>();
-        Set<SemanticQuery> semanticQueries = semanticQueries(plan, failures);
+        Set<SemanticQuery> semanticQueries = semanticQueries(plan, failures, executionInfo.isCrossClusterSearch());
+
+        if (failures.isEmpty() == false) {
+            throw new VerificationException(failures);
+        }
 
         if (semanticQueries.isEmpty()) {
             callback.accept(plan, listener);
@@ -116,28 +123,29 @@ public class InferenceResolver {
 
     private record SemanticQuery(String fieldName, String queryString, String inferenceId) {};
 
-    private Set<SemanticQuery> semanticQueries(LogicalPlan analyzedPlan, Set<Failure> failures) {
+    private Set<SemanticQuery> semanticQueries(LogicalPlan analyzedPlan, Set<Failure> failures, boolean isCrossClusterSearch) {
         Set<SemanticQuery> result = new HashSet<>();
 
         Set<String> indexNames = indexNames(analyzedPlan);
 
         analyzedPlan.forEachExpressionDown(Match.class, match -> {
             if (match.field().dataType() == DataType.SEMANTIC_TEXT && match.field() instanceof FieldAttribute field) {
+                if (isCrossClusterSearch) {
+                    failures.add(Failure.fail(
+                        match.field(),
+                        "[{}] {} does not allow semantic_text fields with cross cluster queries.",
+                        match.functionName(),
+                        match.functionType()
+                    ));
+                }
+
                 EsField esField = field.field();
                 Set<String> inferenceIds = inferenceIdsForField(esField.getName(), indexNames);
                 if (inferenceIds.size() == 1) {
                     result.add(new SemanticQuery(field.sourceText(), match.query().sourceText(), inferenceIds.iterator().next()));
-                } else if (inferenceIds.size() == 0) {
-                    failures.add(
-                        Failure.fail(
-                            match.field(),
-                            "[{}] {} cannot operate on [{}] no inference IDs have been found.",
-                            match.functionName(),
-                            match.functionType(),
-                            match.field().sourceText()
-                        )
-                    );
                 } else {
+                    assert inferenceIds.size() == 0 : "Should never have a semantic_text field with no inference ID attached";
+
                     failures.add(
                         Failure.fail(
                             match.field(),

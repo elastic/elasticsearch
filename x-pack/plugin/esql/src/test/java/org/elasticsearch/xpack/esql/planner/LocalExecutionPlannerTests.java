@@ -163,8 +163,7 @@ public class LocalExecutionPlannerTests extends MapperServiceTestCase {
             StringUtils.EMPTY,
             false,
             Map.of(),
-            System.nanoTime(),
-            randomBoolean()
+            System.nanoTime()
         );
     }
 

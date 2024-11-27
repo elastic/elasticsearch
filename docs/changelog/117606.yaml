@@ -1,7 +1,7 @@
 pr: 117606
 summary: Remove deprecated sort from reindex operation
 area: Machine Learning
-type: deprecation
+type: enhancement
 issues: []
 deprecation:
   title: Remove deprecated sort from reindex operation

@@ -364,7 +364,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         uploadedBlobLocations::get,
                         ESTestCase::randomNonNegativeLong,
                         testHarness.sharedCacheService.getRegionSize(),
-                        randomDoubleBetween(0.0d, 1.0d, true)
+                        randomIntBetween(0, testHarness.sharedCacheService.getRegionSize())
                     )
                 ) {
                     for (StatelessCommitRef statelessCommitRef : indexCommits) {
@@ -441,7 +441,7 @@ public class ObjectStoreServiceTests extends ESTestCase {
                         uploadedBlobs::get,
                         ESTestCase::randomNonNegativeLong,
                         testHarness.sharedCacheService.getRegionSize(),
-                        randomDoubleBetween(0.0d, 1.0d, true)
+                        randomIntBetween(0, testHarness.sharedCacheService.getRegionSize())
                     )
                 ) {
                     for (var indexCommit : indexCommits) {

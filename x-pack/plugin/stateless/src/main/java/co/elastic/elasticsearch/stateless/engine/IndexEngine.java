@@ -632,7 +632,11 @@ public class IndexEngine extends InternalEngine {
         // A merge can occupy a lot of disk space that can't be reused until it has been pushed into the object store, so it
         // can be worth refreshing immediately to allow that space to be reclaimed faster.
         if (merge.getTotalBytesSize() >= mergeForceRefreshSize) {
-            maybeRefresh("large merge", ActionListener.noop());
+            try {
+                maybeRefresh("large merge", ActionListener.noop());
+            } catch (AlreadyClosedException e) {
+                // There can be a race with a merge when the IW is closing and trying to flush. This is fine to ignore.
+            }
         }
     }
 

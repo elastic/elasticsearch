@@ -466,11 +466,31 @@ public class ShardBulkInferenceActionFilter implements MappedActionFilter {
                 for (var entry : fieldInferenceMap.values()) {
                     String field = entry.getName();
                     String inferenceId = entry.getInferenceId();
-                    var originalFieldValue = XContentMapValues.extractValue(field, docMap);
-                    if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
-                        // Inference has already been computed, or there is no inference required.
-                        continue;
+
+                    if (indexCreatedVersion.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                        && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue == null && entry.getSourceFields().length == 1) {
+                            // No inference required
+                            continue;
+                        }
+
+                        var inferenceMetadataFieldsValue = XContentMapValues.extractValue(
+                            InferenceMetadataFieldsMapper.NAME + "." + field,
+                            docMap
+                        );
+                        if (inferenceMetadataFieldsValue != null) {
+                            // Inference has already been computed
+                            continue;
+                        }
+                    } else {
+                        var originalFieldValue = XContentMapValues.extractValue(field, docMap);
+                        if (originalFieldValue instanceof Map || (originalFieldValue == null && entry.getSourceFields().length == 1)) {
+                            // Inference has already been computed, or there is no inference required.
+                            continue;
+                        }
                     }
+
                     int order = 0;
                     for (var sourceField : entry.getSourceFields()) {
                         boolean isOriginalFieldInput = sourceField.equals(field);

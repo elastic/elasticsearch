@@ -1,11 +1,8 @@
 setup:
   - requires:
       cluster_features: "gte_v8.15.0"
-      reason: semantic_text introduced in 8.15.0
+      reason: Test suite targets semantic text with inference metadata fields
       test_runner_features: [ capabilities ]
-
-  - skip:
-      reason: Test suite targets semantic text without inference metadata fields
       capabilities:
         - method: GET
           path: /_inference
@@ -30,7 +27,7 @@ setup:
         index: test-index
         id: doc_1
         body:
-          sparse_field:
+          _inference_fields.sparse_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
@@ -49,7 +46,7 @@ setup:
                     feature_5: 0.2
                     feature_6: 0.3
                     feature_7: 0.4
-          dense_field:
+          _inference_fields.dense_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
@@ -73,7 +70,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "other text"
             inference:
               inference_id: dense-inference-id
@@ -94,7 +91,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "other text"
             inference:
               inference_id: a-different-inference-id
@@ -115,7 +112,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "other text"
             inference:
               inference_id: dense-inference-id
@@ -136,7 +133,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "other text"
             inference:
               inference_id: dense-inference-id
@@ -157,7 +154,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "other text"
             inference:
               inference_id: dense-inference-id
@@ -179,7 +176,7 @@ setup:
         index: test-index
         id: doc_2
         body:
-          sparse_field:
+          _inference_fields.sparse_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
@@ -195,12 +192,12 @@ setup:
 ---
 "Fails for missing dense vector inference results in chunks":
   - do:
-      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
+      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
       index:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id
@@ -215,12 +212,12 @@ setup:
 ---
 "Fails for missing sparse vector inference results in chunks":
   - do:
-      catch: /failed to parse field \[sparse_field\] of type \[semantic_text\]/
+      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
       index:
         index: test-index
         id: doc_2
         body:
-          sparse_field:
+          _inference_fields.sparse_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
@@ -232,12 +229,12 @@ setup:
 ---
 "Fails for missing text in chunks":
   - do:
-      catch: /failed to parse field \[dense_field\] of type \[semantic_text\]/
+      catch: /failed to parse field \[_inference_fields\] of type \[_inference_fields\]/
       index:
         index: test-index
         id: doc_2
         body:
-          dense_field:
+          _inference_fields.dense_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id

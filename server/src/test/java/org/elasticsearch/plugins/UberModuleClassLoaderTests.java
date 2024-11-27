@@ -308,7 +308,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         try (
             UberModuleClassLoader denyListLoader = UberModuleClassLoader.getInstance(
                 UberModuleClassLoaderTests.class.getClassLoader(),
-                ModuleLayer.boot(),
+                List.of(ModuleLayer.boot()),
                 "synthetic",
                 Set.of(toUrl(jar)),
                 Set.of("java.sql", "java.sql.rowset") // if present, java.sql.rowset requires java.sql transitively
@@ -614,7 +614,7 @@ public class UberModuleClassLoaderTests extends ESTestCase {
         Set<Path> jarPaths = new HashSet<>(Set.of(modularJar, nonModularJar, serviceCallerJar));
         return UberModuleClassLoader.getInstance(
             parentLayer.findLoader(includeOptionalDeps ? "p.optional" : "p.required"),
-            parentLayer,
+            List.of(parentLayer),
             "synthetic",
             jarPaths.stream().map(UberModuleClassLoaderTests::pathToUrlUnchecked).collect(Collectors.toSet()),
             Set.of()

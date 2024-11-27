@@ -206,7 +206,8 @@ public class TransportVersions {
     public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
     public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
     public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_00_0);
-    public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_800_00_0);
+    public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_00_0);
+    public static final TransportVersion RETRIES_AND_OPERATIONS_IN_BLOBSTORE_STATS = def(8_801_00_0);
 
     /*
      * STOP! READ THIS FIRST! No, really,

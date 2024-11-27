@@ -47,3 +47,39 @@ emp_no:integer | language_code:integer | language_name:keyword
 10002          | 5                     | null
 10003          | 4                     | German
 ;
+
+subsequentEvalOnTheDataNode
+required_capability: join_lookup_v2
+
+FROM employees
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| WHERE emp_no >= 10091 AND emp_no < 10094
+| SORT emp_no
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10091          | 3                     | spanish               |                        6
+10092          | 1                     | english               |                        2
+10093          | 3                     | spanish               |                        6
+;
+
+subsequentEvalOnTheCoordinator
+required_capability: join_lookup_v2
+
+FROM employees
+| SORT emp_no
+| LIMIT 3
+| EVAL language_code = languages
+| LOOKUP JOIN languages_lookup ON language_code
+| KEEP emp_no, language_code, language_name
+| EVAL language_name = TO_LOWER(language_name), language_code_x2 = 2*language_code
+;
+
+emp_no:integer | language_code:integer | language_name:keyword | language_code_x2:integer
+10001          | 2                     | french                |                        4
+10002          | 5                     | null                  |                       10
+10003          | 4                     | german                |                        8
+;

@@ -12,6 +12,8 @@ package org.elasticsearch.common.blobstore;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
+import org.elasticsearch.xcontent.ToXContentObject;
+import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
 import java.util.Objects;
@@ -23,7 +25,7 @@ import java.util.Objects;
  * @param requests The number of calls (including retries)
  * @param legacyValue The number used before the migration to separate counts (sometimes operations, sometimes requests, for temporary BWC)
  */
-public record EndpointStats(long operations, long requests, long legacyValue) implements Writeable {
+public record EndpointStats(long operations, long requests, long legacyValue) implements Writeable, ToXContentObject {
 
     public static EndpointStats ZERO = new EndpointStats(0, 0, 0);
 
@@ -77,5 +79,16 @@ public record EndpointStats(long operations, long requests, long legacyValue) im
     @Override
     public int hashCode() {
         return Objects.hash(operations, requests, legacyValue);
+    }
+
+    @Override
+    public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
+        builder.startObject();
+        if (isLegacyStats() == false) {
+            builder.field("operations", operations);
+            builder.field("requests", requests);
+        }
+        builder.endObject();
+        return builder;
     }
 }

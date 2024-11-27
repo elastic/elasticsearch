@@ -142,6 +142,15 @@ public class Equals extends EsqlBinaryComparison implements Negatable<EsqlBinary
         return lhs == rhs;
     }
 
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        return false;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return false;
+    }
     @Evaluator(extraName = "Doubles")
     static boolean processDoubles(double lhs, double rhs) {
         return lhs == rhs;

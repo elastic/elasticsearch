@@ -108,6 +108,15 @@ public class GreaterThan extends EsqlBinaryComparison implements Negatable<EsqlB
     static boolean processLongs(long lhs, long rhs) {
         return lhs > rhs;
     }
+    @Evaluator(extraName = "MillisNanos")
+    static boolean processMillisNanos(long lhs, long rhs) {
+        return false;
+    }
+
+    @Evaluator(extraName = "NanosMillis")
+    static boolean processNanosMillis(long lhs, long rhs) {
+        return false;
+    }
 
     @Evaluator(extraName = "Doubles")
     static boolean processDoubles(double lhs, double rhs) {

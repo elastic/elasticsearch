@@ -843,7 +843,7 @@ setup:
 ---
 "Query a field that uses the default ELSER 2 endpoint":
   - requires:
-      reason: "default ELSER 2 inference ID is behind a feature flag"
+      reason: "default ELSER 2 inference ID is enabled via a capability"
       test_runner_features: [capabilities]
       capabilities:
         - method: GET
@@ -878,3 +878,117 @@ setup:
 
   - match: { hits.total.value: 1 }
   - match: { hits.hits.0._id: "doc_1" }
+
+---
+"Query using a sparse embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-sparse-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: sparse-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-sparse-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-sparse-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }
+
+---
+"Query using a dense embedding model with size set to zero":
+  - requires:
+      cluster_features: "semantic_text.zero_size_fix"
+      reason: zero size fix added in 8.16.1 & 8.15.5
+
+  - do:
+      indices.create:
+        index: test-dense-index-with-agg-id
+        body:
+          mappings:
+            properties:
+              inference_field:
+                type: semantic_text
+                inference_id: dense-inference-id
+              non_inference_field:
+                type: text
+              agg_id:
+                type: keyword
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_1
+        body:
+          inference_field: "inference test"
+          agg_id: "doc_1"
+
+  - do:
+      index:
+        index: test-dense-index-with-agg-id
+        id: doc_2
+        body:
+          non_inference_field: "non-inference test"
+          agg_id: "doc_2"
+        refresh: true
+
+  - do:
+      search:
+        index: test-dense-index-with-agg-id
+        body:
+          size: 0
+          query:
+            semantic:
+              field: "inference_field"
+              query: "inference test"
+          aggs:
+            agg_ids:
+              terms:
+                field: agg_id
+
+  - match: { hits.total.value: 1 }
+  - length: { hits.hits: 0 }
+  - length: { aggregations.agg_ids.buckets: 1 }
+  - match: { aggregations.agg_ids.buckets.0.key: "doc_1" }
+  - match: { aggregations.agg_ids.buckets.0.doc_count: 1 }

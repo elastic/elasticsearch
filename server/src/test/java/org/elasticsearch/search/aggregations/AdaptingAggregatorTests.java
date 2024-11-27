@@ -9,6 +9,7 @@
 
 package org.elasticsearch.search.aggregations;
 
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.MapperServiceTestCase;
@@ -113,7 +114,7 @@ public class AdaptingAggregatorTests extends MapperServiceTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
             return new InternalAggregation[] { null };
         }
 

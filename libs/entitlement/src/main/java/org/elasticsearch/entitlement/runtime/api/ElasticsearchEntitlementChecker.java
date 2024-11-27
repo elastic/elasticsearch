@@ -10,12 +10,11 @@
 package org.elasticsearch.entitlement.runtime.api;
 
 import org.elasticsearch.entitlement.bridge.EntitlementChecker;
-import org.elasticsearch.logging.LogManager;
-import org.elasticsearch.logging.Logger;
+import org.elasticsearch.entitlement.runtime.policy.FlagEntitlementType;
+import org.elasticsearch.entitlement.runtime.policy.PolicyManager;
 
-import java.util.Optional;
-
-import static org.elasticsearch.entitlement.runtime.internals.EntitlementInternals.isActive;
+import java.net.URL;
+import java.net.URLStreamHandlerFactory;
 
 /**
  * Implementation of the {@link EntitlementChecker} interface, providing additional
@@ -23,63 +22,45 @@ import static org.elasticsearch.entitlement.runtime.internals.EntitlementInterna
  * The trampoline module loads this object via SPI.
  */
 public class ElasticsearchEntitlementChecker implements EntitlementChecker {
-    private static final Logger logger = LogManager.getLogger(ElasticsearchEntitlementChecker.class);
+    private final PolicyManager policyManager;
 
-    /**
-     * Causes entitlements to be enforced.
-     */
-    public void activate() {
-        isActive = true;
+    public ElasticsearchEntitlementChecker(PolicyManager policyManager) {
+        this.policyManager = policyManager;
     }
 
     @Override
-    public void checkSystemExit(Class<?> callerClass, int status) {
-        var requestingModule = requestingModule(callerClass);
-        if (isTriviallyAllowed(requestingModule)) {
-            return;
-        }
-        // Hard-forbidden until we develop the permission granting scheme
-        throw new NotEntitledException("Missing entitlement for " + requestingModule);
+    public void check$java_lang_System$exit(Class<?> callerClass, int status) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.SYSTEM_EXIT);
     }
 
-    private static Module requestingModule(Class<?> callerClass) {
-        if (callerClass != null) {
-            Module callerModule = callerClass.getModule();
-            if (callerModule.getLayer() != ModuleLayer.boot()) {
-                // fast path
-                return callerModule;
-            }
-        }
-        int framesToSkip = 1  // getCallingClass (this method)
-            + 1  // the checkXxx method
-            + 1  // the runtime config method
-            + 1  // the instrumented method
-        ;
-        Optional<Module> module = StackWalker.getInstance(StackWalker.Option.RETAIN_CLASS_REFERENCE)
-            .walk(
-                s -> s.skip(framesToSkip)
-                    .map(f -> f.getDeclaringClass().getModule())
-                    .filter(m -> m.getLayer() != ModuleLayer.boot())
-                    .findFirst()
-            );
-        return module.orElse(null);
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
     }
 
-    private static boolean isTriviallyAllowed(Module requestingModule) {
-        if (isActive == false) {
-            logger.debug("Trivially allowed: entitlements are inactive");
-            return true;
-        }
-        if (requestingModule == null) {
-            logger.debug("Trivially allowed: Entire call stack is in the boot module layer");
-            return true;
-        }
-        if (requestingModule == System.class.getModule()) {
-            logger.debug("Trivially allowed: Caller is in {}", System.class.getModule().getName());
-            return true;
-        }
-        logger.trace("Not trivially allowed");
-        return false;
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
     }
 
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, URL[] urls, ClassLoader parent, URLStreamHandlerFactory factory) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(Class<?> callerClass, String name, URL[] urls, ClassLoader parent) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
+
+    @Override
+    public void check$java_net_URLClassLoader$(
+        Class<?> callerClass,
+        String name,
+        URL[] urls,
+        ClassLoader parent,
+        URLStreamHandlerFactory factory
+    ) {
+        policyManager.checkFlagEntitlement(callerClass, FlagEntitlementType.CREATE_CLASSLOADER);
+    }
 }

@@ -111,7 +111,12 @@ public class UnmappedTerms extends InternalTerms<UnmappedTerms, UnmappedTerms.Bu
 
     @Override
     public final XContentBuilder doXContentBody(XContentBuilder builder, Params params) throws IOException {
-        return doXContentCommon(builder, params, 0L, 0, Collections.emptyList());
+        return doXContentCommon(builder, params, false, 0L, 0, Collections.emptyList());
+    }
+
+    @Override
+    protected boolean getShowDocCountError() {
+        return false;
     }
 
     @Override

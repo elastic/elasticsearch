@@ -117,12 +117,10 @@ that sacrifices result accuracy for improved speed.
 The `dense_vector` type supports quantization to reduce the memory footprint required when <<approximate-knn, searching>> `float` vectors.
 The three following quantization strategies are supported:
 
-+
---
-`int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
-`int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
-`bbq` - experimental:[] Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
---
+* `int8` - Quantizes each dimension of the vector to 1-byte integers. This reduces the memory footprint by 75% (or 4x) at the cost of some accuracy.
+* `int4` - Quantizes each dimension of the vector to half-byte integers. This reduces the memory footprint by 87% (or 8x) at the cost of accuracy.
+* `bbq` - experimental:[] Better binary quantization which reduces each dimension to a single bit precision. This reduces the memory footprint by 96% (or 32x) at a larger cost of accuracy. Generally, oversampling during query time and reranking can help mitigate the accuracy loss.
+
 
 When using a quantized format, you may want to oversample and rescore the results to improve accuracy. See <<dense-vector-knn-search-reranking, oversampling and rescoring>> for more information.
 
@@ -245,12 +243,11 @@ their vector field's similarity to the query vector. The `_score` of each
 document will be derived from the similarity, in a way that ensures scores are
 positive and that a larger score corresponds to a higher ranking.
 Defaults to `l2_norm` when `element_type: bit` otherwise defaults to `cosine`.
-
-NOTE: `bit` vectors only support `l2_norm` as their similarity metric.
-
 +
 ^*^ This parameter can only be specified when `index` is `true`.
 +
+NOTE: `bit` vectors only support `l2_norm` as their similarity metric.
+
 .Valid values for `similarity`
 [%collapsible%open]
 ====
@@ -341,12 +338,12 @@ by 32x at the cost of accuracy. See <<dense-vector-quantization, Automatically q
 `m`:::
 (Optional, integer)
 The number of neighbors each node will be connected to in the HNSW graph.
-Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, and `int4_hnsw` index types.
+Defaults to `16`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
 `ef_construction`:::
 (Optional, integer)
 The number of candidates to track while assembling the list of nearest
-neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, and `int4_hnsw` index types.
+neighbors for each new node. Defaults to `100`. Only applicable to `hnsw`, `int8_hnsw`, `int4_hnsw` and `bbq_hnsw` index types.
 
 `confidence_interval`:::
 (Optional, float)

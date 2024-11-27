@@ -13,8 +13,6 @@ import org.elasticsearch.common.geo.GeoPoint;
 import org.elasticsearch.common.geo.SpatialPoint;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.search.aggregations.InternalAggregation;
-import org.elasticsearch.search.aggregations.support.SamplingContext;
 
 import java.io.IOException;
 import java.util.Map;
@@ -93,10 +91,5 @@ public class InternalGeoCentroid extends InternalCentroid implements GeoCentroid
     @Override
     protected double extractSecond(SpatialPoint point) {
         return point.getX();
-    }
-
-    @Override
-    public InternalAggregation finalizeSampling(SamplingContext samplingContext) {
-        return new InternalGeoCentroid(name, centroid, samplingContext.scaleUp(count), getMetadata());
     }
 }

@@ -21,6 +21,7 @@ import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.bytes.ReleasableBytesReference;
 import org.elasticsearch.common.logging.HeaderWarning;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.concurrent.EsExecutors;
@@ -282,7 +283,10 @@ public class TransportPreviewTransformAction extends HandledTransportAction<Requ
                     builder.startObject();
                     builder.field("docs", results);
                     builder.endObject();
-                    var pipelineRequest = new SimulatePipelineRequest(BytesReference.bytes(builder), XContentType.JSON);
+                    var pipelineRequest = new SimulatePipelineRequest(
+                        ReleasableBytesReference.wrap(BytesReference.bytes(builder)),
+                        XContentType.JSON
+                    );
                     pipelineRequest.setId(pipeline);
                     parentTaskClient.execute(SimulatePipelineAction.INSTANCE, pipelineRequest, pipelineResponseActionListener);
                 }

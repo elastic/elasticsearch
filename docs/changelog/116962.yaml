@@ -1,0 +1,5 @@
+pr: 116962
+summary: "Add special case for elastic reranker in inference API"
+area: Machine Learning
+type: enhancement
+issues: []

@@ -18,7 +18,6 @@ import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.Explicit;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -39,7 +38,6 @@ import java.util.Arrays;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
-import java.util.Map;
 
 public class SourceFieldMapper extends MetadataFieldMapper {
     public static final NodeFeature SYNTHETIC_SOURCE_FALLBACK = new NodeFeature("mapper.source.synthetic_source_fallback");
@@ -309,17 +307,7 @@ public class SourceFieldMapper extends MetadataFieldMapper {
             c.indexVersionCreated().onOrAfter(IndexVersions.SOURCE_MAPPER_LOSSY_PARAMS_CHECK),
             c.indexVersionCreated().before(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER)
         )
-    ) {
-        @Override
-        public MetadataFieldMapper.Builder parse(String name, Map<String, Object> node, MappingParserContext parserContext)
-            throws MapperParsingException {
-            assert name.equals(SourceFieldMapper.NAME) : name;
-            if (parserContext.indexVersionCreated().onOrAfter(IndexVersions.DEPRECATE_SOURCE_MODE_MAPPER) && node.containsKey("mode")) {
-                deprecationLogger.critical(DeprecationCategory.MAPPINGS, "mapping_source_mode", SourceFieldMapper.DEPRECATION_WARNING);
-            }
-            return super.parse(name, node, parserContext);
-        }
-    };
+    );
 
     static final class SourceFieldType extends MappedFieldType {
         private final boolean enabled;

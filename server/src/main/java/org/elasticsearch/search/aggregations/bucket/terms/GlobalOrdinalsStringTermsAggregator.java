@@ -20,7 +20,6 @@ import org.apache.lucene.util.BytesRef;
 import org.apache.lucene.util.PriorityQueue;
 import org.elasticsearch.common.CheckedSupplier;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.ObjectArray;
@@ -520,7 +519,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          * Excludes deleted docs in the results by cross-checking with liveDocs.
          */
         private void forEachExcludeDeletedDocs(BucketInfoConsumer consumer) throws IOException {
-            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
+            try (LongHash accepted = new LongHash(20, bigArrays())) {
                 for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                     LeafReader reader = ctx.reader();
                     Bits liveDocs = reader.getLiveDocs();
@@ -673,7 +672,7 @@ public class GlobalOrdinalsStringTermsAggregator extends AbstractStringTermsAggr
          */
         private void forEachExcludeDeletedDocs(long owningBucketOrd) throws IOException {
             assert bucketCountThresholds.getMinDocCount() == 0;
-            try (LongHash accepted = new LongHash(20, new BigArrays(null, null, ""))) {
+            try (LongHash accepted = new LongHash(20, bigArrays())) {
                 for (LeafReaderContext ctx : searcher().getTopReaderContext().leaves()) {
                     LeafReader reader = ctx.reader();
                     Bits liveDocs = reader.getLiveDocs();

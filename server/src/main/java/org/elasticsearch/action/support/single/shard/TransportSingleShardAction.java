@@ -18,7 +18,6 @@ import org.elasticsearch.action.support.ActionFilters;
 import org.elasticsearch.action.support.ChannelActionListener;
 import org.elasticsearch.action.support.TransportAction;
 import org.elasticsearch.action.support.TransportActions;
-import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ProjectState;
 import org.elasticsearch.cluster.block.ClusterBlockException;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
@@ -134,6 +133,10 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
 
     }
 
+    protected ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
+    }
+
     /**
      * Returns the candidate shards to execute the operation on or <code>null</code> the execute
      * the operation locally (the node that received the request)
@@ -152,12 +155,16 @@ public abstract class TransportSingleShardAction<Request extends SingleShardRequ
         private AsyncSingleAction(Request request, ActionListener<Response> listener) {
             this.listener = listener;
 
-            ClusterState clusterState = clusterService.state();
+            final ProjectState project = getProjectState();
             if (logger.isTraceEnabled()) {
-                logger.trace("executing [{}] based on cluster state version [{}]", request, clusterState.version());
+                logger.trace(
+                    "executing [{}] in [{}] based on cluster state version [{}]",
+                    request,
+                    project.projectId(),
+                    project.cluster().version()
+                );
             }
-            nodes = clusterState.nodes();
-            ProjectState project = projectResolver.getProjectState(clusterState);
+            nodes = project.cluster().nodes();
             ClusterBlockException blockException = checkGlobalBlock(project);
             if (blockException != null) {
                 throw blockException;

@@ -210,6 +210,8 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                 sorts.add(new EsQueryExec.FieldSort(fa.exactAttribute(), o.direction(), o.nullsPosition()));
             } else if (o.child() instanceof MetadataAttribute ma && MetadataAttribute.SCORE.equals(ma.name())) {
                 sorts.add(new EsQueryExec.ScoreSort(o.direction()));
+            } else {
+                assert false : "unexpected ordering on expression type " + o.child().getClass();
             }
         }
         return sorts;

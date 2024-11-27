@@ -60,6 +60,7 @@ import java.util.Optional;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 
+import static org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper.INFERENCE_METADATA_FIELDS_FEATURE_FLAG;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertToXContentEquivalent;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.awaitLatch;
 import static org.elasticsearch.xpack.inference.action.filter.ShardBulkInferenceActionFilter.DEFAULT_BATCH_SIZE;
@@ -185,7 +186,13 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 // item 1 is a success
                 assertNull(bulkShardRequest.items()[1].getPrimaryResponse());
                 IndexRequest actualRequest = getIndexRequestOrNull(bulkShardRequest.items()[1].request());
-                assertThat(XContentMapValues.extractValue("field1", actualRequest.sourceAsMap()), equalTo("I am a success"));
+                assertThat(
+                    XContentMapValues.extractValue(
+                        INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? "field1" : "field1.text",
+                        actualRequest.sourceAsMap()
+                    ),
+                    equalTo("I am a success")
+                );
 
                 // item 2 is a failure
                 assertNotNull(bulkShardRequest.items()[2].getPrimaryResponse());
@@ -366,7 +373,7 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
             Object inputObject = randomSemanticTextInput();
             String inputText = inputObject.toString();
             docMap.put(field, inputObject);
-            expectedDocMap.put(field, inputObject);
+            expectedDocMap.put(field, INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? inputObject : inputText);
             if (model == null) {
                 // ignore results, the doc should fail with a resource not found exception
                 continue;
@@ -390,9 +397,15 @@ public class ShardBulkInferenceActionFilterTests extends ESTestCase {
                 model.putResult(inputText, toChunkedResult(semanticTextField));
             }
 
-            inferenceMetadataFields.put(field, semanticTextField);
+            if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+                inferenceMetadataFields.put(field, semanticTextField);
+            } else {
+                expectedDocMap.put(field, semanticTextField);
+            }
         }
-        expectedDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
+        if (INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled()) {
+            expectedDocMap.put(InferenceMetadataFieldsMapper.NAME, inferenceMetadataFields);
+        }
 
         int requestId = randomIntBetween(0, Integer.MAX_VALUE);
         return new BulkItemRequest[] {

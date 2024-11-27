@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.index.IndexVersion;
+import org.elasticsearch.index.mapper.SourceFieldMapper;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.AbstractWireSerializingTestCase;
@@ -37,6 +38,8 @@ import java.util.Map;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.DISABLED;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.STORED;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
+import static org.hamcrest.Matchers.equalTo;
+import static org.hamcrest.Matchers.nullValue;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
@@ -575,5 +578,65 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         MappingStats deserialized = new MappingStats(in);
         assertEquals(instance.getFieldTypeStats(), deserialized.getFieldTypeStats());
         assertEquals(instance.getRuntimeFieldStats(), deserialized.getRuntimeFieldStats());
+    }
+
+    public void testSourceModes() {
+        var builder = Metadata.builder();
+        int numStoredIndices = randomIntBetween(1, 5);
+        int numSyntheticIndices = randomIntBetween(1, 5);
+        int numDisabledIndices = randomIntBetween(1, 5);
+        for (int i = 0; i < numSyntheticIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-synthetic-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "synthetic")
+            );
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numStoredIndices; i++) {
+            IndexMetadata.Builder indexMetadata;
+            if (randomBoolean()) {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(
+                    indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
+                );
+            } else {
+                indexMetadata = new IndexMetadata.Builder("foo-stored-" + i).settings(indexSettings(IndexVersion.current(), 4, 1));
+            }
+            builder.put(indexMetadata);
+        }
+        for (int i = 0; i < numDisabledIndices; i++) {
+            IndexMetadata.Builder indexMetadata = new IndexMetadata.Builder("foo-disabled-" + i).settings(
+                indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
+            );
+            builder.put(indexMetadata);
+        }
+        var mappingStats = MappingStats.of(builder.build(), () -> {});
+        assertThat(mappingStats.getSourceModeUsageCount().get("synthetic"), equalTo(numSyntheticIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("stored"), equalTo(numStoredIndices));
+        assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), equalTo(numDisabledIndices));
+    }
+
+    public void testSourceModesOldSourceMode() {
+        var builder = Metadata.builder();
+        String mapping = """
+            {
+                "_source": {
+                    "mode": "synthetic"
+                }
+            }
+            """;
+        var indexMetadata1 = new IndexMetadata.Builder("foo-synthetic").settings(indexSettings(IndexVersion.current(), 4, 1))
+            .putMapping(mapping);
+        var indexMetadata2 = new IndexMetadata.Builder("foo-stored").settings(
+            indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
+        );
+        var indexMetadata3 = new IndexMetadata.Builder("foo-disabled").settings(
+            indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
+        );
+        builder.put(indexMetadata1);
+        builder.put(indexMetadata2);
+        builder.put(indexMetadata3);
+        var mappingStats = MappingStats.of(builder.build(), () -> {});
+        assertThat(mappingStats.getSourceModeUsageCount().get("synthetic"), equalTo(1));
+        assertThat(mappingStats.getSourceModeUsageCount().get("stored"), nullValue());
+        assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), nullValue());
     }
 }

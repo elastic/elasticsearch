@@ -120,6 +120,35 @@ public class TextFormatterTests extends ESTestCase {
     }
 
     /**
+     * Tests for {@link TextFormatter#format} with drop_null_columns and
+     * truncation of long columns.
+     */
+    public void testFormatWithDropNullColumns() {
+        String[] result = getTextBodyContent(formatter.format(true, true)).split("\n");
+        assertThat(result, arrayWithSize(4));
+        assertEquals(
+            "      foo      |      bar      |15charwidename!|superduperwidename!!!|      baz      |"
+                + "          date          |     location     |      location2       ",
+            result[0]
+        );
+        assertEquals(
+            "---------------+---------------+---------------+---------------------+---------------+-------"
+                + "-----------------+------------------+----------------------",
+            result[1]
+        );
+        assertEquals(
+            "15charwidedata!|1              |6.888          |12.0                 |rabbit         |"
+                + "1953-09-02T00:00:00.000Z|POINT (12.0 56.0) |POINT (1234.0 5678.0) ",
+            result[2]
+        );
+        assertEquals(
+            "dog            |2              |123124.888     |9912.0               |goat           |"
+                + "2000-03-15T21:34:37.443Z|POINT (-97.0 26.0)|POINT (-9753.0 2611.0)",
+            result[3]
+        );
+    }
+
+    /**
      * Tests for {@link TextFormatter#format} without header and
      * truncation of long columns.
      */

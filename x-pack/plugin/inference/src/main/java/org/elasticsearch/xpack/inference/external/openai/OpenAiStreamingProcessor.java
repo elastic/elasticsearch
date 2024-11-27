@@ -145,6 +145,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
             return Collections.emptyIterator();
         }
 
+        System.out.println(event.value());
         try (XContentParser jsonParser = XContentFactory.xContent(XContentType.JSON).createParser(parserConfig, event.value())) {
             moveToFirstToken(jsonParser);
 
@@ -178,13 +179,17 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                         switch (parser.currentName()) {
                             case CONTENT_FIELD:
                                 parser.nextToken();
-                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                content = parser.text();
+                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                                    content = parser.text();
+                                }
+                                // ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
                                 break;
                             case REFUSAL_FIELD:
                                 parser.nextToken();
-                                ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
-                                refusal = parser.text();
+                                if (parser.currentToken() == XContentParser.Token.VALUE_STRING) {
+                                    refusal = parser.text();
+                                }
+                                // ensureExpectedToken(XContentParser.Token.VALUE_STRING, parser.currentToken(), parser);
                                 break;
                             case TOOL_CALLS_FIELD:
                                 parser.nextToken();
@@ -197,7 +202,7 @@ public class OpenAiStreamingProcessor extends DelegatingProcessor<Deque<ServerSe
                     currentToken = parser.nextToken();
                 }
 
-                consumeUntilObjectEnd(parser); // end delta
+                // consumeUntilObjectEnd(parser); // end delta
                 consumeUntilObjectEnd(parser); // end choices
 
                 return new StreamingChatCompletionResults.Result(content, refusal, toolCalls);

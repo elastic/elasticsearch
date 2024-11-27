@@ -7,7 +7,9 @@
 
 package org.elasticsearch.xpack.esql.analysis;
 
-import org.elasticsearch.common.logging.LoggerMessageFormat;
+import org.elasticsearch.index.IndexMode;
+import org.elasticsearch.license.XPackLicenseState;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.common.Failure;
 import org.elasticsearch.xpack.esql.core.capabilities.Unresolvable;
 import org.elasticsearch.xpack.esql.core.expression.Alias;
@@ -17,24 +19,25 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.FieldAttribute;
+import org.elasticsearch.xpack.esql.core.expression.NameId;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.expression.function.Function;
 import org.elasticsearch.xpack.esql.core.expression.predicate.BinaryOperator;
-import org.elasticsearch.xpack.esql.core.expression.predicate.fulltext.MatchQueryPredicate;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.BinaryLogic;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Not;
 import org.elasticsearch.xpack.esql.core.expression.predicate.logical.Or;
 import org.elasticsearch.xpack.esql.core.expression.predicate.operator.comparison.BinaryComparison;
 import org.elasticsearch.xpack.esql.core.type.DataType;
-import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.expression.function.UnsupportedAttribute;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.FilteredExpression;
 import org.elasticsearch.xpack.esql.expression.function.aggregate.Rate;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.FullTextFunction;
+import org.elasticsearch.xpack.esql.expression.function.fulltext.Kql;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.QueryString;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.expression.function.grouping.GroupingFunction;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic.Neg;
 import org.elasticsearch.xpack.esql.expression.predicate.operator.comparison.Equals;
@@ -52,24 +55,29 @@ import org.elasticsearch.xpack.esql.plan.logical.Project;
 import org.elasticsearch.xpack.esql.plan.logical.RegexExtract;
 import org.elasticsearch.xpack.esql.plan.logical.Row;
 import org.elasticsearch.xpack.esql.plan.logical.UnaryPlan;
+import org.elasticsearch.xpack.esql.plan.logical.join.LookupJoin;
 import org.elasticsearch.xpack.esql.stats.FeatureMetric;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 
 import java.util.ArrayList;
 import java.util.BitSet;
 import java.util.Collection;
+import java.util.HashMap;
+import java.util.HashSet;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 import java.util.function.BiConsumer;
 import java.util.function.Consumer;
+import java.util.function.Predicate;
 import java.util.stream.Stream;
 
 import static org.elasticsearch.xpack.esql.common.Failure.fail;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.FIRST;
 import static org.elasticsearch.xpack.esql.core.type.DataType.BOOLEAN;
-import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFiltersToSource.canPushToSource;
+import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 
 /**
  * This class is part of the planner. Responsible for failing impossible queries with a human-readable error message.  In particular, this
@@ -78,9 +86,11 @@ import static org.elasticsearch.xpack.esql.optimizer.rules.physical.local.PushFi
 public class Verifier {
 
     private final Metrics metrics;
+    private final XPackLicenseState licenseState;
 
-    public Verifier(Metrics metrics) {
+    public Verifier(Metrics metrics, XPackLicenseState licenseState) {
         this.metrics = metrics;
+        this.licenseState = licenseState;
     }
 
     /**
@@ -164,6 +174,20 @@ public class Verifier {
                 else {
                     lookup.matchFields().forEach(unresolvedExpressions);
                 }
+            } else if (p instanceof LookupJoin lj) {
+                // expect right side to always be a lookup index
+                lj.right().forEachUp(EsRelation.class, r -> {
+                    if (r.indexMode() != IndexMode.LOOKUP) {
+                        failures.add(
+                            fail(
+                                r,
+                                "LOOKUP JOIN right side [{}] must be a lookup index (index_mode=lookup, not [{}]",
+                                r.index().name(),
+                                r.indexMode().getName()
+                            )
+                        );
+                    }
+                });
             }
 
             else {
@@ -192,11 +216,15 @@ public class Verifier {
             checkOperationsOnUnsignedLong(p, failures);
             checkBinaryComparison(p, failures);
             checkForSortableDataTypes(p, failures);
+            checkSort(p, failures);
 
-            checkFilterMatchConditions(p, failures);
             checkFullTextQueryFunctions(p, failures);
         });
         checkRemoteEnrich(plan, failures);
+
+        if (failures.isEmpty()) {
+            checkLicense(plan, licenseState, failures);
+        }
 
         // gather metrics
         if (failures.isEmpty()) {
@@ -204,6 +232,18 @@ public class Verifier {
         }
 
         return failures;
+    }
+
+    private void checkSort(LogicalPlan p, Set<Failure> failures) {
+        if (p instanceof OrderBy ob) {
+            ob.order().forEach(o -> {
+                o.forEachDown(Function.class, f -> {
+                    if (f instanceof AggregateFunction) {
+                        failures.add(fail(f, "Aggregate functions are not allowed in SORT [{}]", f.functionName()));
+                    }
+                });
+            });
+        }
     }
 
     private static void checkFilterConditionType(LogicalPlan p, Set<Failure> localFailures) {
@@ -272,12 +312,81 @@ public class Verifier {
                     r -> failures.add(fail(r, "the rate aggregate[{}] can only be used within the metrics command", r.sourceText()))
                 );
             }
+            checkCategorizeGrouping(agg, failures);
         } else {
             p.forEachExpression(
                 GroupingFunction.class,
                 gf -> failures.add(fail(gf, "cannot use grouping function [{}] outside of a STATS command", gf.sourceText()))
             );
         }
+    }
+
+    /**
+     * Check CATEGORIZE grouping function usages.
+     * <p>
+     *     Some of those checks are temporary, until the required syntax or engine changes are implemented.
+     * </p>
+     */
+    private static void checkCategorizeGrouping(Aggregate agg, Set<Failure> failures) {
+        // Forbid CATEGORIZE grouping function with other groupings
+        if (agg.groupings().size() > 1) {
+            agg.groupings().forEach(g -> {
+                g.forEachDown(
+                    Categorize.class,
+                    categorize -> failures.add(
+                        fail(categorize, "cannot use CATEGORIZE grouping function [{}] with multiple groupings", categorize.sourceText())
+                    )
+                );
+            });
+        }
+
+        // Forbid CATEGORIZE grouping functions not being top level groupings
+        agg.groupings().forEach(g -> {
+            // Check all CATEGORIZE but the top level one
+            Alias.unwrap(g)
+                .children()
+                .forEach(
+                    child -> child.forEachDown(
+                        Categorize.class,
+                        c -> failures.add(
+                            fail(c, "CATEGORIZE grouping function [{}] can't be used within other expressions", c.sourceText())
+                        )
+                    )
+                );
+        });
+
+        // Forbid CATEGORIZE being used in the aggregations
+        agg.aggregates().forEach(a -> {
+            a.forEachDown(
+                Categorize.class,
+                categorize -> failures.add(
+                    fail(categorize, "cannot use CATEGORIZE grouping function [{}] within the aggregations", categorize.sourceText())
+                )
+            );
+        });
+
+        // Forbid CATEGORIZE being referenced in the aggregation functions
+        Map<NameId, Categorize> categorizeByAliasId = new HashMap<>();
+        agg.groupings().forEach(g -> {
+            g.forEachDown(Alias.class, alias -> {
+                if (alias.child() instanceof Categorize categorize) {
+                    categorizeByAliasId.put(alias.id(), categorize);
+                }
+            });
+        });
+        agg.aggregates()
+            .forEach(a -> a.forEachDown(AggregateFunction.class, aggregate -> aggregate.forEachDown(Attribute.class, attribute -> {
+                var categorize = categorizeByAliasId.get(attribute.id());
+                if (categorize != null) {
+                    failures.add(
+                        fail(
+                            attribute,
+                            "cannot reference CATEGORIZE grouping function [{}] within the aggregations",
+                            attribute.sourceText()
+                        )
+                    );
+                }
+            })));
     }
 
     private static void checkRateAggregates(Expression expr, int nestedLevel, Set<Failure> failures) {
@@ -316,6 +425,10 @@ public class Verifier {
             if (e.anyMatch(AggregateFunction.class::isInstance) == false) {
                 Expression filter = fe.filter();
                 failures.add(fail(filter, "WHERE clause allowed only for aggregate functions, none found in [{}]", fe.sourceText()));
+            }
+            Expression f = fe.filter(); // check the filter has to be a boolean term, similar as checkFilterConditionType
+            if (f.dataType() != NULL && f.dataType() != BOOLEAN) {
+                failures.add(fail(f, "Condition expression needs to be boolean, found [{}]", f.dataType()));
             }
             // but that the filter doesn't use grouping or aggregate functions
             fe.filter().forEachDown(c -> {
@@ -412,7 +525,7 @@ public class Verifier {
         if (p instanceof Row row) {
             row.fields().forEach(a -> {
                 if (DataType.isRepresentable(a.dataType()) == false) {
-                    failures.add(fail(a, "cannot use [{}] directly in a row assignment", a.child().sourceText()));
+                    failures.add(fail(a.child(), "cannot use [{}] directly in a row assignment", a.child().sourceText()));
                 }
             });
         }
@@ -441,11 +554,6 @@ public class Verifier {
                         failures.add(fail(af, "aggregate function [{}] not allowed outside STATS command", af.sourceText()));
                     }
                 });
-                // check no MATCH expressions are used
-                field.forEachDown(
-                    MatchQueryPredicate.class,
-                    mqp -> { failures.add(fail(mqp, "EVAL does not support MATCH expressions")); }
-                );
             });
         }
     }
@@ -475,11 +583,22 @@ public class Verifier {
         });
     }
 
+    private void checkLicense(LogicalPlan plan, XPackLicenseState licenseState, Set<Failure> failures) {
+        plan.forEachExpressionDown(Function.class, p -> {
+            if (p.checkLicense(licenseState) == false) {
+                failures.add(new Failure(p, "current license is non-compliant for function [" + p.sourceText() + "]"));
+            }
+        });
+    }
+
     private void gatherMetrics(LogicalPlan plan, BitSet b) {
         plan.forEachDown(p -> FeatureMetric.set(p, b));
         for (int i = b.nextSetBit(0); i >= 0; i = b.nextSetBit(i + 1)) {
             metrics.inc(FeatureMetric.values()[i]);
         }
+        Set<Class<?>> functions = new HashSet<>();
+        plan.forEachExpressionDown(Function.class, p -> functions.add(p.getClass()));
+        functions.forEach(f -> metrics.incFunctionMetric(f));
     }
 
     /**
@@ -501,8 +620,12 @@ public class Verifier {
         List<DataType> allowed = new ArrayList<>();
         allowed.add(DataType.KEYWORD);
         allowed.add(DataType.TEXT);
+        if (EsqlCapabilities.Cap.SEMANTIC_TEXT_TYPE.isEnabled()) {
+            allowed.add(DataType.SEMANTIC_TEXT);
+        }
         allowed.add(DataType.IP);
         allowed.add(DataType.DATETIME);
+        allowed.add(DataType.DATE_NANOS);
         allowed.add(DataType.VERSION);
         allowed.add(DataType.GEO_POINT);
         allowed.add(DataType.GEO_SHAPE);
@@ -605,22 +728,15 @@ public class Verifier {
      */
     private static void checkRemoteEnrich(LogicalPlan plan, Set<Failure> failures) {
         boolean[] agg = { false };
-        boolean[] limit = { false };
         boolean[] enrichCoord = { false };
 
         plan.forEachUp(UnaryPlan.class, u -> {
-            if (u instanceof Limit) {
-                limit[0] = true; // TODO: Make Limit then enrich_remote work
-            }
             if (u instanceof Aggregate) {
                 agg[0] = true;
             } else if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.COORDINATOR) {
                 enrichCoord[0] = true;
             }
             if (u instanceof Enrich enrich && enrich.mode() == Enrich.Mode.REMOTE) {
-                if (limit[0]) {
-                    failures.add(fail(enrich, "ENRICH with remote policy can't be executed after LIMIT"));
-                }
                 if (agg[0]) {
                     failures.add(fail(enrich, "ENRICH with remote policy can't be executed after STATS"));
                 }
@@ -632,114 +748,122 @@ public class Verifier {
     }
 
     /**
-     * Currently any filter condition using MATCH needs to be pushed down to the Lucene query.
-     * Conditions that use a combination of MATCH and ES|QL functions (e.g. `title MATCH "anna" OR DATE_EXTRACT("year", date) > 2010)
-     * cannot be pushed down to Lucene.
-     * Another condition is for MATCH to use index fields that have been mapped as text or keyword.
-     * We are using canPushToSource at the Verifier level because we want to detect any condition that cannot be pushed down
-     * early in the execution, rather than fail at the compute engine level.
-     * In the future we will be able to handle MATCH at the compute and we will no longer need these checks.
+     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     *
+     * @param condition        condition to check for disjunctions
+     * @param typeNameProvider provider for the type name to add in the failure message
+     * @param failures         failures collection to add to
      */
-    private static void checkFilterMatchConditions(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-
-            Holder<Boolean> hasMatch = new Holder<>(false);
-            condition.forEachDown(MatchQueryPredicate.class, mqp -> {
-                hasMatch.set(true);
-                var field = mqp.field();
-                if (field instanceof FieldAttribute == false) {
-                    failures.add(fail(mqp, "MATCH requires a mapped index field, found [" + field.sourceText() + "]"));
-                }
-
-                if (DataType.isString(field.dataType()) == false) {
-                    var message = LoggerMessageFormat.format(
-                        null,
-                        "MATCH requires a text or keyword field, but [{}] has type [{}]",
-                        field.sourceText(),
-                        field.dataType().esType()
-                    );
-                    failures.add(fail(mqp, message));
-                }
-            });
-
-            if (canPushToSource(condition, x -> false)) {
-                return;
-            }
-            if (hasMatch.get()) {
-                failures.add(fail(condition, "Invalid condition using MATCH"));
-            }
-        }
-    }
-
-    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
-        if (plan instanceof Filter f) {
-            Expression condition = f.condition();
-            checkCommandsBeforeQueryStringFunction(plan, condition, failures);
-            checkCommandsBeforeMatchFunction(plan, condition, failures);
-            checkFullTextFunctionsConditions(condition, failures);
-            checkFullTextFunctionsParents(condition, failures);
-        } else {
-            plan.forEachExpression(FullTextFunction.class, ftf -> {
-                failures.add(fail(ftf, "[{}] function is only supported in WHERE commands", ftf.functionName()));
-            });
-        }
-    }
-
-    private static void checkCommandsBeforeQueryStringFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(QueryString.class, qsf -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                if ((lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation) == false) {
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] function cannot be used after {}",
-                            qsf.functionName(),
-                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    private static void checkCommandsBeforeMatchFunction(LogicalPlan plan, Expression condition, Set<Failure> failures) {
-        condition.forEachDown(Match.class, qsf -> {
-            plan.forEachDown(LogicalPlan.class, lp -> {
-                if (lp instanceof Limit) {
-                    failures.add(
-                        fail(
-                            plan,
-                            "[{}] function cannot be used after {}",
-                            qsf.functionName(),
-                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
-                        )
-                    );
-                }
-            });
-        });
-    }
-
-    private static void checkFullTextFunctionsConditions(Expression condition, Set<Failure> failures) {
+    private static void checkNotPresentInDisjunctions(
+        Expression condition,
+        java.util.function.Function<FullTextFunction, String> typeNameProvider,
+        Set<Failure> failures
+    ) {
         condition.forEachUp(Or.class, or -> {
-            checkFullTextFunctionInDisjunction(failures, or, or.left());
-            checkFullTextFunctionInDisjunction(failures, or, or.right());
+            checkNotPresentInDisjunctions(or.left(), or, typeNameProvider, failures);
+            checkNotPresentInDisjunctions(or.right(), or, typeNameProvider, failures);
         });
     }
 
-    private static void checkFullTextFunctionInDisjunction(Set<Failure> failures, Or or, Expression left) {
-        left.forEachDown(FullTextFunction.class, ftf -> {
+    /**
+     * Checks whether a condition contains a disjunction with the specified typeToken. Adds to failure if it does.
+     *
+     * @param parentExpression parent expression to add to the failure message
+     * @param or               disjunction that is being checked
+     * @param failures         failures collection to add to
+     */
+    private static void checkNotPresentInDisjunctions(
+        Expression parentExpression,
+        Or or,
+        java.util.function.Function<FullTextFunction, String> elementName,
+        Set<Failure> failures
+    ) {
+        parentExpression.forEachDown(FullTextFunction.class, ftp -> {
             failures.add(
-                fail(
-                    or,
-                    "Invalid condition [{}]. Function {} can't be used as part of an or condition",
-                    or.sourceText(),
-                    ftf.functionName()
-                )
+                fail(or, "Invalid condition [{}]. {} can't be used as part of an or condition", or.sourceText(), elementName.apply(ftp))
             );
         });
     }
 
+    /**
+     * Checks full text query functions for invalid usage.
+     *
+     * @param plan root plan to check
+     * @param failures failures found
+     */
+    private static void checkFullTextQueryFunctions(LogicalPlan plan, Set<Failure> failures) {
+        if (plan instanceof Filter f) {
+            Expression condition = f.condition();
+
+            List.of(QueryString.class, Kql.class).forEach(functionClass -> {
+                // Check for limitations of QSTR and KQL function.
+                checkCommandsBeforeExpression(
+                    plan,
+                    condition,
+                    functionClass,
+                    lp -> (lp instanceof Filter || lp instanceof OrderBy || lp instanceof EsRelation),
+                    fullTextFunction -> "[" + fullTextFunction.functionName() + "] " + fullTextFunction.functionType(),
+                    failures
+                );
+            });
+
+            checkCommandsBeforeExpression(
+                plan,
+                condition,
+                Match.class,
+                lp -> (lp instanceof Limit == false) && (lp instanceof Aggregate == false),
+                m -> "[" + m.functionName() + "] " + m.functionType(),
+                failures
+            );
+            checkNotPresentInDisjunctions(condition, ftf -> "[" + ftf.functionName() + "] " + ftf.functionType(), failures);
+            checkFullTextFunctionsParents(condition, failures);
+        } else {
+            plan.forEachExpression(FullTextFunction.class, ftf -> {
+                failures.add(fail(ftf, "[{}] {} is only supported in WHERE commands", ftf.functionName(), ftf.functionType()));
+            });
+        }
+    }
+
+    /**
+     * Checks all commands that exist before a specific type satisfy conditions.
+     *
+     * @param plan plan that contains the condition
+     * @param condition condition to check
+     * @param typeToken type to check for. When a type is found in the condition, all plans before the root plan are checked
+     * @param commandCheck check to perform on each command that precedes the plan that contains the typeToken
+     * @param typeErrorMsgProvider provider for the type name in the error message
+     * @param failures failures to add errors to
+     * @param <E> class of the type to look for
+     */
+    private static <E extends Expression> void checkCommandsBeforeExpression(
+        LogicalPlan plan,
+        Expression condition,
+        Class<E> typeToken,
+        Predicate<LogicalPlan> commandCheck,
+        java.util.function.Function<E, String> typeErrorMsgProvider,
+        Set<Failure> failures
+    ) {
+        condition.forEachDown(typeToken, exp -> {
+            plan.forEachDown(LogicalPlan.class, lp -> {
+                if (commandCheck.test(lp) == false) {
+                    failures.add(
+                        fail(
+                            plan,
+                            "{} cannot be used after {}",
+                            typeErrorMsgProvider.apply(exp),
+                            lp.sourceText().split(" ")[0].toUpperCase(Locale.ROOT)
+                        )
+                    );
+                }
+            });
+        });
+    }
+
+    /**
+     * Checks parents of a full text function to ensure they are allowed
+     * @param condition condition that contains the full text function
+     * @param failures failures to add errors to
+     */
     private static void checkFullTextFunctionsParents(Expression condition, Set<Failure> failures) {
         forEachFullTextFunctionParent(condition, (ftf, parent) -> {
             if ((parent instanceof FullTextFunction == false)
@@ -748,9 +872,10 @@ public class Verifier {
                 failures.add(
                     fail(
                         condition,
-                        "Invalid condition [{}]. Function {} can't be used with {}",
+                        "Invalid condition [{}]. [{}] {} can't be used with {}",
                         condition.sourceText(),
                         ftf.functionName(),
+                        ftf.functionType(),
                         ((Function) parent).functionName()
                     )
                 );

@@ -13,7 +13,6 @@ import com.carrotsearch.randomizedtesting.RandomizedTest;
 import com.carrotsearch.randomizedtesting.SeedUtils;
 
 import org.apache.lucene.search.IndexSearcher;
-import org.apache.lucene.util.Accountable;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.MockResolvedIndices;
 import org.elasticsearch.action.OriginalIndices;
@@ -58,7 +57,6 @@ import org.elasticsearch.index.query.DataRewriteContext;
 import org.elasticsearch.index.query.QueryRewriteContext;
 import org.elasticsearch.index.query.SearchExecutionContext;
 import org.elasticsearch.index.shard.IndexLongFieldRange;
-import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.index.shard.ShardLongFieldRange;
 import org.elasticsearch.index.similarity.SimilarityService;
 import org.elasticsearch.indices.DateFieldRangeInfo;
@@ -136,28 +134,36 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
     protected static final String[] MAPPED_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         OBJECT_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
     protected static final String[] MAPPED_LEAF_FIELD_NAMES = new String[] {
         TEXT_FIELD_NAME,
         TEXT_ALIAS_FIELD_NAME,
+        KEYWORD_FIELD_NAME,
         INT_FIELD_NAME,
+        INT_ALIAS_FIELD_NAME,
         INT_RANGE_FIELD_NAME,
         DOUBLE_FIELD_NAME,
         BOOLEAN_FIELD_NAME,
         DATE_NANOS_FIELD_NAME,
         DATE_FIELD_NAME,
+        DATE_ALIAS_FIELD_NAME,
         DATE_RANGE_FIELD_NAME,
         GEO_POINT_FIELD_NAME,
-        GEO_POINT_ALIAS_FIELD_NAME };
+        GEO_POINT_ALIAS_FIELD_NAME,
+        BINARY_FIELD_NAME };
 
     private static final Map<String, String> ALIAS_TO_CONCRETE_FIELD_NAME = new HashMap<>();
     static {
@@ -342,6 +348,15 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         return serviceHolder.createCoordinatorContext(dateFieldType, min, max);
     }
 
+    protected static CoordinatorRewriteContext createCoordinatorRewriteContext(
+        DateFieldMapper.DateFieldType dateFieldType,
+        long min,
+        long max,
+        String tier
+    ) {
+        return serviceHolder.createCoordinatorContext(dateFieldType, min, max, tier);
+    }
+
     protected static DataRewriteContext dataRewriteContext() {
         return serviceHolder.createDataContext();
     }
@@ -469,13 +484,7 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
             IndexAnalyzers indexAnalyzers = analysisModule.getAnalysisRegistry().build(IndexCreationContext.CREATE_INDEX, idxSettings);
             scriptService = new MockScriptService(Settings.EMPTY, scriptModule.engines, scriptModule.contexts);
             similarityService = new SimilarityService(idxSettings, null, Collections.emptyMap());
-            this.bitsetFilterCache = new BitsetFilterCache(idxSettings, new BitsetFilterCache.Listener() {
-                @Override
-                public void onCache(ShardId shardId, Accountable accountable) {}
-
-                @Override
-                public void onRemoval(ShardId shardId, Accountable accountable) {}
-            });
+            this.bitsetFilterCache = new BitsetFilterCache(idxSettings, BitsetFilterCache.Listener.NOOP);
             MapperRegistry mapperRegistry = indicesModule.getMapperRegistry();
             mapperService = new MapperService(
                 clusterService,
@@ -625,13 +634,17 @@ public abstract class AbstractBuilderTestCase extends ESTestCase {
         }
 
         CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max) {
+            return createCoordinatorContext(dateFieldType, min, max, "");
+        }
+
+        CoordinatorRewriteContext createCoordinatorContext(DateFieldMapper.DateFieldType dateFieldType, long min, long max, String tier) {
             DateFieldRangeInfo timestampFieldInfo = new DateFieldRangeInfo(
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max)),
                 dateFieldType,
                 IndexLongFieldRange.NO_SHARDS.extendWithShardRange(0, 1, ShardLongFieldRange.of(min, max))
             );
-            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo);
+            return new CoordinatorRewriteContext(parserConfiguration, this.client, () -> nowInMillis, timestampFieldInfo, tier);
         }
 
         DataRewriteContext createDataContext() {

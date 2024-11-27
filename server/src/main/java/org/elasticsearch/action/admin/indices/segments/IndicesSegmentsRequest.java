@@ -34,7 +34,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         if (in.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             in.readBoolean();   // old 'verbose' option, since removed
         }
-        if (in.getTransportVersion().onOrAfter(TransportVersions.INDEX_SEGMENTS_VECTOR_FORMATS)) {
+        if (in.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             this.includeVectorFormatsInfo = in.readBoolean();
         }
     }
@@ -59,7 +59,7 @@ public class IndicesSegmentsRequest extends BroadcastRequest<IndicesSegmentsRequ
         if (out.getTransportVersion().before(TransportVersions.V_8_0_0)) {
             out.writeBoolean(false);
         }
-        if (out.getTransportVersion().onOrAfter(TransportVersions.INDEX_SEGMENTS_VECTOR_FORMATS)) {
+        if (out.getTransportVersion().onOrAfter(TransportVersions.V_8_15_0)) {
             out.writeBoolean(includeVectorFormatsInfo);
         }
     }

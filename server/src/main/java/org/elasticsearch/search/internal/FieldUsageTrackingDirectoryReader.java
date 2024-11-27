@@ -104,15 +104,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
         }
 
         @Override
-        public Fields getTermVectors(int docID) throws IOException {
-            Fields f = super.getTermVectors(docID);
-            if (f != null) {
-                f = new FieldUsageTrackingTermVectorFields(f);
-            }
-            return f;
-        }
-
-        @Override
         public TermVectors termVectors() throws IOException {
             TermVectors termVectors = super.termVectors();
             return new TermVectors() {
@@ -134,11 +125,6 @@ public class FieldUsageTrackingDirectoryReader extends FilterDirectoryReader {
                 notifier.onPointsUsed(field);
             }
             return pointValues;
-        }
-
-        @Override
-        public void document(final int docID, final StoredFieldVisitor visitor) throws IOException {
-            storedFields().document(docID, visitor);
         }
 
         @Override

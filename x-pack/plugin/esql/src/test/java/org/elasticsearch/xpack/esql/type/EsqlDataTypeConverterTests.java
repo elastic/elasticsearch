@@ -30,6 +30,7 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.GEO_SHAPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.HALF_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.INTEGER;
 import static org.elasticsearch.xpack.esql.core.type.DataType.IP;
+import static org.elasticsearch.xpack.esql.core.type.DataType.KEYWORD;
 import static org.elasticsearch.xpack.esql.core.type.DataType.LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.NULL;
 import static org.elasticsearch.xpack.esql.core.type.DataType.OBJECT;
@@ -37,7 +38,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.PARTIAL_AGG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SCALED_FLOAT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SHORT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.SOURCE;
-import static org.elasticsearch.xpack.esql.core.type.DataType.TEXT;
 import static org.elasticsearch.xpack.esql.core.type.DataType.TSID_DATA_TYPE;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.core.type.DataType.UNSUPPORTED;
@@ -62,8 +62,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
     }
 
     public void testCommonTypeStrings() {
-        List<DataType> STRINGS = Arrays.stream(DataType.values()).filter(DataType::isString).toList();
-        for (DataType dataType1 : STRINGS) {
+        for (DataType dataType1 : DataType.stringTypes()) {
             for (DataType dataType2 : DataType.values()) {
                 if (dataType2 == NULL) {
                     assertEqualsCommonType(dataType1, NULL, dataType1);
@@ -71,7 +70,7 @@ public class EsqlDataTypeConverterTests extends ESTestCase {
                     if (dataType1 == dataType2) {
                         assertEqualsCommonType(dataType1, dataType2, dataType1);
                     } else {
-                        assertEqualsCommonType(dataType1, dataType2, TEXT);
+                        assertEqualsCommonType(dataType1, dataType2, KEYWORD);
                     }
                 } else {
                     assertNullCommonType(dataType1, dataType2);

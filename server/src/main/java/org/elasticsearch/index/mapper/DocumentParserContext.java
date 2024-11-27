@@ -104,21 +104,29 @@ public abstract class DocumentParserContext {
         }
     }
 
+    /**
+     * Defines the scope parser is currently in.
+     * This is used for synthetic source related logic during parsing.
+     */
+    private enum Scope {
+        SINGLETON,
+        ARRAY,
+        NESTED
+    }
+
     private final MappingLookup mappingLookup;
     private final MappingParserContext mappingParserContext;
     private final SourceToParse sourceToParse;
 
     private final Set<String> ignoredFields;
     private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues;
-    private final List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsMissingValues;
-    private final boolean inArrayScopeEnabled;
-    private boolean inArrayScope;
+    private Scope currentScope;
 
     private final Map<String, List<Mapper>> dynamicMappers;
     private final DynamicMapperSize dynamicMappersSize;
     private final Map<String, ObjectMapper> dynamicObjectMappers;
     private final Map<String, List<RuntimeField>> dynamicRuntimeFields;
-    private final DocumentDimensions dimensions;
+    private final RoutingFields routingFields;
     private final ObjectMapper parent;
     private final ObjectMapper.Dynamic dynamic;
     private String id;
@@ -143,16 +151,14 @@ public abstract class DocumentParserContext {
         SourceToParse sourceToParse,
         Set<String> ignoreFields,
         List<IgnoredSourceFieldMapper.NameValue> ignoredFieldValues,
-        List<IgnoredSourceFieldMapper.NameValue> ignoredFieldsWithNoSource,
-        boolean inArrayScopeEnabled,
-        boolean inArrayScope,
+        Scope currentScope,
         Map<String, List<Mapper>> dynamicMappers,
         Map<String, ObjectMapper> dynamicObjectMappers,
         Map<String, List<RuntimeField>> dynamicRuntimeFields,
         String id,
         Field version,
         SeqNoFieldMapper.SequenceIDFields seqID,
-        DocumentDimensions dimensions,
+        RoutingFields routingFields,
         ObjectMapper parent,
         ObjectMapper.Dynamic dynamic,
         Set<String> fieldsAppliedFromTemplates,
@@ -165,16 +171,14 @@ public abstract class DocumentParserContext {
         this.sourceToParse = sourceToParse;
         this.ignoredFields = ignoreFields;
         this.ignoredFieldValues = ignoredFieldValues;
-        this.ignoredFieldsMissingValues = ignoredFieldsWithNoSource;
-        this.inArrayScopeEnabled = inArrayScopeEnabled;
-        this.inArrayScope = inArrayScope;
+        this.currentScope = currentScope;
         this.dynamicMappers = dynamicMappers;
         this.dynamicObjectMappers = dynamicObjectMappers;
         this.dynamicRuntimeFields = dynamicRuntimeFields;
         this.id = id;
         this.version = version;
         this.seqID = seqID;
-        this.dimensions = dimensions;
+        this.routingFields = routingFields;
         this.parent = parent;
         this.dynamic = dynamic;
         this.fieldsAppliedFromTemplates = fieldsAppliedFromTemplates;
@@ -190,16 +194,14 @@ public abstract class DocumentParserContext {
             in.sourceToParse,
             in.ignoredFields,
             in.ignoredFieldValues,
-            in.ignoredFieldsMissingValues,
-            in.inArrayScopeEnabled,
-            in.inArrayScope,
+            in.currentScope,
             in.dynamicMappers,
             in.dynamicObjectMappers,
             in.dynamicRuntimeFields,
             in.id,
             in.version,
             in.seqID,
-            in.dimensions,
+            in.routingFields,
             parent,
             dynamic,
             in.fieldsAppliedFromTemplates,
@@ -222,16 +224,14 @@ public abstract class DocumentParserContext {
             source,
             new HashSet<>(),
             new ArrayList<>(),
-            new ArrayList<>(),
-            mappingParserContext.getIndexSettings().isSyntheticSourceSecondDocParsingPassEnabled(),
-            false,
+            Scope.SINGLETON,
             new HashMap<>(),
             new HashMap<>(),
             new HashMap<>(),
             null,
             null,
             SeqNoFieldMapper.SequenceIDFields.emptySeqID(),
-            DocumentDimensions.fromIndexSettings(mappingParserContext.getIndexSettings()),
+            RoutingFields.fromIndexSettings(mappingParserContext.getIndexSettings()),
             parent,
             dynamic,
             new HashSet<>(),
@@ -315,13 +315,6 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Remove duplicate ignored values, using the passed set of field names as reference
-     */
-    public final void deduplicateIgnoredFieldValues(final Set<String> fullNames) {
-        ignoredFieldValues.removeIf(nv -> fullNames.contains(nv.name()));
-    }
-
-    /**
      * Adds an ignored field from the parser context, capturing an object or an array.
      *
      * In case of nested arrays, i.e. capturing an array within an array, elements tracked as ignored fields may interfere with
@@ -335,17 +328,11 @@ public abstract class DocumentParserContext {
     public final DocumentParserContext addIgnoredFieldFromContext(IgnoredSourceFieldMapper.NameValue ignoredFieldWithNoSource)
         throws IOException {
         if (canAddIgnoredField()) {
-            if (inArrayScope) {
-                // The field is an array within an array, store all sub-array elements.
-                ignoredFieldsMissingValues.add(ignoredFieldWithNoSource);
-                return cloneWithRecordedSource();
-            } else {
-                assert ignoredFieldWithNoSource != null;
-                assert ignoredFieldWithNoSource.value() == null;
-                Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
-                addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
-                return tuple.v1();
-            }
+            assert ignoredFieldWithNoSource != null;
+            assert ignoredFieldWithNoSource.value() == null;
+            Tuple<DocumentParserContext, XContentBuilder> tuple = XContentDataHelper.cloneSubContext(this);
+            addIgnoredField(ignoredFieldWithNoSource.cloneWithValue(XContentDataHelper.encodeXContentBuilder(tuple.v2())));
+            return tuple.v1();
         }
         return this;
     }
@@ -365,24 +352,17 @@ public abstract class DocumentParserContext {
     }
 
     /**
-     * Return the collection of fields that are missing their source values.
-     */
-    public final Collection<IgnoredSourceFieldMapper.NameValue> getIgnoredFieldsMissingValues() {
-        return Collections.unmodifiableCollection(ignoredFieldsMissingValues);
-    }
-
-    /**
      * Clones the current context to mark it as an array, if it's not already marked, or restore it if it's within a nested object.
      * Applies to synthetic source only.
      */
     public final DocumentParserContext maybeCloneForArray(Mapper mapper) throws IOException {
-        if (canAddIgnoredField() && mapper instanceof ObjectMapper && inArrayScopeEnabled) {
-            boolean isNested = mapper instanceof NestedObjectMapper;
-            if ((inArrayScope == false && isNested == false) || (inArrayScope && isNested)) {
-                DocumentParserContext subcontext = switchParser(parser());
-                subcontext.inArrayScope = inArrayScope == false;
-                return subcontext;
-            }
+        if (canAddIgnoredField()
+            && mapper instanceof ObjectMapper
+            && mapper instanceof NestedObjectMapper == false
+            && currentScope != Scope.ARRAY) {
+            DocumentParserContext subcontext = switchParser(parser());
+            subcontext.currentScope = Scope.ARRAY;
+            return subcontext;
         }
         return this;
     }
@@ -517,11 +497,7 @@ public abstract class DocumentParserContext {
                     if (canAddIgnoredField()) {
                         try {
                             addIgnoredField(
-                                IgnoredSourceFieldMapper.NameValue.fromContext(
-                                    this,
-                                    mapper.fullPath(),
-                                    XContentDataHelper.encodeToken(parser())
-                                )
+                                IgnoredSourceFieldMapper.NameValue.fromContext(this, mapper.fullPath(), encodeFlattenedToken())
                             );
                         } catch (IOException e) {
                             throw new IllegalArgumentException("failed to parse field [" + mapper.fullPath() + " ]", e);
@@ -672,6 +648,10 @@ public abstract class DocumentParserContext {
         return false;
     }
 
+    boolean inArrayScope() {
+        return currentScope == Scope.ARRAY;
+    }
+
     public final DocumentParserContext createChildContext(ObjectMapper parent) {
         return new Wrapper(parent, this);
     }
@@ -709,12 +689,15 @@ public abstract class DocumentParserContext {
      * Return a new context that has the provided document as the current document.
      */
     public final DocumentParserContext switchDoc(final LuceneDocument document) {
-        return new Wrapper(this.parent, this) {
+        DocumentParserContext cloned = new Wrapper(this.parent, this) {
             @Override
             public LuceneDocument doc() {
                 return document;
             }
         };
+
+        cloned.currentScope = Scope.NESTED;
+        return cloned;
     }
 
     /**
@@ -779,8 +762,8 @@ public abstract class DocumentParserContext {
     /**
      * The collection of dimensions for this document.
      */
-    public DocumentDimensions getDimensions() {
-        return dimensions;
+    public RoutingFields getRoutingFields() {
+        return routingFields;
     }
 
     public abstract ContentPath path();

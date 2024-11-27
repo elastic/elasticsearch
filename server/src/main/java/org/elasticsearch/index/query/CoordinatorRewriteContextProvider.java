@@ -52,29 +52,38 @@ public class CoordinatorRewriteContextProvider {
             return null;
         }
         DateFieldRangeInfo dateFieldRangeInfo = mappingSupplier.apply(index);
-        if (dateFieldRangeInfo == null) {
-            return null;
-        }
-        DateFieldMapper.DateFieldType timestampFieldType = dateFieldRangeInfo.timestampFieldType();
         IndexLongFieldRange timestampRange = indexMetadata.getTimestampRange();
         IndexLongFieldRange eventIngestedRange = indexMetadata.getEventIngestedRange();
+        DateFieldMapper.DateFieldType timestampFieldType = null;
+        if (dateFieldRangeInfo != null) {
+            timestampFieldType = dateFieldRangeInfo.timestampFieldType();
 
-        if (timestampRange.containsAllShardRanges() == false) {
-            // if @timestamp range is not present or not ready in cluster state, fallback to using time series range (if present)
-            timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
-            // if timestampRange in the time series is null AND the eventIngestedRange is not ready for use, return null (no coord rewrite)
-            if (timestampRange == null && eventIngestedRange.containsAllShardRanges() == false) {
-                return null;
+            if (timestampRange.containsAllShardRanges() == false) {
+                // if @timestamp range is not present or not ready in cluster state, fallback to using time series range (if present)
+                timestampRange = indexMetadata.getTimeSeriesTimestampRange(timestampFieldType);
+                // if timestampRange in the time series is null AND the eventIngestedRange is not ready for use, return null (no coord
+                // rewrite)
+                if (timestampRange == null && eventIngestedRange.containsAllShardRanges() == false) {
+                    return null;
+                }
             }
         }
 
-        // the DateFieldRangeInfo from the mappingSupplier only has field types, but not ranges
-        // so create a new object with ranges pulled from cluster state
         return new CoordinatorRewriteContext(
             parserConfig,
             client,
             nowInMillis,
-            new DateFieldRangeInfo(timestampFieldType, timestampRange, dateFieldRangeInfo.eventIngestedFieldType(), eventIngestedRange)
+            dateFieldRangeInfo == null
+                ? null
+                // the DateFieldRangeInfo from the mappingSupplier only has field types, but not ranges
+                // so create a new object with ranges pulled from cluster state
+                : new DateFieldRangeInfo(
+                    timestampFieldType,
+                    timestampRange,
+                    dateFieldRangeInfo.eventIngestedFieldType(),
+                    eventIngestedRange
+                ),
+            indexMetadata.getTierPreference().isEmpty() == false ? indexMetadata.getTierPreference().getFirst() : ""
         );
     }
 }

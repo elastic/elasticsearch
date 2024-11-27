@@ -24,7 +24,6 @@ import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.script.AggregationScript;
 import org.elasticsearch.script.BucketAggregationScript;
 import org.elasticsearch.script.BucketAggregationSelectorScript;
-import org.elasticsearch.script.ClassPermission;
 import org.elasticsearch.script.DoubleValuesScript;
 import org.elasticsearch.script.FieldScript;
 import org.elasticsearch.script.FilterScript;
@@ -36,9 +35,8 @@ import org.elasticsearch.script.ScriptException;
 import org.elasticsearch.script.TermsSetQueryScript;
 import org.elasticsearch.search.lookup.SearchLookup;
 
-import java.security.AccessControlContext;
-import java.security.AccessController;
-import java.security.PrivilegedAction;
+import java.io.IOException;
+import java.io.UncheckedIOException;
 import java.text.ParseException;
 import java.util.ArrayList;
 import java.util.HashMap;
@@ -156,36 +154,14 @@ public class ExpressionScriptEngine implements ScriptEngine {
 
     @Override
     public <T> T compile(String scriptName, String scriptSource, ScriptContext<T> context, Map<String, String> params) {
-        // classloader created here
-        final SecurityManager sm = System.getSecurityManager();
         SpecialPermission.check();
-        Expression expr = AccessController.doPrivileged(new PrivilegedAction<Expression>() {
-            @Override
-            public Expression run() {
-                try {
-                    // snapshot our context here, we check on behalf of the expression
-                    AccessControlContext engineContext = AccessController.getContext();
-                    ClassLoader loader = getClass().getClassLoader();
-                    if (sm != null) {
-                        loader = new ClassLoader(loader) {
-                            @Override
-                            protected Class<?> loadClass(String name, boolean resolve) throws ClassNotFoundException {
-                                try {
-                                    engineContext.checkPermission(new ClassPermission(name));
-                                } catch (SecurityException e) {
-                                    throw new ClassNotFoundException(name, e);
-                                }
-                                return super.loadClass(name, resolve);
-                            }
-                        };
-                    }
-                    // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
-                    return JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS, loader);
-                } catch (ParseException e) {
-                    throw convertToScriptException("compile error", scriptSource, scriptSource, e);
-                }
-            }
-        });
+        Expression expr;
+        try {
+            // NOTE: validation is delayed to allow runtime vars, and we don't have access to per index stuff here
+            expr = JavascriptCompiler.compile(scriptSource, JavascriptCompiler.DEFAULT_FUNCTIONS);
+        } catch (ParseException e) {
+            throw convertToScriptException("compile error", scriptSource, scriptSource, e);
+        }
         if (contexts.containsKey(context) == false) {
             throw new IllegalArgumentException("expression engine does not know how to handle script context [" + context.name + "]");
         }
@@ -233,7 +209,11 @@ public class ExpressionScriptEngine implements ScriptEngine {
                             placeholder.setValue(((Number) value).doubleValue());
                         }
                     });
-                    return expr.evaluate(functionValuesArray);
+                    try {
+                        return expr.evaluate(functionValuesArray);
+                    } catch (IOException e) {
+                        throw new UncheckedIOException(e);
+                    }
                 }
             };
         };

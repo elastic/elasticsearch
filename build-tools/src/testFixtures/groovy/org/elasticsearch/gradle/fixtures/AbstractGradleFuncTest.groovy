@@ -56,7 +56,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         propertiesFile <<
             "org.gradle.java.installations.fromEnv=JAVA_HOME,RUNTIME_JAVA_HOME,JAVA15_HOME,JAVA14_HOME,JAVA13_HOME,JAVA12_HOME,JAVA11_HOME,JAVA8_HOME"
 
-        def nativeLibsProject = subProject(":libs:elasticsearch-native:elasticsearch-native-libraries")
+        def nativeLibsProject = subProject(":libs:native:native-libraries")
         nativeLibsProject << """
             plugins {
                 id 'base'
@@ -168,7 +168,6 @@ abstract class AbstractGradleFuncTest extends Specification {
           ${extraPlugins.collect { p -> "id '$p'" }.join('\n')}
         }
         import org.elasticsearch.gradle.Architecture
-        import org.elasticsearch.gradle.internal.info.BuildParams
 
         import org.elasticsearch.gradle.internal.BwcVersions
         import org.elasticsearch.gradle.Version
@@ -182,7 +181,7 @@ abstract class AbstractGradleFuncTest extends Specification {
         ]
 
         BwcVersions versions = new BwcVersions(currentVersion, versionList)
-        BuildParams.init { it.setBwcVersions(provider(() -> versions)) }
+        buildParams.getBwcVersionsProperty().set(versions)
         """
     }
 

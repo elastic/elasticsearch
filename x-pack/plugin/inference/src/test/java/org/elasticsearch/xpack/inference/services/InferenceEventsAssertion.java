@@ -12,7 +12,6 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.inference.InferenceServiceResults;
-import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.xcontent.XContentFactory;
 import org.hamcrest.MatcherAssert;
 import org.hamcrest.Matchers;
@@ -26,6 +25,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Stream;
 
+import static org.elasticsearch.test.ESTestCase.fail;
 import static org.elasticsearch.xcontent.ToXContent.EMPTY_PARAMS;
 import static org.hamcrest.CoreMatchers.is;
 
@@ -47,7 +47,9 @@ public record InferenceEventsAssertion(Iterator<String> events, Throwable error,
     }
 
     public InferenceEventsAssertion hasNoErrors() {
-        MatcherAssert.assertThat("Expected no errors from stream.", error, Matchers.nullValue());
+        if (error != null) {
+            fail(error, "Expected no errors from stream.");
+        }
         return this;
     }
 
@@ -66,7 +68,7 @@ public record InferenceEventsAssertion(Iterator<String> events, Throwable error,
             }
             t = t.getCause();
         }
-        ESTestCase.fail(error, "Expected an underlying ElasticsearchStatusException.");
+        fail(error, "Expected an underlying ElasticsearchStatusException.");
         return this;
     }
 
@@ -79,7 +81,7 @@ public record InferenceEventsAssertion(Iterator<String> events, Throwable error,
             }
             t = t.getCause();
         }
-        ESTestCase.fail(error, "Expected exception to contain string: " + message);
+        fail(error, "Expected exception to contain string: " + message);
         return this;
     }
 

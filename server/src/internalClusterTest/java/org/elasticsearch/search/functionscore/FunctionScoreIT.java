@@ -43,7 +43,7 @@ import static org.elasticsearch.search.builder.SearchSourceBuilder.searchSource;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
-import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.is;
@@ -137,41 +137,25 @@ public class FunctionScoreIT extends ESIntegTestCase {
         ensureYellow();
 
         Script script = new Script(ScriptType.INLINE, CustomScriptPlugin.NAME, "doc['random_score']", Collections.emptyMap());
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))
-                )
-            ),
-            response -> {
-                if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value, is(0L));
-                } else {
-                    assertThat(response.getHits().getTotalHits().value, is(1L));
-                }
-            }
-        );
 
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(
-                            new MatchAllQueryBuilder(),
-                            new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(script)),
-                                new FilterFunctionBuilder(scriptFunction(script)) }
-                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
-                    )
-                )
-            ),
-            response -> {
-                if (score < minScore) {
-                    assertThat(response.getHits().getTotalHits().value, is(0L));
-                } else {
-                    assertThat(response.getHits().getTotalHits().value, is(1L));
-                }
+        assertResponses(response -> {
+            if (score < minScore) {
+                assertThat(response.getHits().getTotalHits().value(), is(0L));
+            } else {
+                assertThat(response.getHits().getTotalHits().value(), is(1L));
             }
+        },
+            prepareSearch().setSource(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore))),
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                )
+            )
         );
     }
 
@@ -195,38 +179,27 @@ public class FunctionScoreIT extends ESIntegTestCase {
 
         final int finalNumMatchingDocs = numMatchingDocs;
 
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)
-                )
-            ),
-            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
+        assertResponses(
+            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs),
+            prepareSearch().setSource(searchSource().query(functionScoreQuery(scriptFunction(script)).setMinScore(minScore)).size(numDocs)),
+            prepareSearch().setSource(
+                searchSource().query(
+                    functionScoreQuery(
+                        new MatchAllQueryBuilder(),
+                        new FilterFunctionBuilder[] {
+                            new FilterFunctionBuilder(scriptFunction(script)),
+                            new FilterFunctionBuilder(scriptFunction(script)) }
+                    ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
+                ).size(numDocs)
+            )
         );
-
-        assertResponse(
-            client().search(
-                new SearchRequest(new String[] {}).source(
-                    searchSource().query(
-                        functionScoreQuery(
-                            new MatchAllQueryBuilder(),
-                            new FilterFunctionBuilder[] {
-                                new FilterFunctionBuilder(scriptFunction(script)),
-                                new FilterFunctionBuilder(scriptFunction(script)) }
-                        ).scoreMode(FunctionScoreQuery.ScoreMode.AVG).setMinScore(minScore)
-                    ).size(numDocs)
-                )
-            ),
-            response -> assertMinScoreSearchResponses(numDocs, response, finalNumMatchingDocs)
-        );
-
     }
 
     protected void assertMinScoreSearchResponses(int numDocs, SearchResponse searchResponse, int numMatchingDocs) {
         assertNoFailures(searchResponse);
-        assertThat((int) searchResponse.getHits().getTotalHits().value, is(numMatchingDocs));
+        assertThat((int) searchResponse.getHits().getTotalHits().value(), is(numMatchingDocs));
         int pos = 0;
-        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value; hitId--) {
+        for (int hitId = numDocs - 1; (numDocs - hitId) < searchResponse.getHits().getTotalHits().value(); hitId--) {
             assertThat(searchResponse.getHits().getAt(pos).getId(), equalTo(Integer.toString(hitId)));
             pos++;
         }
@@ -242,7 +215,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
         assertNoFailuresAndResponse(
             client().search(new SearchRequest(new String[] {}).source(searchSource().explain(true).query(termQuery("text", "text")))),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 termQueryScore[0] = response.getHits().getAt(0).getScore();
             }
         );
@@ -259,7 +232,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                 )
             ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getScore(), equalTo(expectedScore));
             }
         );
@@ -269,7 +242,7 @@ public class FunctionScoreIT extends ESIntegTestCase {
                     searchSource().explain(true).query(functionScoreQuery(termQuery("text", "text")).boostMode(boostMode).setMinScore(2f))
                 )
             ),
-            response -> assertThat(response.getHits().getTotalHits().value, equalTo(0L))
+            response -> assertThat(response.getHits().getTotalHits().value(), equalTo(0L))
         );
     }
 }

@@ -23,15 +23,24 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
     public void testIndexCreation() throws Exception {
-        var indexService = createIndex("my-index1");
+        Settings settings = Settings.builder().put("index.mapping.depth.limit", 10).build();
+        var indexService = createIndex("my-index1", settings);
         assertFalse(indexService.getIndexSettings().getSettings().hasValue("index.refresh_interval"));
+        assertEquals("10", indexService.getIndexSettings().getSettings().get("index.mapping.depth.limit"));
 
         INDEX_SETTING_PROVIDER1_ENABLED.set(true);
-        indexService = createIndex("my-index2");
+        indexService = createIndex("my-index2", settings);
         assertTrue(indexService.getIndexSettings().getSettings().hasValue("index.refresh_interval"));
+        assertEquals("10", indexService.getIndexSettings().getSettings().get("index.mapping.depth.limit"));
 
+        INDEX_SETTING_OVERRULING.set(true);
+        indexService = createIndex("my-index3", settings);
+        assertTrue(indexService.getIndexSettings().getSettings().hasValue("index.refresh_interval"));
+        assertEquals("100", indexService.getIndexSettings().getSettings().get("index.mapping.depth.limit"));
+
+        INDEX_SETTING_DEPTH_ENABLED.set(false);
         INDEX_SETTING_PROVIDER2_ENABLED.set(true);
-        var e = expectThrows(IllegalArgumentException.class, () -> createIndex("my-index3"));
+        var e = expectThrows(IllegalArgumentException.class, () -> createIndex("my-index4", settings));
         assertEquals(
             "additional index setting [index.refresh_interval] added by [TestIndexSettingsProvider] is already present",
             e.getMessage()
@@ -47,7 +56,7 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
         @Override
         public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-            return List.of(new TestIndexSettingsProvider("index.refresh_interval", "-1", INDEX_SETTING_PROVIDER1_ENABLED));
+            return List.of(new TestIndexSettingsProvider("-1", INDEX_SETTING_PROVIDER1_ENABLED));
         }
 
     }
@@ -56,22 +65,22 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
 
         @Override
         public Collection<IndexSettingProvider> getAdditionalIndexSettingProviders(IndexSettingProvider.Parameters parameters) {
-            return List.of(new TestIndexSettingsProvider("index.refresh_interval", "100s", INDEX_SETTING_PROVIDER2_ENABLED));
+            return List.of(new TestIndexSettingsProvider("100s", INDEX_SETTING_PROVIDER2_ENABLED));
         }
     }
 
     private static final AtomicBoolean INDEX_SETTING_PROVIDER1_ENABLED = new AtomicBoolean(false);
     private static final AtomicBoolean INDEX_SETTING_PROVIDER2_ENABLED = new AtomicBoolean(false);
+    private static final AtomicBoolean INDEX_SETTING_DEPTH_ENABLED = new AtomicBoolean(true);
+    private static final AtomicBoolean INDEX_SETTING_OVERRULING = new AtomicBoolean(false);
 
     static class TestIndexSettingsProvider implements IndexSettingProvider {
 
-        private final String settingName;
-        private final String settingValue;
+        private final String intervalValue;
         private final AtomicBoolean enabled;
 
-        TestIndexSettingsProvider(String settingName, String settingValue, AtomicBoolean enabled) {
-            this.settingName = settingName;
-            this.settingValue = settingValue;
+        TestIndexSettingsProvider(String intervalValue, AtomicBoolean enabled) {
+            this.intervalValue = intervalValue;
             this.enabled = enabled;
         }
 
@@ -86,10 +95,19 @@ public class IndexSettingProviderTests extends ESSingleNodeTestCase {
             List<CompressedXContent> combinedTemplateMappings
         ) {
             if (enabled.get()) {
-                return Settings.builder().put(settingName, settingValue).build();
+                var builder = Settings.builder().put("index.refresh_interval", intervalValue);
+                if (INDEX_SETTING_DEPTH_ENABLED.get()) {
+                    builder.put("index.mapping.depth.limit", 100);
+                }
+                return builder.build();
             } else {
                 return Settings.EMPTY;
             }
+        }
+
+        @Override
+        public boolean overrulesTemplateAndRequestSettings() {
+            return INDEX_SETTING_OVERRULING.get();
         }
     }
 }

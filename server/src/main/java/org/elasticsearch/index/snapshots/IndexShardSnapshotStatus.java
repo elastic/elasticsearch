@@ -245,7 +245,11 @@ public class IndexShardSnapshotStatus {
     }
 
     public void ensureNotAborted() {
-        switch (stage.get()) {
+        ensureNotAborted(stage.get());
+    }
+
+    public static void ensureNotAborted(Stage shardSnapshotStage) {
+        switch (shardSnapshotStage) {
             case ABORTED -> throw new AbortedSnapshotException();
             case PAUSING -> throw new PausedSnapshotException();
         }

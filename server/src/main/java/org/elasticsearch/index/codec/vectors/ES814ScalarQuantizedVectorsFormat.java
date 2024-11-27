@@ -22,18 +22,17 @@ import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -246,9 +245,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, RandomAccessVectorValues values)
+        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -256,7 +255,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (factory != null) {
                     var scorer = factory.getInt7SQVectorScorerSupplier(
                         VectorSimilarityType.of(sim),
-                        values.getSlice(),
+                        qValues.getSlice(),
                         qValues,
                         qValues.getScalarQuantizer().getConstantMultiplier()
                     );
@@ -269,9 +268,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, float[] query)
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
@@ -287,7 +286,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, byte[] query)
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, byte[] query)
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }

@@ -1,0 +1,5 @@
+pr: 114837
+summary: Add warning headers for ingest pipelines containing special characters
+area: Ingest Node
+type: bug
+issues: [ 104411 ]

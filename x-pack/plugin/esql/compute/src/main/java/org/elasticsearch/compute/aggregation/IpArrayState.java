@@ -125,7 +125,7 @@ public final class IpArrayState extends AbstractArrayState implements GroupingAg
             for (int i = 0; i < selected.getPositionCount(); i++) {
                 int group = selected.getInt(i);
                 int ipIndex = getIndex(group);
-                if (ipIndex < values.size()) {
+                if (ipIndex + IP_LENGTH <= values.size()) {
                     var value = get(group, scratch);
                     valuesBuilder.appendBytesRef(value);
                 } else {

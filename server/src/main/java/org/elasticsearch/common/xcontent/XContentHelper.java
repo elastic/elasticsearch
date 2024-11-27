@@ -20,6 +20,7 @@ import org.elasticsearch.common.compress.CompressorFactory;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.core.CheckedFunction;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.xcontent.DeprecationHandler;
@@ -626,7 +627,22 @@ public class XContentHelper {
      */
     public static BytesReference toXContent(ToXContent toXContent, XContentType xContentType, Params params, boolean humanReadable)
         throws IOException {
-        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent())) {
+        return toXContent(toXContent, xContentType, RestApiVersion.current(), params, humanReadable);
+    }
+
+    /**
+     * Returns the bytes that represent the XContent output of the provided {@link ToXContent} object, using the provided
+     * {@link XContentType}. Wraps the output into a new anonymous object according to the value returned
+     * by the {@link ToXContent#isFragment()} method returns.
+     */
+    public static BytesReference toXContent(
+        ToXContent toXContent,
+        XContentType xContentType,
+        RestApiVersion restApiVersion,
+        Params params,
+        boolean humanReadable
+    ) throws IOException {
+        try (XContentBuilder builder = XContentBuilder.builder(xContentType.xContent(), restApiVersion)) {
             builder.humanReadable(humanReadable);
             if (toXContent.isFragment()) {
                 builder.startObject();

@@ -76,15 +76,15 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
     protected PhysicalPlan rule(FilterExec filterExec, LocalPhysicalOptimizerContext ctx) {
         PhysicalPlan plan = filterExec;
         if (filterExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewrite(filterExec, esQueryExec);
+            plan = rewrite(filterExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
         } else if (filterExec.child() instanceof EvalExec evalExec && evalExec.child() instanceof EsQueryExec esQueryExec) {
-            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec);
+            plan = rewriteBySplittingFilter(filterExec, evalExec, esQueryExec, LucenePushdownPredicates.from(ctx.searchStats()));
         }
 
         return plan;
     }
 
-    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec) {
+    private FilterExec rewrite(FilterExec filterExec, EsQueryExec esQueryExec, LucenePushdownPredicates lucenePushdownPredicates) {
         // Find and rewrite any binary comparisons that involve a distance function and a literal
         var rewritten = filterExec.condition().transformDown(EsqlBinaryComparison.class, comparison -> {
             ComparisonType comparisonType = ComparisonType.from(comparison.getFunctionType());
@@ -95,7 +95,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             }
             return comparison;
         });
-        if (rewritten.equals(filterExec.condition()) == false) {
+        if (rewritten.equals(filterExec.condition()) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
             return new FilterExec(filterExec.source(), esQueryExec, rewritten);
         }
         return filterExec;
@@ -119,9 +119,14 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
      *     | WHERE other &gt; 10
      * </pre>
      */
-    private PhysicalPlan rewriteBySplittingFilter(FilterExec filterExec, EvalExec evalExec, EsQueryExec esQueryExec) {
+    private PhysicalPlan rewriteBySplittingFilter(
+        FilterExec filterExec,
+        EvalExec evalExec,
+        EsQueryExec esQueryExec,
+        LucenePushdownPredicates lucenePushdownPredicates
+    ) {
         // Find all pushable distance functions in the EVAL
-        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields());
+        Map<NameId, StDistance> distances = getPushableDistances(evalExec.fields(), lucenePushdownPredicates);
 
         // Don't do anything if there are no distances to push down
         if (distances.isEmpty()) {
@@ -139,7 +144,7 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
             // Find and rewrite any binary comparisons that involve a distance function and a literal
             var rewritten = rewriteDistanceFilters(resExp, distances);
             // If all pushable StDistance functions were found and re-written, we need to re-write the FILTER/EVAL combination
-            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, x -> false)) {
+            if (rewritten.equals(resExp) == false && canPushToSource(rewritten, lucenePushdownPredicates)) {
                 pushable.add(rewritten);
             } else {
                 nonPushable.add(exp);
@@ -163,10 +168,10 @@ public class EnableSpatialDistancePushdown extends PhysicalOptimizerRules.Parame
         }
     }
 
-    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases) {
+    private Map<NameId, StDistance> getPushableDistances(List<Alias> aliases, LucenePushdownPredicates lucenePushdownPredicates) {
         Map<NameId, StDistance> distances = new LinkedHashMap<>();
         aliases.forEach(alias -> {
-            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance)) {
+            if (alias.child() instanceof StDistance distance && canPushSpatialFunctionToSource(distance, lucenePushdownPredicates)) {
                 distances.put(alias.id(), distance);
             } else if (alias.child() instanceof ReferenceAttribute ref && distances.containsKey(ref.id())) {
                 StDistance distance = distances.get(ref.id());

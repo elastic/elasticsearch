@@ -12,7 +12,6 @@ package org.elasticsearch.rest.action.document;
 import org.elasticsearch.action.termvectors.TermVectorsRequest;
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.VersionType;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
@@ -55,11 +54,7 @@ public class RestTermVectorsAction extends BaseRestHandler {
 
     @Override
     public RestChannelConsumer prepareRequest(final RestRequest request, final NodeClient client) throws IOException {
-        if (request.getRestApiVersion() == RestApiVersion.V_7 && request.hasParam("type")) {
-            request.param("type");
-        }
-        TermVectorsRequest termVectorsRequest;
-        termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
+        TermVectorsRequest termVectorsRequest = new TermVectorsRequest(request.param("index"), request.param("id"));
 
         if (request.hasContentOrSourceParam()) {
             try (XContentParser parser = request.contentOrSourceParamParser()) {

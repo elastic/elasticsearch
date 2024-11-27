@@ -25,6 +25,10 @@ import com.azure.storage.blob.BlobContainerAsyncClient;
 import com.azure.storage.blob.BlobContainerClient;
 import com.azure.storage.blob.BlobServiceAsyncClient;
 import com.azure.storage.blob.BlobServiceClient;
+import com.azure.storage.blob.batch.BlobBatch;
+import com.azure.storage.blob.batch.BlobBatchAsyncClient;
+import com.azure.storage.blob.batch.BlobBatchClientBuilder;
+import com.azure.storage.blob.batch.BlobBatchStorageException;
 import com.azure.storage.blob.models.BlobErrorCode;
 import com.azure.storage.blob.models.BlobItem;
 import com.azure.storage.blob.models.BlobItemProperties;
@@ -99,6 +103,8 @@ import static org.elasticsearch.core.Strings.format;
 
 public class AzureBlobStore implements BlobStore {
     private static final Logger logger = LogManager.getLogger(AzureBlobStore.class);
+    // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch#request-body
+    public static final int MAX_ELEMENTS_PER_BATCH = 256;
     private static final long DEFAULT_READ_CHUNK_SIZE = new ByteSizeValue(32, ByteSizeUnit.MB).getBytes();
     private static final int DEFAULT_UPLOAD_BUFFERS_SIZE = (int) new ByteSizeValue(64, ByteSizeUnit.KB).getBytes();
 
@@ -110,6 +116,8 @@ public class AzureBlobStore implements BlobStore {
     private final String container;
     private final LocationMode locationMode;
     private final ByteSizeValue maxSinglePartUploadSize;
+    private final int deletionBatchSize;
+    private final int maxConcurrentBatchDeletes;
 
     private final RequestMetricsRecorder requestMetricsRecorder;
     private final AzureClientProvider.RequestMetricsHandler requestMetricsHandler;
@@ -129,6 +137,8 @@ public class AzureBlobStore implements BlobStore {
         // locationMode is set per repository, not per client
         this.locationMode = Repository.LOCATION_MODE_SETTING.get(metadata.settings());
         this.maxSinglePartUploadSize = Repository.MAX_SINGLE_PART_UPLOAD_SIZE_SETTING.get(metadata.settings());
+        this.deletionBatchSize = Repository.DELETION_BATCH_SIZE_SETTING.get(metadata.settings());
+        this.maxConcurrentBatchDeletes = Repository.MAX_CONCURRENT_BATCH_DELETES_SETTING.get(metadata.settings());
 
         List<RequestMatcher> requestMatchers = List.of(
             new RequestMatcher((httpMethod, url) -> httpMethod == HttpMethod.HEAD, Operation.GET_BLOB_PROPERTIES),
@@ -147,17 +157,14 @@ public class AzureBlobStore implements BlobStore {
                     && isPutBlockRequest(httpMethod, url) == false
                     && isPutBlockListRequest(httpMethod, url) == false,
                 Operation.PUT_BLOB
-            )
+            ),
+            new RequestMatcher(AzureBlobStore::isBlobBatch, Operation.BLOB_BATCH)
         );
 
         this.requestMetricsHandler = (purpose, method, url, metrics) -> {
             try {
                 URI uri = url.toURI();
                 String path = uri.getPath() == null ? "" : uri.getPath();
-                // Batch delete requests
-                if (path.contains(container) == false) {
-                    return;
-                }
                 assert path.contains(container) : uri.toString();
             } catch (URISyntaxException ignored) {
                 return;
@@ -170,6 +177,10 @@ public class AzureBlobStore implements BlobStore {
                 }
             }
         };
+    }
+
+    private static boolean isBlobBatch(HttpMethod method, URL url) {
+        return method == HttpMethod.POST && url.getQuery() != null && url.getQuery().contains("comp=batch");
     }
 
     private static boolean isListRequest(HttpMethod httpMethod, URL url) {
@@ -231,95 +242,101 @@ public class AzureBlobStore implements BlobStore {
         }
     }
 
-    // number of concurrent blob delete requests to use while bulk deleting
-    private static final int CONCURRENT_DELETES = 100;
-
-    public DeleteResult deleteBlobDirectory(OperationPurpose purpose, String path) {
+    public DeleteResult deleteBlobDirectory(OperationPurpose purpose, String path) throws IOException {
         final AtomicInteger blobsDeleted = new AtomicInteger(0);
         final AtomicLong bytesDeleted = new AtomicLong(0);
 
         SocketAccess.doPrivilegedVoidException(() -> {
-            final BlobContainerAsyncClient blobContainerAsyncClient = asyncClient(purpose).getBlobContainerAsyncClient(container);
+            final AzureBlobServiceClient client = getAzureBlobServiceClientClient(purpose);
+            final BlobContainerAsyncClient blobContainerAsyncClient = client.getAsyncClient().getBlobContainerAsyncClient(container);
             final ListBlobsOptions options = new ListBlobsOptions().setPrefix(path)
                 .setDetails(new BlobListDetails().setRetrieveMetadata(true));
-            try {
-                blobContainerAsyncClient.listBlobs(options, null).flatMap(blobItem -> {
-                    if (blobItem.isPrefix() != null && blobItem.isPrefix()) {
-                        return Mono.empty();
-                    } else {
-                        final String blobName = blobItem.getName();
-                        BlobAsyncClient blobAsyncClient = blobContainerAsyncClient.getBlobAsyncClient(blobName);
-                        final Mono<Void> deleteTask = getDeleteTask(blobName, blobAsyncClient);
-                        bytesDeleted.addAndGet(blobItem.getProperties().getContentLength());
-                        blobsDeleted.incrementAndGet();
-                        return deleteTask;
-                    }
-                }, CONCURRENT_DELETES).then().block();
-            } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e, new IOException("Deleting directory [" + path + "] failed"));
-            }
+            final Flux<String> blobsFlux = blobContainerAsyncClient.listBlobs(options).filter(bi -> bi.isPrefix() == false).map(bi -> {
+                bytesDeleted.addAndGet(bi.getProperties().getContentLength());
+                blobsDeleted.incrementAndGet();
+                return bi.getName();
+            });
+            deleteListOfBlobs(client, blobsFlux);
         });
 
         return new DeleteResult(blobsDeleted.get(), bytesDeleted.get());
     }
 
-    private static void filterDeleteExceptionsAndRethrow(Exception e, IOException exception) throws IOException {
-        int suppressedCount = 0;
-        for (Throwable suppressed : e.getSuppressed()) {
-            // We're only interested about the blob deletion exceptions and not in the reactor internals exceptions
-            if (suppressed instanceof IOException) {
-                exception.addSuppressed(suppressed);
-                suppressedCount++;
-                if (suppressedCount > 10) {
-                    break;
-                }
-            }
+    @Override
+    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobNames) throws IOException {
+        if (blobNames.hasNext() == false) {
+            return;
         }
-        throw exception;
+        SocketAccess.doPrivilegedVoidException(
+            () -> deleteListOfBlobs(
+                getAzureBlobServiceClientClient(purpose),
+                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobNames, Spliterator.ORDERED), false))
+            )
+        );
+    }
+
+    private void deleteListOfBlobs(AzureBlobServiceClient azureBlobServiceClient, Flux<String> blobNames) throws IOException {
+        // We need to use a container-scoped BlobBatchClient, so the restype=container parameter
+        // is sent, and we can support all SAS token types
+        // See https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization
+        final BlobBatchAsyncClient batchAsyncClient = new BlobBatchClientBuilder(
+            azureBlobServiceClient.getAsyncClient().getBlobContainerAsyncClient(container)
+        ).buildAsyncClient();
+        final List<Throwable> errors;
+        final AtomicInteger errorsCollected = new AtomicInteger(0);
+        try {
+            errors = blobNames.buffer(deletionBatchSize).flatMap(blobs -> {
+                final BlobBatch blobBatch = batchAsyncClient.getBlobBatch();
+                blobs.forEach(blob -> blobBatch.deleteBlob(container, blob));
+                return batchAsyncClient.submitBatch(blobBatch).then(Mono.<Throwable>empty()).onErrorResume(t -> {
+                    // Ignore errors that are just 404s, send other errors downstream as values
+                    if (AzureBlobStore.isIgnorableBatchDeleteException(t)) {
+                        return Mono.empty();
+                    } else {
+                        // Propagate the first 10 errors only
+                        if (errorsCollected.getAndIncrement() < 10) {
+                            return Mono.just(t);
+                        } else {
+                            return Mono.empty();
+                        }
+                    }
+                });
+            }, maxConcurrentBatchDeletes).collectList().block();
+        } catch (Exception e) {
+            throw new IOException("Error deleting batches", e);
+        }
+        if (errors.isEmpty() == false) {
+            final int totalErrorCount = errorsCollected.get();
+            final String errorMessage = totalErrorCount > errors.size()
+                ? "Some errors occurred deleting batches, the first "
+                    + errors.size()
+                    + " are included as suppressed, but the total count was "
+                    + totalErrorCount
+                : "Some errors occurred deleting batches, all errors included as suppressed";
+            final IOException ex = new IOException(errorMessage);
+            errors.forEach(ex::addSuppressed);
+            throw ex;
+        }
     }
 
     /**
-     * {@inheritDoc}
-     * <p>
-     * Note that in this Azure implementation we issue a series of individual
-     * <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/delete-blob">delete blob</a> calls rather than aggregating
-     * deletions into <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch">blob batch</a> calls.
-     * The reason for this is that the blob batch endpoint has limited support for SAS token authentication.
+     * We can ignore {@link BlobBatchStorageException}s when they are just telling us some of the files were not found
      *
-     * @see <a href="https://learn.microsoft.com/en-us/rest/api/storageservices/blob-batch?tabs=shared-access-signatures#authorization">
-     *     API docs around SAS auth limitations</a>
-     * @see <a href="https://github.com/Azure/azure-storage-java/issues/538">Java SDK issue</a>
-     * @see <a href="https://github.com/elastic/elasticsearch/pull/65140#discussion_r528752070">Discussion on implementing PR</a>
+     * @param exception An exception throw by batch delete
+     * @return true if it is safe to ignore, false otherwise
      */
-    @Override
-    public void deleteBlobsIgnoringIfNotExists(OperationPurpose purpose, Iterator<String> blobs) {
-        if (blobs.hasNext() == false) {
-            return;
-        }
-
-        BlobServiceAsyncClient asyncClient = asyncClient(purpose);
-        SocketAccess.doPrivilegedVoidException(() -> {
-            final BlobContainerAsyncClient blobContainerClient = asyncClient.getBlobContainerAsyncClient(container);
-            try {
-                Flux.fromStream(StreamSupport.stream(Spliterators.spliteratorUnknownSize(blobs, Spliterator.ORDERED), false))
-                    .flatMap(blob -> getDeleteTask(blob, blobContainerClient.getBlobAsyncClient(blob)), CONCURRENT_DELETES)
-                    .then()
-                    .block();
-            } catch (Exception e) {
-                filterDeleteExceptionsAndRethrow(e, new IOException("Unable to delete blobs"));
+    private static boolean isIgnorableBatchDeleteException(Throwable exception) {
+        if (exception instanceof BlobBatchStorageException bbse) {
+            final Iterable<BlobStorageException> batchExceptions = bbse.getBatchExceptions();
+            for (BlobStorageException bse : batchExceptions) {
+                // If any requests failed with something other than a BLOB_NOT_FOUND, it is not ignorable
+                if (BlobErrorCode.BLOB_NOT_FOUND.equals(bse.getErrorCode()) == false) {
+                    return false;
+                }
             }
-        });
-    }
-
-    private static Mono<Void> getDeleteTask(String blobName, BlobAsyncClient blobAsyncClient) {
-        return blobAsyncClient.delete()
-            // Ignore not found blobs, as it's possible that due to network errors a request
-            // for an already deleted blob is retried, causing an error.
-            .onErrorResume(
-                e -> e instanceof BlobStorageException blobStorageException && blobStorageException.getStatusCode() == 404,
-                throwable -> Mono.empty()
-            )
-            .onErrorMap(throwable -> new IOException("Error deleting blob " + blobName, throwable));
+            return true;
+        }
+        return false;
     }
 
     public InputStream getInputStream(OperationPurpose purpose, String blob, long position, final @Nullable Long length) {
@@ -363,8 +380,7 @@ public class AzureBlobStore implements BlobStore {
 
                 for (final BlobItem blobItem : containerClient.listBlobsByHierarchy("/", listBlobsOptions, null)) {
                     BlobItemProperties properties = blobItem.getProperties();
-                    Boolean isPrefix = blobItem.isPrefix();
-                    if (isPrefix != null && isPrefix) {
+                    if (blobItem.isPrefix()) {
                         continue;
                     }
                     String blobName = blobItem.getName().substring(keyPath.length());
@@ -689,7 +705,8 @@ public class AzureBlobStore implements BlobStore {
         GET_BLOB_PROPERTIES("GetBlobProperties"),
         PUT_BLOB("PutBlob"),
         PUT_BLOCK("PutBlock"),
-        PUT_BLOCK_LIST("PutBlockList");
+        PUT_BLOCK_LIST("PutBlockList"),
+        BLOB_BATCH("BlobBatch");
 
         private final String key;
 

@@ -136,7 +136,7 @@ public class WordBoundaryChunkerTests extends ESTestCase {
     }
 
     public void testInvalidChunkingSettingsProvided() {
-        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomNonNegativeInt(), 0);
+        ChunkingSettings chunkingSettings = new SentenceBoundaryChunkingSettings(randomIntBetween(20, 300), 0);
         assertThrows(IllegalArgumentException.class, () -> { new WordBoundaryChunker().chunk(TEST_TEXT, chunkingSettings); });
     }
 

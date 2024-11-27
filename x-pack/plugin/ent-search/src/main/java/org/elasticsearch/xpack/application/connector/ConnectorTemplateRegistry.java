@@ -8,13 +8,10 @@
 package org.elasticsearch.xpack.application.connector;
 
 import org.elasticsearch.client.internal.Client;
-import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.ComposableIndexTemplate;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.features.FeatureService;
-import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.NamedXContentRegistry;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
@@ -32,8 +29,6 @@ import java.util.Map;
 import static org.elasticsearch.xpack.core.ClientHelper.ENT_SEARCH_ORIGIN;
 
 public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
-
-    public static final NodeFeature CONNECTOR_TEMPLATES_FEATURE = new NodeFeature("elastic-connectors.templates");
 
     // This number must be incremented when we make changes to built-in templates.
     static final int REGISTRY_VERSION = 3;
@@ -153,17 +148,13 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
         )
     );
 
-    private final FeatureService featureService;
-
     public ConnectorTemplateRegistry(
         ClusterService clusterService,
-        FeatureService featureService,
         ThreadPool threadPool,
         Client client,
         NamedXContentRegistry xContentRegistry
     ) {
         super(Settings.EMPTY, clusterService, threadPool, client, xContentRegistry);
-        this.featureService = featureService;
     }
 
     @Override
@@ -185,10 +176,5 @@ public class ConnectorTemplateRegistry extends IndexTemplateRegistry {
     protected boolean requiresMasterNode() {
         // Necessary to prevent conflicts in some mixed-cluster environments with pre-7.7 nodes
         return true;
-    }
-
-    @Override
-    protected boolean isClusterReady(ClusterChangedEvent event) {
-        return featureService.clusterHasFeature(event.state(), CONNECTOR_TEMPLATES_FEATURE);
     }
 }

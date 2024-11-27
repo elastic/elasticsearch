@@ -157,7 +157,8 @@ public class IpDocValuesField extends AbstractScriptFieldFactory<IPAddress>
         public void setNextDocId(int docId) throws IOException {
             count = 0;
             if (in.advanceExact(docId)) {
-                for (long ord = in.nextOrd(); ord != SortedSetDocValues.NO_MORE_ORDS; ord = in.nextOrd()) {
+                for (int i = 0; i < in.docValueCount(); i++) {
+                    long ord = in.nextOrd();
                     ords = ArrayUtil.grow(ords, count + 1);
                     ords[count++] = ord;
                 }

@@ -637,10 +637,15 @@ public class LocalStateCompositeXPackPlugin extends XPackPlugin
 
     @Override
     public Map<String, MetadataFieldMapper.TypeParser> getMetadataMappers() {
-        return filterPlugins(MapperPlugin.class).stream()
+        Map<String, MetadataFieldMapper.TypeParser> pluginsMetadataMappers = filterPlugins(MapperPlugin.class).stream()
             .map(MapperPlugin::getMetadataMappers)
             .flatMap(map -> map.entrySet().stream())
             .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+
+        // the xpack plugin itself exposes a metadata mapper so let's include it as well
+        Map<String, MetadataFieldMapper.TypeParser> metadataMappersIncludingXPackPlugin = new HashMap<>(pluginsMetadataMappers);
+        metadataMappersIncludingXPackPlugin.putAll(super.getMetadataMappers());
+        return metadataMappersIncludingXPackPlugin;
     }
 
     @Override

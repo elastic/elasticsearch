@@ -24,9 +24,11 @@ import org.apache.lucene.tests.index.RandomIndexWriter;
 import org.apache.lucene.tests.mockfile.HandleLimitFS;
 import org.apache.lucene.tests.util.LuceneTestCase;
 import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.lucene.Lucene;
+import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -500,7 +502,10 @@ public class ValuesSourceReaderOperatorTests extends OperatorTestCase {
 
             @Override
             public IndexSettings indexSettings() {
-                throw new UnsupportedOperationException();
+                var imd = IndexMetadata.builder("test_index")
+                    .settings(ValueSourceReaderTypeConversionTests.indexSettings(IndexVersion.current(), 1, 1).put(Settings.EMPTY))
+                    .build();
+                return new IndexSettings(imd, Settings.EMPTY);
             }
 
             @Override

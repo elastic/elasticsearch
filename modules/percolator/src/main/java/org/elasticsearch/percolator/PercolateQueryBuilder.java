@@ -46,7 +46,6 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.IndexVersion;
 import org.elasticsearch.index.IndexVersions;
 import org.elasticsearch.index.fielddata.FieldDataContext;
@@ -54,7 +53,6 @@ import org.elasticsearch.index.fielddata.IndexFieldData;
 import org.elasticsearch.index.fielddata.IndexFieldDataCache;
 import org.elasticsearch.index.mapper.LuceneDocument;
 import org.elasticsearch.index.mapper.MappedFieldType;
-import org.elasticsearch.index.mapper.MapperService;
 import org.elasticsearch.index.mapper.NestedLookup;
 import org.elasticsearch.index.mapper.ParsedDocument;
 import org.elasticsearch.index.mapper.SourceToParse;
@@ -85,7 +83,6 @@ import java.util.Objects;
 import java.util.function.BiConsumer;
 import java.util.function.Supplier;
 
-import static org.elasticsearch.core.RestApiVersion.equalTo;
 import static org.elasticsearch.search.SearchService.ALLOW_EXPENSIVE_QUERIES;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
@@ -312,9 +309,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             if (indexedDocumentIndex != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_INDEX.getPreferredName(), indexedDocumentIndex);
             }
-            if (builder.getRestApiVersion() == RestApiVersion.V_7) {
-                builder.field(INDEXED_DOCUMENT_FIELD_TYPE.getPreferredName(), MapperService.SINGLE_MAPPING_NAME);
-            }
             if (indexedDocumentId != null) {
                 builder.field(INDEXED_DOCUMENT_FIELD_ID.getPreferredName(), indexedDocumentId);
             }
@@ -371,14 +365,6 @@ public class PercolateQueryBuilder extends AbstractQueryBuilder<PercolateQueryBu
             DOCUMENT_FIELD.getPreferredName(),
             DOCUMENTS_FIELD.getPreferredName(),
             INDEXED_DOCUMENT_FIELD_ID.getPreferredName()
-        );
-        PARSER.declareString(
-            deprecateAndIgnoreType("percolate_with_type", TYPE_DEPRECATION_MESSAGE),
-            INDEXED_DOCUMENT_FIELD_TYPE.forRestApiVersion(equalTo(RestApiVersion.V_7))
-        );
-        PARSER.declareString(
-            deprecateAndIgnoreType("percolate_with_document_type", DOCUMENT_TYPE_DEPRECATION_MESSAGE),
-            DOCUMENT_TYPE_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7))
         );
     }
 

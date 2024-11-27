@@ -179,7 +179,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setQuery(request.getQuery())
             .setTrackTotalHits(true)
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 EventsIndex resampledIndex = mediumDownsampled.getResampledIndex(request.getSampleSize(), sampleCount);
                 log.debug(
                     "User requested [{}] samples, [{}] samples matched in [{}]. Picking [{}]",
@@ -220,7 +220,7 @@ public class TransportGetStackTracesAction extends TransportAction<GetStackTrace
             .setPreference(String.valueOf(request.hashCode()))
             .setQuery(request.getQuery())
             .execute(ActionListener.wrap(searchResponse -> {
-                long sampleCount = searchResponse.getHits().getTotalHits().value;
+                long sampleCount = searchResponse.getHits().getTotalHits().value();
                 int requestedSampleCount = request.getSampleSize();
                 // random sampler aggregation does not support sampling rates between 0.5 and 1.0 -> clamp to 1.0
                 if (sampleCount <= requestedSampleCount * 2L) {

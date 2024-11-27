@@ -136,7 +136,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testMergeEnabledForIndexTemplates() throws IOException {
-        MapperService mapperService = createMapperService(syntheticSourceMapping(b -> {}));
+        MapperService mapperService = createSytheticSourceMapperService(mapping(b -> {}));
         merge(mapperService, MergeReason.INDEX_TEMPLATE, mapping(b -> {
             b.startObject("object");
             {
@@ -685,9 +685,9 @@ public class ObjectMapperTests extends MapperServiceTestCase {
     }
 
     public void testStoreArraySourceinSyntheticSourceMode() throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("o").field("type", "object").field("synthetic_source_keep", "arrays").endObject();
-        }));
+        })).documentMapper();
         assertNotNull(mapper.mapping().getRoot().getMapper("o"));
     }
 
@@ -728,7 +728,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
 
     private ObjectMapper createObjectMapperWithAllParametersSet(CheckedConsumer<XContentBuilder, IOException> propertiesBuilder)
         throws IOException {
-        DocumentMapper mapper = createDocumentMapper(syntheticSourceMapping(b -> {
+        DocumentMapper mapper = createSytheticSourceMapperService(mapping(b -> {
             b.startObject("object");
             {
                 b.field("type", "object");
@@ -741,7 +741,7 @@ public class ObjectMapperTests extends MapperServiceTestCase {
                 b.endObject();
             }
             b.endObject();
-        }));
+        })).documentMapper();
         return (ObjectMapper) mapper.mapping().getRoot().getMapper("object");
     }
 

@@ -16,8 +16,10 @@ import java.util.Set;
 
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS;
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS;
+import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_ADDITION;
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION;
 import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_MAPPING_VALIDATION_TEMPLATES;
+import static org.elasticsearch.action.bulk.TransportSimulateBulkAction.SIMULATE_SUPPORT_NON_TEMPLATE_MAPPING;
 
 public class BulkFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
@@ -25,7 +27,9 @@ public class BulkFeatures implements FeatureSpecification {
             SIMULATE_MAPPING_VALIDATION,
             SIMULATE_MAPPING_VALIDATION_TEMPLATES,
             SIMULATE_COMPONENT_TEMPLATE_SUBSTITUTIONS,
-            SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS
+            SIMULATE_INDEX_TEMPLATE_SUBSTITUTIONS,
+            SIMULATE_MAPPING_ADDITION,
+            SIMULATE_SUPPORT_NON_TEMPLATE_MAPPING
         );
     }
 }

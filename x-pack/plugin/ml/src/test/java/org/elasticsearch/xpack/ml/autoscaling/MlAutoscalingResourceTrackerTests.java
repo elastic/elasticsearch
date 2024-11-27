@@ -22,6 +22,7 @@ import org.elasticsearch.xpack.core.ml.MlTasks;
 import org.elasticsearch.xpack.core.ml.action.OpenJobAction;
 import org.elasticsearch.xpack.core.ml.action.StartTrainedModelDeploymentAction;
 import org.elasticsearch.xpack.core.ml.autoscaling.MlAutoscalingStats;
+import org.elasticsearch.xpack.core.ml.inference.assignment.AdaptiveAllocationsSettings;
 import org.elasticsearch.xpack.core.ml.inference.assignment.AssignmentState;
 import org.elasticsearch.xpack.core.ml.inference.assignment.Priority;
 import org.elasticsearch.xpack.core.ml.inference.assignment.RoutingInfo;
@@ -1795,6 +1796,172 @@ public class MlAutoscalingResourceTrackerTests extends ESTestCase {
                 assertEquals(0, stats.wantedExtraProcessors());
                 assertEquals(0, stats.wantedExtraModelMemoryBytes());
                 assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsScaleDownForModelWithZeroAllocations() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
+        );
+
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(
+                "model-with-zero-allocations",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-with-zero-allocations",
+                        "model-with-zero-allocations-deployment",
+                        400,
+                        0,
+                        2,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    ),
+                    new AdaptiveAllocationsSettings(true, 0, 4)
+                ).build()
+            ),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-node-1", memory),
+                600000000,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(0, 0),
+                1,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(0, stats.currentTotalModelMemoryBytes());
+                assertEquals(0, stats.currentTotalProcessorsInUse());
+                assertEquals(1, stats.currentTotalNodes());
+                assertEquals(0, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(memory, stats.unwantedNodeMemoryBytesToRemove());
+                assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
+            }
+        );
+    }
+
+    public void testGetMemoryAndProcessorsIgnoreThreadsOfModelWithZeroAllocations() throws InterruptedException {
+        long memory = 1000000000;
+        Map<String, String> nodeAttr = Map.of(
+            MachineLearning.MACHINE_MEMORY_NODE_ATTR,
+            Long.toString(memory),
+            MachineLearning.MAX_JVM_SIZE_NODE_ATTR,
+            "400000000",
+            MachineLearning.ML_CONFIG_VERSION_NODE_ATTR,
+            "7.2.0",
+            MachineLearning.ALLOCATED_PROCESSORS_NODE_ATTR,
+            "2.0"
+        );
+
+        MlAutoscalingContext mlAutoscalingContext = new MlAutoscalingContext(
+            List.of(),
+            List.of(),
+            List.of(),
+            Map.of(
+                "model-with-one-allocation",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-with-one-allocation",
+                        "model-with-one-allocation-deployment",
+                        400,
+                        1,
+                        2,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    ),
+                    null
+                ).addRoutingEntry("ml-node-1", new RoutingInfo(1, 1, RoutingState.STARTED, "")).build(),
+                "model-with-zero-allocations",
+                TrainedModelAssignment.Builder.empty(
+                    new StartTrainedModelDeploymentAction.TaskParams(
+                        "model-with-zero-allocations",
+                        "model-with-zero-allocations-deployment",
+                        400,
+                        0,
+                        4,
+                        100,
+                        null,
+                        Priority.NORMAL,
+                        0L,
+                        0L
+                    ),
+                    new AdaptiveAllocationsSettings(true, 0, 4)
+                ).build()
+            ),
+            List.of(
+                DiscoveryNodeUtils.builder("ml-node-1")
+                    .name("ml-node-name-1")
+                    .address(new TransportAddress(InetAddress.getLoopbackAddress(), 9300))
+                    .attributes(nodeAttr)
+                    .roles(Set.of(DiscoveryNodeRole.ML_ROLE))
+                    .build()
+            ),
+            PersistentTasksCustomMetadata.builder().build()
+        );
+        MlMemoryTracker mockTracker = mock(MlMemoryTracker.class);
+
+        this.<MlAutoscalingStats>assertAsync(
+            listener -> MlAutoscalingResourceTracker.getMemoryAndProcessors(
+                mlAutoscalingContext,
+                mockTracker,
+                Map.of("ml-node-1", memory),
+                600000000,
+                2,
+                MachineLearning.DEFAULT_MAX_OPEN_JOBS_PER_NODE,
+                MlDummyAutoscalingEntity.of(0, 0),
+                1,
+                listener
+            ),
+            stats -> {
+                assertEquals(memory, stats.currentPerNodeMemoryBytes());
+                assertEquals(251659040, stats.currentTotalModelMemoryBytes());
+                assertEquals(2, stats.currentTotalProcessorsInUse());
+                assertEquals(1, stats.currentTotalNodes());
+                assertEquals(1, stats.wantedMinNodes());
+                assertEquals(0, stats.wantedExtraPerNodeNodeProcessors());
+                assertEquals(0, stats.wantedExtraProcessors());
+                assertEquals(0, stats.wantedExtraModelMemoryBytes());
+                assertEquals(0, stats.wantedExtraPerNodeMemoryBytes());
+                assertEquals(0, stats.unwantedNodeMemoryBytesToRemove());
                 assertEquals(MachineLearning.NATIVE_EXECUTABLE_CODE_OVERHEAD.getBytes(), stats.currentPerNodeMemoryOverheadBytes());
             }
         );

@@ -245,3 +245,37 @@ IP dimensions:
   - match: { .$idx0name.mappings.properties.metrics.properties.summary.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.summary_minmax.type: 'aggregate_metric_double' }
   - match: { .$idx0name.mappings.properties.metrics.properties.histogram.type: 'histogram' }
+---
+Empty IP field:
+  - do:
+      bulk:
+        index: metrics-generic.otel-default
+        refresh: true
+        body:
+          - create: {"dynamic_templates":{"metrics.foo.bar":"counter_long"}}
+          - "@timestamp": 2024-07-18T14:48:33.467654000Z
+            resource:
+              attributes:
+                host.name: localhost
+                host.ip: ""
+            metrics:
+              foo.bar: 42
+  - is_false: errors
+
+  - do:
+      indices.get_data_stream:
+        name: metrics-generic.otel-default
+  - set: { data_streams.0.indices.0.index_name: idx0name }
+
+  - do:
+      indices.get_mapping:
+        index: $idx0name
+        expand_wildcards: hidden
+  - match: { .$idx0name.mappings.properties.resource.properties.attributes.properties.host\.ip.type: 'ip' }
+  - do:
+      search:
+        index: metrics-generic.otel-default
+        body:
+          fields: ["*"]
+  - length: { hits.hits: 1 }
+  - match: { hits.hits.0._ignored: ["resource.attributes.host.ip"] }

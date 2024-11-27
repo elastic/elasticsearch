@@ -252,7 +252,7 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
                 assert DataType.isTemporalAmount(buckets.dataType()) : "Unexpected span data type [" + buckets.dataType() + "]";
                 preparedRounding = DateTrunc.createRounding(buckets.fold(), DEFAULT_TZ);
             }
-            return DateTrunc.evaluator(source(), toEvaluator.apply(field), preparedRounding);
+            return DateTrunc.evaluator(field.dataType(), source(), toEvaluator.apply(field), preparedRounding);
         }
         if (field.dataType().isNumeric()) {
             double roundTo;

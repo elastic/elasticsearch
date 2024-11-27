@@ -69,6 +69,31 @@ public class EmailServiceTests extends ESTestCase {
         assertThat(sent.account(), is("account1"));
     }
 
+    public void testDomainAndRecipientAllowCantBeSetAtSameTime() {
+        Settings settings = Settings.builder()
+            .putList("xpack.notification.email.account.domain_allowlist", "bar.com")
+            .putList("xpack.notification.email.recipient_allowlist", "*-user@potato.com")
+            .build();
+
+        IllegalArgumentException e = expectThrows(
+            IllegalArgumentException.class,
+            () -> new EmailService(
+                settings,
+                null,
+                mock(SSLService.class),
+                new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()))
+            )
+        );
+
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "Cannot set both [xpack.notification.email.recipient_allowlist] and "
+                    + "[xpack.notification.email.account.domain_allowlist] to a non [\"*\"] value at the same time."
+            )
+        );
+    }
+
     public void testAccountSmtpPropertyConfiguration() {
         Settings settings = Settings.builder()
             .put("xpack.notification.email.account.account1.smtp.host", "localhost")
@@ -140,7 +165,7 @@ public class EmailServiceTests extends ESTestCase {
             Collections.emptyMap()
         );
         assertThat(
-            EmailService.getRecipientDomains(email),
+            EmailService.getRecipients(email, true),
             containsInAnyOrder("bar.com", "eggplant.com", "example.com", "another.com", "bcc.com")
         );
 
@@ -158,7 +183,7 @@ public class EmailServiceTests extends ESTestCase {
             "htmlbody",
             Collections.emptyMap()
         );
-        assertThat(EmailService.getRecipientDomains(email), containsInAnyOrder("bar.com", "eggplant.com", "example.com"));
+        assertThat(EmailService.getRecipients(email, true), containsInAnyOrder("bar.com", "eggplant.com", "example.com"));
     }
 
     public void testAllowedDomain() throws Exception {
@@ -320,6 +345,264 @@ public class EmailServiceTests extends ESTestCase {
             () -> emailService.send(email, auth, profile, "account1")
         );
         assertThat(e2.getMessage(), containsString("port out of range"));
+    }
+
+    public void testRecipientAddressInAllowList_EmptyAllowedPatterns() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of();
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(false));
+    }
+
+    public void testRecipientAddressInAllowList_WildcardPattern() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("*");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(true));
+    }
+
+    public void testRecipientAddressInAllowList_SpecificPattern() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("foo@bar.com");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(false));
+    }
+
+    public void testRecipientAddressInAllowList_MultiplePatterns() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("foo@bar.com", "baz@potato.com");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(true));
+    }
+
+    public void testRecipientAddressInAllowList_MixedCasePatterns() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("FOO@BAR.COM", "BAZ@POTATO.COM");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(true));
+    }
+
+    public void testRecipientAddressInAllowList_PartialWildcardPrefixPattern() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("foo@*", "baz@*");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(true));
+    }
+
+    public void testRecipientAddressInAllowList_PartialWildcardSuffixPattern() throws UnsupportedEncodingException {
+        Email email = createTestEmail("foo@bar.com", "baz@potato.com");
+        Set<String> allowedPatterns = Set.of("*@bar.com", "*@potato.com");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(true));
+    }
+
+    public void testRecipientAddressInAllowList_DisallowedCCAddressesFails() throws UnsupportedEncodingException {
+        Email email = new Email(
+            "id",
+            new Email.Address("sender@domain.com", "Sender"),
+            createAddressList("foo@bar.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            createAddressList("cc@allowed.com", "cc@notallowed.com"),
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        Set<String> allowedPatterns = Set.of("foo@bar.com", "cc@allowed.com");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(false));
+    }
+
+    public void testRecipientAddressInAllowList_DisallowedBCCAddressesFails() throws UnsupportedEncodingException {
+        Email email = new Email(
+            "id",
+            new Email.Address("sender@domain.com", "Sender"),
+            createAddressList("foo@bar.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            null,
+            createAddressList("bcc@allowed.com", "bcc@notallowed.com"),
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        Set<String> allowedPatterns = Set.of("foo@bar.com", "bcc@allowed.com");
+        assertThat(EmailService.recipientAddressInAllowList(email, allowedPatterns), is(false));
+    }
+
+    public void testAllowedRecipient() throws Exception {
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("*")));
+        assertFalse(EmailService.recipientAddressInAllowList(email, Set.of()));
+        assertFalse(EmailService.recipientAddressInAllowList(email, Set.of("")));
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("foo@other.com", "*o@bar.com")));
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("buzz@other.com", "*.com")));
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("*.CoM")));
+
+        // Invalid email in CC doesn't blow up
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            createAddressList("badEmail"),
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertFalse(EmailService.recipientAddressInAllowList(email, Set.of("*@other.com", "*iii@bar.com")));
+
+        // Check CC
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            createAddressList("thing@other.com"),
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("*@other.com", "*@bar.com")));
+        assertFalse(EmailService.recipientAddressInAllowList(email, Set.of("*oo@bar.com")));
+
+        // Check BCC
+        email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com"),
+            null,
+            createAddressList("thing@other.com"),
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        assertTrue(EmailService.recipientAddressInAllowList(email, Set.of("*@other.com", "*@bar.com")));
+        assertFalse(EmailService.recipientAddressInAllowList(email, Set.of("*oo@bar.com")));
+    }
+
+    public void testSendEmailWithRecipientNotInAllowList() throws Exception {
+        service.updateAllowedRecipientPatterns(Collections.singletonList(randomFrom("*@bar.*", "*@bar.com", "*b*")));
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "non-whitelisted@invalid.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        when(account.name()).thenReturn("account1");
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
+        Profile profile = randomFrom(Profile.values());
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> service.send(email, auth, profile, "account1"));
+        assertThat(
+            e.getMessage(),
+            containsString(
+                "failed to send email with subject [subject] and recipients [non-whitelisted@invalid.com, foo@bar.com], "
+                    + "one or more recipients is not specified in the domain allow list setting "
+                    + "[xpack.notification.email.recipient_allowlist]."
+            )
+        );
+    }
+
+    public void testChangeRecipientAllowListSetting() throws UnsupportedEncodingException, MessagingException {
+        Settings settings = Settings.builder()
+            .put("xpack.notification.email.account.account1.foo", "bar")
+            // Setting a random SMTP server name and an invalid port so that sending emails is guaranteed to fail:
+            .put("xpack.notification.email.account.account1.smtp.host", randomAlphaOfLength(10))
+            .put("xpack.notification.email.account.account1.smtp.port", -100)
+            .putList("xpack.notification.email.recipient_allowlist", "*oo@bar.com")
+            .build();
+        ClusterSettings clusterSettings = new ClusterSettings(Settings.EMPTY, new HashSet<>(EmailService.getSettings()));
+        EmailService emailService = new EmailService(settings, null, mock(SSLService.class), clusterSettings);
+        Email email = new Email(
+            "id",
+            new Email.Address("foo@bar.com", "Mr. Foo Man"),
+            createAddressList("foo@bar.com", "baz@potato.com"),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList("foo@bar.com", "non-whitelisted@invalid.com"),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
+        when(account.name()).thenReturn("account1");
+        Authentication auth = new Authentication("user", new Secret("passwd".toCharArray()));
+        Profile profile = randomFrom(Profile.values());
+
+        // This send will fail because one of the recipients ("non-whitelisted@invalid.com") is in a domain that is not in the allowed list
+        IllegalArgumentException e1 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(
+            e1.getMessage(),
+            containsString(
+                "failed to send email with subject [subject] and recipients [non-whitelisted@invalid.com, foo@bar.com], "
+                    + "one or more recipients is not specified in the domain allow list setting "
+                    + "[xpack.notification.email.recipient_allowlist]."
+            )
+        );
+
+        // Now dynamically add "invalid.com" to the list of allowed domains:
+        Settings newSettings = Settings.builder()
+            .putList("xpack.notification.email.recipient_allowlist", "*@bar.com", "*@invalid.com")
+            .build();
+        clusterSettings.applySettings(newSettings);
+        // Still expect an exception because we're not actually sending the email, but it's no longer because the domain isn't allowed:
+        IllegalArgumentException e2 = expectThrows(
+            IllegalArgumentException.class,
+            () -> emailService.send(email, auth, profile, "account1")
+        );
+        assertThat(e2.getMessage(), containsString("port out of range"));
+    }
+
+    private Email createTestEmail(String... recipients) throws UnsupportedEncodingException {
+        return new Email(
+            "id",
+            new Email.Address("sender@domain.com", "Sender"),
+            createAddressList(recipients),
+            randomFrom(Email.Priority.values()),
+            ZonedDateTime.now(),
+            createAddressList(recipients),
+            null,
+            null,
+            "subject",
+            "body",
+            "htmlbody",
+            Collections.emptyMap()
+        );
     }
 
     private static Email.AddressList createAddressList(String... emails) throws UnsupportedEncodingException {

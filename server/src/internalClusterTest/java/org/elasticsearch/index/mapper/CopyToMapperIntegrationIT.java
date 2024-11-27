@@ -46,7 +46,7 @@ public class CopyToMapperIntegrationIT extends ESIntegTestCase {
                     AggregationBuilders.terms("test_raw").field("test_field_raw").size(recordCount * 2).collectMode(aggCollectionMode)
                 ),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo((long) recordCount));
+                assertThat(response.getHits().getTotalHits().value(), equalTo((long) recordCount));
 
                 assertThat(((Terms) response.getAggregations().get("test")).getBuckets().size(), equalTo(recordCount + 1));
                 assertThat(((Terms) response.getAggregations().get("test_raw")).getBuckets().size(), equalTo(recordCount));

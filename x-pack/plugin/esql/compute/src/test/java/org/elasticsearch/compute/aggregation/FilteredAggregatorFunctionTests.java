@@ -27,7 +27,6 @@ import static org.hamcrest.Matchers.equalTo;
 public class FilteredAggregatorFunctionTests extends AggregatorFunctionTestCase {
     private final List<Exception> unclosed = Collections.synchronizedList(new ArrayList<>());
 
-    // TODO some version of this test that applies across all aggs
     @Override
     protected AggregatorFunctionSupplier aggregatorFunction(List<Integer> inputChannels) {
         return new FilteredAggregatorFunctionSupplier(

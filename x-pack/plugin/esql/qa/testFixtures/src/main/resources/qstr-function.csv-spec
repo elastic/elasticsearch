@@ -116,6 +116,24 @@ book_no:keyword | title:text                                                    
 2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
 ;
 
+
+qstrWithFieldAndScoringSortedEval
+required_capability: qstr_function
+required_capability: metadata_score
+
+from books metadata _score
+| where qstr("title:rings")
+| sort _score desc
+| eval _score::long
+| keep book_no, title, _score
+| limit 3;
+
+book_no:keyword | title:text                                                                 | _score:double 
+2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
+7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
+2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
+;
+
 singleQstrScoring
 required_capability: metadata_score
 required_capability: qstr_function

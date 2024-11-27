@@ -32,7 +32,6 @@ import java.util.Map;
 import static org.elasticsearch.entitlement.instrumentation.impl.ASMUtils.bytecode2text;
 import static org.elasticsearch.entitlement.instrumentation.impl.InstrumenterImpl.getClassFileInfo;
 import static org.hamcrest.Matchers.instanceOf;
-import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.startsWith;
 import static org.objectweb.asm.Opcodes.INVOKESTATIC;
 
@@ -100,15 +99,17 @@ public class InstrumenterTests extends ESTestCase {
 
     static final class TestException extends RuntimeException {}
 
+    /**
+     * Interface to test specific, "synthetic" cases (e.g. overloaded methods, overloaded constructors, etc.) that
+     * may be not present/may be difficult to find or not clear in the production EntitlementChecker interface
+     */
     public interface MockEntitlementChecker extends EntitlementChecker {
         void checkSomeStaticMethod(Class<?> clazz, int arg);
 
         void checkSomeStaticMethod(Class<?> clazz, int arg, String anotherArg);
 
         void checkSomeInstanceMethod(Class<?> clazz, Testable that, int arg, String anotherArg);
-    }
 
-    public interface MockCtorEntitlementChecker extends EntitlementChecker {
         void checkCtor(Class<?> clazz);
 
         void checkCtor(Class<?> clazz, int arg);
@@ -121,7 +122,7 @@ public class InstrumenterTests extends ESTestCase {
      * just to demonstrate that the injected bytecodes succeed in calling these methods.
      * It also asserts that the arguments are correct.
      */
-    public static class TestEntitlementChecker implements MockEntitlementChecker, MockCtorEntitlementChecker {
+    public static class TestEntitlementChecker implements MockEntitlementChecker {
         /**
          * This allows us to test that the instrumentation is correct in both cases:
          * if the check throws, and if it doesn't.
@@ -279,7 +280,7 @@ public class InstrumenterTests extends ESTestCase {
         getTestEntitlementChecker().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
+        assertEquals(1, getTestEntitlementChecker().checkSystemExitCallCount);
     }
 
     public void testClassAllMethodsAreInstrumentedFirstPass() throws Exception {
@@ -313,10 +314,10 @@ public class InstrumenterTests extends ESTestCase {
         getTestEntitlementChecker().checkSystemExitCallCount = 0;
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "systemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(1));
+        assertEquals(1, getTestEntitlementChecker().checkSystemExitCallCount);
 
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "anotherSystemExit", 123));
-        assertThat(getTestEntitlementChecker().checkSystemExitCallCount, is(2));
+        assertEquals(2, getTestEntitlementChecker().checkSystemExitCallCount);
     }
 
     public void testInstrumenterWorksWithOverloads() throws Exception {
@@ -348,8 +349,8 @@ public class InstrumenterTests extends ESTestCase {
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "someStaticMethod", 123));
         assertThrows(TestException.class, () -> callStaticMethod(newClass, "someStaticMethod", 123, "abc"));
 
-        assertThat(getTestEntitlementChecker().checkSomeStaticMethodIntCallCount, is(1));
-        assertThat(getTestEntitlementChecker().checkSomeStaticMethodIntStringCallCount, is(1));
+        assertEquals(1, getTestEntitlementChecker().checkSomeStaticMethodIntCallCount);
+        assertEquals(1, getTestEntitlementChecker().checkSomeStaticMethodIntStringCallCount);
     }
 
     public void testInstrumenterWorksWithInstanceMethodsAndOverloads() throws Exception {
@@ -381,7 +382,7 @@ public class InstrumenterTests extends ESTestCase {
         testTargetClass.someMethod(123);
         assertThrows(TestException.class, () -> testTargetClass.someMethod(123, "def"));
 
-        assertThat(getTestEntitlementChecker().checkSomeInstanceMethodCallCount, is(1));
+        assertEquals(1, getTestEntitlementChecker().checkSomeInstanceMethodCallCount);
     }
 
     public void testInstrumenterWorksWithConstructors() throws Exception {
@@ -389,9 +390,9 @@ public class InstrumenterTests extends ESTestCase {
 
         Map<MethodKey, CheckerMethod> methods = Map.of(
             new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of()),
-            getCheckerMethod(MockCtorEntitlementChecker.class, "checkCtor", Class.class),
+            getCheckerMethod(MockEntitlementChecker.class, "checkCtor", Class.class),
             new MethodKey(classToInstrument.getName().replace('.', '/'), "<init>", List.of("I")),
-            getCheckerMethod(MockCtorEntitlementChecker.class, "checkCtor", Class.class, int.class)
+            getCheckerMethod(MockEntitlementChecker.class, "checkCtor", Class.class, int.class)
         );
 
         var instrumenter = createInstrumenter(methods);
@@ -414,8 +415,8 @@ public class InstrumenterTests extends ESTestCase {
         var ex2 = assertThrows(InvocationTargetException.class, () -> newClass.getConstructor(int.class).newInstance(123));
         assertThat(ex2.getCause(), instanceOf(TestException.class));
 
-        assertThat(getTestEntitlementChecker().checkCtorCallCount, is(1));
-        assertThat(getTestEntitlementChecker().checkCtorIntCallCount, is(1));
+        assertEquals(1, getTestEntitlementChecker().checkCtorCallCount);
+        assertEquals(1, getTestEntitlementChecker().checkCtorIntCallCount);
     }
 
     /** This test doesn't replace classToInstrument in-place but instead loads a separate

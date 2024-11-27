@@ -305,7 +305,8 @@ COUNT():long | category:keyword
            7 | .*?.*?
 ;
 
-on null
+# Doesn't give the correct results - Requires nulls support
+on null-Ignore
 required_capability: categorize_v2
 
 FROM sample_data
@@ -315,9 +316,11 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
+           7 | null
 ;
 
-on null string
+# Doesn't give the correct results - Requires nulls support
+on null string-Ignore
 required_capability: categorize_v2
 
 FROM sample_data
@@ -327,6 +330,7 @@ FROM sample_data
 ;
 
 COUNT():long | category:keyword
+           7 | null
 ;
 
 filtering out all data

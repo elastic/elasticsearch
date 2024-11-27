@@ -105,6 +105,7 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
         }
         return new HashAggregationOperator.HashAggregationOperatorFactory(
             List.of(new BlockHash.GroupSpec(0, ElementType.LONG)),
+            mode,
             List.of(supplier.groupingAggregatorFactory(mode)),
             randomPageSize()
         );

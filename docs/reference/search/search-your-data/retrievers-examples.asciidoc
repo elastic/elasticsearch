@@ -1,7 +1,6 @@
 [[retrievers-examples]]
 
-Let's work through some hands-on examples to show the different usages and functionalities that
-retrievers now offer.
+Learn how to combine different retrievers in these hands-on examples.
 
 === Retrievers examples
 
@@ -81,7 +80,7 @@ POST /retrievers_example/_refresh
 ----
 // TESTSETUP
 
-Now that we  have our documents in place, let's try to run some queries using retrievers.
+Now that we have our documents in place, let's try to run some queries using retrievers.
 
 [discrete]
 [[retrievers-examples-combining-standard-knn-retrievers-with-rrf]]

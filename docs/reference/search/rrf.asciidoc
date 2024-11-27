@@ -706,22 +706,25 @@ So for the same params as above, we would now have:
 
 ==== Aggregations in RRF
 
-Using the `rrf` retriever, we can also gather aggregations from all its specified sub-retrievers. The aggregations gathered
-are irrespective of the specified `rank_window_size` but instead we refer to the union of the result sets from all sub-retrievers,
-i.e. we collect all matching documents and not just the top `rank_window_size`.
+The `rrf` retriever supports aggregations from all specified sub-retrievers. Important notes about aggregations:
 
-So for example, assuming that we have the following documents:
-[source,python]
+* They operate on the complete result set from all sub-retrievers
+* They are not limited by the `rank_window_size` parameter
+* They process the union of all matching documents
+
+For example, consider the following document set:
+[source,js]
 ----
-# doc     |   termA      |    termB    |
-_id: 1 =       foo
-_id: 2 =       foo             bar
-_id: 3 =     aardvark          bar
-_id: 4 =       foo             bar
+{
+    "_id": 1, "termA": "foo",
+    "_id": 2, "termA": "foo", "termB": "bar",
+    "_id": 3, "termA": "aardvark", "termB": "bar",
+    "_id": 4, "termA": "foo", "termB": "bar"
+}
 ----
 // NOTCONSOLE
 
-And the following `rrf` query with a term aggregation specified on field `termA`:
+Perform a term aggregation on the `termA` field using an `rrf` retriever:
 [source,js]
 ----
 {
@@ -760,8 +763,7 @@ And the following `rrf` query with a term aggregation specified on field `termA`
 ----
 // NOTCONSOLE
 
-Even though we have a `rank_window_size: 1`, the aggregations will be computed against **all** matching documents from the nested sub-retrievers.
-So, the expected aggs would be:
+The aggregation results will include *all* matching documents, regardless of `rank_window_size`.
 [source, js]
 ----
 {
@@ -774,18 +776,26 @@ So, the expected aggs would be:
 
 ==== Highlighting in RRF
 
-Similarly to above, we can also add <<highlighting, highlight snippets>> to the `rrf` retriever's results. Highlighted snippets are computed based
+Using the `rrf` retriever, you can add <<highlighting, highlight snippets>> to show relevant text snippets in your search results. Highlighted snippets are computed based
 on the matching text queries defined on the sub-retrievers.
 
-NOTE:: Highlighting on vector fields, using either the `knn` retriever or a `knn` query, is not supported at the moment.
+IMPORTANT: Highlighting on vector fields, using either the `knn` retriever or a `knn` query, is not supported.
 
 A more specific example of highlighting in RRF can also be found in the <<retrievers-examples-highlighting-retriever-results, retrievers examples>> page.
 
 ==== Inner hits in RRF
 
-Computing <<inner-hits, inner hits>> is now also an option for RRF. We can specify inner hits as part of a nested sub-retriever, which
-will be propagated to the top level parent retriever. Actual inner hit computation will take place only at end of `rrf` retriever's evaluation on the top matching documents,
-and not as part of the query execution of the nested sub-retrievers.
+The `rrf` retriever supports <<inner-hits,inner hits>> functionality, allowing you to retrieve 
+related nested or parent/child documents alongside your main search results. Inner hits can be 
+specified as part of any nested sub-retriever and will be propagated to the top-level parent 
+retriever. Note that the inner hit computation will take place only at end of `rrf` retriever's 
+evaluation on the top matching documents, and not as part of the query execution of the nested 
+sub-retrievers.
 
-IMPORTANT:: If we have more than one `inner_hit` sections defined across all sub-retrievers for RRF, then we have
-to provide a custom name for each `inner_hit` that would be unique across all sub-retrievers for the search request.
+[IMPORTANT]
+====
+When defining multiple `inner_hits` sections across sub-retrievers:
+
+* Each `inner_hits` section must have a unique name
+* Names must be unique across all sub-retrievers in the search request
+====

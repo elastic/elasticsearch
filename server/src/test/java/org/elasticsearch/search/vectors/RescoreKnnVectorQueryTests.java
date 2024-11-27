@@ -9,7 +9,6 @@
 
 package org.elasticsearch.search.vectors;
 
-
 import org.apache.lucene.document.Document;
 import org.apache.lucene.document.KnnFloatVectorField;
 import org.apache.lucene.index.DirectoryReader;
@@ -60,8 +59,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 for (int i = 0; i < numDocs; i++) {
                     Document document = new Document();
                     float[] vector = randomVector(numDims);
-                    KnnFloatVectorField vectorField = new KnnFloatVectorField(
-                        FIELD_NAME, vector);
+                    KnnFloatVectorField vectorField = new KnnFloatVectorField(FIELD_NAME, vector);
                     document.add(vectorField);
                     w.addDocument(document);
                 }
@@ -73,14 +71,17 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 float[] queryVector = randomVector(numDims);
 
                 RescoreKnnVectorQuery rescoreKnnVectorQuery = new RescoreKnnVectorQuery(
-                    FIELD_NAME, queryVector, VectorSimilarityFunction.COSINE, k, new MatchAllDocsQuery());
+                    FIELD_NAME,
+                    queryVector,
+                    VectorSimilarityFunction.COSINE,
+                    k,
+                    new MatchAllDocsQuery()
+                );
 
                 IndexSearcher searcher = newSearcher(reader, true, false);
                 TopDocs docs = searcher.search(rescoreKnnVectorQuery, numDocs);
-                Map<Integer, Float> rescoredDocs = Arrays.stream(docs.scoreDocs).collect(Collectors.toMap(
-                    scoreDoc -> scoreDoc.doc,
-                    scoreDoc -> scoreDoc.score)
-                );
+                Map<Integer, Float> rescoredDocs = Arrays.stream(docs.scoreDocs)
+                    .collect(Collectors.toMap(scoreDoc -> scoreDoc.doc, scoreDoc -> scoreDoc.score));
 
                 assertThat(rescoredDocs.size(), equalTo(k));
 
@@ -107,7 +108,7 @@ public class RescoreKnnVectorQueryTests extends ESTestCase {
                 // Check top scoring docs are contained in rescored docs
                 for (int i = 0; i < k; i++) {
                     Float topScore = topK.poll();
-                    if (rescoredScores.contains(topScore) == false ) {
+                    if (rescoredScores.contains(topScore) == false) {
                         fail("Top score " + topScore + " not contained in rescored doc scores " + rescoredScores);
                     }
                 }

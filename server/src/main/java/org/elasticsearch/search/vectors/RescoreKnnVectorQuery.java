@@ -70,6 +70,8 @@ public class RescoreKnnVectorQuery extends Query implements ProfilingQuery {
 
     @Override
     public Query rewrite(IndexSearcher searcher) throws IOException {
+        assert byteTarget == null ^ floatTarget == null : "Either byteTarget or floatTarget must be set";
+
         Query rewritten = super.rewrite(searcher);
         if (rewritten != this) {
             return rewritten;

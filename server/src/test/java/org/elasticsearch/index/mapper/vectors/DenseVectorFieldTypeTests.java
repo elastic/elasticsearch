@@ -424,7 +424,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         );
 
         Query knnQuery = nonQuantizedField.createKnnQuery(
-            new VectorData(null, new byte[]{1, 4, 10}),
+            new VectorData(null, new byte[] { 1, 4, 10 }),
             10,
             100,
             randomFloatBetween(1.0F, 10.0F, false),
@@ -474,7 +474,7 @@ public class DenseVectorFieldTypeTests extends FieldTypeTestCase {
         int expectedK,
         int expectedCandidates
     ) {
-        Query query = fieldType.createKnnQuery(new VectorData(null, new byte[] { 1, 4, 10}), k, candidates, oversample, null, null, null);
+        Query query = fieldType.createKnnQuery(new VectorData(null, new byte[] { 1, 4, 10 }), k, candidates, oversample, null, null, null);
 
         RescoreKnnVectorQuery rescoreQuery = (RescoreKnnVectorQuery) query;
         if (fieldType.getElementType() == BYTE) {

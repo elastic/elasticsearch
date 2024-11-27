@@ -36,9 +36,9 @@ import java.util.ArrayList;
 import java.util.List;
 
 import static org.elasticsearch.core.Strings.format;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.EIS_SSL_ENABLED;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.SSL_CONFIGURATION_PREFIX;
-import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.SSL_CONFIGURATION_SETTINGS;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_ENABLED;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX;
+import static org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSettings.ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS;
 
 public class ElasticInferenceServiceHttpClientManager implements Closeable {
     private static final Logger logger = LogManager.getLogger(ElasticInferenceServiceHttpClientManager.class);
@@ -108,7 +108,7 @@ public class ElasticInferenceServiceHttpClientManager implements Closeable {
 
         SSLService sslService = XPackPlugin.getSharedSslService();
         SSLIOSessionStrategy sslStrategy;
-        sslStrategy = sslService.sslIOSessionStrategy(sslService.getSSLConfiguration(SSL_CONFIGURATION_PREFIX));
+        sslStrategy = sslService.sslIOSessionStrategy(sslService.getSSLConfiguration(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX));
 
         PoolingNHttpClientConnectionManager connectionManager = createConnectionManager(sslStrategy);
 
@@ -189,8 +189,8 @@ public class ElasticInferenceServiceHttpClientManager implements Closeable {
         settings.add(MAX_ROUTE_CONNECTIONS);
         settings.add(CONNECTION_EVICTION_THREAD_INTERVAL_SETTING);
         settings.add(CONNECTION_MAX_IDLE_TIME_SETTING);
-        settings.add(EIS_SSL_ENABLED);
-        settings.addAll(SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
+        settings.add(ELASTIC_INFERENCE_SERVICE_SSL_ENABLED);
+        settings.addAll(ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS.getEnabledSettings());
 
         return settings;
     }

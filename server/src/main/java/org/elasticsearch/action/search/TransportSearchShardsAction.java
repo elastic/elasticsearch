@@ -117,7 +117,7 @@ public class TransportSearchShardsAction extends HandledTransportAction<SearchSh
         final ProjectState project = projectResolver.getProjectState(clusterService.state());
         final ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             searchShardsRequest,
-            project.cluster(),
+            project.metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             timeProvider.absoluteStartMillis()

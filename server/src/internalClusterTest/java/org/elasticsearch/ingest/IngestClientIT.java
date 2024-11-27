@@ -37,6 +37,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 
+import static org.elasticsearch.ingest.IngestPipelineTestUtils.jsonSimulatePipelineRequest;
 import static org.elasticsearch.ingest.IngestPipelineTestUtils.putJsonPipelineRequest;
 import static org.elasticsearch.test.NodeRoles.nonIngestNode;
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
@@ -97,7 +98,7 @@ public class IngestClientIT extends ESIntegTestCase {
         if (randomBoolean()) {
             response = clusterAdmin().prepareSimulatePipeline(bytes, XContentType.JSON).setId("_id").get();
         } else {
-            SimulatePipelineRequest request = new SimulatePipelineRequest(bytes, XContentType.JSON);
+            SimulatePipelineRequest request = jsonSimulatePipelineRequest(bytes);
             request.setId("_id");
             response = clusterAdmin().simulatePipeline(request).get();
         }

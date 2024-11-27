@@ -87,7 +87,7 @@ public class SearchStatesIT extends ESRestTestCase {
     }
 
     public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
-        assertThat(remoteNodes, hasSize(3));
+        assertBusy(() -> assertThat(remoteNodes, hasSize(3)));
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
         try (RestClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;

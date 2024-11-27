@@ -171,12 +171,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.ccq.MultiClusterSpecIT
   method: test {categorize.Categorize}
   issue: https://github.com/elastic/elasticsearch/issues/116434
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testBWCSearchStates
-  issue: https://github.com/elastic/elasticsearch/issues/116617
-- class: org.elasticsearch.upgrades.SearchStatesIT
-  method: testCanMatch
-  issue: https://github.com/elastic/elasticsearch/issues/116618
 - class: org.elasticsearch.reservedstate.service.RepositoriesFileSettingsIT
   method: testSettingsApplied
   issue: https://github.com/elastic/elasticsearch/issues/116694

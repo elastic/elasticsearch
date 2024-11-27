@@ -46,7 +46,6 @@ tasks.named("yamlRestTest").configure {
     '^cluster.state/20_filtering/*',
     '^cluster.state/30_expand_wildcards/*',
     '^cluster.stats/*/*',
-    '^explain/*/*',
     '^field_caps/*/*',
     '^health/*/*',
     '^indices.analyze/*/*',

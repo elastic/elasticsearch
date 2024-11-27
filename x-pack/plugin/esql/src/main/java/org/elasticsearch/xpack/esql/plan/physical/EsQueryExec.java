@@ -103,6 +103,7 @@ public class EsQueryExec extends LeafExec implements EstimatesRowSize {
 
         @Override
         public FieldAttribute field() {
+            // TODO: refactor this: not all Sorts are backed by FieldAttributes
             return null;
         }
     }

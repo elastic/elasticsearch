@@ -126,9 +126,9 @@ from books metadata _score
 | sort book_no 
 | LIMIT 2;
 
-book_no:keyword | author:text        | _score:double
+book_no:keyword | author:text                                        | _score:double
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
-2713            | William Faulkner   | 5.9556169509887695
+2713            | William Faulkner                                   | 5.9556169509887695
 ;
 
 singleQstrScoringManipulated
@@ -142,7 +142,7 @@ from books metadata _score
 | sort book_no 
 | LIMIT 2;
 
-book_no:keyword | author:text | add_score:double
+book_no:keyword | author:text                                        | add_score:double
 2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 2.0
 2713            | William Faulkner                                   | 7.0
 ;
@@ -158,8 +158,8 @@ from books metadata _score
 | sort c_score desc, book_no asc
 | LIMIT 2;
 
-book_no:keyword | title:text | c_score:double
-2675            | The Lord of the Rings - Boxed Set | 6.0
+book_no:keyword | title:text                                                                                  | c_score:double
+2675            | The Lord of the Rings - Boxed Set                                                           | 6.0
 4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 6.0
 ;
 

@@ -23,6 +23,7 @@ import co.elastic.elasticsearch.stateless.lucene.StatelessCommitRef;
 import co.elastic.elasticsearch.stateless.test.FakeStatelessNode;
 
 import org.apache.lucene.codecs.CodecUtil;
+import org.apache.lucene.index.CorruptIndexException;
 import org.apache.lucene.store.IOContext;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.ResourceNotFoundException;
@@ -33,6 +34,9 @@ import org.elasticsearch.core.Streams;
 import org.elasticsearch.test.ESTestCase;
 
 import java.io.IOException;
+import java.nio.ByteBuffer;
+import java.nio.channels.FileChannel;
+import java.nio.file.StandardOpenOption;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -130,6 +134,63 @@ public class VirtualBatchedCompoundCommitTests extends ESTestCase {
                     }
                 }
             }
+        }
+    }
+
+    // generate a commit, corrupt some files, and expect a CorruptIndexException while uploading it
+    public void testVirtualBatchedCompoundCommitVerifiesIndexFileIntegrity() throws IOException {
+        var primaryTerm = 1;
+        try (var fakeNode = createFakeNode(primaryTerm)) {
+            // create commit and install in VBCC
+            var commit = fakeNode.generateIndexCommits(1).getFirst();
+
+            var virtualBatchedCompoundCommit = new VirtualBatchedCompoundCommit(
+                fakeNode.shardId,
+                "node-id",
+                primaryTerm,
+                commit.getGeneration(),
+                (fileName) -> {
+                    throw new AssertionError("Unexpected call");
+                },
+                ESTestCase::randomNonNegativeLong,
+                fakeNode.sharedCacheService.getRegionSize(),
+                randomIntBetween(0, fakeNode.sharedCacheService.getRegionSize())
+            );
+
+            assertTrue(virtualBatchedCompoundCommit.appendCommit(commit, randomBoolean()));
+
+            virtualBatchedCompoundCommit.freeze();
+
+            // corrupt a random subset of commit files
+            var fsPath = fakeNode.indexingShardPath.resolveIndex();
+            for (var toCorrupt : randomNonEmptySubsetOf(commit.getCommitFiles())) {
+                var targetPath = fsPath.resolve(toCorrupt);
+
+                var targetFile = FileChannel.open(targetPath, StandardOpenOption.READ, StandardOpenOption.WRITE);
+                long position = randomLongBetween(0, targetFile.size() - 1);
+                logger.info("corrupting {} at {}", targetPath, position);
+
+                var buf = ByteBuffer.allocate(1);
+                assertEquals(1, targetFile.read(buf, position));
+                buf.flip();
+
+                byte b = buf.get();
+                buf.clear();
+
+                buf.put((byte) ~b);
+                buf.flip();
+                assertEquals(1, targetFile.write(buf, position));
+
+                targetFile.close();
+            }
+
+            // expect CorruptIndexException during upload
+            try (BytesStreamOutput output = new BytesStreamOutput()) {
+                try (var frozenInputStream = virtualBatchedCompoundCommit.getFrozenInputStreamForUpload()) {
+                    assertThrows(CorruptIndexException.class, () -> Streams.copy(frozenInputStream, output, false));
+                }
+            }
+            virtualBatchedCompoundCommit.close();
         }
     }
 

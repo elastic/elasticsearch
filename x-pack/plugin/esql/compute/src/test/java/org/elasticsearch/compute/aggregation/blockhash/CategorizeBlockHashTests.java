@@ -52,8 +52,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
     public void testCategorizeRaw() {
         final Page page;
-        final int positions = 7;
         boolean withNull = randomBoolean();
+        final int positions = 7 + (withNull ? 1 : 0);
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -111,8 +111,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
 
     public void testCategorizeIntermediate() {
         Page page1;
-        int positions1 = 7;
         boolean withNull = randomBoolean();
+        int positions1 = 7 + (withNull ? 1 : 0);
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions1)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -212,7 +212,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         .boxed()
                         .collect(Collectors.toSet());
                     if (withNull) {
-                        assertEquals(Set.of(1, 2), values);
+                        assertEquals(Set.of(0, 1, 2), values);
                     } else {
                         assertEquals(Set.of(1, 2), values);
                     }
@@ -238,11 +238,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         .collect(Collectors.toSet());
                     // The category IDs {0, 1, 2} should map to groups {0, 2, 3}, because
                     // 0 matches an existing category (Connected to ...), and the others are new.
-                    if (withNull) {
-                        assertEquals(Set.of(0, 1, 3, 4), values);
-                    } else {
-                        assertEquals(Set.of(1, 3, 4), values);
-                    }
+                    assertEquals(Set.of(1, 3, 4), values);
                 }
 
                 @Override

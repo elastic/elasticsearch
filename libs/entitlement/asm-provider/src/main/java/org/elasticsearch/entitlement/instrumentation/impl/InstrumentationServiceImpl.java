@@ -91,15 +91,18 @@ public class InstrumentationServiceImpl implements InstrumentationService {
                 String.format(
                     Locale.ROOT,
                     "Checker method %s has incorrect name format. "
-                        + "It should be either check$$methodName (instance) or check$package_ClassName$methodName (static)",
+                        + "It should be either check$$methodName (instance), check$package_ClassName$methodName (static) or "
+                        + "check$package_ClassName$ (ctor)",
                     checkerMethodName
                 )
             );
         }
 
-        // No "className" (check$$methodName) -> method is static, and we'll get the class from the actual typed argument
+        // No "className" (check$$methodName) -> method is instance, and we'll get the class from the actual typed argument
         final boolean targetMethodIsStatic = classNameStartIndex + 1 != classNameEndIndex;
-        final String targetMethodName = checkerMethodName.substring(classNameEndIndex + 1);
+        // No "methodName" (check$package_ClassName$) -> method is ctor
+        final boolean targetMethodIsCtor = classNameEndIndex + 1 == checkerMethodName.length();
+        final String targetMethodName = targetMethodIsCtor ? "<init>" : checkerMethodName.substring(classNameEndIndex + 1);
 
         final String targetClassName;
         final List<String> targetParameterTypes;

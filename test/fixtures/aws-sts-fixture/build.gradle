@@ -6,14 +6,14 @@
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+apply plugin: 'elasticsearch.java'
 
-package org.elasticsearch.inference;
+description = 'Fixture for emulating the Security Token Service (STS) running in AWS'
 
-import org.elasticsearch.core.Nullable;
-
-public record ChunkingOptions(@Nullable Integer windowSize, @Nullable Integer span) {
-
-    public boolean settingsArePresent() {
-        return windowSize != null || span != null;
-    }
+dependencies {
+  api project(':server')
+  api("junit:junit:${versions.junit}") {
+    transitive = false
+  }
+  api project(':test:framework')
 }

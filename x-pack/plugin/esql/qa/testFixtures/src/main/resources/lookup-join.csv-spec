@@ -4,7 +4,7 @@
 //
 
 basicOnTheDataNode
-required_capability: join_lookup
+required_capability: join_lookup_v2
 
 FROM employees
 | EVAL language_code = languages
@@ -32,7 +32,7 @@ language_code:keyword  | language_name:keyword
 ;
 
 basicOnTheCoordinator
-required_capability: join_lookup
+required_capability: join_lookup_v2
 
 FROM employees
 | SORT emp_no

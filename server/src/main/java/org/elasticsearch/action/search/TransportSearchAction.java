@@ -413,6 +413,7 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                     );
                     task.getProgressListener().notifySearchStart(clusters);
                     if (resolvedIndices.getLocalIndices() == null) {
+                        // Notify the progress listener that a CCS with minimize_roundtrips is happening remote-only (no local shards)
                         task.getProgressListener()
                             .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
                     }

@@ -1,6 +1,9 @@
 import org.elasticsearch.gradle.internal.test.RestIntegTestTask
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 import org.elasticsearch.gradle.Version
+import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask
+import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask
+import org.elasticsearch.gradle.internal.test.rest.RestResourcesPlugin
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
 apply plugin: 'elasticsearch.rest-resources'
@@ -13,6 +16,23 @@ restResources {
     includeCore 'search/390_doc_values_search.yml'
   }
 }
+
+// Register rest resources with source set
+sourceSets.javaRestTest.getOutput()
+  .dir(
+    project.getTasks()
+      .withType(CopyRestApiTask.class)
+      .named(RestResourcesPlugin.COPY_REST_API_SPECS_TASK)
+      .flatMap(CopyRestApiTask::getOutputResourceDir)
+  );
+
+sourceSets.javaRestTest.getOutput()
+  .dir(
+    project.getTasks()
+      .withType(CopyRestTestsTask.class)
+      .named(RestResourcesPlugin.COPY_YAML_TESTS_TASK)
+      .flatMap(CopyRestTestsTask::getOutputResourceDir)
+  );
 
 tasks.named("javaRestTest") {
   enabled = false

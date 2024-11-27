@@ -353,9 +353,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117349
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.search.basic.SearchWithRandomDisconnectsIT
   method: testSearchWithRandomDisconnects
   issue: https://github.com/elastic/elasticsearch/issues/116175
@@ -365,6 +362,18 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi-node.FieldExtractorIT
   method: testConstantKeywordField
   issue: https://github.com/elastic/elasticsearch/issues/117531
+- class: org.elasticsearch.action.search.SearchQueryThenFetchAsyncActionTests
+  method: testMinimumVersionBetweenNewAndOldVersion
+  issue: https://github.com/elastic/elasticsearch/issues/117485
+- class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
+- class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
+  method: testConstantKeywordField
+  issue: https://github.com/elastic/elasticsearch/issues/117524
 
 # Examples:
 #

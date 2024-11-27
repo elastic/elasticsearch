@@ -531,7 +531,12 @@ public class EsqlCapabilities {
         /**
          * support for aggregations on semantic_text
          */
-        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG);
+        SEMANTIC_TEXT_AGGREGATIONS(EsqlCorePlugin.SEMANTIC_TEXT_FEATURE_FLAG),
+
+        /**
+         * Fix for https://github.com/elastic/elasticsearch/issues/114714, again
+         */
+        FIX_STATS_BY_FOLDABLE_EXPRESSION_2,;
 
         private final boolean enabled;
 

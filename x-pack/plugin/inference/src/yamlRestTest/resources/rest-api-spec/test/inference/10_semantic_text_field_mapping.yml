@@ -73,6 +73,60 @@ setup:
   - length: { "test-index.mappings.properties.sparse_field": 3 }
 
 ---
+"Indexes sparse vector document - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  # Checks mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - length: { "test-index.mappings.properties.sparse_field": 2 }
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          _inference_fields.sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings:
+                    feature_0: 1.0
+                    feature_1: 2.0
+                    feature_2: 3.0
+                    feature_3: 4.0
+                - text: "He's free to go around"
+                  embeddings:
+                    feature_4: 0.1
+                    feature_5: 0.2
+                    feature_6: 0.3
+                    feature_7: 0.4
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.sparse_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.sparse_field.inference_id": sparse-inference-id }
+  - match: { "test-index.mappings.properties.sparse_field.model_settings.task_type": sparse_embedding }
+  - length: { "test-index.mappings.properties.sparse_field": 3 }
+
+---
 "Field caps with sparse embedding":
   - requires:
       cluster_features: "gte_v8.16.0"
@@ -112,6 +166,86 @@ setup:
         id: doc_1
         body:
           sparse_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: sparse-inference-id
+              model_settings:
+                task_type: sparse_embedding
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings:
+                    feature_0: 1.0
+                    feature_1: 2.0
+                    feature_2: 3.0
+                    feature_3: 4.0
+                - text: "He's free to go around"
+                  embeddings:
+                    feature_4: 0.1
+                    feature_5: 0.2
+                    feature_6: 0.3
+                    feature_7: 0.4
+        refresh: true
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - match: { fields.sparse_field.semantic_text.searchable: true }
+  - match: { fields.dense_field.semantic_text.searchable: true }
+
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - not_exists: fields.dense_field
+  - match: { fields.sparse_field.semantic_text.searchable: true }
+
+---
+"Field caps with sparse embedding - inference metadata fields":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: Test targets semantic text with inference metadata fields
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - not_exists: fields.sparse_field
+  - not_exists: fields.dense_field
+
+  - do:
+      index:
+        index: test-index
+        id: doc_1
+        body:
+          _inference_fields.sparse_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: sparse-inference-id
@@ -207,6 +341,55 @@ setup:
   - length: { "test-index.mappings.properties.dense_field": 3 }
 
 ---
+"Indexes dense vector document - inference metadata fields":
+  - requires:
+      test_runner_features: [ capabilities ]
+      reason: Test targets semantic text with inference metadata fields
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  # Checks mapping is not updated until first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - length: { "test-index.mappings.properties.dense_field": 2 }
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          _inference_fields.dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: float
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings: [0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416]
+                - text: "He's free to go around"
+                  embeddings: [0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896]
+
+  # Checks mapping is updated when first doc arrives
+  - do:
+      indices.get_mapping:
+        index: test-index
+
+  - match: { "test-index.mappings.properties.dense_field.type": semantic_text }
+  - match: { "test-index.mappings.properties.dense_field.inference_id": dense-inference-id }
+  - match: { "test-index.mappings.properties.dense_field.model_settings.task_type": text_embedding }
+  - length: { "test-index.mappings.properties.dense_field": 3 }
+
+---
 "Field caps with text embedding":
   - requires:
       cluster_features: "gte_v8.16.0"
@@ -246,6 +429,81 @@ setup:
         id: doc_2
         body:
           dense_field:
+            text: "these are not the droids you're looking for. He's free to go around"
+            inference:
+              inference_id: dense-inference-id
+              model_settings:
+                task_type: text_embedding
+                dimensions: 4
+                similarity: cosine
+                element_type: float
+              chunks:
+                - text: "these are not the droids you're looking for"
+                  embeddings: [ 0.04673296958208084, -0.03237321600317955, -0.02543032355606556, 0.056035321205854416 ]
+                - text: "He's free to go around"
+                  embeddings: [ 0.00641461368650198, -0.0016253676731139421, -0.05126338079571724, 0.053438711911439896 ]
+        refresh: true
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+  - match: { fields.sparse_field.semantic_text.searchable: true }
+  - match: { fields.dense_field.semantic_text.searchable: true }
+
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - not_exists: fields.sparse_field
+  - exists: fields.dense_field
+  - match: { fields.dense_field.semantic_text.searchable: true }
+
+---
+"Field caps with text embedding - inference metadata fields":
+  - requires:
+      cluster_features: "gte_v8.16.0"
+      reason: Test targets semantic text with inference metadata fields
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: GET
+          path: /_inference
+          capabilities: [ inference_metadata_fields ]
+
+  - do:
+      field_caps:
+        include_empty_fields: true
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - exists: fields.sparse_field
+  - exists: fields.dense_field
+
+  - do:
+      field_caps:
+        include_empty_fields: false
+        index: test-index
+        fields: "*"
+
+  - match: { indices: [ "test-index" ] }
+  - not_exists: fields.sparse_field
+  - not_exists: fields.dense_field
+
+  - do:
+      index:
+        index: test-index
+        id: doc_2
+        body:
+          _inference_fields.dense_field:
             text: "these are not the droids you're looking for. He's free to go around"
             inference:
               inference_id: dense-inference-id

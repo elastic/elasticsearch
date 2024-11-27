@@ -79,7 +79,6 @@ import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
-import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.index.query.QueryBuilders.boolQuery;
@@ -465,8 +464,6 @@ public class EsqlSession {
         // ie "from test | eval lang = languages + 1 | keep *l" should consider both "languages" and "*l" as valid fields to ask for
         AttributeSet keepCommandReferences = new AttributeSet();
         AttributeSet keepJoinReferences = new AttributeSet();
-        List<Predicate<String>> keepMatches = new ArrayList<>();
-        List<String> keepPatterns = new ArrayList<>();
 
         parsed.forEachDown(p -> {// go over each plan top-down
             if (p instanceof RegexExtract re) { // for Grok and Dissect
@@ -500,7 +497,6 @@ public class EsqlSession {
                     references.add(ua);
                     if (p instanceof Keep) {
                         keepCommandReferences.add(ua);
-                        keepMatches.add(up::match);
                     }
                 });
                 if (p instanceof Keep) {

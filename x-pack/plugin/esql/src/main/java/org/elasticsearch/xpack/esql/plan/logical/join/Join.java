@@ -10,8 +10,8 @@ package org.elasticsearch.xpack.esql.plan.logical.join;
 import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.util.Maps;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
@@ -23,9 +23,11 @@ import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
+import java.util.stream.Collectors;
 
+import static org.elasticsearch.xpack.esql.expression.NamedExpressions.mergeOutputAttributes;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.LEFT;
 import static org.elasticsearch.xpack.esql.plan.logical.join.JoinTypes.RIGHT;
 
@@ -107,35 +109,22 @@ public class Join extends BinaryPlan {
         JoinType joinType = config.type();
         List<Attribute> output;
         // TODO: make the other side nullable
+        Set<String> matchFieldNames = config.matchFields().stream().map(NamedExpression::name).collect(Collectors.toSet());
         if (LEFT.equals(joinType)) {
-            // right side becomes nullable and overrides left
-            // output = merge(leftOutput, makeNullable(rightOutput));
-            output = merge(leftOutput, rightOutput);
+            // right side becomes nullable and overrides left except for match fields, which we preserve from the left
+            List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
+                .filter(attr -> matchFieldNames.contains(attr.name()) == false)
+                .toList();
+            output = mergeOutputAttributes(leftOutput, rightOutputWithoutMatchFields);
         } else if (RIGHT.equals(joinType)) {
-            // left side becomes nullable and overrides right
-            // output = merge(makeNullable(leftOutput), rightOutput);
-            output = merge(leftOutput, rightOutput);
+            List<Attribute> leftOutputWithoutMatchFields = leftOutput.stream()
+                .filter(attr -> matchFieldNames.contains(attr.name()) == false)
+                .toList();
+            output = mergeOutputAttributes(rightOutput, leftOutputWithoutMatchFields);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }
         return output;
-    }
-
-    /**
-     * Merge the two lists of attributes into one and preserves order.
-     */
-    private static List<Attribute> merge(List<Attribute> left, List<Attribute> right) {
-        // use linked hash map to preserve order
-        Map<String, Attribute> nameToAttribute = Maps.newLinkedHashMapWithExpectedSize(left.size() + right.size());
-        for (Attribute a : left) {
-            nameToAttribute.put(a.name(), a);
-        }
-        for (Attribute a : right) {
-            // override the existing entry in place
-            nameToAttribute.compute(a.name(), (name, existing) -> a);
-        }
-
-        return new ArrayList<>(nameToAttribute.values());
     }
 
     /**
@@ -157,14 +146,6 @@ public class Join extends BinaryPlan {
             } else {
                 out.add(a);
             }
-        }
-        return out;
-    }
-
-    private static List<Attribute> makeNullable(List<Attribute> output) {
-        List<Attribute> out = new ArrayList<>(output.size());
-        for (Attribute a : output) {
-            out.add(a.withNullability(Nullability.TRUE));
         }
         return out;
     }

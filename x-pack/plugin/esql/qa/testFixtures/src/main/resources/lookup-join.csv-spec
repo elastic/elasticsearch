@@ -6,19 +6,18 @@
 basicOnTheDataNode
 required_capability: join_lookup
 
-//TODO: this returns different results in CI then locally
-// sometimes null, sometimes spanish (likely related to the execution order)
 FROM employees
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
-| WHERE emp_no < 500
+| WHERE emp_no >= 10091 AND emp_no < 10094
 | KEEP emp_no, language_name
 | SORT emp_no
-| LIMIT 1
 ;
 
 emp_no:integer | language_name:keyword
-//10091          | Spanish
+10091          | Spanish
+10092          | English
+10093          | Spanish
 ;
 
 basicRow-Ignore
@@ -37,7 +36,7 @@ required_capability: join_lookup
 
 FROM employees
 | SORT emp_no
-| LIMIT 1
+| LIMIT 3
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
 | KEEP emp_no, language_name
@@ -45,4 +44,6 @@ FROM employees
 
 emp_no:integer | language_name:keyword
 10001          | French
+10002          | null
+10003          | German
 ;

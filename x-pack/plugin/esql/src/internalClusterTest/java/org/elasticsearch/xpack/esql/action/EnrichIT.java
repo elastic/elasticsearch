@@ -33,6 +33,7 @@ import org.elasticsearch.protocol.xpack.XPackInfoRequest;
 import org.elasticsearch.protocol.xpack.XPackInfoResponse;
 import org.elasticsearch.reindex.ReindexPlugin;
 import org.elasticsearch.rest.RestStatus;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.transport.MockTransportService;
 import org.elasticsearch.transport.RemoteTransportException;
 import org.elasticsearch.transport.TransportService;
@@ -143,6 +144,14 @@ public class EnrichIT extends AbstractEsqlIntegTestCase {
                 return client.execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
             } catch (Exception e) {
                 logger.info("request failed", e);
+                assertTrue(
+                    "cancellation exceptions must be ignored",
+                    ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isEmpty()
+                );
+                assertTrue(
+                    "remote transport exception must be unwrapped",
+                    ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isEmpty()
+                );
                 ensureBlocksReleased();
             } finally {
                 setRequestCircuitBreakerLimit(null);

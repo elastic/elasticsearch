@@ -7,6 +7,7 @@
 
 package org.elasticsearch.xpack.esql.action;
 
+import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionFuture;
 import org.elasticsearch.action.admin.cluster.node.tasks.list.TransportListTasksAction;
 import org.elasticsearch.action.admin.cluster.reroute.ClusterRerouteUtils;
@@ -18,6 +19,7 @@ import org.elasticsearch.compute.operator.exchange.ExchangeService;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.health.node.selection.HealthNode;
 import org.elasticsearch.plugins.Plugin;
+import org.elasticsearch.tasks.TaskCancelledException;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.test.disruption.NetworkDisruption;
 import org.elasticsearch.test.disruption.ServiceDisruptionScheme;
@@ -111,6 +113,14 @@ public class EsqlDisruptionIT extends EsqlActionIT {
             assertTrue("request must be failed or completed after clearing disruption", future.isDone());
             ensureBlocksReleased();
             logger.info("--> failed to execute esql query with disruption; retrying...", e);
+            assertTrue(
+                "cancellation exceptions must be ignored",
+                ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isEmpty()
+            );
+            assertTrue(
+                "remote transport exception must be unwrapped",
+                ExceptionsHelper.unwrapCausesAndSuppressed(e, t -> t instanceof TaskCancelledException).isEmpty()
+            );
             return client().execute(EsqlQueryAction.INSTANCE, request).actionGet(2, TimeUnit.MINUTES);
         }
     }

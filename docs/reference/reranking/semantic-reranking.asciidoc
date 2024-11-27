@@ -94,8 +94,8 @@ Currently you have the following options:
 + 
 Refer to {ml-docs}/ml-nlp-model-ref.html#ml-nlp-model-ref-text-similarity[the Elastic NLP model reference] for a list of third party text similarity models supported by {es} for semantic re-ranking.
 
-. *Create a `rerank` task using the <<put-inference-api,{es} Inference API>>*.
-The Inference API creates an inference endpoint and configures your chosen machine learning model to perform the re-ranking task.
+. *Create a `rerank` endpoint using the <<put-inference-api,{es} Inference API>>*.
+Use the Inference API to create an inference endpoint and configures your chosen machine learning model to perform the re-ranking task.
 . *Define a `text_similarity_reranker` retriever in your search request*.
 The retriever syntax makes it simple to configure both the retrieval and re-ranking of search results in a single API call.
 

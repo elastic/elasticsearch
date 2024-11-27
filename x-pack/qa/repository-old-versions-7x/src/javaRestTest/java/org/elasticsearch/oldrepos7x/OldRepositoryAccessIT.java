@@ -191,7 +191,10 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         // check expected Cluster version
         Request infoRequest = new Request("GET", "/");
         Response response = assertOK(client.performRequest(infoRequest));
-        assertEquals(version.toString(), ObjectPath.createFromResponse(response).evaluate("version.number"));
+        assertEquals(
+            version.toString(),
+            ((String) ObjectPath.createFromResponse(response).evaluate("version.number")).replace("-SNAPSHOT", "")
+        );
     }
 
     @Override

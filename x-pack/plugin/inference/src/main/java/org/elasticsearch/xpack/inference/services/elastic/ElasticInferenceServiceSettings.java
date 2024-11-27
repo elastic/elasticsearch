@@ -18,7 +18,7 @@ public class ElasticInferenceServiceSettings {
     @Deprecated
     static final Setting<String> EIS_GATEWAY_URL = Setting.simpleString("xpack.inference.eis.gateway.url", Setting.Property.NodeScope);
 
-    public static final String SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
+    public static final String ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX = "xpack.inference.elastic.http.ssl.";
 
     static final Setting<String> ELASTIC_INFERENCE_SERVICE_URL = Setting.simpleString(
         "xpack.inference.elastic.url",
@@ -37,13 +37,13 @@ public class ElasticInferenceServiceSettings {
 
     }
 
-    public static final SSLConfigurationSettings SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
-        SSL_CONFIGURATION_PREFIX,
+    public static final SSLConfigurationSettings ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_SETTINGS = SSLConfigurationSettings.withPrefix(
+        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX,
         false
     );
 
     public static final Setting<Boolean> ELASTIC_INFERENCE_SERVICE_SSL_ENABLED = Setting.boolSetting(
-        SSL_CONFIGURATION_PREFIX + "enabled",
+        ELASTIC_INFERENCE_SERVICE_SSL_CONFIGURATION_PREFIX + "enabled",
         true,
         Setting.Property.NodeScope
     );

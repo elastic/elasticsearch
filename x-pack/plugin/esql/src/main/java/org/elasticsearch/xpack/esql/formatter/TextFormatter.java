@@ -61,12 +61,7 @@ public class TextFormatter {
      * Format the provided {@linkplain EsqlQueryResponse} optionally including the header lines.
      */
     public Iterator<CheckedConsumer<Writer, IOException>> format(boolean includeHeader, boolean dropNullColumns) {
-        boolean[] nullColumns;
-        if (dropNullColumns) {
-            nullColumns = response.nullColumns();
-        } else {
-            nullColumns = null;
-        }
+        boolean[] nullColumns = dropNullColumns ? response.nullColumns() : null;
         return Iterators.concat(
             // The header lines
             includeHeader && response.columns().size() > 0

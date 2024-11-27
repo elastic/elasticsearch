@@ -89,8 +89,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
-        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .build();
 
     @ClassRule

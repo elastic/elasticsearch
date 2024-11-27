@@ -220,7 +220,6 @@ public class Verifier {
             checkSort(p, failures);
 
             checkFullTextQueryFunctions(p, failures);
-
         });
         checkRemoteEnrich(plan, failures);
         checkMetadataScoreNameReserved(plan, failures);

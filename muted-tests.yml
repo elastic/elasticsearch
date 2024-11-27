@@ -362,6 +362,9 @@ tests:
 - class: org.elasticsearch.discovery.ClusterDisruptionIT
   method: testAckedIndexing
   issue: https://github.com/elastic/elasticsearch/issues/117024
+- class: org.elasticsearch.xpack.inference.DefaultEndPointsIT
+  method: testMultipleInferencesTriggeringDownloadAndDeploy
+  issue: https://github.com/elastic/elasticsearch/issues/117208
 
 # Examples:
 #

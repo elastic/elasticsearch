@@ -21,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 public abstract class BlockHashTestCase extends ESTestCase {
 
-    final CircuitBreaker breaker = new MockBigArrays.LimitedBreaker("esql-test-breaker", ByteSizeValue.ofGb(1));
+    final CircuitBreaker breaker = newLimitedBreaker(ByteSizeValue.ofGb(1));
     final BigArrays bigArrays = new MockBigArrays(PageCacheRecycler.NON_RECYCLING_INSTANCE, mockBreakerService(breaker));
     final MockBlockFactory blockFactory = new MockBlockFactory(breaker, bigArrays);
 

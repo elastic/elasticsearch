@@ -68,7 +68,6 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             hash.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
-                    groupIds.incRef();
                     assertEquals(groupIds.getPositionCount(), positions);
 
                     assertEquals(0, groupIds.getInt(0));
@@ -123,15 +122,16 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2 = new Page(builder.build());
         }
 
+        Page intermediatePage1, intermediatePage2;
+
+        // Fill intermediatePages with the intermediate state from the raw hashes
         try (
             BlockHash rawHash1 = new CategorizeRawBlockHash(0, blockFactory, true);
-            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true);
-            BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)
+            BlockHash rawHash2 = new CategorizeRawBlockHash(0, blockFactory, true)
         ) {
             rawHash1.add(page1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
-                    groupIds.incRef();
                     assertEquals(groupIds.getPositionCount(), positions1);
                     assertEquals(0, groupIds.getInt(0));
                     assertEquals(1, groupIds.getInt(1));
@@ -152,8 +152,38 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
+            intermediatePage1 = new Page(rawHash1.getKeys()[0]);
 
-            Page intermediatePage1 = new Page(rawHash1.getKeys()[0]);
+            rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
+                @Override
+                public void add(int positionOffset, IntBlock groupIds) {
+                    assertEquals(groupIds.getPositionCount(), positions2);
+                    assertEquals(0, groupIds.getInt(0));
+                    assertEquals(1, groupIds.getInt(1));
+                    assertEquals(0, groupIds.getInt(2));
+                    assertEquals(1, groupIds.getInt(3));
+                    assertEquals(2, groupIds.getInt(4));
+                }
+
+                @Override
+                public void add(int positionOffset, IntVector groupIds) {
+                    add(positionOffset, groupIds.asBlock());
+                }
+
+                @Override
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
+            });
+            intermediatePage2 = new Page(rawHash2.getKeys()[0]);
+        } finally {
+            page1.releaseBlocks();
+            page2.releaseBlocks();
+        }
+
+        try (
+            BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)
+        ) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
@@ -174,32 +204,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                     fail("hashes should not close AddInput");
                 }
             });
-            intermediatePage1.releaseBlocks();
 
-            rawHash2.add(page2, new GroupingAggregatorFunction.AddInput() {
-                @Override
-                public void add(int positionOffset, IntBlock groupIds) {
-                    groupIds.incRef();
-                    assertEquals(groupIds.getPositionCount(), positions2);
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(0, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
-                }
-
-                @Override
-                public void add(int positionOffset, IntVector groupIds) {
-                    add(positionOffset, groupIds.asBlock());
-                }
-
-                @Override
-                public void close() {
-                    fail("hashes should not close AddInput");
-                }
-            });
-
-            intermediateHash.add(new Page(rawHash2.getKeys()[0]), new GroupingAggregatorFunction.AddInput() {
+            intermediateHash.add(intermediatePage2, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     Set<Integer> values = IntStream.range(0, groupIds.getPositionCount())
@@ -222,8 +228,8 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 }
             });
         } finally {
-            page1.releaseBlocks();
-            page2.releaseBlocks();
+            intermediatePage1.releaseBlocks();
+            intermediatePage2.releaseBlocks();
         }
     }
 

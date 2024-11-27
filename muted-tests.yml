@@ -374,9 +374,6 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.mixed.FieldExtractorIT
   method: testConstantKeywordField
   issue: https://github.com/elastic/elasticsearch/issues/117524
-- class: org.elasticsearch.xpack.logsdb.qa.StandardVersusLogsIndexModeRandomDataDynamicMappingChallengeRestIT
-  method: testEsqlSource
-  issue: https://github.com/elastic/elasticsearch/issues/117645
 
 # Examples:
 #

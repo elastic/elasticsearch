@@ -357,7 +357,7 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
         updateClusterSettings(Settings.builder().put("search.allow_expensive_queries", "false"));
     }
 
-    public void testErrorSaved() throws Exception {
+    public void testErrorNotSaved() throws Exception {
         internalCluster().setBootstrapMasterNodeIndex(0);
         logger.info("--> start data node / non master node");
         String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));

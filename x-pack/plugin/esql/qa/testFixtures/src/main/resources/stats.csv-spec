@@ -1323,7 +1323,7 @@ COUNT(c):long | a:integer
             0 | 1
 ;
 
-countDistinctNull#[skip:-9.99.99,reason:not yet fixed]
+countDistinctNull#[skip:-8.99.99,reason:not yet fixed]
 ROW a = 1, c = null
 | STATS COUNT_DISTINCT(c) BY a;
 

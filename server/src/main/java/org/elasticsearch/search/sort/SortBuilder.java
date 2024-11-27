@@ -50,12 +50,6 @@ public abstract class SortBuilder<T extends SortBuilder<T>>
     // parse fields common to more than one SortBuilder
     public static final ParseField ORDER_FIELD = new ParseField("order");
 
-    /*  @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
-    public static final ParseField NESTED_FILTER_FIELD = new ParseField("nested_filter").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
-    public static final ParseField NESTED_PATH_FIELD = new ParseField("nested_path").withAllDeprecated()
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));*/
-
     private static final Map<String, Parser<?>> PARSERS = Map.of(
         ScriptSortBuilder.NAME,
         ScriptSortBuilder::fromXContent,

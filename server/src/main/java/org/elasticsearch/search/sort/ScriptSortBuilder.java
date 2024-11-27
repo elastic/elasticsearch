@@ -219,14 +219,6 @@ public class ScriptSortBuilder extends SortBuilder<ScriptSortBuilder> {
         PARSER.declareString((b, v) -> b.order(SortOrder.fromString(v)), ORDER_FIELD);
         PARSER.declareString((b, v) -> b.sortMode(SortMode.fromString(v)), SORTMODE_FIELD);
         PARSER.declareObject(ScriptSortBuilder::setNestedSort, (p, c) -> NestedSortBuilder.fromXContent(p), NESTED_FIELD);
-
-        /*  PARSER.declareObject((b, v) -> {}, (p, c) -> {
-            throw new ParsingException(p.getTokenLocation(), "[nested_path] has been removed in favour of the [nested] parameter", c);
-        }, NESTED_PATH_FIELD);
-
-        PARSER.declareObject((b, v) -> {}, (p, c) -> {
-            throw new ParsingException(p.getTokenLocation(), "[nested_filter] has been removed in favour of the [nested] parameter", c);
-        }, NESTED_FILTER_FIELD);*/
     }
 
     /**

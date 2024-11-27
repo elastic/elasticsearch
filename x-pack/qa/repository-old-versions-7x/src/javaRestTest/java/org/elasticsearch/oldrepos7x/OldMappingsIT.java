@@ -179,6 +179,9 @@ public class OldMappingsIT extends ESRestTestCase {
 
     @Before
     public void registerAndRestoreRepo() throws IOException {
+        // this would ideally also happen in @BeforeClass and just once, but we don't have the current cluster client()
+        // there yet. So we do it before tests here and make sure to only restore the repo once.
+        // Goes together with the empty "wipeSnapshot()" override in this test.
         if (repoRestored == false) {
             // register repo on new ES and restore snapshot
             Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);

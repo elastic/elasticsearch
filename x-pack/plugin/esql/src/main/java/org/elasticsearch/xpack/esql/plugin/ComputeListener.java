@@ -203,13 +203,14 @@ final class ComputeListener implements Releasable {
 
     /**
      * Marks the cluster as PARTIAL and adds the exception to the cluster's failures record.
-     * Currently, additional failures are not recorded, TODO: check if this should be the case.
+     * Currently, additional failures are not recorded.
+     * TODO: add accumulating failures.
      */
     void markAsPartial(String computeClusterAlias, Exception e) {
         var status = esqlExecutionInfo.getCluster(computeClusterAlias).getStatus();
         assert status != EsqlExecutionInfo.Cluster.Status.SKIPPED
             : "We shouldn't be running compute on a cluster that's already marked as skipped";
-        // We use PARTIAL here because we can not know whether the cluster have already sent any data.
+        // We use PARTIAL here because we can not know whether the cluster has already sent any data.
         if (status != EsqlExecutionInfo.Cluster.Status.PARTIAL) {
             LOGGER.debug("Marking failed cluster {} as partial: {}", computeClusterAlias, e);
             markClusterNoShards(esqlExecutionInfo, computeClusterAlias, EsqlExecutionInfo.Cluster.Status.PARTIAL, e);

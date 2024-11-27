@@ -401,8 +401,10 @@ public class ComputeService {
                     refs.acquire().delegateFailureAndWrap((l, unused) -> {
                         var remotePlan = new RemoteClusterPlan(plan, cluster.concreteIndices, cluster.originalIndices);
                         var clusterRequest = new ClusterComputeRequest(cluster.clusterAlias, childSessionId, configuration, remotePlan);
-
-                        // Create group task for this cluster
+                        // Create group task for this cluster. This group task ensures that two branches of the computation:
+                        // the exchange sink and the cluster request, belong to the same group and each of them can cancel the other.
+                        // runAfter listeners below ensure that the group is finalized when both branches are done.
+                        // The group task is the child of the root task, so if the root task is cancelled, the group task is cancelled too.
                         CancellableTask groupTask = createGroupTask(rootTask, clusterRequest.getDescription());
                         CountDown countDown = new CountDown(2);
                         // The group is done when both the sink and the cluster request are done
@@ -425,6 +427,8 @@ public class ComputeService {
                         var remoteSink = exchangeService.newRemoteSink(groupTask, childSessionId, transportService, cluster.connection);
                         exchangeSource.addRemoteSink(
                             remoteSink,
+                            // This applies to all the subrequests for this cluster, and all the failures.
+                            // If we need to change it depending on the kind of failure, we'll have to replace this with a predicate.
                             suppressRemoteFailure == false,
                             queryPragmas.concurrentExchangeClients(),
                             ActionListener.runAfter(exchangeListener, finishGroup)

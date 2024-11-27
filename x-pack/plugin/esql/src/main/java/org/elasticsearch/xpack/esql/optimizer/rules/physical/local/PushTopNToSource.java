@@ -158,11 +158,7 @@ public class PushTopNToSource extends PhysicalOptimizerRules.ParameterizedOptimi
                         )
                     );
                 } else if (lucenePushdownPredicates.isPushableMetadataAttribute(order.child())) {
-                    pushableSorts.add(
-                        new EsQueryExec.ScoreSort(
-                            order.direction()
-                        )
-                    );
+                    pushableSorts.add(new EsQueryExec.ScoreSort(order.direction()));
                 } else if (order.child() instanceof ReferenceAttribute referenceAttribute) {
                     Attribute resolvedAttribute = aliasReplacedBy.resolve(referenceAttribute, referenceAttribute);
                     if (distances.containsKey(resolvedAttribute.id())) {

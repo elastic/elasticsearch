@@ -67,10 +67,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleScoreSortField() {
         // FROM index METADATA _score | SORT _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .scoreSort()
-            .limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false).scoreSort().limit(10);
         assertPushdownSort(query);
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -84,10 +81,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortMultipleFieldsAndScore() {
         // FROM index | SORT field, integer, double, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .sort("field").sort("integer").sort("double")
-            .scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false).sort("field").sort("integer").sort("double").scoreSort().limit(10);
         assertPushdownSort(query);
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -101,10 +95,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortFieldScoreAndEvalLiteral() {
         // FROM index METADATA _score | EVAL x = 1 | SORT field, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .eval("x", e -> e.i(1))
-            .sort("field").scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false).eval("x", e -> e.i(1)).sort("field").scoreSort().limit(10);
         assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -131,8 +122,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortMultipleFieldsWithAliasesAndScore() {
         // FROM index | EVAL x = field, y = integer, z = double | SORT field, integer, double, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("x", b -> b.field("field"))
             .eval("y", b -> b.field("integer"))
             .eval("z", b -> b.field("double"))
@@ -154,9 +144,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortFieldAsAliasAndScore() {
         // FROM index METADATA _score | EVAL x = field | SORT x, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .eval("x", b -> b.field("field")).sort("x").scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false).eval("x", b -> b.field("field")).sort("x").scoreSort().limit(10);
         assertPushdownSort(query, Map.of("x", "field"), List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -170,9 +158,11 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortFieldAndEvalSumLiteralsAndScore() {
         // FROM index METADATA _score | EVAL sum = 1 + 2 | SORT field, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .eval("sum", b -> b.add(b.i(1), b.i(2))).sort("field").scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false)
+            .eval("sum", b -> b.add(b.i(1), b.i(2)))
+            .sort("field")
+            .scoreSort()
+            .limit(10);
         assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -186,9 +176,11 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSimpleSortFieldAndEvalSumLiteralAndFieldAndScore() {
         // FROM index METADATA _score | EVAL sum = 1 + integer | SORT integer, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .eval("sum", b -> b.add(b.i(1), b.field("integer"))).sort("integer").scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false)
+            .eval("sum", b -> b.add(b.i(1), b.field("integer")))
+            .sort("integer")
+            .scoreSort()
+            .limit(10);
         assertPushdownSort(query, List.of(EvalExec.class, EsQueryExec.class));
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
     }
@@ -220,9 +212,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoPointFieldAnsScore() {
         // FROM index METADATA _score | SORT location, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
-            .sort("location", Order.OrderDirection.ASC).scoreSort().limit(10);
+        var query = from("index").metadata("_score", DOUBLE, false).sort("location", Order.OrderDirection.ASC).scoreSort().limit(10);
         // NOTE: while geo_point is not sortable, this is checked during logical planning and the physical planner does not know or care
         assertPushdownSort(query);
         assertNoPushdownSort(query.asTimeSeries(), "for time series index mode");
@@ -240,10 +230,10 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoDistanceFunctionAndScore() {
         // FROM index METADATA _score | EVAL distance = ST_DISTANCE(location, POINT(1 2)) | SORT distance, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("distance", b -> b.distance("location", "POINT(1 2)"))
-            .sort("distance", Order.OrderDirection.ASC).scoreSort()
+            .sort("distance", Order.OrderDirection.ASC)
+            .scoreSort()
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
         assertPushdownSort(query, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
@@ -262,10 +252,10 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoDistanceFunctionInvertedAndScore() {
         // FROM index METADATA _score | EVAL distance = ST_DISTANCE(POINT(1 2), location) | SORT distance, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("distance", b -> b.distance("POINT(1 2)", "location"))
-            .sort("distance", Order.OrderDirection.ASC).scoreSort()
+            .sort("distance", Order.OrderDirection.ASC)
+            .scoreSort()
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
         assertPushdownSort(query, Map.of("distance", "location"), List.of(EvalExec.class, EsQueryExec.class));
@@ -284,10 +274,10 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoDistanceFunctionLiteralsAndScore() {
         // FROM index METADATA _score | EVAL distance = ST_DISTANCE(POINT(2 1), POINT(1 2)) | SORT distance, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("distance", b -> b.distance("POINT(2 1)", "POINT(1 2)"))
-            .sort("distance", Order.OrderDirection.ASC).scoreSort()
+            .sort("distance", Order.OrderDirection.ASC)
+            .scoreSort()
             .limit(10);
         // The pushed-down sort will use the underlying field 'location', not the sorted reference field 'distance'
         assertNoPushdownSort(query, "sort on foldable distance function");
@@ -309,8 +299,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoDistanceFunctionAndFieldsWithAliasesAndScore() {
         // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)), x = field | SORT distance, field, integer, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("distance", b -> b.distance("location", "POINT(1 2)"))
             .eval("x", b -> b.field("field"))
             .sort("distance", Order.OrderDirection.ASC)
@@ -338,8 +327,7 @@ public class PushTopNToSourceTests extends ESTestCase {
 
     public void testSortGeoDistanceFunctionAndFieldsAndAliasesAndScore() {
         // FROM index | EVAL distance = ST_DISTANCE(location, POINT(1 2)), x = field | SORT distance, x, integer, _score | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("distance", b -> b.distance("location", "POINT(1 2)"))
             .eval("x", b -> b.field("field"))
             .sort("distance", Order.OrderDirection.ASC)
@@ -376,8 +364,7 @@ public class PushTopNToSourceTests extends ESTestCase {
         // | EVAL loc = location, loc2 = loc, loc3 = loc2, distance = ST_DISTANCE(loc3, POINT(1 2)), x = field
         // | SORT distance, x, integer, _score
         // | LIMIT 10
-        var query = from("index")
-            .metadata("_score", DOUBLE, false)
+        var query = from("index").metadata("_score", DOUBLE, false)
             .eval("loc", b -> b.field("location"))
             .eval("loc2", b -> b.ref("loc"))
             .eval("loc3", b -> b.ref("loc2"))
@@ -561,8 +548,14 @@ public class PushTopNToSourceTests extends ESTestCase {
         }
 
         public TestPhysicalPlanBuilder scoreSort(Order.OrderDirection direction) {
-            orders.add(new Order(Source.EMPTY, MetadataAttribute.create(Source.EMPTY,MetadataAttribute.SCORE),
-                direction, Order.NullsPosition.LAST));
+            orders.add(
+                new Order(
+                    Source.EMPTY,
+                    MetadataAttribute.create(Source.EMPTY, MetadataAttribute.SCORE),
+                    direction,
+                    Order.NullsPosition.LAST
+                )
+            );
             return this;
         }
 

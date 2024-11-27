@@ -2778,6 +2778,18 @@ m:integer | y+1:integer
 11        | 12
 ;
 
+statsByConstantExpressionWithAliasAndSort
+required_capability: fix_stats_by_foldable_expression_2
+FROM employees
+| EVAL y = "a"
+| STATS count = COUNT() BY x = y
+| SORT x
+;
+
+count:long | x:keyword
+100        | a
+;
+
 filterIsAlwaysTrue
 required_capability: per_agg_filtering
 FROM employees

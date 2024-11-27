@@ -53,7 +53,7 @@ public class OpenAiChatCompletionModel extends OpenAiModel {
 
         var overriddenTaskSettings = OpenAiChatCompletionTaskSettings.of(model.getTaskSettings(), requestTaskSettings);
         return new OpenAiChatCompletionModel(
-            overriddenServiceSettings.modelId(),
+            model.getInferenceEntityId(),
             model.getTaskType(),
             model.getConfigurations().getService(),
             overriddenServiceSettings,

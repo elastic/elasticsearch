@@ -12,7 +12,6 @@ import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
 import org.elasticsearch.rest.ServerlessScope;
-import org.elasticsearch.xpack.core.inference.action.InferenceAction;
 import org.elasticsearch.xpack.core.inference.action.UnifiedCompletionAction;
 
 import java.io.IOException;
@@ -45,6 +44,6 @@ public class RestUnifiedCompletionInferenceAction extends BaseRestHandler {
             request = UnifiedCompletionAction.Request.parseRequest(params.inferenceEntityId(), params.taskType(), inferTimeout, parser);
         }
 
-        return channel -> client.execute(InferenceAction.INSTANCE, request, new ServerSentEventsRestActionListener(channel));
+        return channel -> client.execute(UnifiedCompletionAction.INSTANCE, request, new ServerSentEventsRestActionListener(channel));
     }
 }

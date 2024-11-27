@@ -40,7 +40,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
     private static final String STOP_FIELD = "stop";
     private static final String TEMPERATURE_FIELD = "temperature";
     private static final String TOOL_CHOICE_FIELD = "tool_choice";
-    private static final String TOOL_FIELD = "tool";
+    private static final String TOOL_FIELD = "tools";
     private static final String TEXT_FIELD = "text";
     private static final String TYPE_FIELD = "type";
 
@@ -107,9 +107,7 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
         }
         builder.endArray();
 
-        if (unifiedRequest.model() != null) {
-            builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
-        }
+        builder.field(MODEL_FIELD, model.getServiceSettings().modelId());
         if (unifiedRequest.maxCompletionTokens() != null) {
             builder.field(MAX_COMPLETION_TOKENS_FIELD, unifiedRequest.maxCompletionTokens());
         }
@@ -144,9 +142,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                 builder.endObject();
             }
         }
-        if (unifiedRequest.tool() != null) {
+        if (unifiedRequest.tools() != null) {
             builder.startArray(TOOL_FIELD);
-            for (UnifiedCompletionRequest.Tool t : unifiedRequest.tool()) {
+            for (UnifiedCompletionRequest.Tool t : unifiedRequest.tools()) {
                 builder.startObject();
                 {
                     builder.field(TYPE_FIELD, t.type());
@@ -155,7 +153,9 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
                         builder.field(DESCRIPTION_FIELD, t.function().description());
                         builder.field(NAME_FIELD, t.function().name());
                         builder.field(PARAMETERS_FIELD, t.function().parameters());
-                        builder.field(STRICT_FIELD, t.function().strict());
+                        if (t.function().strict() != null) {
+                            builder.field(STRICT_FIELD, t.function().strict());
+                        }
                     }
                     builder.endObject();
                 }
@@ -167,12 +167,15 @@ public class OpenAiUnifiedChatCompletionRequestEntity implements ToXContentObjec
             builder.field(TOP_P_FIELD, unifiedRequest.topP());
         }
 
-        if (Strings.isNullOrEmpty(model.getTaskSettings().user())) {
+        if (Strings.isNullOrEmpty(model.getTaskSettings().user()) == false) {
             builder.field(USER_FIELD, model.getTaskSettings().user());
         }
 
         builder.field(STREAM_FIELD, stream);
         builder.endObject();
+
+        System.out.println(Strings.toString(builder));
+
         return builder;
     }
 }

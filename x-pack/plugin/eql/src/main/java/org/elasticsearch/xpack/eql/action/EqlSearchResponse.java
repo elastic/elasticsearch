@@ -40,13 +40,13 @@ import org.elasticsearch.xpack.ql.async.QlStatusResponse;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
-import static org.elasticsearch.action.search.ShardSearchFailure.readShardSearchFailure;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.constructorArg;
 import static org.elasticsearch.xcontent.ConstructingObjectParser.optionalConstructorArg;
 import static org.elasticsearch.xpack.eql.util.SearchHitUtils.qualifiedIndex;
@@ -93,7 +93,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         parser.declareString(optionalConstructorArg(), ID);
         parser.declareBoolean(constructorArg(), IS_RUNNING);
         parser.declareBoolean(constructorArg(), IS_PARTIAL);
-        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES); // TODO fix this
+        parser.declareObjectArray(optionalConstructorArg(), (p, c) -> ShardSearchFailure.EMPTY_ARRAY, SHARD_FAILURES);
         PARSER = parser.build();
     }
 
@@ -129,15 +129,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         isPartial = in.readBoolean();
         isRunning = in.readBoolean();
         if (in.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            int size = in.readVInt();
-            if (size == 0) {
-                shardFailures = ShardSearchFailure.EMPTY_ARRAY;
-            } else {
-                shardFailures = new ShardSearchFailure[size];
-                for (int i = 0; i < shardFailures.length; i++) {
-                    shardFailures[i] = readShardSearchFailure(in);
-                }
-            }
+            shardFailures = in.readArray(ShardSearchFailure::readShardSearchFailure, ShardSearchFailure[]::new);
         } else {
             shardFailures = ShardSearchFailure.EMPTY_ARRAY;
         }
@@ -156,10 +148,7 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
         out.writeBoolean(isPartial);
         out.writeBoolean(isRunning);
         if (out.getTransportVersion().onOrAfter(TransportVersions.EQL_ALLOW_PARTIAL_SEARCH_RESULTS)) {
-            out.writeVInt(shardFailures.length);
-            for (ShardSearchFailure shardSearchFailure : shardFailures) {
-                shardSearchFailure.writeTo(out);
-            }
+            out.writeArray(shardFailures);
         }
     }
 
@@ -233,12 +222,12 @@ public class EqlSearchResponse extends ActionResponse implements ToXContentObjec
             && Objects.equals(tookInMillis, that.tookInMillis)
             && Objects.equals(isTimeout, that.isTimeout)
             && Objects.equals(asyncExecutionId, that.asyncExecutionId)
-            && Objects.equals(shardFailures, that.shardFailures);
+            && Arrays.equals(shardFailures, that.shardFailures);
     }
 
     @Override
     public int hashCode() {
-        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, shardFailures);
+        return Objects.hash(hits, tookInMillis, isTimeout, asyncExecutionId, Arrays.hashCode(shardFailures));
     }
 
     @Override

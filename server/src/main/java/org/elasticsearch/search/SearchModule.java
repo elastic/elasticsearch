@@ -227,7 +227,6 @@ import org.elasticsearch.search.internal.ShardSearchRequest;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankShardResult;
 import org.elasticsearch.search.rank.feature.RankFeatureDoc;
-import org.elasticsearch.search.rank.feature.RankFeatureShardPhase;
 import org.elasticsearch.search.rank.feature.RankFeatureShardResult;
 import org.elasticsearch.search.rescore.QueryRescorerBuilder;
 import org.elasticsearch.search.rescore.RescorerBuilder;
@@ -1271,10 +1270,6 @@ public class SearchModule {
                 spec.getName().getForRestApiVersion()
             )
         );
-    }
-
-    public RankFeatureShardPhase getRankFeatureShardPhase() {
-        return new RankFeatureShardPhase();
     }
 
     public FetchPhase getFetchPhase() {

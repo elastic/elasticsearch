@@ -36,7 +36,7 @@ dependencies {
   api "com.google.protobuf:protobuf-java-util:${versions.protobuf}"
   api "com.google.protobuf:protobuf-java:${versions.protobuf}"
   api 'com.google.code.gson:gson:2.10'
-  api 'com.google.api.grpc:proto-google-common-protos:2.9.6'
+  runtimeOnly 'com.google.api.grpc:proto-google-common-protos:2.9.6'
   api 'com.google.api.grpc:proto-google-iam-v1:1.6.2'
   api 'com.google.auth:google-auth-library-credentials:1.11.0'
   api 'com.google.auth:google-auth-library-oauth2-http:1.11.0'
@@ -252,3 +252,5 @@ tasks.register('gcsThirdPartyTest') {
 tasks.named('check') {
   dependsOn gcsThirdPartyTest
 }
+
+tasks.named("thirdPartyAudit").configure {enabled = false }

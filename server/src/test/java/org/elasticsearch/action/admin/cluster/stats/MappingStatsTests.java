@@ -39,7 +39,6 @@ import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.DISABLED;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.STORED;
 import static org.elasticsearch.index.mapper.SourceFieldMapper.Mode.SYNTHETIC;
 import static org.hamcrest.Matchers.equalTo;
-import static org.hamcrest.Matchers.nullValue;
 
 public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingStats> {
 
@@ -614,29 +613,4 @@ public class MappingStatsTests extends AbstractWireSerializingTestCase<MappingSt
         assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), equalTo(numDisabledIndices));
     }
 
-    public void testSourceModesOldSourceMode() {
-        var builder = Metadata.builder();
-        String mapping = """
-            {
-                "_source": {
-                    "mode": "synthetic"
-                }
-            }
-            """;
-        var indexMetadata1 = new IndexMetadata.Builder("foo-synthetic").settings(indexSettings(IndexVersion.current(), 4, 1))
-            .putMapping(mapping);
-        var indexMetadata2 = new IndexMetadata.Builder("foo-stored").settings(
-            indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "stored")
-        );
-        var indexMetadata3 = new IndexMetadata.Builder("foo-disabled").settings(
-            indexSettings(IndexVersion.current(), 4, 1).put(SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.getKey(), "disabled")
-        );
-        builder.put(indexMetadata1);
-        builder.put(indexMetadata2);
-        builder.put(indexMetadata3);
-        var mappingStats = MappingStats.of(builder.build(), () -> {});
-        assertThat(mappingStats.getSourceModeUsageCount().get("synthetic"), equalTo(1));
-        assertThat(mappingStats.getSourceModeUsageCount().get("stored"), nullValue());
-        assertThat(mappingStats.getSourceModeUsageCount().get("disabled"), nullValue());
-    }
 }

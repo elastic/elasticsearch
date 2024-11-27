@@ -59,7 +59,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
         Map<String, FieldStats> fieldTypes = new HashMap<>();
         Set<String> concreteFieldNames = new HashSet<>();
         // Account different source modes based on index.mapping.source.mode setting:
-        Map<String, Integer> indexSourceModeUsageCount = new HashMap<>();
+        Map<String, Integer> sourceModeUsageCount = new HashMap<>();
         Map<String, RuntimeFieldStats> runtimeFieldTypes = new HashMap<>();
         final Map<MappingMetadata, Integer> mappingCounts = new IdentityHashMap<>(metadata.getMappingsByHash().size());
         for (IndexMetadata indexMetadata : metadata) {
@@ -71,26 +71,16 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             AnalysisStats.countMapping(mappingCounts, indexMetadata);
 
             var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
-            indexSourceModeUsageCount.compute(sourceMode.toString().toLowerCase(Locale.ENGLISH), (k, v) -> v == null ? 1 : v + 1);
+            sourceModeUsageCount.compute(sourceMode.toString().toLowerCase(Locale.ENGLISH), (k, v) -> v == null ? 1 : v + 1);
         }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();
-        // Account different source modes based on _source.mode mapping attribute in a separate map:
-        // (Materializing the mapping into map of maps is expensive and only happens here once per unique mapping)
-        Map<String, Integer> mappingSourceModeUsageCount = new HashMap<>();
         for (Map.Entry<MappingMetadata, Integer> mappingAndCount : mappingCounts.entrySet()) {
             ensureNotCancelled.run();
             Set<String> indexFieldTypes = new HashSet<>();
             Set<String> indexRuntimeFieldTypes = new HashSet<>();
             final int count = mappingAndCount.getValue();
             final Map<String, Object> map = mappingAndCount.getKey().getSourceAsMap();
-            if (map.containsKey("_source")) {
-                Map<?, ?> sourceFieldDefinition = (Map<?, ?>) map.get("_source");
-                if (sourceFieldDefinition.containsKey("mode")) {
-                    String mode = (String) sourceFieldDefinition.get("mode");
-                    mappingSourceModeUsageCount.compute(mode.toString().toLowerCase(Locale.ENGLISH), (k, v) -> v == null ? 1 : v + 1);
-                }
-            }
             MappingVisitor.visitMapping(map, (field, fieldMapping) -> {
                 concreteFieldNames.add(field);
                 String type = null;
@@ -196,10 +186,6 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             totalMappingSizeBytes += mappingMetadata.source().compressed().length;
         }
 
-        // Either pick counts based on the index setting or mapping attribute. The counts can't be combined otherwise modes get over-counted
-        // (The mappingSourceModeUsageCount is under-counted because duplicate mappings are skipped. This is at least gives some insight in
-        // case old _source.mode mapping attribute is used)
-        var sourceModeUsageCount = mappingSourceModeUsageCount.isEmpty() == false ? mappingSourceModeUsageCount : indexSourceModeUsageCount;
         return new MappingStats(
             totalFieldCount.get(),
             totalDeduplicatedFieldCount.get(),

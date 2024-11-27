@@ -634,7 +634,10 @@ public class SemanticTextFieldMapper extends FieldMapper implements InferenceFie
 
         @Override
         public BlockLoader blockLoader(MappedFieldType.BlockLoaderContext blContext) {
-            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(name().concat(".text")));
+            final String sourcePath = indexVersionCreated.onOrAfter(IndexVersions.INFERENCE_METADATA_FIELDS)
+                && INFERENCE_METADATA_FIELDS_FEATURE_FLAG.isEnabled() ? name() : getOriginalTextFieldName(name());
+
+            SourceValueFetcher fetcher = SourceValueFetcher.toString(blContext.sourcePaths(sourcePath));
             return new BlockSourceReader.BytesRefsBlockLoader(fetcher, BlockSourceReader.lookupMatchingAll());
         }
     }

@@ -20,6 +20,7 @@ import org.elasticsearch.index.mapper.IgnoredFieldMapper;
 import org.elasticsearch.index.mapper.IgnoredSourceFieldMapper;
 import org.elasticsearch.index.mapper.IndexFieldMapper;
 import org.elasticsearch.index.mapper.IndexModeFieldMapper;
+import org.elasticsearch.index.mapper.InferenceMetadataFieldsMapper;
 import org.elasticsearch.index.mapper.KeywordFieldMapper;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperParsingException;
@@ -96,6 +97,7 @@ public class IndicesModuleTests extends ESTestCase {
         SeqNoFieldMapper.NAME,
         DocCountFieldMapper.NAME,
         DataStreamTimestampFieldMapper.NAME,
+        InferenceMetadataFieldsMapper.NAME,
         FieldNamesFieldMapper.NAME };
 
     @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_FOUNDATIONS)

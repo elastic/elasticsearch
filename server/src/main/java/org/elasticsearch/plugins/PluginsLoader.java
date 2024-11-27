@@ -278,20 +278,28 @@ public class PluginsLoader {
             return LayerAndLoader.ofLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
-                    ModuleLayer.boot(),
+                    List.of(ModuleLayer.boot()),
                     "synthetic." + toModuleName(plugin.getName()),
                     bundle.allUrls,
                     Set.of("org.elasticsearch.server") // TODO: instead of denying server, allow only jvm + stable API modules
                 )
             );
         } else {
-            logger.debug(() -> "Loading bundle: " + plugin.getName() + ", non-modular");
+            var syntheticName = "synthetic." + toModuleName2(plugin.getName());
+            logger.info(() -> "Loading bundle: " + plugin.getName() + ", non-modular, as synthetic module " + syntheticName);
+            var parentLayers = Stream.concat(
+                Stream.ofNullable(spiLayerAndLoader != null ? spiLayerAndLoader.layer() : null),
+                Stream.concat(
+                    extendedPlugins.stream().map(LoadedPluginLayer::spiModuleLayer),
+                    Stream.of(ModuleLayer.boot())
+                )
+            ).toList();
             return LayerAndLoader.ofLoader(
                 UberModuleClassLoader.getInstance(
                     pluginParentLoader,
-                    ModuleLayer.boot(),
-                    "synthetic." + toModuleName(plugin.getName()),
-                    bundle.urls,
+                    parentLayers,
+                    syntheticName,
+                    bundle.allUrls,
                     Set.of()
                 )
             );
@@ -371,6 +379,16 @@ public class PluginsLoader {
     // package-visible for testing
     static String toModuleName(String name) {
         String result = name.replaceAll("\\W+", ".") // replace non-alphanumeric character strings with dots
+            .replaceAll("(^[^A-Za-z_]*)", "") // trim non-alpha or underscore characters from start
+            .replaceAll("\\.$", "") // trim trailing dot
+            .toLowerCase(Locale.getDefault());
+        assert ModuleSupport.isPackageName(result);
+        return result;
+    }
+
+    static String toModuleName2(String name) {
+        String result = name.replace('-', '_')
+            .replaceAll("\\W+", ".") // replace non-alphanumeric character strings with dots
             .replaceAll("(^[^A-Za-z_]*)", "") // trim non-alpha or underscore characters from start
             .replaceAll("\\.$", "") // trim trailing dot
             .toLowerCase(Locale.getDefault());

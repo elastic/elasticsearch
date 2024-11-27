@@ -468,6 +468,7 @@ PUT _inference/rerank/my-elastic-rerank
 <1> {ml-docs}/ml-nlp-auto-scale.html#nlp-model-adaptive-allocations[Adaptive allocations] will be enabled with the minimum of 1 and the maximum of 10 allocations. 
 +
 . Define a `text_similarity_rerank` retriever:
++
 [source,console]
 ----
 POST _search

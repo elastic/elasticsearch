@@ -18,6 +18,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.script.StoredScriptSource;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
@@ -36,8 +37,20 @@ public class PutStoredScriptRequest extends AcknowledgedRequest<PutStoredScriptR
     @Nullable
     private final String context;
 
+    /*
+     * [NOTE: unused fields #117566]
+     * As of #117566 (8.18) the content and xContentType fields are basically unused, except that we use content().length() for some
+     * validation. However, in earlier 8.x versions they did at least influence the output of toString(). That means in 9.x we can replace
+     * these fields with an int representing the original content length once the 9.x transport protocol can diverge from the 8.x one. For
+     * BwC with 8.18 we can simply send any BytesReference of the appropriate length.
+     */
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // see [NOTE: unused fields #117566]
     private final BytesReference content;
+
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // see [NOTE: unused fields #117566]
     private final XContentType xContentType;
+
     private final StoredScriptSource source;
 
     public PutStoredScriptRequest(StreamInput in) throws IOException {

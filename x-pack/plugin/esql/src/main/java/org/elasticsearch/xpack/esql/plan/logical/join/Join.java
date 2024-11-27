@@ -12,7 +12,6 @@ import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.xpack.esql.core.expression.Attribute;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
-import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
@@ -115,12 +114,12 @@ public class Join extends BinaryPlan {
             List<Attribute> rightOutputWithoutMatchFields = rightOutput.stream()
                 .filter(attr -> matchFieldNames.contains(attr.name()) == false)
                 .toList();
-            output = mergeOutputAttributes(leftOutput, rightOutputWithoutMatchFields);
+            output = mergeOutputAttributes(rightOutputWithoutMatchFields, leftOutput);
         } else if (RIGHT.equals(joinType)) {
             List<Attribute> leftOutputWithoutMatchFields = leftOutput.stream()
                 .filter(attr -> matchFieldNames.contains(attr.name()) == false)
                 .toList();
-            output = mergeOutputAttributes(rightOutput, leftOutputWithoutMatchFields);
+            output = mergeOutputAttributes(leftOutputWithoutMatchFields, rightOutput);
         } else {
             throw new IllegalArgumentException(joinType.joinName() + " unsupported");
         }

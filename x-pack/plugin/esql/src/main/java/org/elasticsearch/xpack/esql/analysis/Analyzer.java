@@ -608,7 +608,7 @@ public class Analyzer extends ParameterizedRuleExecutor<LogicalPlan, AnalyzerCon
             JoinConfig config = join.config();
             // for now, support only (LEFT) USING clauses
             JoinType type = config.type();
-            // rewrite the join into a equi-join between the field with the same name between left and right
+            // rewrite the join into an equi-join between the field with the same name between left and right
             if (type instanceof UsingJoinType using) {
                 List<Attribute> cols = using.columns();
                 // the lookup cannot be resolved, bail out

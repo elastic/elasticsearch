@@ -10,14 +10,14 @@ FROM employees
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
 | WHERE emp_no >= 10091 AND emp_no < 10094
-| KEEP emp_no, language_name
 | SORT emp_no
+| KEEP emp_no, language_code, language_name
 ;
 
-emp_no:integer | language_name:keyword
-10091          | Spanish
-10092          | English
-10093          | Spanish
+emp_no:integer | language_code:integer | language_name:keyword
+10091          | 3                     | Spanish
+10092          | 1                     | English
+10093          | 3                     | Spanish
 ;
 
 basicRow-Ignore
@@ -39,11 +39,11 @@ FROM employees
 | LIMIT 3
 | EVAL language_code = languages
 | LOOKUP JOIN languages_lookup ON language_code
-| KEEP emp_no, language_name
+| KEEP emp_no, language_code, language_name
 ;
 
-emp_no:integer | language_name:keyword
-10001          | French
-10002          | null
-10003          | German
+emp_no:integer | language_code:integer | language_name:keyword
+10001          | 2                     | French
+10002          | 5                     | null
+10003          | 4                     | German
 ;

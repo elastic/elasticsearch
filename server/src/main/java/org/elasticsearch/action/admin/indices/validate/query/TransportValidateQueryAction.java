@@ -30,7 +30,6 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.io.stream.StreamInput;
-import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.query.ParsedQuery;
 import org.elasticsearch.index.query.QueryShardException;
@@ -93,10 +92,11 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         request.nowInMillis = System.currentTimeMillis();
         LongSupplier timeProvider = () -> request.nowInMillis;
 
+        final ProjectState project = getProjectState();
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            project.metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis
@@ -136,10 +136,13 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
         }
     }
 
+    private ProjectState getProjectState() {
+        return projectResolver.getProjectState(clusterService.state());
+    }
+
     @Override
     protected ShardValidateQueryRequest newShardRequest(int numShards, ShardRouting shard, ValidateQueryRequest request) {
-        @FixForMultiProject
-        final ProjectState projectState = clusterService.state().projectState();
+        final ProjectState projectState = getProjectState();
         final Set<String> indicesAndAliases = indexNameExpressionResolver.resolveExpressions(projectState.metadata(), request.indices());
         final AliasFilter aliasFilter = searchService.buildAliasFilter(projectState, shard.getIndexName(), indicesAndAliases);
         return new ShardValidateQueryRequest(shard.shardId(), aliasFilter, request);
@@ -159,7 +162,7 @@ public class TransportValidateQueryAction extends TransportBroadcastAction<
             // Random routing to limit request to a single shard
             routing = Integer.toString(Randomness.get().nextInt(1000));
         }
-        ProjectState project = projectResolver.getProjectState(clusterState);
+        ProjectState project = getProjectState();
         Map<String, Set<String>> routingMap = indexNameExpressionResolver.resolveSearchRouting(
             project.metadata(),
             routing,

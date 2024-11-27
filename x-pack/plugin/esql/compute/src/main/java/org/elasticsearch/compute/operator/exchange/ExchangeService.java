@@ -47,7 +47,7 @@ import java.util.concurrent.atomic.AtomicLong;
 /**
  * {@link ExchangeService} is responsible for exchanging pages between exchange sinks and sources on the same or different nodes.
  * It holds a map of {@link ExchangeSinkHandler} instances for each node in the cluster to serve {@link ExchangeRequest}s
- * To connect exchange sources to exchange sinks, use the {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, int)} method.
+ * To connect exchange sources to exchange sinks, use {@link ExchangeSourceHandler#addRemoteSink(RemoteSink, boolean, int, ActionListener)}.
  */
 public final class ExchangeService extends AbstractLifecycleComponent {
     // TODO: Make this a child action of the data node transport to ensure that exchanges
@@ -311,7 +311,7 @@ public final class ExchangeService extends AbstractLifecycleComponent {
 
         @Override
         public void fetchPageAsync(boolean allSourcesFinished, ActionListener<ExchangeResponse> listener) {
-            final long reservedBytes = estimatedPageSizeInBytes.get();
+            final long reservedBytes = allSourcesFinished ? 0 : estimatedPageSizeInBytes.get();
             if (reservedBytes > 0) {
                 // This doesn't fully protect ESQL from OOM, but reduces the likelihood.
                 blockFactory.breaker().addEstimateBytesAndMaybeBreak(reservedBytes, "fetch page");

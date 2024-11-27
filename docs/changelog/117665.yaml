@@ -1,0 +1,5 @@
+pr: 117665
+summary: Add setting for disabling console logging
+area: Infra/Logging
+type: enhancement
+issues: []

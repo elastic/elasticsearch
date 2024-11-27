@@ -86,26 +86,30 @@ public class SearchStatesIT extends ESRestTestCase {
         return hosts;
     }
 
-    public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
-        assertBusy(() -> assertThat(remoteNodes, hasSize(3)));
+    public static void configureRemoteClusters(RestClient restClient) throws Exception {
+        final List<Node>[] remoteNodes = new List<Node>[1];
+        assertBusy(() -> {
+            remoteNodes[0] = getNodes(restClient);
+            assertThat(remoteNodes[0], hasSize(3));
+        });
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
         try (RestClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;
             if (randomBoolean()) {
-                final List<String> seeds = remoteNodes.stream()
+                final List<String> seeds = remoteNodes[0].stream()
                     .filter(n -> n.attributes.containsKey("gateway"))
                     .map(n -> n.transportAddress)
                     .collect(Collectors.toList());
                 assertThat(seeds, hasSize(2));
-                LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", seeds, remoteNodes);
+                LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", seeds, remoteNodes[0]);
                 remoteConnectionSettings = Settings.builder()
                     .putNull(remoteClusterSettingPrefix + "proxy_address")
                     .put(remoteClusterSettingPrefix + "mode", "sniff")
                     .putList(remoteClusterSettingPrefix + "seeds", seeds)
                     .build();
             } else {
-                final Node proxyNode = randomFrom(remoteNodes);
-                LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, remoteNodes);
+                final Node proxyNode = randomFrom(remoteNodes[0]);
+                LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, remoteNodes[0]);
                 remoteConnectionSettings = Settings.builder()
                     .putNull(remoteClusterSettingPrefix + "seeds")
                     .put(remoteClusterSettingPrefix + "mode", "proxy")
@@ -199,7 +203,7 @@ public class SearchStatesIT extends ESRestTestCase {
             createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(getNodes(remoteClient));
+            configureRemoteClusters(remoteClient);
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, null);
@@ -219,7 +223,7 @@ public class SearchStatesIT extends ESRestTestCase {
             createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(getNodes(remoteClient));
+            configureRemoteClusters(remoteClient);
             int iterations = between(1, 10);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, between(1, 10));

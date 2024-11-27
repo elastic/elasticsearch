@@ -535,13 +535,12 @@ public class EsqlQueryResponseTests extends AbstractChunkedSerializingTestCase<E
     }
 
     public void testChunkResponseSizeRows() {
+        int sizeClusterDetails = 14;
         try (EsqlQueryResponse resp = randomResponse(false, null)) {
-            int sizeClusterDetails = 14;
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
             assertChunkCount(resp, r -> 5 + sizeClusterDetails + bodySize);
         }
         try (EsqlQueryResponse resp = randomResponseAsync(false, null, true)) {
-            int sizeClusterDetails = resp.isRunning() ? 13 : 14;  // overall took time not present when is_running=true
             int bodySize = resp.pages().stream().mapToInt(Page::getPositionCount).sum();
             assertChunkCount(resp, r -> 7 + sizeClusterDetails + bodySize);
         }

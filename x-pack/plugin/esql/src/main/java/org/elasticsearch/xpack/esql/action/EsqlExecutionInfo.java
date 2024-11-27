@@ -169,6 +169,17 @@ public class EsqlExecutionInfo implements ChunkedToXContentObject, Writeable {
         return overallTook;
     }
 
+    /**
+     * How much time the query took since starting.
+     */
+    public TimeValue tookSoFar() {
+        if (relativeStartNanos == null) {
+            return new TimeValue(0);
+        } else {
+            return new TimeValue(System.nanoTime() - relativeStartNanos, TimeUnit.NANOSECONDS);
+        }
+    }
+
     public Set<String> clusterAliases() {
         return clusterInfo.keySet();
     }

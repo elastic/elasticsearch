@@ -152,9 +152,7 @@ public class TransportEsqlQueryAction extends HandledTransportAction<EsqlQueryRe
     @Override
     public void execute(EsqlQueryRequest request, EsqlQueryTask task, ActionListener<EsqlQueryResponse> listener) {
         // set EsqlExecutionInfo on async-search task so that it is accessible to GET _query/async while the query is still running
-        if (task instanceof EsqlQueryTask esqlQueryTask) {
-            esqlQueryTask.setExecutionInfo(createEsqlExecutionInfo(request));
-        }
+        task.setExecutionInfo(createEsqlExecutionInfo(request));
         ActionListener.run(listener, l -> innerExecute(task, request, l));
     }
 

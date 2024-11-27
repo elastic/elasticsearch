@@ -76,8 +76,28 @@ balance resource usage and performance. Your index will be smaller, but with
 slower search performance.
 
 [discrete]
+[[mapping-manage-update]]
+== Managing and updating mappings
+
+Explicit mappings should be defined at index creation for fields you know in advance. 
+You can still add _new fields_ to mappings at any time, as your data evolves.
+
+Use the <<indices-put-mapping,Update mapping API>> to update an existing mapping.
+
+In most cases, you can't change mappings for fields that are already mapped.
+These changes require <<docs-reindex,reindexing>>.
+
+However, you can _update_ mappings under certain conditions:
+
+* You can add new fields to an existing mapping at any time, explicitly or dynamically.
+* You can add new <<multi-fields,multi-fields>> for existing fields.
+** Documents indexed before the mapping update will not have values for the new multi-fields until they are updated or reindexed. Documents indexed after the mapping change will automatically have values for the new multi-fields.
+* Some <<mapping-params,mapping parameters>> can be updated for existing fields of certain <<mapping-types,data types>>.
+
+[discrete]
 [[mapping-limit-settings]]
-== Settings to prevent mapping explosion
+== Prevent mapping explosions
+
 Defining too many fields in an index can lead to a mapping explosion, which can
 cause out of memory errors and difficult situations to recover from.
 

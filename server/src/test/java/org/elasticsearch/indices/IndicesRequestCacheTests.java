@@ -421,8 +421,8 @@ public class IndicesRequestCacheTests extends ESTestCase {
             try (BytesStreamOutput out = new BytesStreamOutput()) {
                 IndexSearcher searcher = newSearcher(reader);
                 TopDocs topDocs = searcher.search(new TermQuery(new Term("id", Integer.toString(id))), 1);
-                assertEquals(1, topDocs.totalHits.value);
-                Document document = reader.document(topDocs.scoreDocs[0].doc);
+                assertEquals(1, topDocs.totalHits.value());
+                Document document = reader.storedFields().document(topDocs.scoreDocs[0].doc);
                 out.writeString(document.get("value"));
                 loadedFromCache = false;
                 return out.bytes();

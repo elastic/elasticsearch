@@ -25,6 +25,7 @@ import org.elasticsearch.tasks.TaskId;
 import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.transport.RemoteClusterService;
+import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportResponse;
 
 import java.util.concurrent.Executor;
@@ -83,6 +84,24 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
                             assertSame(parentTaskId, request.getParentTask());
                             listener.onFailure(new UnsupportedOperationException("fake remote-cluster client"));
                         }
+
+                        @Override
+                        public <Request extends ActionRequest, Response extends TransportResponse> void execute(
+                            Transport.Connection connection,
+                            RemoteClusterActionType<Response> action,
+                            Request request,
+                            ActionListener<Response> listener
+                        ) {
+                            execute(action, request, listener);
+                        }
+
+                        @Override
+                        public <Request extends ActionRequest> void getConnection(
+                            Request request,
+                            ActionListener<Transport.Connection> listener
+                        ) {
+                            listener.onResponse(null);
+                        }
                     };
                 }
             };
@@ -95,15 +114,27 @@ public class ParentTaskAssigningClientTests extends ESTestCase {
             );
             assertEquals(
                 "fake remote-cluster client",
-                asInstanceOf(
+                safeAwaitFailure(
                     UnsupportedOperationException.class,
-                    safeAwaitFailure(
-                        ClusterStateResponse.class,
-                        listener -> remoteClusterClient.execute(
-                            ClusterStateAction.REMOTE_TYPE,
-                            new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
-                            listener
-                        )
+                    ClusterStateResponse.class,
+                    listener -> remoteClusterClient.execute(
+                        ClusterStateAction.REMOTE_TYPE,
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                        listener
+                    )
+                ).getMessage()
+            );
+
+            assertEquals(
+                "fake remote-cluster client",
+                safeAwaitFailure(
+                    UnsupportedOperationException.class,
+                    ClusterStateResponse.class,
+                    listener -> remoteClusterClient.execute(
+                        null,
+                        ClusterStateAction.REMOTE_TYPE,
+                        new ClusterStateRequest(TEST_REQUEST_TIMEOUT),
+                        listener
                     )
                 ).getMessage()
             );

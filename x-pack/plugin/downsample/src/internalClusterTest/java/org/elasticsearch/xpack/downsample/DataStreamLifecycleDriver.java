@@ -144,7 +144,7 @@ public class DataStreamLifecycleDriver {
         request.indexTemplate(
             ComposableIndexTemplate.builder()
                 .indexPatterns(patterns)
-                .template(new Template(settings, mappings == null ? null : mappings, null, lifecycle))
+                .template(Template.builder().settings(settings).mappings(mappings).lifecycle(lifecycle))
                 .metadata(metadata)
                 .dataStreamTemplate(new ComposableIndexTemplate.DataStreamTemplate())
                 .build()

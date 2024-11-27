@@ -9,6 +9,7 @@ package org.elasticsearch.xpack.inference.services.googleaistudio.embeddings;
 
 import org.elasticsearch.common.settings.SecureString;
 import org.elasticsearch.core.Nullable;
+import org.elasticsearch.inference.ChunkingSettings;
 import org.elasticsearch.inference.EmptyTaskSettings;
 import org.elasticsearch.inference.SimilarityMeasure;
 import org.elasticsearch.inference.TaskType;
@@ -25,6 +26,19 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             url,
             new GoogleAiStudioEmbeddingsServiceSettings(model, null, null, SimilarityMeasure.DOT_PRODUCT, null),
             EmptyTaskSettings.INSTANCE,
+            new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
+        );
+    }
+
+    public static GoogleAiStudioEmbeddingsModel createModel(String model, ChunkingSettings chunkingSettings, String apiKey, String url) {
+        return new GoogleAiStudioEmbeddingsModel(
+            "id",
+            TaskType.TEXT_EMBEDDING,
+            "service",
+            url,
+            new GoogleAiStudioEmbeddingsServiceSettings(model, null, null, SimilarityMeasure.DOT_PRODUCT, null),
+            EmptyTaskSettings.INSTANCE,
+            chunkingSettings,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }
@@ -59,6 +73,7 @@ public class GoogleAiStudioEmbeddingsModelTests extends ESTestCase {
             "service",
             new GoogleAiStudioEmbeddingsServiceSettings(model, tokenLimit, dimensions, SimilarityMeasure.DOT_PRODUCT, null),
             EmptyTaskSettings.INSTANCE,
+            null,
             new DefaultSecretSettings(new SecureString(apiKey.toCharArray()))
         );
     }

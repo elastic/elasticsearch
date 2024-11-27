@@ -15,7 +15,7 @@ import org.elasticsearch.test.AbstractChunkedSerializingTestCase;
 import java.io.IOException;
 import java.util.List;
 
-import static org.elasticsearch.xpack.core.ml.AbstractBWCWireSerializationTestCase.DEFAULT_BWC_VERSIONS;
+import static org.elasticsearch.test.BWCVersions.DEFAULT_BWC_VERSIONS;
 
 public abstract class AbstractChunkedBWCSerializationTestCase<T extends ChunkedToXContent & Writeable> extends
     AbstractChunkedSerializingTestCase<T> {

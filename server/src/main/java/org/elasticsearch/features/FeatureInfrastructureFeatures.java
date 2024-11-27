@@ -24,4 +24,9 @@ public class FeatureInfrastructureFeatures implements FeatureSpecification {
     public Set<NodeFeature> getFeatures() {
         return Set.of(FeatureService.FEATURES_SUPPORTED);
     }
+
+    @Override
+    public Set<NodeFeature> getTestFeatures() {
+        return Set.of(FeatureService.TEST_FEATURES_ENABLED);
+    }
 }

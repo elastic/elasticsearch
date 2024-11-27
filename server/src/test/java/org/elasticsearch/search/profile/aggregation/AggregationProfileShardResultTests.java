@@ -13,6 +13,7 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.Writeable.Reader;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.XContentParserUtils;
+import org.elasticsearch.search.SearchResponseUtils;
 import org.elasticsearch.search.profile.ProfileResult;
 import org.elasticsearch.search.profile.ProfileResultTests;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
@@ -55,7 +56,7 @@ public class AggregationProfileShardResultTests extends AbstractXContentSerializ
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_OBJECT, parser.nextToken(), parser);
         XContentParserUtils.ensureFieldName(parser, parser.nextToken(), AggregationProfileShardResult.AGGREGATIONS);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.START_ARRAY, parser.nextToken(), parser);
-        AggregationProfileShardResult result = AggregationProfileShardResult.fromXContent(parser);
+        AggregationProfileShardResult result = SearchResponseUtils.readAggregationProfileShardResult(parser);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_ARRAY, parser.currentToken(), parser);
         XContentParserUtils.ensureExpectedToken(XContentParser.Token.END_OBJECT, parser.nextToken(), parser);
         return result;

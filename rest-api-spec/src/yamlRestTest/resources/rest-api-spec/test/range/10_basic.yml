@@ -447,6 +447,77 @@ setup:
   - match: { hits.total: 2 }
 
 ---
+"Date range edge cases":
+  - requires:
+      cluster_features: ["mapper.range.date_range_indexing_fix"]
+      reason: "tests rounding fixes in 8.16.0 that previously caused non-intuitive indexing and query because ranges were assumed to always index with 0's as the default such as when time is missing 00:00:00.000 time was assumed but for lte indexing and query missing time should be 23:59:59.999 as per docs here: https://www.elastic.co/guide/en/elasticsearch/reference/current/query-dsl-range-query.html"
+
+  - do:
+      indices.create:
+        index: test_date_range_edge_cases
+        body:
+          mappings:
+            "properties":
+              "date_range":
+                "type": "date_range"
+                "format": "yyyy-MM-dd"
+
+  - do:
+      index:
+        index: test_date_range_edge_cases
+        id: "1"
+        body: { "date_range": { "gte": "1980-12-14", "lte": "1980-12-17" } }
+
+  - do:
+      index:
+        index: test_date_range_edge_cases
+        id: "2"
+        body: { "date_range": { "gt": "1990-12-15", "lt": "1990-12-18" } }
+
+  - do:
+      index:
+        index: test_date_range_edge_cases
+        id: "3"
+        body: { "date_range": { "gte": "1985-12-16||/M", "lte": "1986-02-10||/M" } }
+
+  - do:
+      index:
+        index: test_date_range_edge_cases
+        id: "4"
+        body: { "date_range": { "gt": "1995-12-16||/M", "lt": "1996-02-10||/M" } }
+
+  - do:
+      indices.refresh: { }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size": 0, "query": { "range": { "date_range": { "gte": "1980-12-14", "lte": "1980-12-17", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size": 0, "query": { "range": { "date_range": { "gt": "1990-12-15", "lt": "1990-12-18", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size": 0, "query": { "range": { "date_range": { "gte": "1985-12-16||/M", "lte": "1986-02-10||/M", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+  - do:
+      search:
+        rest_total_hits_as_int: true
+        body: { "size": 0, "query": { "range": { "date_range": { "gt": "1995-12-16||/M", "lt": "1996-02-10||/M", "relation": "contains" } } } }
+
+  - match: { hits.total: 1 }
+
+---
 "Null bounds":
 
   - requires:

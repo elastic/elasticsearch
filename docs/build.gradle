@@ -1,5 +1,4 @@
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.internal.doc.DocSnippetTask
 import static org.elasticsearch.gradle.testclusters.TestDistribution.DEFAULT
 
@@ -29,7 +28,7 @@ ext.docsFileTree = fileTree(projectDir) {
   // These files simply don't pass yet. We should figure out how to fix them.
   exclude 'reference/watcher/reference/actions.asciidoc'
   exclude 'reference/rest-api/security/ssl.asciidoc'
-  if (BuildParams.inFipsJvm) {
+  if (buildParams.inFipsJvm) {
     // We don't support this component in FIPS 140
     exclude 'reference/ingest/processors/attachment.asciidoc'
     // We can't conditionally control output, this would be missing the ingest-attachment component
@@ -38,7 +37,7 @@ ext.docsFileTree = fileTree(projectDir) {
 }
 
 tasks.named("yamlRestTest") {
-  if (BuildParams.isSnapshotBuild() == false) {
+  if (buildParams.isSnapshotBuild() == false) {
     // LOOKUP is not available in snapshots
     systemProperty 'tests.rest.blacklist', [
       "reference/esql/processing-commands/lookup/esql-lookup-example"
@@ -83,7 +82,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
     setting 'xpack.license.self_generated.type', 'trial'
     setting 'indices.lifecycle.history_index_enabled', 'false'
     keystorePassword 'keystore-password'
-    if (BuildParams.isSnapshotBuild() == false) {
+    if (buildParams.isSnapshotBuild() == false) {
       requiresFeature 'es.failure_store_feature_flag_enabled', new Version(8, 12, 0)
     }
   }
@@ -123,7 +122,6 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
 
   requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
   requiresFeature 'es.failure_store_feature_flag_enabled', Version.fromString("8.12.0")
-  requiresFeature 'es.ccs_telemetry_feature_flag_enabled', Version.fromString("8.16.0")
 
   // TODO Rene: clean up this kind of cross project file references
   extraConfigFile 'op-jwks.json', project(':x-pack:test:idp-fixture').file("src/main/resources/oidc/op-jwks.json")
@@ -171,7 +169,7 @@ testClusters.matching { it.name == "yamlRestTest"}.configureEach {
       return
     }
     // Do not install ingest-attachment in a FIPS 140 JVM as this is not supported
-    if (subproj.path.startsWith(':modules:ingest-attachment') && BuildParams.inFipsJvm) {
+    if (subproj.path.startsWith(':modules:ingest-attachment') && buildParams.inFipsJvm) {
       return
     }
     plugin subproj.path

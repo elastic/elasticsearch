@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.inference;
 
-import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.inference.TaskType;
@@ -19,13 +18,13 @@ import java.util.Map;
 
 import static org.hamcrest.Matchers.containsString;
 
-// Tests disabled in CI due to the models being too large to download. Can be enabled (commented out) for local testing
-@LuceneTestCase.AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/105198")
+// This test was previously disabled in CI due to the models being too large
+// See "https://github.com/elastic/elasticsearch/issues/105198".
 public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
 
-    public void testPutE5Small_withNoModelVariant() throws IOException {
+    public void testPutE5Small_withNoModelVariant() {
         {
-            String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+            String inferenceEntityId = "testPutE5Small_withNoModelVariant";
             expectThrows(
                 org.elasticsearch.client.ResponseException.class,
                 () -> putTextEmbeddingModel(inferenceEntityId, noModelIdVariantJsonEntity())
@@ -34,12 +33,12 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withPlatformAgnosticVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withplatformagnosticvariant";
         putTextEmbeddingModel(inferenceEntityId, platformAgnosticModelVariantJsonEntity());
         var models = getTrainedModel("_all");
         assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
-        Map<String, Object> results = inferOnMockService(
+        Map<String, Object> results = infer(
             inferenceEntityId,
             TaskType.TEXT_EMBEDDING,
             List.of("hello world", "this is the second document")
@@ -52,13 +51,13 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withPlatformSpecificVariant() throws IOException {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withplatformspecificvariant";
         if ("linux-x86_64".equals(Platforms.PLATFORM_NAME)) {
             putTextEmbeddingModel(inferenceEntityId, platformSpecificModelVariantJsonEntity());
             var models = getTrainedModel("_all");
             assertThat(models.toString(), containsString("deployment_id=" + inferenceEntityId));
 
-            Map<String, Object> results = inferOnMockService(
+            Map<String, Object> results = infer(
                 inferenceEntityId,
                 TaskType.TEXT_EMBEDDING,
                 List.of("hello world", "this is the second document")
@@ -77,7 +76,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     }
 
     public void testPutE5Small_withFakeModelVariant() {
-        String inferenceEntityId = randomAlphaOfLength(10).toLowerCase();
+        String inferenceEntityId = "teste5mall_withfakevariant";
         expectThrows(
             org.elasticsearch.client.ResponseException.class,
             () -> putTextEmbeddingModel(inferenceEntityId, fakeModelVariantJsonEntity())
@@ -112,7 +111,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String noModelIdVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1
@@ -124,7 +123,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String platformAgnosticModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
@@ -137,7 +136,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String platformSpecificModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,
@@ -150,7 +149,7 @@ public class TextEmbeddingCrudIT extends InferenceBaseRestTest {
     private String fakeModelVariantJsonEntity() {
         return """
                 {
-                  "service": "text_embedding",
+                  "service": "elasticsearch",
                   "service_settings": {
                     "num_allocations": 1,
                     "num_threads": 1,

@@ -18,6 +18,7 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.Weight;
 import org.elasticsearch.common.lucene.search.function.MinScoreScorer;
 
@@ -142,12 +143,22 @@ public class VectorSimilarityQuery extends Query {
         }
 
         @Override
-        public Scorer scorer(LeafReaderContext context) throws IOException {
-            Scorer innerScorer = in.scorer(context);
-            if (innerScorer == null) {
+        public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+            ScorerSupplier inScorerSupplier = in.scorerSupplier(context);
+            if (inScorerSupplier == null) {
                 return null;
             }
-            return new MinScoreScorer(this, innerScorer, docScore, boost);
+            return new ScorerSupplier() {
+                @Override
+                public Scorer get(long leadCost) throws IOException {
+                    return new MinScoreScorer(inScorerSupplier.get(leadCost), docScore, boost);
+                }
+
+                @Override
+                public long cost() {
+                    return inScorerSupplier.cost();
+                }
+            };
         }
     }
 

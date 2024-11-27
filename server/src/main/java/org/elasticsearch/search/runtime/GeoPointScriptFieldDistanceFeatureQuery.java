@@ -18,6 +18,7 @@ import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.QueryVisitor;
 import org.apache.lucene.search.ScoreMode;
 import org.apache.lucene.search.Scorer;
+import org.apache.lucene.search.ScorerSupplier;
 import org.apache.lucene.search.TwoPhaseIterator;
 import org.apache.lucene.search.Weight;
 import org.apache.lucene.util.SloppyMath;
@@ -79,8 +80,9 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
             }
 
             @Override
-            public Scorer scorer(LeafReaderContext context) {
-                return new DistanceScorer(this, scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
+            public ScorerSupplier scorerSupplier(LeafReaderContext context) throws IOException {
+                Scorer scorer = new DistanceScorer(scriptContextFunction().apply(context), context.reader().maxDoc(), boost);
+                return new DefaultScorerSupplier(scorer);
             }
 
             @Override
@@ -116,8 +118,7 @@ public final class GeoPointScriptFieldDistanceFeatureQuery extends AbstractScrip
         private final DocIdSetIterator disi;
         private final float weight;
 
-        protected DistanceScorer(Weight weight, AbstractLongFieldScript script, int maxDoc, float boost) {
-            super(weight);
+        protected DistanceScorer(AbstractLongFieldScript script, int maxDoc, float boost) {
             this.script = script;
             twoPhase = new TwoPhaseIterator(DocIdSetIterator.all(maxDoc)) {
                 @Override

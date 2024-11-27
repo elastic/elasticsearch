@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 wildcard field type ignore_above:
   - requires:
@@ -10,10 +15,9 @@ wildcard field type ignore_above:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               a_wildcard:
                 type: wildcard
@@ -49,7 +53,7 @@ wildcard field type ignore_above:
   - length: { hits.hits: 1 }
   - match: { hits.hits.0._source.a_wildcard: "foo bar" }
   - match: { hits.hits.0._source.b_wildcard: "the quick brown" }
-  - match: { hits.hits.0._source.c_wildcard: ["bar", "foo"] }
+  - match: { hits.hits.0._source.c_wildcard: ["bar", "foo", "jumps over the lazy dog"] }
   - match: { hits.hits.0._source.d_wildcard: ["bar", "foo", "the quick"] }
   - match: { hits.hits.0.fields.a_wildcard.0: "foo bar" }
   - match: { hits.hits.0.fields.b_wildcard.0: "the quick brown" }

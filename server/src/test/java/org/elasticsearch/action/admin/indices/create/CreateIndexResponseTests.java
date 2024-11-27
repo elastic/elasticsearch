@@ -12,6 +12,7 @@ package org.elasticsearch.action.admin.indices.create;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.test.AbstractXContentSerializingTestCase;
+import org.elasticsearch.test.rest.TestResponseParsers;
 import org.elasticsearch.xcontent.XContentParser;
 
 public class CreateIndexResponseTests extends AbstractXContentSerializingTestCase<CreateIndexResponse> {
@@ -52,7 +53,7 @@ public class CreateIndexResponseTests extends AbstractXContentSerializingTestCas
 
     @Override
     protected CreateIndexResponse doParseInstance(XContentParser parser) {
-        return CreateIndexResponse.fromXContent(parser);
+        return TestResponseParsers.parseCreateIndexResponse(parser);
     }
 
     public void testToXContent() {

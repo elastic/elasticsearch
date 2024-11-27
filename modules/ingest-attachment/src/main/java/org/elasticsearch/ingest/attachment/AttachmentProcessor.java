@@ -241,7 +241,8 @@ public final class AttachmentProcessor extends AbstractProcessor {
             int indexedChars = readIntProperty(TYPE, processorTag, config, "indexed_chars", NUMBER_OF_CHARS_INDEXED);
             boolean ignoreMissing = readBooleanProperty(TYPE, processorTag, config, "ignore_missing", false);
             String indexedCharsField = readOptionalStringProperty(TYPE, processorTag, config, "indexed_chars_field");
-            @UpdateForV9 // update the [remove_binary] default to be 'true' assuming enough time has passed. Deprecated in September 2022.
+            @UpdateForV9(owner = UpdateForV9.Owner.DATA_MANAGEMENT)
+            // update the [remove_binary] default to be 'true' assuming enough time has passed. Deprecated in September 2022.
             Boolean removeBinary = readOptionalBooleanProperty(TYPE, processorTag, config, "remove_binary");
             if (removeBinary == null) {
                 DEPRECATION_LOGGER.warn(

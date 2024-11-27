@@ -6,7 +6,7 @@
 <titleabbrev>Get trained models</titleabbrev>
 ++++
 
-Retrieves configuration information for a trained model.
+Retrieves configuration information about {ml-docs}/ml-nlp-deploy-models.html[{infer} trained models].
 
 
 [[ml-get-trained-models-request]]

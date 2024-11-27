@@ -169,11 +169,9 @@ class IndicesAndAliasesResolver {
             // and no remote clusters are configured that match it
             if (split.getLocal().isEmpty() && split.getRemote().isEmpty()) {
                 for (String indexExpression : indices) {
-                    String[] clusterAndIndex = indexExpression.split(":", 2);
-                    if (clusterAndIndex.length == 2) {
-                        if (clusterAndIndex[0].contains("*")) {
-                            throw new NoSuchRemoteClusterException(clusterAndIndex[0]);
-                        }
+                    String[] clusterAndIndex = RemoteClusterAware.splitIndexName(indexExpression);
+                    if (clusterAndIndex[0] != null && clusterAndIndex[0].contains("*")) {
+                        throw new NoSuchRemoteClusterException(clusterAndIndex[0]);
                     }
                 }
             }

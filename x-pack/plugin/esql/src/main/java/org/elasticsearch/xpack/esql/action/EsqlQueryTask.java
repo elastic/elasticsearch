@@ -33,6 +33,6 @@ public class EsqlQueryTask extends StoredAsyncTask<EsqlQueryResponse> {
 
     @Override
     public EsqlQueryResponse getCurrentResult() {
-        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true);
+        return new EsqlQueryResponse(List.of(), List.of(), null, false, getExecutionId().getEncoded(), true, true, null);
     }
 }

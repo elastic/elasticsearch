@@ -49,7 +49,12 @@ public class PutDatabaseConfigurationAction extends ActionType<AcknowledgedRespo
         }
 
         public static Request parseRequest(TimeValue masterNodeTimeout, TimeValue ackTimeout, String id, XContentParser parser) {
-            return new Request(masterNodeTimeout, ackTimeout, DatabaseConfiguration.parse(parser, id));
+            DatabaseConfiguration database = DatabaseConfiguration.parse(parser, id);
+            if (database.isReadOnly()) {
+                throw new IllegalArgumentException("Database " + id + " is read only");
+            } else {
+                return new Request(masterNodeTimeout, ackTimeout, database);
+            }
         }
 
         @Override

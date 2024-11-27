@@ -14,7 +14,6 @@ import org.elasticsearch.action.search.SearchRequest;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.xcontent.LoggingDeprecationHandler;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.index.reindex.AbstractBulkByScrollRequest;
 import org.elasticsearch.index.reindex.BulkByScrollResponse;
@@ -28,7 +27,6 @@ import org.elasticsearch.xcontent.XContentParserConfiguration;
 import java.io.IOException;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.IntConsumer;
 import java.util.function.Predicate;
 
 /**
@@ -54,10 +52,7 @@ public abstract class AbstractBulkByQueryRestHandler<
         SearchRequest searchRequest = internal.getSearchRequest();
 
         try (XContentParser parser = extractRequestSpecificFields(restRequest, bodyConsumers)) {
-            IntConsumer sizeConsumer = restRequest.getRestApiVersion() == RestApiVersion.V_7
-                ? size -> setMaxDocsFromSearchSize(internal, size)
-                : size -> failOnSizeSpecified();
-            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, sizeConsumer);
+            RestSearchAction.parseSearchRequest(searchRequest, restRequest, parser, clusterSupportsFeature, size -> failOnSizeSpecified());
         }
 
         searchRequest.source().size(restRequest.paramAsInt("scroll_size", searchRequest.source().size()));

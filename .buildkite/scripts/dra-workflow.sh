@@ -6,7 +6,7 @@ WORKFLOW="${DRA_WORKFLOW:-snapshot}"
 BRANCH="${BUILDKITE_BRANCH:-}"
 
 # Don't publish main branch to staging
-if [[ "$BRANCH" == "main" && "$WORKFLOW" == "staging" ]]; then
+if [[ ("$BRANCH" == "main" || "$BRANCH" == *.x) && "$WORKFLOW" == "staging" ]]; then
   exit 0
 fi
 
@@ -22,6 +22,7 @@ if [[ "$BRANCH" == "main" ]]; then
 fi
 
 ES_VERSION=$(grep elasticsearch build-tools-internal/version.properties | sed "s/elasticsearch *= *//g")
+echo "ES_VERSION=$ES_VERSION"
 
 VERSION_SUFFIX=""
 if [[ "$WORKFLOW" == "snapshot" ]]; then
@@ -29,7 +30,10 @@ if [[ "$WORKFLOW" == "snapshot" ]]; then
 fi
 
 BEATS_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh beats "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+echo "BEATS_BUILD_ID=$BEATS_BUILD_ID"
+
 ML_CPP_BUILD_ID="$(./.ci/scripts/resolve-dra-manifest.sh ml-cpp "$RM_BRANCH" "$ES_VERSION" "$WORKFLOW")"
+echo "ML_CPP_BUILD_ID=$ML_CPP_BUILD_ID"
 
 LICENSE_KEY_ARG=""
 BUILD_SNAPSHOT_ARG=""
@@ -71,6 +75,7 @@ find "$WORKSPACE" -type d -path "*/build/distributions" -exec chmod a+w {} \;
 
 echo --- Running release-manager
 
+set +e
 # Artifacts should be generated
 docker run --rm \
   --name release-manager \
@@ -87,4 +92,16 @@ docker run --rm \
   --version "$ES_VERSION" \
   --artifact-set main \
   --dependency "beats:https://artifacts-${WORKFLOW}.elastic.co/beats/${BEATS_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
-  --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json"
+  --dependency "ml-cpp:https://artifacts-${WORKFLOW}.elastic.co/ml-cpp/${ML_CPP_BUILD_ID}/manifest-${ES_VERSION}${VERSION_SUFFIX}.json" \
+2>&1 | tee release-manager.log
+EXIT_CODE=$?
+set -e
+
+# This failure is just generating a ton of noise right now, so let's just ignore it
+# This should be removed once this issue has been fixed
+if grep "elasticsearch-ubi-9.0.0-SNAPSHOT-docker-image.tar.gz" release-manager.log; then
+  echo "Ignoring error about missing ubi artifact"
+  exit 0
+fi
+
+exit "$EXIT_CODE"

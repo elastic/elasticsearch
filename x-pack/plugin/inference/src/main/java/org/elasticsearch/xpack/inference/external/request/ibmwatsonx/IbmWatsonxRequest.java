@@ -78,7 +78,7 @@ public interface IbmWatsonxRequest extends Request {
 
     static void validateResponse(String bearerTokenGenUrl, String inferenceId, HttpResponse response) {
         int statusCode = response.getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (RestStatus.isSuccessful(statusCode)) {
             return;
         }
 

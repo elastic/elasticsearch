@@ -281,7 +281,7 @@ public class SLMSnapshotBlockingIntegTests extends AbstractSnapshotIntegTestCase
                             completedSnapshotName,
                             Strings.arrayToCommaDelimitedString(resp.getHits().getHits())
                         );
-                        assertThat(resp.getHits().getTotalHits().value, equalTo(2L));
+                        assertThat(resp.getHits().getTotalHits().value(), equalTo(2L));
                     }
                 );
             });

@@ -27,7 +27,7 @@ class RestCompatibleVersionHelper {
     /**
      * @return The requested API version, or {@link Optional#empty()} if there was no explicit version in the request.
      */
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     static Optional<RestApiVersion> getCompatibleVersion(
         @Nullable ParsedMediaType acceptHeader,
         @Nullable ParsedMediaType contentTypeHeader,

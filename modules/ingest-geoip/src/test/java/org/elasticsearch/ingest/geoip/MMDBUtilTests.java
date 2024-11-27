@@ -15,8 +15,10 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.io.OutputStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.zip.GZIPOutputStream;
 
 import static org.elasticsearch.ingest.geoip.GeoIpTestUtils.copyDatabase;
 import static org.hamcrest.Matchers.endsWith;
@@ -65,5 +67,20 @@ public class MMDBUtilTests extends ESTestCase {
 
         // it was once the case that we couldn't process an mmdb that was smaller than 512 bytes
         assertThat(Files.size(database), is(444L)); // 444 is <512
+    }
+
+    public void testIsGzip() throws IOException {
+        Path database = tmpDir.resolve("GeoLite2-City.mmdb");
+        copyDatabase("GeoLite2-City-Test.mmdb", database);
+
+        Path gzipDatabase = tmpDir.resolve("GeoLite2-City.mmdb.gz");
+
+        // gzip the test mmdb
+        try (OutputStream out = new GZIPOutputStream(Files.newOutputStream(gzipDatabase))) {
+            Files.copy(database, out);
+        }
+
+        assertThat(MMDBUtil.isGzip(database), is(false));
+        assertThat(MMDBUtil.isGzip(gzipDatabase), is(true));
     }
 }

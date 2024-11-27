@@ -16,6 +16,7 @@ import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.time.TimeProvider;
 import org.elasticsearch.common.unit.ByteSizeUnit;
 import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.unit.SizeValue;
@@ -65,7 +66,7 @@ import static org.elasticsearch.core.Strings.format;
  * Manages all the Java thread pools we create. {@link Names} contains a list of the thread pools, but plugins can dynamically add more
  * thread pools to instantiate.
  */
-public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
+public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler, TimeProvider {
 
     private static final Logger logger = LogManager.getLogger(ThreadPool.class);
 
@@ -88,7 +89,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         public static final String ANALYZE = "analyze";
         public static final String WRITE = "write";
         public static final String SEARCH = "search";
-        public static final String SEARCH_WORKER = "search_worker";
         public static final String SEARCH_COORDINATION = "search_coordination";
         public static final String AUTO_COMPLETE = "auto_complete";
         public static final String SEARCH_THROTTLED = "search_throttled";
@@ -121,11 +121,11 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
 
     public enum ThreadPoolType {
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         DIRECT("direct"),
         FIXED("fixed"),
         @Deprecated(forRemoval = true)
-        @UpdateForV9 // no longer used, remove in v9
+        @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA) // no longer used, remove in v9
         FIXED_AUTO_QUEUE_SIZE("fixed_auto_queue_size"),
         SCALING("scaling");
 
@@ -158,7 +158,6 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         entry(Names.ANALYZE, ThreadPoolType.FIXED),
         entry(Names.WRITE, ThreadPoolType.FIXED),
         entry(Names.SEARCH, ThreadPoolType.FIXED),
-        entry(Names.SEARCH_WORKER, ThreadPoolType.FIXED),
         entry(Names.SEARCH_COORDINATION, ThreadPoolType.FIXED),
         entry(Names.AUTO_COMPLETE, ThreadPoolType.FIXED),
         entry(Names.MANAGEMENT, ThreadPoolType.SCALING),
@@ -364,12 +363,7 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         this.scheduler = null;
     }
 
-    /**
-     * Returns a value of milliseconds that may be used for relative time calculations.
-     *
-     * This method should only be used for calculating time deltas. For an epoch based
-     * timestamp, see {@link #absoluteTimeInMillis()}.
-     */
+    @Override
     public long relativeTimeInMillis() {
         return cachedTimeThread.relativeTimeInMillis();
     }
@@ -381,37 +375,17 @@ public class ThreadPool implements ReportingService<ThreadPoolInfo>, Scheduler {
         return relativeTimeInMillisSupplier;
     }
 
-    /**
-     * Returns a value of nanoseconds that may be used for relative time calculations.
-     *
-     * This method should only be used for calculating time deltas. For an epoch based
-     * timestamp, see {@link #absoluteTimeInMillis()}.
-     */
+    @Override
     public long relativeTimeInNanos() {
         return cachedTimeThread.relativeTimeInNanos();
     }
 
-    /**
-     * Returns a value of milliseconds that may be used for relative time calculations. Similar to {@link #relativeTimeInMillis()} except
-     * that this method is more expensive: the return value is computed directly from {@link System#nanoTime} and is not cached. You should
-     * use {@link #relativeTimeInMillis()} unless the extra accuracy offered by this method is worth the costs.
-     *
-     * When computing a time interval by comparing relative times in milliseconds, you should make sure that both endpoints use cached
-     * values returned from {@link #relativeTimeInMillis()} or that they both use raw values returned from this method. It doesn't really
-     * make sense to compare a raw value to a cached value, even if in practice the result of such a comparison will be approximately
-     * sensible.
-     */
+    @Override
     public long rawRelativeTimeInMillis() {
         return TimeValue.nsecToMSec(System.nanoTime());
     }
 
-    /**
-     * Returns the value of milliseconds since UNIX epoch.
-     *
-     * This method should only be used for exact date/time formatting. For calculating
-     * time deltas that should not suffer from negative deltas, which are possible with
-     * this method, see {@link #relativeTimeInMillis()}.
-     */
+    @Override
     public long absoluteTimeInMillis() {
         return cachedTimeThread.absoluteTimeInMillis();
     }

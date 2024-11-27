@@ -92,5 +92,6 @@
   "examples" : [
     "ROW str = [\"true\", \"TRuE\", \"false\", \"\", \"yes\", \"1\"]\n| EVAL bool = TO_BOOLEAN(str)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

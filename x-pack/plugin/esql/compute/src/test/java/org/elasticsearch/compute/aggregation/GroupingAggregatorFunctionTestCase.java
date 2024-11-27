@@ -10,6 +10,7 @@ package org.elasticsearch.compute.aggregation;
 import org.apache.lucene.document.InetAddressPoint;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.compute.ConstantBooleanExpressionEvaluator;
 import org.elasticsearch.compute.aggregation.blockhash.BlockHash;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
@@ -25,6 +26,7 @@ import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.LongVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
+import org.elasticsearch.compute.operator.AddGarbageRowsSourceOperator;
 import org.elasticsearch.compute.operator.CannedSourceOperator;
 import org.elasticsearch.compute.operator.DriverContext;
 import org.elasticsearch.compute.operator.ForkingOperatorTestCase;
@@ -42,6 +44,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.SortedSet;
 import java.util.TreeSet;
+import java.util.function.Function;
 import java.util.stream.DoubleStream;
 import java.util.stream.IntStream;
 import java.util.stream.LongStream;
@@ -51,6 +54,7 @@ import static java.util.stream.IntStream.range;
 import static org.elasticsearch.compute.data.BlockTestUtils.append;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
+import static org.hamcrest.Matchers.in;
 
 /**
  * Shared tests for testing grouped aggregations.
@@ -82,10 +86,20 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final Operator.OperatorFactory simpleWithMode(AggregatorMode mode) {
-        List<Integer> channels = mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+        return simpleWithMode(mode, Function.identity());
+    }
+
+    protected List<Integer> channels(AggregatorMode mode) {
+        return mode.isInputPartial() ? range(1, 1 + aggregatorIntermediateBlockCount()).boxed().toList() : List.of(1);
+    }
+
+    private Operator.OperatorFactory simpleWithMode(
+        AggregatorMode mode,
+        Function<AggregatorFunctionSupplier, AggregatorFunctionSupplier> wrap
+    ) {
         int emitChunkSize = between(100, 200);
 
-        AggregatorFunctionSupplier supplier = aggregatorFunction(channels);
+        AggregatorFunctionSupplier supplier = wrap.apply(aggregatorFunction(channels(mode)));
         if (randomBoolean()) {
             supplier = chunkGroups(emitChunkSize, supplier);
         }
@@ -151,11 +165,17 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
 
     @Override
     protected final void assertSimpleOutput(List<Page> input, List<Page> results) {
+        assertSimpleOutput(input, results, true);
+    }
+
+    private void assertSimpleOutput(List<Page> input, List<Page> results, boolean assertGroupCount) {
         SeenGroups seenGroups = seenGroups(input);
 
         assertThat(results, hasSize(1));
         assertThat(results.get(0).getBlockCount(), equalTo(2));
-        assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        if (assertGroupCount) {
+            assertThat(results.get(0).getPositionCount(), equalTo(seenGroups.size()));
+        }
 
         Block groups = results.get(0).getBlock(0);
         Block result = results.get(0).getBlock(1);
@@ -351,6 +371,66 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
             ),
             driverContext
         );
+    }
+
+    public final void testEmptyInput() {
+        DriverContext driverContext = driverContext();
+        List<Page> results = drive(simple().get(driverContext), List.<Page>of().iterator(), driverContext);
+
+        assertThat(results, hasSize(0));
+    }
+
+    public final void testAllFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(false))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertOutputFromAllFiltered(results.get(0).getBlock(1));
+    }
+
+    public final void testNoneFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, ConstantBooleanExpressionEvaluator.factory(true))
+        );
+        DriverContext driverContext = driverContext();
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+        assertSimpleOutput(origInput, results);
+    }
+
+    public void testSomeFiltered() {
+        Operator.OperatorFactory factory = simpleWithMode(
+            AggregatorMode.SINGLE,
+            agg -> new FilteredAggregatorFunctionSupplier(agg, AddGarbageRowsSourceOperator.filterFactory())
+        );
+        DriverContext driverContext = driverContext();
+        // Build the test data
+        List<Page> input = CannedSourceOperator.collectPages(simpleInput(driverContext.blockFactory(), 10));
+        List<Page> origInput = BlockTestUtils.deepCopyOf(input, TestBlockFactory.getNonBreakingInstance());
+        // Sprinkle garbage into it
+        input = CannedSourceOperator.collectPages(new AddGarbageRowsSourceOperator(new CannedSourceOperator(input.iterator())));
+        List<Page> results = drive(factory.get(driverContext), input.iterator(), driverContext);
+        assertThat(results, hasSize(1));
+
+        assertSimpleOutput(origInput, results, false);
+    }
+
+    /**
+     * Asserts that the output from an empty input is a {@link Block} containing
+     * only {@code null}. Override for {@code count} style aggregations that
+     * return other sorts of results.
+     */
+    protected void assertOutputFromAllFiltered(Block b) {
+        assertThat(b.areAllValuesNull(), equalTo(true));
+        assertThat(b.isNull(0), equalTo(true));
+        assertThat(b.getValueCount(0), equalTo(0));
     }
 
     /**
@@ -560,31 +640,34 @@ public abstract class GroupingAggregatorFunctionTestCase extends ForkingOperator
                             @Override
                             public void add(int positionOffset, IntBlock groupIds) {
                                 for (int offset = 0; offset < groupIds.getPositionCount(); offset += emitChunkSize) {
-                                    IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize);
-                                    int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
-                                    for (int p = offset; p < endP; p++) {
-                                        int start = groupIds.getFirstValueIndex(p);
-                                        int count = groupIds.getValueCount(p);
-                                        switch (count) {
-                                            case 0 -> builder.appendNull();
-                                            case 1 -> {
-                                                int group = groupIds.getInt(start);
-                                                seenGroupIds.set(group);
-                                                builder.appendInt(group);
-                                            }
-                                            default -> {
-                                                int end = start + count;
-                                                builder.beginPositionEntry();
-                                                for (int i = start; i < end; i++) {
-                                                    int group = groupIds.getInt(i);
+                                    try (IntBlock.Builder builder = blockFactory().newIntBlockBuilder(emitChunkSize)) {
+                                        int endP = Math.min(groupIds.getPositionCount(), offset + emitChunkSize);
+                                        for (int p = offset; p < endP; p++) {
+                                            int start = groupIds.getFirstValueIndex(p);
+                                            int count = groupIds.getValueCount(p);
+                                            switch (count) {
+                                                case 0 -> builder.appendNull();
+                                                case 1 -> {
+                                                    int group = groupIds.getInt(start);
                                                     seenGroupIds.set(group);
                                                     builder.appendInt(group);
                                                 }
-                                                builder.endPositionEntry();
+                                                default -> {
+                                                    int end = start + count;
+                                                    builder.beginPositionEntry();
+                                                    for (int i = start; i < end; i++) {
+                                                        int group = groupIds.getInt(i);
+                                                        seenGroupIds.set(group);
+                                                        builder.appendInt(group);
+                                                    }
+                                                    builder.endPositionEntry();
+                                                }
                                             }
                                         }
+                                        try (IntBlock chunked = builder.build()) {
+                                            delegateAddInput.add(positionOffset + offset, chunked);
+                                        }
                                     }
-                                    delegateAddInput.add(positionOffset + offset, builder.build());
                                 }
                             }
 

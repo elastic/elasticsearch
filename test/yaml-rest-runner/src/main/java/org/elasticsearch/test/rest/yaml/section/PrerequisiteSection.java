@@ -328,7 +328,7 @@ public class PrerequisiteSection {
         parser.nextToken();
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.CORE_INFRA)
     private static boolean parseRestCompatVersion(XContentParser parser, PrerequisiteSectionBuilder builder) throws IOException {
         // allow skip version only for v7 REST compatibility tests, to be removed for V9
         if ("true".equals(System.getProperty("tests.restCompat"))) return parseString(parser, builder::skipIfVersion);

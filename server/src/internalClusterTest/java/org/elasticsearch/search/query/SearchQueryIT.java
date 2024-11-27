@@ -10,7 +10,7 @@
 package org.elasticsearch.search.query;
 
 import org.apache.lucene.analysis.pattern.PatternReplaceCharFilter;
-import org.apache.lucene.index.IndexReader;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MultiTermQuery;
 import org.apache.lucene.search.join.ScoreMode;
 import org.apache.lucene.tests.analysis.MockTokenizer;
@@ -108,6 +108,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitC
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSecondHit;
@@ -216,21 +217,14 @@ public class SearchQueryIT extends ESIntegTestCase {
                 assertThat(searchHit, hasScore(1.0f));
             }
         });
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 2L);
+            assertFirstHit(response, hasScore(response.getHits().getAt(1).getScore()));
+        },
+            prepareSearch("test").setQuery(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + random().nextFloat())),
             prepareSearch("test").setQuery(
                 boolQuery().must(matchAllQuery()).must(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + random().nextFloat()))
-            ),
-            response -> {
-                assertHitCount(response, 2L);
-                assertFirstHit(response, hasScore(response.getHits().getAt(1).getScore()));
-            }
-        );
-        assertResponse(
-            prepareSearch("test").setQuery(constantScoreQuery(matchQuery("field1", "quick")).boost(1.0f + random().nextFloat())),
-            response -> {
-                assertHitCount(response, 2L);
-                assertFirstHit(response, hasScore(response.getHits().getAt(1).getScore()));
-            }
+            )
         );
         assertResponse(
             prepareSearch("test").setQuery(
@@ -264,7 +258,7 @@ public class SearchQueryIT extends ESIntegTestCase {
             MatchQueryBuilder matchQuery = matchQuery("f", English.intToEnglish(between(0, num)));
             final long[] constantScoreTotalHits = new long[1];
             assertResponse(prepareSearch("test_1").setQuery(constantScoreQuery(matchQuery)).setSize(num), response -> {
-                constantScoreTotalHits[0] = response.getHits().getTotalHits().value;
+                constantScoreTotalHits[0] = response.getHits().getTotalHits().value();
                 SearchHits hits = response.getHits();
                 for (SearchHit searchHit : hits) {
                     assertThat(searchHit, hasScore(1.0f));
@@ -277,7 +271,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 ).setSize(num),
                 response -> {
                     SearchHits hits = response.getHits();
-                    assertThat(hits.getTotalHits().value, equalTo(constantScoreTotalHits[0]));
+                    assertThat(hits.getTotalHits().value(), equalTo(constantScoreTotalHits[0]));
                     if (constantScoreTotalHits[0] > 1) {
                         float expected = hits.getAt(0).getScore();
                         for (SearchHit searchHit : hits) {
@@ -800,20 +794,18 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("2").setSource("str", "shay", "date", "2012-02-05", "num", 20).get();
         refresh();
 
-        assertResponse(prepareSearch().setQuery(queryStringQuery("num:>19")), response -> {
+        assertResponses(response -> {
             assertHitCount(response, 1L);
             assertFirstHit(response, hasId("2"));
-        });
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("num:>20")), 0L);
+        }, prepareSearch().setQuery(queryStringQuery("num:>19")), prepareSearch().setQuery(queryStringQuery("num:>=20")));
 
-        assertResponse(prepareSearch().setQuery(queryStringQuery("num:>=20")), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("2"));
-        });
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("num:>11")), 2L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("num:<20")), 1L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("num:<=20")), 2L);
-        assertHitCount(prepareSearch().setQuery(queryStringQuery("+num:>11 +num:<20")), 1L);
+        assertHitCount(prepareSearch().setQuery(queryStringQuery("num:>20")), 0L);
+        assertHitCount(2L, prepareSearch().setQuery(queryStringQuery("num:>11")), prepareSearch().setQuery(queryStringQuery("num:<=20")));
+        assertHitCount(
+            1L,
+            prepareSearch().setQuery(queryStringQuery("num:<20")),
+            prepareSearch().setQuery(queryStringQuery("+num:>11 +num:<20"))
+        );
     }
 
     public void testEmptytermsQuery() throws Exception {
@@ -826,8 +818,11 @@ public class SearchQueryIT extends ESIntegTestCase {
             prepareIndex("test").setId("3").setSource("term", "3"),
             prepareIndex("test").setId("4").setSource("term", "4")
         );
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("term", new String[0]))), 0L);
-        assertHitCount(prepareSearch("test").setQuery(idsQuery()), 0L);
+        assertHitCount(
+            0L,
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("term", new String[0]))),
+            prepareSearch("test").setQuery(idsQuery())
+        );
     }
 
     public void testTermsQuery() throws Exception {
@@ -866,9 +861,12 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertSearchHitsWithoutFailures(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("dbl", new double[] { 2, 5 }))), "2");
         assertSearchHitsWithoutFailures(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("lng", new long[] { 2, 5 }))), "2");
         // test valid type, but no matching terms
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("str", "5", "6"))), 0L);
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("dbl", new double[] { 5, 6 }))), 0L);
-        assertHitCount(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("lng", new long[] { 5, 6 }))), 0L);
+        assertHitCount(
+            0L,
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("str", "5", "6"))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("dbl", new double[] { 5, 6 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("lng", new long[] { 5, 6 })))
+        );
     }
 
     public void testTermsLookupFilter() throws Exception {
@@ -1064,106 +1062,35 @@ public class SearchQueryIT extends ESIntegTestCase {
             .get();
         refresh();
 
-        logger.info("--> term query on 1");
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_byte", 1)), response -> {
+        assertResponses(response -> {
             assertHitCount(response, 1L);
             assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_short", 1)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_integer", 1)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_long", 1)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_float", 1)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termQuery("num_double", 1)), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        logger.info("--> terms query on 1");
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_byte", new int[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_short", new int[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_integer", new int[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_long", new int[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_float", new double[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(termsQuery("num_double", new double[] { 1 })), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        logger.info("--> term filter on 1");
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_byte", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_short", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_integer", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_long", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_float", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_double", 1))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        logger.info("--> terms filter on 1");
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_byte", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_short", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_integer", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_long", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_float", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
-        assertResponse(prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_double", new int[] { 1 }))), response -> {
-            assertHitCount(response, 1L);
-            assertFirstHit(response, hasId("1"));
-        });
+        },
+            prepareSearch("test").setQuery(termQuery("num_byte", 1)),
+            prepareSearch("test").setQuery(termQuery("num_short", 1)),
+            prepareSearch("test").setQuery(termQuery("num_integer", 1)),
+            prepareSearch("test").setQuery(termQuery("num_long", 1)),
+            prepareSearch("test").setQuery(termQuery("num_float", 1)),
+            prepareSearch("test").setQuery(termQuery("num_double", 1)),
+            prepareSearch("test").setQuery(termsQuery("num_byte", new int[] { 1 })),
+            prepareSearch("test").setQuery(termsQuery("num_short", new int[] { 1 })),
+            prepareSearch("test").setQuery(termsQuery("num_integer", new int[] { 1 })),
+            prepareSearch("test").setQuery(termsQuery("num_long", new int[] { 1 })),
+            prepareSearch("test").setQuery(termsQuery("num_float", new double[] { 1 })),
+            prepareSearch("test").setQuery(termsQuery("num_double", new double[] { 1 })),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_byte", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_short", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_integer", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_long", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_float", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termQuery("num_double", 1))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_byte", new int[] { 1 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_short", new int[] { 1 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_integer", new int[] { 1 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_long", new int[] { 1 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_float", new int[] { 1 }))),
+            prepareSearch("test").setQuery(constantScoreQuery(termsQuery("num_double", new int[] { 1 })))
+        );
     }
 
     public void testNumericRangeFilter_2826() throws Exception {
@@ -1301,16 +1228,19 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("4").setSource("description", "fop", "count", 4).get();
         refresh();
 
-        assertHitCount(prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop")))), 4);
-        assertHitCount(prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(prefixQuery("description", "fo")))), 4);
-        assertHitCount(prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(wildcardQuery("description", "oth*")))), 3);
         assertHitCount(
+            4,
+            prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(fuzzyQuery("description", "fop")))),
+            prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(prefixQuery("description", "fo"))))
+        );
+        assertHitCount(
+            3,
+            prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(wildcardQuery("description", "oth*")))),
             prepareSearch("test").setQuery(
                 spanOrQuery(spanMultiTermQueryBuilder(QueryBuilders.rangeQuery("description").from("ffa").to("foo")))
             ),
-            3
+            prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}"))))
         );
-        assertHitCount(prepareSearch("test").setQuery(spanOrQuery(spanMultiTermQueryBuilder(regexpQuery("description", "fo{2}")))), 3);
     }
 
     public void testSpanNot() throws IOException, ExecutionException, InterruptedException {
@@ -1321,6 +1251,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         refresh();
 
         assertHitCount(
+            1L,
             prepareSearch("test").setQuery(
                 spanNotQuery(
                     spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(
@@ -1329,9 +1260,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                     spanTermQuery("description", "brown")
                 )
             ),
-            1L
-        );
-        assertHitCount(
             prepareSearch("test").setQuery(
                 spanNotQuery(
                     spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(
@@ -1340,9 +1268,6 @@ public class SearchQueryIT extends ESIntegTestCase {
                     spanTermQuery("description", "sleeping")
                 ).dist(5)
             ),
-            1L
-        );
-        assertHitCount(
             prepareSearch("test").setQuery(
                 spanNotQuery(
                     spanNearQuery(QueryBuilders.spanTermQuery("description", "quick"), 1).addClause(
@@ -1350,8 +1275,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                     ),
                     spanTermQuery("description", "jumped")
                 ).pre(1).post(1)
-            ),
-            1L
+            )
         );
     }
 
@@ -1423,22 +1347,19 @@ public class SearchQueryIT extends ESIntegTestCase {
 
     public void testMultiFieldQueryString() {
         prepareIndex("test").setId("1").setSource("field1", "value1", "field2", "value2").setRefreshPolicy(IMMEDIATE).get();
-
-        logger.info("regular");
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")), 1);
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("field\\*:value1")), 1);
-        logger.info("prefix");
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("value*").field("field1").field("field2")), 1);
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("field\\*:value*")), 1);
-        logger.info("wildcard");
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("v?lue*").field("field1").field("field2")), 1);
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("field\\*:v?lue*")), 1);
-        logger.info("fuzzy");
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("value~").field("field1").field("field2")), 1);
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("field\\*:value~")), 1);
-        logger.info("regexp");
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("/value[01]/").field("field1").field("field2")), 1);
-        assertHitCount(prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/")), 1);
+        assertHitCount(
+            1,
+            prepareSearch("test").setQuery(queryStringQuery("value1").field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("field\\*:value1")),
+            prepareSearch("test").setQuery(queryStringQuery("value*").field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("field\\*:value*")),
+            prepareSearch("test").setQuery(queryStringQuery("v?lue*").field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("field\\*:v?lue*")),
+            prepareSearch("test").setQuery(queryStringQuery("value~").field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("field\\*:value~")),
+            prepareSearch("test").setQuery(queryStringQuery("/value[01]/").field("field1").field("field2")),
+            prepareSearch("test").setQuery(queryStringQuery("field\\*:/value[01]/"))
+        );
     }
 
     // see #3797
@@ -1448,9 +1369,12 @@ public class SearchQueryIT extends ESIntegTestCase {
         prepareIndex("test").setId("1").setSource("field1", 123, "field2", "value2").get();
         refresh();
 
-        assertHitCount(prepareSearch("test").setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)), 1L);
-        assertHitCount(prepareSearch("test").setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)), 1L);
-        assertHitCount(prepareSearch("test").setQuery(multiMatchQuery("value2").field("field2", 2).lenient(true)), 1L);
+        assertHitCount(
+            1L,
+            prepareSearch("test").setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)),
+            prepareSearch("test").setQuery(multiMatchQuery("value2", "field2").field("field1", 2).lenient(true)),
+            prepareSearch("test").setQuery(multiMatchQuery("value2").field("field2", 2).lenient(true))
+        );
     }
 
     public void testMinScore() throws ExecutionException, InterruptedException {
@@ -1483,24 +1407,15 @@ public class SearchQueryIT extends ESIntegTestCase {
 
         assertHitCount(prepareSearch("test").setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")), 2);
         assertHitCount(
+            1,
             prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
                 .setQuery(QueryBuilders.queryStringQuery("\"one two\"").field("desc")),
-            1
-        );
-        assertHitCount(
             prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "product"))
                 .setQuery(QueryBuilders.queryStringQuery("\"one three\"~5").field("desc")),
-            1
-        );
-        assertHitCount(
             prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
                 .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")),
-            1
-        );
-        assertHitCount(
             prepareSearch("test").setPostFilter(QueryBuilders.termQuery("type", "customer"))
-                .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc")),
-            1
+                .setQuery(QueryBuilders.queryStringQuery("\"one two\"").defaultField("desc"))
         );
     }
 
@@ -1602,23 +1517,16 @@ public class SearchQueryIT extends ESIntegTestCase {
                 assertThat(response.getHits().getAt(0).getId(), is("2"));
             }
         );
-        assertResponse(
-            prepareSearch("test").setQuery(
-                QueryBuilders.rangeQuery("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+03:00")
-            ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("3"));
-            }
-        );
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1L);
+            assertThat(response.getHits().getAt(0).getId(), is("3"));
+        },
             prepareSearch("test").setQuery(
                 QueryBuilders.rangeQuery("date").from("2014-01-01").to("2014-01-01T00:59:00").timeZone("-01:00")
             ),
-            response -> {
-                assertHitCount(response, 1L);
-                assertThat(response.getHits().getAt(0).getId(), is("3"));
-            }
+            prepareSearch("test").setQuery(
+                QueryBuilders.rangeQuery("date").from("2014-01-01T04:00:00").to("2014-01-01T04:59:00").timeZone("+03:00")
+            )
         );
         assertResponse(prepareSearch("test").setQuery(QueryBuilders.rangeQuery("date").from("now/d-1d").timeZone("+01:00")), response -> {
             assertHitCount(response, 1L);
@@ -1693,7 +1601,7 @@ public class SearchQueryIT extends ESIntegTestCase {
         assertResponse(
             prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH).setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
             response -> {
-                assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                 assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                 first[0] = response.getHits().getAt(0).getScore();
             }
@@ -1704,7 +1612,7 @@ public class SearchQueryIT extends ESIntegTestCase {
                 prepareSearch("test").setSearchType(SearchType.DFS_QUERY_THEN_FETCH)
                     .setQuery(QueryBuilders.queryStringQuery("xyz").boost(100)),
                 response -> {
-                    assertThat(response.getHits().getTotalHits().value, equalTo(1L));
+                    assertThat(response.getHits().getTotalHits().value(), equalTo(1L));
                     assertThat(response.getHits().getAt(0).getId(), equalTo("1"));
                     float actual = response.getHits().getAt(0).getScore();
                     assertThat(finalI + " expected: " + first[0] + " actual: " + actual, Float.compare(first[0], actual), equalTo(0));
@@ -1917,7 +1825,9 @@ public class SearchQueryIT extends ESIntegTestCase {
     }
 
     /**
-     * Test correct handling {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexReader, MultiTermQuery)}. That rewrite method is e.g.
+     * Test correct handling
+     * {@link SpanBooleanQueryRewriteWithMaxClause#rewrite(IndexSearcher, MultiTermQuery)}.
+     * That rewrite method is e.g.
      * set for fuzzy queries with "constant_score" rewrite nested inside a `span_multi` query and would cause NPEs due to an unset
      * {@link AttributeSource}.
      */

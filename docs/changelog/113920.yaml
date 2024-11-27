@@ -1,0 +1,5 @@
+pr: 113920
+summary: Add initial support for `semantic_text` field type
+area: Search
+type: enhancement
+issues: []

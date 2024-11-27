@@ -146,40 +146,18 @@
   - match: { test_index.mappings.properties.foo.meta.baz: "quux" }
 
 ---
-"disabling synthetic source fails":
-  - requires:
-      cluster_features: ["gte_v8.4.0"]
-      reason:      "Added in 8.4.0"
-
-  - do:
-      indices.create:
-        index: test_index
-        body:
-          mappings:
-            _source:
-              mode: synthetic
-
-  - do:
-      catch: /Cannot update parameter \[mode\] from \[synthetic\] to \[stored\]/
-      indices.put_mapping:
-        index: test_index
-        body:
-          _source:
-            mode: stored
-
----
 "enabling synthetic source from explicit succeeds":
   - requires:
-      cluster_features: [ "gte_v8.4.0" ]
-      reason:      "Added in 8.4.0"
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
 
   - do:
       indices.create:
         index: test_index
         body:
-          mappings:
-            _source:
-              mode: stored
+          settings:
+            index:
+              mapping.source.mode: stored
 
   - do:
       indices.put_mapping:

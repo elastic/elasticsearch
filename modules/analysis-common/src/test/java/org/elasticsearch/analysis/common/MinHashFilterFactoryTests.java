@@ -21,6 +21,8 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertStreamHasNumberOfTokens;
+
 public class MinHashFilterFactoryTests extends ESTokenStreamTestCase {
     public void testDefault() throws IOException {
         int default_hash_count = 1;

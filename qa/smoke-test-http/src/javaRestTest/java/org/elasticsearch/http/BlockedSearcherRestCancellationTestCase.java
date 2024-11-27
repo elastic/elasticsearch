@@ -9,10 +9,12 @@
 
 package org.elasticsearch.http;
 
+import org.elasticsearch.ElasticsearchException;
 import org.elasticsearch.action.support.PlainActionFuture;
 import org.elasticsearch.client.Cancellable;
 import org.elasticsearch.client.Request;
 import org.elasticsearch.client.Response;
+import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.settings.Setting;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -29,6 +31,8 @@ import org.elasticsearch.index.shard.IndexShard;
 import org.elasticsearch.index.shard.IndexShardTestCase;
 import org.elasticsearch.index.translog.TranslogStats;
 import org.elasticsearch.indices.IndicesService;
+import org.elasticsearch.logging.LogManager;
+import org.elasticsearch.logging.Logger;
 import org.elasticsearch.plugins.EnginePlugin;
 import org.elasticsearch.plugins.Plugin;
 import org.elasticsearch.tasks.Task;
@@ -141,6 +145,12 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
     private static class SearcherBlockingEngine extends ReadOnlyEngine {
 
+        // using a specialized logger for this case because and "logger" means "Engine#logger"
+        // (relates investigation into https://github.com/elastic/elasticsearch/issues/88201)
+        private static final Logger blockedSearcherRestCancellationTestCaseLogger = LogManager.getLogger(
+            BlockedSearcherRestCancellationTestCase.class
+        );
+
         final Semaphore searcherBlock = new Semaphore(1);
 
         SearcherBlockingEngine(EngineConfig config) {
@@ -149,12 +159,36 @@ public abstract class BlockedSearcherRestCancellationTestCase extends HttpSmokeT
 
         @Override
         public Searcher acquireSearcher(String source, SearcherScope scope, Function<Searcher, Searcher> wrapper) throws EngineException {
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
+                    Strings.format(
+                        "in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
+                        config().getShardId(),
+                        Thread.currentThread().getName(),
+                        searcherBlock.availablePermits()
+                    ),
+                    new ElasticsearchException("stack trace")
+                );
+            }
+
             try {
                 searcherBlock.acquire();
             } catch (InterruptedException e) {
                 throw new AssertionError(e);
             }
             searcherBlock.release();
+
+            if (blockedSearcherRestCancellationTestCaseLogger.isDebugEnabled()) {
+                blockedSearcherRestCancellationTestCaseLogger.debug(
+                    Strings.format(
+                        "continuing in acquireSearcher for shard [%s] on thread [%s], availablePermits=%d",
+                        config().getShardId(),
+                        Thread.currentThread().getName(),
+                        searcherBlock.availablePermits()
+                    )
+                );
+            }
+
             return super.acquireSearcher(source, scope, wrapper);
         }
     }

@@ -31,6 +31,7 @@ import java.util.Map;
 import static java.util.Collections.singletonMap;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailures;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 
 public class IntervalQueriesIT extends ESIntegTestCase {
 
@@ -62,6 +63,58 @@ public class IntervalQueriesIT extends ESIntegTestCase {
                 new IntervalQueryBuilder("empty_text", new IntervalsSourceProvider.Match("an empty query", 0, true, null, null, null))
             )
         );
+    }
+
+    public void testPreserveInnerGap() {
+        assertAcked(prepareCreate("index").setMapping("""
+            {
+                "_doc" : {
+                    "properties" : {
+                        "text" : { "type" : "text" }
+                    }
+                }
+            }
+            """));
+
+        indexRandom(true, prepareIndex("index").setId("1").setSource("text", "w1 w2 w3 w4 w5"));
+
+        // ordered
+        {
+            var res = prepareSearch("index").setQuery(
+                new IntervalQueryBuilder(
+                    "text",
+                    new IntervalsSourceProvider.Combine(
+                        Arrays.asList(
+                            new IntervalsSourceProvider.Match("w1 w4", -1, true, null, null, null),
+                            new IntervalsSourceProvider.Match("w5", -1, true, null, null, null)
+                        ),
+                        true,
+                        1,
+                        null
+                    )
+                )
+            );
+            assertSearchHits(res, "1");
+        }
+
+        // unordered
+        {
+            var res = prepareSearch("index").setQuery(
+                new IntervalQueryBuilder(
+                    "text",
+                    new IntervalsSourceProvider.Combine(
+                        Arrays.asList(
+                            new IntervalsSourceProvider.Match("w3", 0, false, null, null, null),
+                            new IntervalsSourceProvider.Match("w4 w1", -1, false, null, null, null)
+                        ),
+                        false,
+                        0,
+                        null
+                    )
+                )
+            );
+            assertSearchHits(res, "1");
+        }
     }
 
     private static class EmptyAnalyzer extends Analyzer {

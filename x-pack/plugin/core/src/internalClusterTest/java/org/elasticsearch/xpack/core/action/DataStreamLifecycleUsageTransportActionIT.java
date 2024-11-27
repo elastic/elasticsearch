@@ -16,6 +16,7 @@ import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.DataStreamAlias;
 import org.elasticsearch.cluster.metadata.DataStreamGlobalRetentionSettings;
 import org.elasticsearch.cluster.metadata.DataStreamLifecycle;
+import org.elasticsearch.cluster.metadata.DataStreamOptions;
 import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -178,7 +179,7 @@ public class DataStreamLifecycleUsageTransportActionIT extends ESIntegTestCase {
                     randomBoolean(),
                     IndexMode.STANDARD,
                     lifecycle,
-                    false,
+                    DataStreamOptions.EMPTY,
                     List.of(),
                     replicated == false && randomBoolean(),
                     null

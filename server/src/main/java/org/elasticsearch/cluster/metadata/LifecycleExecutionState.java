@@ -28,6 +28,7 @@ public record LifecycleExecutionState(
     Boolean isAutoRetryableError,
     Integer failedStepRetryCount,
     String stepInfo,
+    String previousStepInfo,
     String phaseDefinition,
     Long lifecycleDate,
     Long phaseTime,
@@ -53,6 +54,7 @@ public record LifecycleExecutionState(
     private static final String IS_AUTO_RETRYABLE_ERROR = "is_auto_retryable_error";
     private static final String FAILED_STEP_RETRY_COUNT = "failed_step_retry_count";
     private static final String STEP_INFO = "step_info";
+    private static final String PREVIOUS_STEP_INFO = "previous_step_info";
     private static final String PHASE_DEFINITION = "phase_definition";
     private static final String SNAPSHOT_NAME = "snapshot_name";
     private static final String SNAPSHOT_REPOSITORY = "snapshot_repository";
@@ -74,6 +76,7 @@ public record LifecycleExecutionState(
             .setIsAutoRetryableError(state.isAutoRetryableError)
             .setFailedStepRetryCount(state.failedStepRetryCount)
             .setStepInfo(state.stepInfo)
+            .setPreviousStepInfo(state.previousStepInfo)
             .setPhaseDefinition(state.phaseDefinition)
             .setIndexCreationDate(state.lifecycleDate)
             .setPhaseTime(state.phaseTime)
@@ -115,6 +118,10 @@ public record LifecycleExecutionState(
         String stepInfo = customData.get(STEP_INFO);
         if (stepInfo != null) {
             builder.setStepInfo(stepInfo);
+        }
+        String previousStepInfo = customData.get(PREVIOUS_STEP_INFO);
+        if (previousStepInfo != null) {
+            builder.setPreviousStepInfo(previousStepInfo);
         }
         String phaseDefinition = customData.get(PHASE_DEFINITION);
         if (phaseDefinition != null) {
@@ -224,6 +231,9 @@ public record LifecycleExecutionState(
         if (stepInfo != null) {
             result.put(STEP_INFO, stepInfo);
         }
+        if (previousStepInfo != null) {
+            result.put(PREVIOUS_STEP_INFO, previousStepInfo);
+        }
         if (lifecycleDate != null) {
             result.put(INDEX_CREATION_DATE, String.valueOf(lifecycleDate));
         }
@@ -263,6 +273,7 @@ public record LifecycleExecutionState(
         private String step;
         private String failedStep;
         private String stepInfo;
+        private String previousStepInfo;
         private String phaseDefinition;
         private Long indexCreationDate;
         private Long phaseTime;
@@ -298,6 +309,11 @@ public record LifecycleExecutionState(
 
         public Builder setStepInfo(String stepInfo) {
             this.stepInfo = stepInfo;
+            return this;
+        }
+
+        public Builder setPreviousStepInfo(String previousStepInfo) {
+            this.previousStepInfo = previousStepInfo;
             return this;
         }
 
@@ -370,6 +386,7 @@ public record LifecycleExecutionState(
                 isAutoRetryableError,
                 failedStepRetryCount,
                 stepInfo,
+                previousStepInfo,
                 phaseDefinition,
                 indexCreationDate,
                 phaseTime,

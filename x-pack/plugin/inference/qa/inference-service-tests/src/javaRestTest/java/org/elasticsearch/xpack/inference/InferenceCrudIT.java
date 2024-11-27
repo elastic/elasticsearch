@@ -13,14 +13,21 @@ import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceFeature;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
+import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
+import java.util.function.Function;
 import java.util.stream.IntStream;
 import java.util.stream.Stream;
 
 import static org.hamcrest.Matchers.containsString;
+import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.equalToIgnoringCase;
 import static org.hamcrest.Matchers.hasSize;
@@ -28,7 +35,7 @@ import static org.hamcrest.Matchers.hasSize;
 public class InferenceCrudIT extends InferenceBaseRestTest {
 
     @SuppressWarnings("unchecked")
-    public void testGet() throws IOException {
+    public void testCRUD() throws IOException {
         for (int i = 0; i < 5; i++) {
             putModel("se_model_" + i, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
         }
@@ -37,24 +44,45 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         }
 
         var getAllModels = getAllModels();
-        assertThat(getAllModels, hasSize(9));
+        int numModels = 11;
+        assertThat(getAllModels, hasSize(numModels));
 
         var getSparseModels = getModels("_all", TaskType.SPARSE_EMBEDDING);
-        assertThat(getSparseModels, hasSize(5));
+        int numSparseModels = 6;
+        assertThat(getSparseModels, hasSize(numSparseModels));
         for (var sparseModel : getSparseModels) {
             assertEquals("sparse_embedding", sparseModel.get("task_type"));
         }
 
         var getDenseModels = getModels("_all", TaskType.TEXT_EMBEDDING);
-        assertThat(getDenseModels, hasSize(4));
+        int numDenseModels = 5;
+        assertThat(getDenseModels, hasSize(numDenseModels));
         for (var denseModel : getDenseModels) {
             assertEquals("text_embedding", denseModel.get("task_type"));
         }
-
-        var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
-        assertThat(singleModel, hasSize(1));
-        assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
-
+        String oldApiKey;
+        {
+            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            assertThat(singleModel, hasSize(1));
+            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            oldApiKey = (String) singleModel.get(0).get("api_key");
+        }
+        var newApiKey = randomAlphaOfLength(10);
+        int temperature = randomIntBetween(1, 10);
+        Map<String, Object> updatedEndpoint = updateEndpoint(
+            "se_model_1",
+            updateConfig(TaskType.SPARSE_EMBEDDING, newApiKey, temperature),
+            TaskType.SPARSE_EMBEDDING
+        );
+        Map<String, Objects> updatedTaskSettings = (Map<String, Objects>) updatedEndpoint.get("task_settings");
+        assertEquals(temperature, updatedTaskSettings.get("temperature"));
+        {
+            var singleModel = getModels("se_model_1", TaskType.SPARSE_EMBEDDING);
+            assertThat(singleModel, hasSize(1));
+            assertEquals("se_model_1", singleModel.get(0).get("inference_id"));
+            assertNotEquals(oldApiKey, newApiKey);
+            assertEquals(updatedEndpoint, singleModel.get(0));
+        }
         for (int i = 0; i < 5; i++) {
             deleteModel("se_model_" + i, TaskType.SPARSE_EMBEDDING);
         }
@@ -98,9 +126,160 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
-        var inference = inferOnMockService(modelId, List.of(randomAlphaOfLength(10)));
+        var inference = infer(modelId, List.of(randomAlphaOfLength(10)));
         assertNonEmptyInferenceResults(inference, 1, TaskType.SPARSE_EMBEDDING);
         deleteModel(modelId);
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithoutTaskType() throws IOException {
+        List<Object> services = getAllServices();
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(services.size(), equalTo(18));
+        } else {
+            assertThat(services.size(), equalTo(17));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+
+        var providerList = new ArrayList<>(
+            Arrays.asList(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "anthropic",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "elasticsearch",
+                "googleaistudio",
+                "googlevertexai",
+                "hugging_face",
+                "mistral",
+                "openai",
+                "streaming_completion_test_service",
+                "test_reranking_service",
+                "test_service",
+                "text_embedding_test_service",
+                "watsonxai"
+            )
+        );
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            providerList.add(6, "elastic");
+        }
+        assertArrayEquals(providers, providerList.toArray());
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithTextEmbeddingTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.TEXT_EMBEDDING);
+        assertThat(services.size(), equalTo(13));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "elasticsearch",
+                "googleaistudio",
+                "googlevertexai",
+                "hugging_face",
+                "mistral",
+                "openai",
+                "text_embedding_test_service",
+                "watsonxai"
+            ).toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithRerankTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.RERANK);
+        assertThat(services.size(), equalTo(5));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of("alibabacloud-ai-search", "cohere", "elasticsearch", "googlevertexai", "test_reranking_service").toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithCompletionTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.COMPLETION);
+        assertThat(services.size(), equalTo(9));
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+        assertArrayEquals(
+            providers,
+            List.of(
+                "alibabacloud-ai-search",
+                "amazonbedrock",
+                "anthropic",
+                "azureaistudio",
+                "azureopenai",
+                "cohere",
+                "googleaistudio",
+                "openai",
+                "streaming_completion_test_service"
+            ).toArray()
+        );
+    }
+
+    @SuppressWarnings("unchecked")
+    public void testGetServicesWithSparseEmbeddingTaskType() throws IOException {
+        List<Object> services = getServices(TaskType.SPARSE_EMBEDDING);
+
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            assertThat(services.size(), equalTo(5));
+        } else {
+            assertThat(services.size(), equalTo(4));
+        }
+
+        String[] providers = new String[services.size()];
+        for (int i = 0; i < services.size(); i++) {
+            Map<String, Object> serviceConfig = (Map<String, Object>) services.get(i);
+            providers[i] = (String) serviceConfig.get("provider");
+        }
+
+        Arrays.sort(providers);
+
+        var providerList = new ArrayList<>(Arrays.asList("alibabacloud-ai-search", "elasticsearch", "hugging_face", "test_service"));
+        if ((ElasticInferenceServiceFeature.DEPRECATED_ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled()
+            || ElasticInferenceServiceFeature.ELASTIC_INFERENCE_SERVICE_FEATURE_FLAG.isEnabled())) {
+            providerList.add(1, "elastic");
+        }
+        assertArrayEquals(providers, providerList.toArray());
     }
 
     public void testSkipValidationAndStart() throws IOException {
@@ -154,30 +333,51 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
     }
 
     public void testDeleteEndpointWhileReferencedBySemanticText() throws IOException {
-        String endpointId = "endpoint_referenced_by_semantic_text";
+        final String endpointId = "endpoint_referenced_by_semantic_text";
+        final String searchEndpointId = "search_endpoint_referenced_by_semantic_text";
+        final String indexName = randomAlphaOfLength(10).toLowerCase();
+        final Function<String, String> buildErrorString = endpointName -> " Inference endpoint "
+            + endpointName
+            + " is being used in the mapping for indexes: "
+            + Set.of(indexName)
+            + ". Ensure that no index mappings are using this inference endpoint, or use force to ignore this warning and delete the"
+            + " inference endpoint.";
+
         putModel(endpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
-        String indexName = randomAlphaOfLength(10).toLowerCase();
         putSemanticText(endpointId, indexName);
         {
-
-            var errorString = new StringBuilder().append(" Inference endpoint ")
-                .append(endpointId)
-                .append(" is being used in the mapping for indexes: ")
-                .append(Set.of(indexName))
-                .append(". ")
-                .append("Ensure that no index mappings are using this inference endpoint, ")
-                .append("or use force to ignore this warning and delete the inference endpoint.");
             var e = expectThrows(ResponseException.class, () -> deleteModel(endpointId));
-            assertThat(e.getMessage(), containsString(errorString.toString()));
+            assertThat(e.getMessage(), containsString(buildErrorString.apply(endpointId)));
         }
         {
             var response = deleteModel(endpointId, "dry_run=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":true"));
+        }
+        deleteIndex(indexName);
+
+        putModel(searchEndpointId, mockSparseServiceModelConfig(), TaskType.SPARSE_EMBEDDING);
+        putSemanticText(endpointId, searchEndpointId, indexName);
+        {
+            var e = expectThrows(ResponseException.class, () -> deleteModel(searchEndpointId));
+            assertThat(e.getMessage(), containsString(buildErrorString.apply(searchEndpointId)));
+        }
+        {
+            var response = deleteModel(searchEndpointId, "dry_run=true");
+            var entityString = EntityUtils.toString(response.getEntity());
+            assertThat(entityString, containsString("\"acknowledged\":false"));
+            assertThat(entityString, containsString(indexName));
+            assertThat(entityString, containsString(searchEndpointId));
+        }
+        {
+            var response = deleteModel(searchEndpointId, "force=true");
             var entityString = EntityUtils.toString(response.getEntity());
             assertThat(entityString, containsString("\"acknowledged\":true"));
         }
@@ -217,6 +417,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
             assertThat(entityString, containsString("\"acknowledged\":false"));
             assertThat(entityString, containsString(indexName));
             assertThat(entityString, containsString(pipelineId));
+            assertThat(entityString, containsString(endpointId));
         }
         {
             var response = deleteModel(endpointId, "force=true");
@@ -235,7 +436,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(TaskType.SPARSE_EMBEDDING.toString(), singleModel.get("task_type"));
 
         try {
-            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomAlphaOfLength(10)));
+            var events = streamInferOnMockService(modelId, TaskType.SPARSE_EMBEDDING, List.of(randomUUID()));
             assertThat(events.size(), equalTo(2));
             events.forEach(event -> {
                 switch (event.name()) {
@@ -260,8 +461,7 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         assertEquals(modelId, singleModel.get("inference_id"));
         assertEquals(TaskType.COMPLETION.toString(), singleModel.get("task_type"));
 
-        var input = IntStream.range(0, randomInt(10)).mapToObj(i -> randomAlphaOfLength(10)).toList();
-
+        var input = IntStream.range(1, 2 + randomInt(8)).mapToObj(i -> randomUUID()).toList();
         try {
             var events = streamInferOnMockService(modelId, TaskType.COMPLETION, input);
 
@@ -279,5 +479,10 @@ public class InferenceCrudIT extends InferenceBaseRestTest {
         } finally {
             deleteModel(modelId);
         }
+    }
+
+    public void testGetZeroModels() throws IOException {
+        var models = getModels("_all", TaskType.RERANK);
+        assertThat(models, empty());
     }
 }

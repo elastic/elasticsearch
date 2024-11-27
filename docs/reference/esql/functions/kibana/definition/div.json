@@ -186,5 +186,6 @@
       "returnType" : "unsigned_long"
     }
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

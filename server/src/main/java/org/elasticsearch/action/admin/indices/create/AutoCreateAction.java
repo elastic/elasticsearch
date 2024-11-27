@@ -305,11 +305,14 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     final CreateIndexClusterStateUpdateRequest updateRequest;
 
                     if (isManagedSystemIndex) {
-                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(
-                            currentState.getMinSystemIndexMappingVersions().get(mainDescriptor.getPrimaryIndex())
-                        );
+                        final var requiredMinimumMappingVersion = currentState.getMinSystemIndexMappingVersions()
+                            .get(mainDescriptor.getPrimaryIndex());
+                        final SystemIndexDescriptor descriptor = mainDescriptor.getDescriptorCompatibleWith(requiredMinimumMappingVersion);
                         if (descriptor == null) {
-                            final String message = mainDescriptor.getMinimumMappingsVersionMessage("auto-create index");
+                            final String message = mainDescriptor.getMinimumMappingsVersionMessage(
+                                "auto-create index",
+                                requiredMinimumMappingVersion
+                            );
                             logger.warn(message);
                             throw new IllegalStateException(message);
                         }
@@ -350,7 +353,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     indexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).performReroute(false).masterNodeTimeout(request.masterNodeTimeout());
+                ).performReroute(false);
                 logger.debug("Auto-creating index {}", indexName);
                 return updateRequest;
             }
@@ -367,7 +370,7 @@ public final class AutoCreateAction extends ActionType<CreateIndexResponse> {
                     request.cause(),
                     concreteIndexName,
                     request.index()
-                ).ackTimeout(request.ackTimeout()).masterNodeTimeout(request.masterNodeTimeout()).performReroute(false);
+                ).performReroute(false);
 
                 updateRequest.waitForActiveShards(ActiveShardCount.ALL);
 

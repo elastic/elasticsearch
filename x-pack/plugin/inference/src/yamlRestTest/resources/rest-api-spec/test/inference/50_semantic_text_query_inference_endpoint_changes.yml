@@ -112,8 +112,8 @@ setup:
 
   - match: { error.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.reason: "Field [inference_field] expected query inference results to be of type
-                                      [text_expansion_result], got [text_embedding_result]. Has the inference endpoint
-                                      configuration changed?" }
+                                      [text_expansion_result], got [text_embedding_result]. Has the configuration for
+                                      inference endpoint [sparse-inference-id] changed?" }
 
 ---
 "text_embedding changed to sparse_embedding":
@@ -149,8 +149,8 @@ setup:
 
   - match: { error.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.reason: "Field [inference_field] expected query inference results to be of type
-                                      [text_embedding_result], got [text_expansion_result]. Has the inference endpoint
-                                      configuration changed?" }
+                                      [text_embedding_result], got [text_expansion_result]. Has the configuration for
+                                      inference endpoint [dense-inference-id] changed?" }
 
 ---
 "text_embedding dimension count changed":
@@ -188,4 +188,5 @@ setup:
 
   - match: { error.caused_by.type: "illegal_argument_exception" }
   - match: { error.caused_by.reason: "Field [inference_field] expected query inference results with 10 dimensions, got
-                                      20 dimensions. Has the inference endpoint configuration changed?" }
+                                      20 dimensions. Has the configuration for inference endpoint [dense-inference-id]
+                                      changed?" }

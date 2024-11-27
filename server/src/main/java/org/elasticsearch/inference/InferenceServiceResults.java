@@ -52,7 +52,7 @@ public interface InferenceServiceResults extends NamedWriteable, ChunkedToXConte
      * When {@link #isStreaming()} is {@code true}, the InferenceAction.Results will subscribe to this publisher.
      * Implementations should follow the {@link java.util.concurrent.Flow.Publisher} spec to stream the chunks.
      */
-    default Flow.Publisher<ChunkedToXContent> publisher() {
+    default Flow.Publisher<? extends ChunkedToXContent> publisher() {
         assert isStreaming() == false : "This must be implemented when isStreaming() == true";
         throw new UnsupportedOperationException("This must be implemented when isStreaming() == true");
     }

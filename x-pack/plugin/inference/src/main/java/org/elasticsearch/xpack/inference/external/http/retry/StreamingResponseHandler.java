@@ -10,8 +10,6 @@ package org.elasticsearch.xpack.inference.external.http.retry;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.elasticsearch.ExceptionsHelper;
-import org.elasticsearch.action.ActionListener;
-import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
@@ -27,7 +25,6 @@ class StreamingResponseHandler implements Flow.Processor<HttpResult, HttpResult>
     private final Logger throttlerLogger;
     private final Request request;
     private final ResponseHandler responseHandler;
-    private final ActionListener<InferenceServiceResults> listener;
 
     private final AtomicBoolean upstreamIsClosed = new AtomicBoolean(false);
     private final AtomicBoolean processedFirstItem = new AtomicBoolean(false);
@@ -35,18 +32,11 @@ class StreamingResponseHandler implements Flow.Processor<HttpResult, HttpResult>
     private volatile Flow.Subscription upstream;
     private volatile Flow.Subscriber<? super HttpResult> downstream;
 
-    StreamingResponseHandler(
-        ThrottlerManager throttlerManager,
-        Logger throttlerLogger,
-        Request request,
-        ResponseHandler responseHandler,
-        ActionListener<InferenceServiceResults> listener
-    ) {
+    StreamingResponseHandler(ThrottlerManager throttlerManager, Logger throttlerLogger, Request request, ResponseHandler responseHandler) {
         this.throttlerManager = throttlerManager;
         this.throttlerLogger = throttlerLogger;
         this.request = request;
         this.responseHandler = responseHandler;
-        this.listener = listener;
     }
 
     @Override
@@ -90,8 +80,6 @@ class StreamingResponseHandler implements Flow.Processor<HttpResult, HttpResult>
     @Override
     public void onSubscribe(Flow.Subscription subscription) {
         upstream = subscription;
-        // start the first request, which will call onNext and validate the first HttpResult
-        upstream.request(1);
     }
 
     @Override
@@ -99,18 +87,14 @@ class StreamingResponseHandler implements Flow.Processor<HttpResult, HttpResult>
         if (processedFirstItem.compareAndSet(false, true)) {
             try {
                 responseHandler.validateResponse(throttlerManager, throttlerLogger, request, item);
-                var inferenceServiceResults = responseHandler.parseResult(request, item, this);
-                assert downstream != null : "the responseHandler must invoke the subscribe method";
-                listener.onResponse(inferenceServiceResults);
             } catch (Exception e) {
                 logException(throttlerLogger, request, item, responseHandler.getRequestType(), e);
-                listener.onFailure(e);
                 upstream.cancel();
                 onError(e);
+                return;
             }
-        } else {
-            downstream.onNext(item);
         }
+        downstream.onNext(item);
     }
 
     @Override

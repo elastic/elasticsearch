@@ -27,7 +27,10 @@ import java.util.Objects;
 /**
  *  2D floating-point vector
  */
-final class Vec2d {
+record Vec2d(
+    double x, // x component
+    double y  // y component
+) {
 
     /** 1/sin(60') **/
     private static final double M_RSIN60 = 1.0 / Constants.M_SQRT3_2;
@@ -90,14 +93,6 @@ final class Vec2d {
         { 2.361378999196363184, 0.266983896803167583, 4.455774101589558636 },  // face 19
     };
 
-    private final double x;  /// < x component
-    private final double y;  /// < y component
-
-    Vec2d(double x, double y) {
-        this.x = x;
-        this.y = y;
-    }
-
     /**
      * Determines the center point in spherical coordinates of a cell given by this 2D
      * hex coordinates on a particular icosahedral face.
@@ -141,7 +136,7 @@ final class Vec2d {
 
         // scale accordingly if this is a substrate grid
         if (substrate) {
-            r /= 3.0;
+            r *= M_ONETHIRD;
             if (H3Index.isResolutionClassIII(res)) {
                 r *= Constants.M_RSQRT7;
             }
@@ -202,17 +197,17 @@ final class Vec2d {
                     j = m2;
                 } else {
                     i = m1;
-                    j = Math.incrementExact(m2);
+                    j = m2 + 1;
                 }
             } else {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = Math.incrementExact(m2);
+                    j = m2 + 1;
                 }
 
                 if ((1.0 - r1) <= r2 && r2 < (2.0 * r1)) {
-                    i = Math.incrementExact(m1);
+                    i = m1 + 1;
                 } else {
                     i = m1;
                 }
@@ -222,21 +217,21 @@ final class Vec2d {
                 if (r2 < (1.0 - r1)) {
                     j = m2;
                 } else {
-                    j = Math.addExact(m2, 1);
+                    j = m2 + 1;
                 }
 
                 if ((2.0 * r1 - 1.0) < r2 && r2 < (1.0 - r1)) {
                     i = m1;
                 } else {
-                    i = Math.incrementExact(m1);
+                    i = m1 + 1;
                 }
             } else {
                 if (r2 < (r1 * 0.5)) {
-                    i = Math.incrementExact(m1);
+                    i = m1 + 1;
                     j = m2;
                 } else {
-                    i = Math.incrementExact(m1);
-                    j = Math.incrementExact(m2);
+                    i = m1 + 1;
+                    j = m2 + 1;
                 }
             }
         }
@@ -247,18 +242,19 @@ final class Vec2d {
             if ((j % 2) == 0)  // even
             {
                 final int axisi = j / 2;
-                final int diff = Math.subtractExact(i, axisi);
-                i = Math.subtractExact(i, Math.multiplyExact(2, diff));
+                final int diff = i - axisi;
+                i = i - (2 * diff);
             } else {
-                final int axisi = Math.addExact(j, 1) / 2;
-                final int diff = Math.subtractExact(i, axisi);
-                i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, diff), 1));
+                final int axisi = (j + 1) / 2;
+                final int diff = i - axisi;
+                i = i - ((2 * diff) + 1);
             }
         }
 
         if (y < 0.0) {
-            i = Math.subtractExact(i, Math.addExact(Math.multiplyExact(2, j), 1) / 2);
-            j = Math.multiplyExact(-1, j);
+
+            i = i - ((2 * j + 1) / 2);
+            j *= -1;
         }
         final CoordIJK coordIJK = new CoordIJK(i, j, k);
         coordIJK.ijkNormalize();

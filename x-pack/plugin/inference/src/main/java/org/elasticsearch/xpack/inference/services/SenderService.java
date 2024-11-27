@@ -17,6 +17,7 @@ import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.InferenceServiceResults;
 import org.elasticsearch.inference.InputType;
 import org.elasticsearch.inference.Model;
+import org.elasticsearch.inference.TaskType;
 import org.elasticsearch.xpack.inference.external.http.sender.DocumentsOnlyInput;
 import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSender;
 import org.elasticsearch.xpack.inference.external.http.sender.InferenceInputs;
@@ -24,11 +25,14 @@ import org.elasticsearch.xpack.inference.external.http.sender.QueryAndDocsInputs
 import org.elasticsearch.xpack.inference.external.http.sender.Sender;
 
 import java.io.IOException;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import java.util.Set;
 
 public abstract class SenderService implements InferenceService {
+    protected static final Set<TaskType> COMPLETION_ONLY = EnumSet.of(TaskType.COMPLETION, TaskType.ANY);
     private final Sender sender;
     private final ServiceComponents serviceComponents;
 
@@ -51,6 +55,7 @@ public abstract class SenderService implements InferenceService {
         Model model,
         @Nullable String query,
         List<String> input,
+        boolean stream,
         Map<String, Object> taskSettings,
         InputType inputType,
         TimeValue timeout,
@@ -58,9 +63,9 @@ public abstract class SenderService implements InferenceService {
     ) {
         init();
         if (query != null) {
-            doInfer(model, new QueryAndDocsInputs(query, input), taskSettings, inputType, timeout, listener);
+            doInfer(model, new QueryAndDocsInputs(query, input, stream), taskSettings, inputType, timeout, listener);
         } else {
-            doInfer(model, new DocumentsOnlyInput(input), taskSettings, inputType, timeout, listener);
+            doInfer(model, new DocumentsOnlyInput(input, stream), taskSettings, inputType, timeout, listener);
         }
     }
 
@@ -99,11 +104,14 @@ public abstract class SenderService implements InferenceService {
         ActionListener<List<ChunkedInferenceServiceResults>> listener
     );
 
-    @Override
     public void start(Model model, ActionListener<Boolean> listener) {
         init();
-
         doStart(model, listener);
+    }
+
+    @Override
+    public void start(Model model, @Nullable TimeValue unused, ActionListener<Boolean> listener) {
+        start(model, listener);
     }
 
     protected void doStart(Model model, ActionListener<Boolean> listener) {

@@ -28,10 +28,10 @@ import org.apache.lucene.search.Query;
 import org.apache.lucene.search.SortField;
 import org.apache.lucene.util.AttributeSource;
 import org.apache.lucene.util.BytesRef;
+import org.apache.lucene.util.IOBooleanSupplier;
 import org.apache.lucene.util.automaton.Automata;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.CompiledAutomaton;
-import org.apache.lucene.util.automaton.MinimizationOperations;
 import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
@@ -112,9 +112,11 @@ import static org.elasticsearch.index.IndexSettings.IGNORE_ABOVE_SETTING;
 public final class FlattenedFieldMapper extends FieldMapper {
 
     public static final NodeFeature IGNORE_ABOVE_SUPPORT = new NodeFeature("flattened.ignore_above_support");
+    public static final NodeFeature IGNORE_ABOVE_WITH_ARRAYS_SUPPORT = new NodeFeature("mapper.flattened.ignore_above_with_arrays_support");
 
     public static final String CONTENT_TYPE = "flattened";
     public static final String KEYED_FIELD_SUFFIX = "._keyed";
+    public static final String KEYED_IGNORED_VALUES_FIELD_SUFFIX = "._keyed._ignored";
     public static final String TIME_SERIES_DIMENSIONS_ARRAY_PARAM = "time_series_dimensions";
 
     private static class Defaults {
@@ -392,7 +394,6 @@ public final class FlattenedFieldMapper extends FieldMapper {
                 a = Operations.concatenate(a, Automata.makeAnyString());
             }
             assert a.isDeterministic();
-            a = MinimizationOperations.minimize(a, 0);
 
             CompiledAutomaton automaton = new CompiledAutomaton(a);
             if (searchAfter != null) {
@@ -478,6 +479,11 @@ public final class FlattenedFieldMapper extends FieldMapper {
 
         @Override
         public AttributeSource attributes() {
+            throw new UnsupportedOperationException();
+        }
+
+        @Override
+        public IOBooleanSupplier prepareSeekExact(BytesRef bytesRef) throws IOException {
             throw new UnsupportedOperationException();
         }
 
@@ -835,6 +841,7 @@ public final class FlattenedFieldMapper extends FieldMapper {
         this.fieldParser = new FlattenedFieldParser(
             mappedFieldType.name(),
             mappedFieldType.name() + KEYED_FIELD_SUFFIX,
+            mappedFieldType.name() + KEYED_IGNORED_VALUES_FIELD_SUFFIX,
             mappedFieldType,
             builder.depthLimit.get(),
             builder.ignoreAbove.get(),
@@ -903,7 +910,12 @@ public final class FlattenedFieldMapper extends FieldMapper {
     @Override
     protected SyntheticSourceSupport syntheticSourceSupport() {
         if (fieldType().hasDocValues()) {
-            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(fullPath(), fullPath() + "._keyed", leafName());
+            var loader = new FlattenedSortedSetDocValuesSyntheticFieldLoader(
+                fullPath(),
+                fullPath() + KEYED_FIELD_SUFFIX,
+                ignoreAbove() < Integer.MAX_VALUE ? fullPath() + KEYED_IGNORED_VALUES_FIELD_SUFFIX : null,
+                leafName()
+            );
 
             return new SyntheticSourceSupport.Native(loader);
         }

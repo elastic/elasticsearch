@@ -23,7 +23,7 @@ import java.io.IOException;
 import java.util.List;
 import java.util.Map;
 
-@UpdateForV9
+@UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
 @LuceneTestCase.AwaitsFix(bugUrl = "this is testing legacy functionality so can likely be removed in 9.0")
 public class LegacyGeoShapeFieldTypeTests extends FieldTypeTestCase {
 

@@ -1,3 +1,8 @@
+setup:
+  - requires:
+      cluster_features: [ "mapper.source.mode_from_index_setting" ]
+      reason: "Source mode configured through index setting"
+
 ---
 ignore_above mapping level setting:
   - requires:
@@ -10,10 +15,9 @@ ignore_above mapping level setting:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -44,8 +48,8 @@ ignore_above mapping level setting:
 ---
 ignore_above mapping level setting on arrays:
   - requires:
-      cluster_features: [ "mapper.ignore_above_index_level_setting" ]
-      reason: introduce ignore_above index level setting
+      cluster_features: [ "mapper.flattened.ignore_above_with_arrays_support" ]
+      reason: requires support of ignore_above with arrays for flattened fields
   - do:
       indices.create:
         index:  test
@@ -53,10 +57,9 @@ ignore_above mapping level setting on arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -80,9 +83,8 @@ ignore_above mapping level setting on arrays:
             match_all: {}
 
   - length: { hits.hits: 1 }
-  #TODO: synthetic source field reconstruction bug (TBD: add link to the issue here)
-  #- match: { hits.hits.0._source.keyword: ["foo bar", "the quick brown fox"] }
-  - match: { hits.hits.0._source.flattened.value: ["the quick brown fox", "jumps over"] }
+  - match: { hits.hits.0._source.keyword: ["foo bar", "the quick brown fox"] }
+  - match: { hits.hits.0._source.flattened.value: [ "jumps over", "the quick brown fox" ] }
   - match: { hits.hits.0.fields.keyword.0: "foo bar" }
   - match: { hits.hits.0.fields.flattened.0.value: "jumps over" }
 
@@ -98,10 +100,9 @@ ignore_above mapping overrides setting:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword
@@ -144,10 +145,9 @@ ignore_above mapping overrides setting on arrays:
           settings:
             index:
               mapping:
+                source.mode: synthetic
                 ignore_above: 10
           mappings:
-            _source:
-              mode: synthetic
             properties:
               keyword:
                 type: keyword

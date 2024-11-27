@@ -107,7 +107,7 @@ public class TransportTasksActionTests extends TaskManagerTestCase {
         }
     }
 
-    public static class NodesRequest extends BaseNodesRequest<NodesRequest> {
+    public static class NodesRequest extends BaseNodesRequest {
         private final String requestName;
 
         public NodesRequest(String requestName, String... nodesIds) {

@@ -668,7 +668,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<TransportResponse.Empty> res = submitRequest(
                 serviceC,
@@ -725,7 +725,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
 
             Future<StringMessageResponse> res = submitRequest(
                 serviceC,
@@ -795,8 +795,8 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 )
                 .build();
             ConnectionProfile connectionProfile = ConnectionProfile.buildDefaultConnectionProfile(settingsWithCompress);
-            connectToNode(serviceC, serviceA.getLocalDiscoNode(), connectionProfile);
-            connectToNode(serviceA, serviceC.getLocalDiscoNode(), connectionProfile);
+            connectToNode(serviceC, serviceA.getLocalNode(), connectionProfile);
+            connectToNode(serviceA, serviceC.getLocalNode(), connectionProfile);
 
             TransportResponseHandler<StringMessageResponse> responseHandler = new TransportResponseHandler<>() {
                 @Override
@@ -821,14 +821,14 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             Future<StringMessageResponse> compressed = submitRequest(
                 serviceC,
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, true),
                 responseHandler
             );
             Future<StringMessageResponse> uncompressed = submitRequest(
                 serviceA,
-                serviceC.getLocalDiscoNode(),
+                serviceC.getLocalNode(),
                 "internal:sayHello",
                 new StringMessageRequest(text, -1, false),
                 responseHandler
@@ -1049,7 +1049,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                     ignoringRequestHandler
                 );
                 serviceB = newService;
-                nodeB = newService.getLocalDiscoNode();
+                nodeB = newService.getLocalNode();
                 connectToNode(serviceB, nodeA);
                 connectToNode(serviceA, nodeB);
             } else if (serviceA.nodeConnected(nodeB)) {
@@ -1373,7 +1373,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:test", new StringMessageRequest("", 10), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for included action type "internal:testError" which returns an error
@@ -1420,7 +1420,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             serviceA.sendRequest(nodeB, "internal:testError", new StringMessageRequest(""), noopResponseHandler);
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
 
             ////////////////////////////////////////////////////////////////////////
             // tests for excluded action type "internal:testNotSeen"
@@ -1467,7 +1467,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
 
             submitRequest(serviceA, nodeB, "internal:testNotSeen", new StringMessageRequest(""), noopResponseHandler).get();
 
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         }
     }
 
@@ -3369,7 +3369,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
                 "stuck threads logging",
                 ThreadWatchdog.class.getCanonicalName(),
                 Level.WARN,
-                "the following threads are active but did not make progress in the preceding [5s]: [" + threadName + "]"
+                "the following threads are active but did not make progress in the preceding [5s]: [*" + threadName + "*]"
             )
         );
         safeAwait(barrier);
@@ -3419,7 +3419,7 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         ) {
             final CountDownLatch latch = new CountDownLatch(1);
             serviceC.connectToNode(
-                serviceA.getLocalDiscoNode(),
+                serviceA.getLocalNode(),
                 ConnectionProfile.buildDefaultConnectionProfile(Settings.EMPTY),
                 new ActionListener<>() {
                     @Override
@@ -3507,9 +3507,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Releasable.class, listener -> service.connectToNode(node, connectionProfile, listener))
+            Releasable.class,
+            listener -> service.connectToNode(node, connectionProfile, listener)
         );
     }
 
@@ -3532,9 +3533,10 @@ public abstract class AbstractSimpleTransportTestCase extends ESTestCase {
         DiscoveryNode node,
         ConnectionProfile connectionProfile
     ) {
-        return asInstanceOf(
+        return safeAwaitFailure(
             ConnectTransportException.class,
-            safeAwaitFailure(Transport.Connection.class, listener -> service.openConnection(node, connectionProfile, listener))
+            Transport.Connection.class,
+            listener -> service.openConnection(node, connectionProfile, listener)
         );
     }
 

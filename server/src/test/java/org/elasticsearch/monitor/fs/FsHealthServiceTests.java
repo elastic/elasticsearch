@@ -146,7 +146,7 @@ public class FsHealthServiceTests extends ESTestCase {
             disruptFileSystemProvider.injectIOException.set(true);
             fsHealthService.new FsHealthMonitor().run();
             assertEquals(env.nodeDataPaths().length, disruptFileSystemProvider.getInjectedPathCount());
-            assertBusy(mockLog::assertAllExpectationsMatched);
+            mockLog.awaitAllExpectationsMatched();
         } finally {
             PathUtilsForTesting.teardown();
             ThreadPool.terminate(testThreadPool, 500, TimeUnit.MILLISECONDS);

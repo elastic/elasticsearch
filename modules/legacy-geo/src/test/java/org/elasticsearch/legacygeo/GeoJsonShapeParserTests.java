@@ -344,7 +344,7 @@ public class GeoJsonShapeParserTests extends BaseGeoParsingTestCase {
         assertGeometryEquals(p, polygonGeoJson, false);
     }
 
-    @UpdateForV9
+    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_ANALYTICS)
     @AwaitsFix(bugUrl = "this test is using pre 8.0.0 index versions so needs to be removed or updated")
     public void testParse3DPolygon() throws IOException, ParseException {
         XContentBuilder polygonGeoJson = XContentFactory.jsonBuilder()

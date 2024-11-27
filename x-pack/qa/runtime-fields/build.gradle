@@ -29,7 +29,7 @@ subprojects {
 
     restResources {
       restApi {
-        include '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
+        include 'capabilities', '_common', 'bulk', 'count', 'cluster', 'index', 'indices', 'field_caps', 'msearch',
           'search', 'async_search', 'graph', '*_point_in_time', 'put_script', 'scripts_painless_execute'
       }
       restTests {
@@ -44,6 +44,7 @@ subprojects {
       setting 'xpack.security.enabled', 'false'
 
       requiresFeature 'es.index_mode_feature_flag_registered', Version.fromString("8.0.0")
+      requiresFeature 'es.sub_objects_auto_feature_flag_enabled', Version.fromString("8.16.0")
     }
 
     tasks.named("yamlRestTest").configure {

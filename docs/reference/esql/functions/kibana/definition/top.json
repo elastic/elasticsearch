@@ -194,11 +194,12 @@
         }
       ],
       "variadic" : false,
-      "returnType" : "text"
+      "returnType" : "keyword"
     }
   ],
   "examples" : [
     "FROM employees\n| STATS top_salaries = TOP(salary, 3, \"desc\"), top_salary = MAX(salary)"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

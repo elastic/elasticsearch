@@ -34,7 +34,7 @@ public class StoredFieldsContext implements Writeable {
     private final List<String> fieldNames;
     private final boolean fetchFields;
 
-    private StoredFieldsContext(boolean fetchFields) {
+    public StoredFieldsContext(boolean fetchFields) {
         this.fetchFields = fetchFields;
         this.fieldNames = null;
     }

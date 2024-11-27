@@ -16,10 +16,10 @@ export COMPOSE_HTTP_TIMEOUT
 JOB_BRANCH="$BUILDKITE_BRANCH"
 export JOB_BRANCH
 
-GRADLEW="./gradlew --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+GRADLEW="./gradlew --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
 export GRADLEW
 
-GRADLEW_BAT="./gradlew.bat --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
+GRADLEW_BAT="./gradlew.bat --console=plain --parallel --scan --build-cache --no-watch-fs -Dorg.elasticsearch.build.cache.url=https://gradle-enterprise.elastic.co/cache/"
 export GRADLEW_BAT
 
 export $(cat .ci/java-versions.properties | grep '=' | xargs)
@@ -78,11 +78,15 @@ if [[ "${USE_SNYK_CREDENTIALS:-}" == "true" ]]; then
 fi
 
 if [[ "${USE_PROD_DOCKER_CREDENTIALS:-}" == "true" ]]; then
-  DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-  export DOCKER_REGISTRY_USERNAME
+  if which docker > /dev/null 2>&1; then
+    DOCKER_REGISTRY_USERNAME="$(vault read -field=username secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_USERNAME
 
-  DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
-  export DOCKER_REGISTRY_PASSWORD
+    DOCKER_REGISTRY_PASSWORD="$(vault read -field=password secret/ci/elastic-elasticsearch/migrated/prod_docker_registry_credentials)"
+    export DOCKER_REGISTRY_PASSWORD
+
+    docker login --username "$DOCKER_REGISTRY_USERNAME" --password "$DOCKER_REGISTRY_PASSWORD" docker.elastic.co
+  fi
 fi
 
 if [[ "$BUILDKITE_AGENT_META_DATA_PROVIDER" != *"k8s"* ]]; then
@@ -104,4 +108,12 @@ EOF
 
 <summary>Agent information from gobld</summary>
 EOF
+fi
+
+# Amazon Linux 2 has DNS resolution issues with resource-based hostnames in EC2
+# We have many functional tests that try to lookup and resolve the hostname of the local machine in a particular way
+# And they fail. This sets up a manual entry for the hostname in dnsmasq.
+if [[ -f /etc/os-release ]] && grep -q '"Amazon Linux 2"' /etc/os-release; then
+  echo "$(hostname -i | cut -d' ' -f 2)  $(hostname -f)." | sudo tee /etc/dnsmasq.hosts
+  sudo systemctl restart dnsmasq.service
 fi

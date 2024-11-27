@@ -25,6 +25,7 @@ import org.elasticsearch.xpack.inference.external.http.sender.HttpRequestSenderT
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
 import org.elasticsearch.xpack.inference.results.SparseEmbeddingResultsTests;
 import org.elasticsearch.xpack.inference.services.elastic.ElasticInferenceServiceSparseEmbeddingsModelTests;
+import org.elasticsearch.xpack.inference.telemetry.TraceContext;
 import org.junit.After;
 import org.junit.Before;
 
@@ -89,7 +90,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -145,7 +146,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -197,7 +198,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             webServer.enqueue(new MockResponse().setResponseCode(200).setBody(responseJson));
 
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer));
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -257,7 +258,7 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
 
             // truncated to 1 token = 3 characters
             var model = ElasticInferenceServiceSparseEmbeddingsModelTests.createModel(getUrl(webServer), 1);
-            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool));
+            var actionCreator = new ElasticInferenceServiceActionCreator(sender, createWithEmptySettings(threadPool), createTraceContext());
             var action = actionCreator.create(model);
 
             PlainActionFuture<InferenceServiceResults> listener = new PlainActionFuture<>();
@@ -284,6 +285,10 @@ public class ElasticInferenceServiceActionCreatorTests extends ESTestCase {
             var initialInputs = initialRequestAsMap.get("input");
             assertThat(initialInputs, is(List.of("hel")));
         }
+    }
+
+    private TraceContext createTraceContext() {
+        return new TraceContext(randomAlphaOfLength(10), randomAlphaOfLength(10));
     }
 
 }

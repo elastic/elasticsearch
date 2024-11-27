@@ -50,6 +50,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcke
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertRequestBuilderThrows;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsInAnyOrder;
 import static org.hamcrest.Matchers.containsString;
@@ -843,24 +844,13 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         ensureGreen();
 
-        // ax -> matches template
-        assertResponse(
+        assertResponses(response -> {
+            assertHitCount(response, 1);
+            assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
+            assertNull(response.getHits().getAt(0).field("field2"));
+        },
             prepareSearch("ax").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
-        );
-
-        // bx -> matches template
-        assertResponse(
-            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2"),
-            response -> {
-                assertHitCount(response, 1);
-                assertEquals("value1", response.getHits().getAt(0).field("field1").getValue().toString());
-                assertNull(response.getHits().getAt(0).field("field2"));
-            }
+            prepareSearch("bx").setQuery(termQuery("field1", "value1")).addStoredField("field1").addStoredField("field2")
         );
     }
 
@@ -881,7 +871,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
         );
         assertThat(
             eBadSettings.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // provide an invalid mapping for a partitioned index
@@ -913,7 +903,7 @@ public class SimpleIndexTemplateIT extends ESIntegTestCase {
 
         assertThat(
             eBadIndex.getMessage(),
-            containsString("partition size [6] should be a positive number less than the number of shards [5]")
+            containsString("partition size [6] should be a positive number less than the number of routing shards [5]")
         );
 
         // finally, create a valid index

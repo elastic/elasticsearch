@@ -1,7 +1,3 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -10,8 +6,12 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
+apply plugin: 'elasticsearch.internal-java-rest-test'
 
 esplugin {
   description 'The S3 repository plugin adds S3 repositories'
@@ -45,8 +45,14 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(":test:framework")
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
+  yamlRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+  yamlRestTestImplementation project(':test:fixtures:aws-sts-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
+
+  javaRestTestImplementation project(":test:framework")
+  javaRestTestImplementation project(':test:fixtures:s3-fixture')
+  javaRestTestImplementation project(':modules:repository-s3')
 
   yamlRestTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
   internalClusterTestRuntimeOnly "org.slf4j:slf4j-simple:${versions.slf4j}"
@@ -110,7 +116,7 @@ String s3ECSBasePath = System.getenv("amazon_s3_base_path_ecs")
 String s3STSBucket = System.getenv("amazon_s3_bucket_sts")
 String s3STSBasePath = System.getenv("amazon_s3_base_path_sts")
 
-boolean s3DisableChunkedEncoding = BuildParams.random.nextBoolean()
+boolean s3DisableChunkedEncoding = buildParams.random.nextBoolean()
 
 // If all these variables are missing then we are testing against the internal fixture instead, which has the following
 // credentials hard-coded in.
@@ -198,7 +204,7 @@ tasks.register("s3ThirdPartyTest", Test) {
   systemProperty 'test.s3.account', s3PermanentAccessKey
   systemProperty 'test.s3.key', s3PermanentSecretKey
   systemProperty 'test.s3.bucket', s3PermanentBucket
-  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + BuildParams.testSeed
+  nonInputProperties.systemProperty 'test.s3.base', s3PermanentBasePath + "_third_party_tests_" + buildParams.testSeed
 }
 
 tasks.named("thirdPartyAudit").configure {

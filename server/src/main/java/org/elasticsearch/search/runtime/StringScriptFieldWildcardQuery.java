@@ -13,6 +13,7 @@ import org.apache.lucene.index.Term;
 import org.apache.lucene.search.WildcardQuery;
 import org.apache.lucene.util.automaton.Automaton;
 import org.apache.lucene.util.automaton.ByteRunAutomaton;
+import org.apache.lucene.util.automaton.Operations;
 import org.elasticsearch.common.lucene.search.AutomatonQueries;
 import org.elasticsearch.script.Script;
 import org.elasticsearch.script.StringFieldScript;
@@ -44,7 +45,7 @@ public class StringScriptFieldWildcardQuery extends AbstractStringScriptFieldAut
         if (caseInsensitive) {
             return AutomatonQueries.toCaseInsensitiveWildcardAutomaton(term);
         }
-        return WildcardQuery.toAutomaton(term);
+        return WildcardQuery.toAutomaton(term, Operations.DEFAULT_DETERMINIZE_WORK_LIMIT);
     }
 
     @Override

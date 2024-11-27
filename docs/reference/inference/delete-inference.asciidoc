@@ -2,16 +2,11 @@
 [[delete-inference-api]]
 === Delete {infer} API
 
-experimental[]
-
 Deletes an {infer} endpoint.
 
-IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI or
-Hugging Face. For built-in models and models uploaded through Eland, the {infer}
-APIs offer an alternative way to use and manage trained models. However, if you
-do not plan to use the {infer} APIs to use these models or if you want to use
-non-NLP models, use the <<ml-df-trained-models-apis>>.
+IMPORTANT: The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Azure, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
+For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models.
+However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 
 
 [discrete]
@@ -49,13 +44,12 @@ The type of {infer} task that the model performs.
 
 `dry_run`::
 (Optional, Boolean)
-When `true`, checks the {infer} processors that reference the endpoint and
-returns them in a list, but does not delete the endpoint. Defaults to `false`.
+When `true`, checks the `semantic_text` fields and  {infer} processors that reference the endpoint and returns them in a list, but does not delete the endpoint.
+Defaults to `false`.
 
 `force`::
 (Optional, Boolean)
-Deletes the endpoint regardless if it's used in an {infer} pipeline or in a
-`semantic_text` field.
+Deletes the endpoint regardless if it's used in a `semantic_text` field or in an {infer} pipeline.
 
 
 [discrete]

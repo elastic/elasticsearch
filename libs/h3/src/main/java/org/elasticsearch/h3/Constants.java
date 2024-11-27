@@ -35,10 +35,6 @@ final class Constants {
      */
     public static final double M_2PI = 2.0 * Math.PI;
     /**
-     * max H3 resolution; H3 version 1 has 16 resolutions, numbered 0 through 15
-     */
-    public static int MAX_H3_RES = 15;
-    /**
      * The number of H3 base cells
      */
     public static int NUM_BASE_CELLS = 122;

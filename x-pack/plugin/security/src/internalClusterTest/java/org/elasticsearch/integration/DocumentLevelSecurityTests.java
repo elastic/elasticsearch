@@ -474,13 +474,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
                 response -> {
                     assertFalse(response.getResponses()[0].isFailure());
-                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value(), is(1L));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
 
                     assertFalse(response.getResponses()[1].isFailure());
-                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value(), is(1L));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -495,13 +495,13 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .add(prepareSearch("test2").setQuery(QueryBuilders.matchAllQuery())),
                 response -> {
                     assertFalse(response.getResponses()[0].isFailure());
-                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value(), is(1L));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
 
                     assertFalse(response.getResponses()[1].isFailure());
-                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(1L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value(), is(1L));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field2"), is("value2"));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(2));
@@ -522,7 +522,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     ),
                 response -> {
                     assertFalse(response.getResponses()[0].isFailure());
-                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value, is(2L));
+                    assertThat(response.getResponses()[0].getResponse().getHits().getTotalHits().value(), is(2L));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -531,7 +531,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     assertThat(response.getResponses()[0].getResponse().getHits().getAt(1).getSourceAsMap().get("id"), is(2));
 
                     assertFalse(response.getResponses()[1].isFailure());
-                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value, is(2L));
+                    assertThat(response.getResponses()[1].getResponse().getHits().getTotalHits().value(), is(2L));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().size(), is(2));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
                     assertThat(response.getResponses()[1].getResponse().getHits().getAt(0).getSourceAsMap().get("id"), is(1));
@@ -898,7 +898,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .addFetchField("field1")
                 .setSize(10),
             response -> {
-                assertEquals(5, response.getHits().getTotalHits().value);
+                assertEquals(5, response.getHits().getTotalHits().value());
                 assertEquals(5, response.getHits().getHits().length);
                 for (SearchHit hit : response.getHits().getHits()) {
                     assertNotNull(hit.field("field1"));
@@ -914,7 +914,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .addFetchField("field2")
                 .setSize(10),
             response -> {
-                assertEquals(5, response.getHits().getTotalHits().value);
+                assertEquals(5, response.getHits().getTotalHits().value());
                 assertEquals(5, response.getHits().getHits().length);
                 for (SearchHit hit : response.getHits().getHits()) {
                     assertNotNull(hit.field("field2"));
@@ -929,7 +929,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .setQuery(query)
                 .setSize(10),
             response -> {
-                assertEquals(10, response.getHits().getTotalHits().value);
+                assertEquals(10, response.getHits().getTotalHits().value());
                 assertEquals(10, response.getHits().getHits().length);
             }
         );
@@ -1265,7 +1265,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                 .get();
             do {
                 assertNoFailures(response);
-                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
+                assertThat(response.getHits().getTotalHits().value(), is((long) numVisible));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
 
@@ -1325,7 +1325,7 @@ public class DocumentLevelSecurityTests extends SecurityIntegTestCase {
                     .setQuery(termQuery("field1", "value1"))
                     .get();
                 assertNoFailures(response);
-                assertThat(response.getHits().getTotalHits().value, is((long) numVisible));
+                assertThat(response.getHits().getTotalHits().value(), is((long) numVisible));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().size(), is(1));
                 assertThat(response.getHits().getAt(0).getSourceAsMap().get("field1"), is("value1"));
             }

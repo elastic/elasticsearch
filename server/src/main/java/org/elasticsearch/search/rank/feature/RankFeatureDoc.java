@@ -38,7 +38,7 @@ public class RankFeatureDoc extends RankDoc {
     }
 
     @Override
-    public Explanation explain() {
+    public Explanation explain(Explanation[] sources, String[] queryNames) {
         throw new UnsupportedOperationException("explain is not supported for {" + getClass() + "}");
     }
 

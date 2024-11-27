@@ -180,7 +180,14 @@ final class DefaultSearchContext extends SearchContext {
             this.indexShard = readerContext.indexShard();
 
             Engine.Searcher engineSearcher = readerContext.acquireSearcher("search");
-            if (executor == null) {
+            int maximumNumberOfSlices = determineMaximumNumberOfSlices(
+                executor,
+                request,
+                resultsType,
+                enableQueryPhaseParallelCollection,
+                field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
+            );
+            if (executor == null || maximumNumberOfSlices <= 1) {
                 this.searcher = new ContextIndexSearcher(
                     engineSearcher.getIndexReader(),
                     engineSearcher.getSimilarity(),
@@ -196,13 +203,7 @@ final class DefaultSearchContext extends SearchContext {
                     engineSearcher.getQueryCachingPolicy(),
                     lowLevelCancellation,
                     executor,
-                    determineMaximumNumberOfSlices(
-                        executor,
-                        request,
-                        resultsType,
-                        enableQueryPhaseParallelCollection,
-                        field -> getFieldCardinality(field, readerContext.indexService(), engineSearcher.getDirectoryReader())
-                    ),
+                    maximumNumberOfSlices,
                     minimumDocsPerSlice
                 );
             }
@@ -290,6 +291,7 @@ final class DefaultSearchContext extends SearchContext {
         ToLongFunction<String> fieldCardinality
     ) {
         return executor instanceof ThreadPoolExecutor tpe
+            && tpe.getQueue().size() <= tpe.getMaximumPoolSize()
             && isParallelCollectionSupportedForResults(resultsType, request.source(), fieldCardinality, enableQueryPhaseParallelCollection)
                 ? tpe.getMaximumPoolSize()
                 : 1;

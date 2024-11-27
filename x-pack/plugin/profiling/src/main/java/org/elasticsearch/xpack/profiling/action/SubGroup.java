@@ -19,7 +19,7 @@ import java.util.Objects;
 public class SubGroup implements ToXContentFragment {
     private final String name;
     private Long count;
-    @UpdateForV9 // remove legacy XContent rendering
+    @UpdateForV9(owner = UpdateForV9.Owner.PROFILING) // remove legacy XContent rendering
     private final boolean renderLegacyXContent;
     private final Map<String, SubGroup> subgroups;
 

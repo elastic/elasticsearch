@@ -233,7 +233,7 @@ public class DataStreamMetadata implements Metadata.Custom {
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
         return ChunkedToXContent.builder(params)
-            .object(DATA_STREAM.getPreferredName(), b -> b.appendXContentFields(dataStreams))
+            .xContentObjectFields(DATA_STREAM.getPreferredName(), dataStreams)
             .xContentObject(DATA_STREAM_ALIASES.getPreferredName(), dataStreamAliases.values().iterator());
     }
 

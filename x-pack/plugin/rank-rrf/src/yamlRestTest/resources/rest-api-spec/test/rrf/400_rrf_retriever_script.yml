@@ -160,19 +160,10 @@ setup:
                   ]
 
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
-
   - match: { hits.hits.1._id: "6" }
-  - match: { hits.hits.1._rank: 2 }
-
   - match: { hits.hits.2._id: "4" }
-  - match: { hits.hits.2._rank: 3 }
-
   - match: { hits.hits.3._id: "7" }
-  - match: { hits.hits.3._rank: 4 }
-
   - match: { hits.hits.4._id: "3" }
-  - match: { hits.hits.4._rank: 5 }
 
   - close_to: { aggregations.sums.value.asc_total: { value: 25.0, error: 0.001 }}
   - match: { aggregations.sums.value.text_total: 25 }
@@ -228,13 +219,12 @@ setup:
                     'desc_total': states.stream().mapToDouble(v -> v['desc_total']).sum()
                   ]
 
-  - match: { hits.total.value: 6 }
+  - match: { hits.total.value: 5 }
 
   - match: { hits.hits.0._id: "5" }
-  - match: { hits.hits.0._rank: 1 }
 
-  - close_to: { aggregations.sums.value.asc_total: { value: 33.0, error: 0.001 }}
-  - close_to: { aggregations.sums.value.desc_total: { value: 39.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.asc_total: { value: 25.0, error: 0.001 }}
+  - close_to: { aggregations.sums.value.desc_total: { value: 35.0, error: 0.001 }}
 
 ---
 "rrf retriever using multiple knn retrievers and a standard retriever with a scripted metric aggregation":
@@ -333,19 +323,10 @@ setup:
                   ]
 
   - match: { hits.hits.0._id: "6" }
-  - match: { hits.hits.0._rank: 1 }
-
   - match: { hits.hits.1._id: "5" }
-  - match: { hits.hits.1._rank: 2 }
-
   - match: { hits.hits.2._id: "7" }
-  - match: { hits.hits.2._rank: 3 }
-
   - match: { hits.hits.3._id: "4" }
-  - match: { hits.hits.3._rank: 4 }
-
   - match: { hits.hits.4._id: "8" }
-  - match: { hits.hits.4._rank: 5 }
 
   - close_to: { aggregations.sums.value.asc_total: { value: 30.0, error: 0.001 }}
   - close_to: { aggregations.sums.value.desc_total: { value: 30.0, error: 0.001 }}

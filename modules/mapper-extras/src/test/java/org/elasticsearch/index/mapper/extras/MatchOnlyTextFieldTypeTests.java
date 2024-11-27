@@ -14,6 +14,7 @@ import org.apache.lucene.queries.intervals.Intervals;
 import org.apache.lucene.queries.intervals.IntervalsSource;
 import org.apache.lucene.search.ConstantScoreQuery;
 import org.apache.lucene.search.FuzzyQuery;
+import org.apache.lucene.search.IndexSearcher;
 import org.apache.lucene.search.MatchAllDocsQuery;
 import org.apache.lucene.search.MultiPhraseQuery;
 import org.apache.lucene.search.PhraseQuery;
@@ -152,30 +153,56 @@ public class MatchOnlyTextFieldTypeTests extends FieldTypeTestCase {
         assertNotEquals(new MatchAllDocsQuery(), SourceConfirmedTextQuery.approximate(delegate));
     }
 
-    public void testTermIntervals() throws IOException {
+    public void testTermIntervals() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource termIntervals = ft.termIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(termIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
         assertEquals(Intervals.term(new BytesRef("foo")), ((SourceIntervalsSource) termIntervals).getIntervalsSource());
     }
 
-    public void testPrefixIntervals() throws IOException {
+    public void testPrefixIntervals() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource prefixIntervals = ft.prefixIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(prefixIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
-        assertEquals(Intervals.prefix(new BytesRef("foo")), ((SourceIntervalsSource) prefixIntervals).getIntervalsSource());
+        assertEquals(
+            Intervals.prefix(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
+            ((SourceIntervalsSource) prefixIntervals).getIntervalsSource()
+        );
     }
 
-    public void testWildcardIntervals() throws IOException {
+    public void testWildcardIntervals() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource wildcardIntervals = ft.wildcardIntervals(new BytesRef("foo"), MOCK_CONTEXT);
         assertThat(wildcardIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
-        assertEquals(Intervals.wildcard(new BytesRef("foo")), ((SourceIntervalsSource) wildcardIntervals).getIntervalsSource());
+        assertEquals(
+            Intervals.wildcard(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
+            ((SourceIntervalsSource) wildcardIntervals).getIntervalsSource()
+        );
     }
 
-    public void testFuzzyIntervals() throws IOException {
+    public void testRegexpIntervals() {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource regexpIntervals = ft.regexpIntervals(new BytesRef("foo"), MOCK_CONTEXT);
+        assertThat(regexpIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertEquals(
+            Intervals.regexp(new BytesRef("foo"), IndexSearcher.getMaxClauseCount()),
+            ((SourceIntervalsSource) regexpIntervals).getIntervalsSource()
+        );
+    }
+
+    public void testFuzzyIntervals() {
         MappedFieldType ft = new MatchOnlyTextFieldType("field");
         IntervalsSource fuzzyIntervals = ft.fuzzyIntervals("foo", 1, 2, true, MOCK_CONTEXT);
         assertThat(fuzzyIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+    }
+
+    public void testRangeIntervals() {
+        MappedFieldType ft = new MatchOnlyTextFieldType("field");
+        IntervalsSource rangeIntervals = ft.rangeIntervals(new BytesRef("foo"), new BytesRef("foo1"), true, true, MOCK_CONTEXT);
+        assertThat(rangeIntervals, Matchers.instanceOf(SourceIntervalsSource.class));
+        assertEquals(
+            Intervals.range(new BytesRef("foo"), new BytesRef("foo1"), true, true, IndexSearcher.getMaxClauseCount()),
+            ((SourceIntervalsSource) rangeIntervals).getIntervalsSource()
+        );
     }
 }

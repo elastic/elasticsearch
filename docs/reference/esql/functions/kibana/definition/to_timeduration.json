@@ -44,5 +44,6 @@
   "examples" : [
     "row x = \"2024-01-01\"::datetime | eval y = x + \"3 hours\"::time_duration, z = x - to_timeduration(\"3 hours\");"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

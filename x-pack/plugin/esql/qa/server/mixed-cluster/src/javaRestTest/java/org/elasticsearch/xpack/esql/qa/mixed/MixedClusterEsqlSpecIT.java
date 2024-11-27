@@ -72,10 +72,6 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
     protected void shouldSkipTest(String testName) throws IOException {
         super.shouldSkipTest(testName);
         assumeTrue("Test " + testName + " is skipped on " + bwcVersion, isEnabled(testName, instructions, bwcVersion));
-        assumeFalse(
-            "Skip META tests on mixed version clusters because we change it too quickly",
-            testCase.requiredCapabilities.contains("meta")
-        );
         if (mode == ASYNC) {
             assumeTrue("Async is not supported on " + bwcVersion, supportsAsync());
         }
@@ -88,6 +84,22 @@ public class MixedClusterEsqlSpecIT extends EsqlSpecTestCase {
 
     @Override
     protected boolean enableRoundingDoubleValuesOnAsserting() {
+        return true;
+    }
+
+    @Override
+    protected boolean supportsInferenceTestService() {
+        return false;
+    }
+
+    @Override
+    protected boolean deduplicateExactWarnings() {
+        /*
+         * In ESQL's main tests we shouldn't have to deduplicate but in
+         * serverless, where we reuse this test case exactly with *slightly*
+         * different configuration, we must deduplicate. So we do it here.
+         * It's a bit of a loss of precision, but that's ok.
+         */
         return true;
     }
 }

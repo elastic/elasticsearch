@@ -57,8 +57,8 @@ class CountOnlyQueryPhaseResultConsumer extends SearchPhaseResults<SearchPhaseRe
             return;
         }
         // set the relation to the first non-equal relation
-        relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation);
-        totalHits.add(result.queryResult().getTotalHits().value);
+        relationAtomicReference.compareAndSet(TotalHits.Relation.EQUAL_TO, result.queryResult().getTotalHits().relation());
+        totalHits.add(result.queryResult().getTotalHits().value());
         terminatedEarly.compareAndSet(false, (result.queryResult().terminatedEarly() != null && result.queryResult().terminatedEarly()));
         timedOut.compareAndSet(false, result.queryResult().searchTimedOut());
         next.run();

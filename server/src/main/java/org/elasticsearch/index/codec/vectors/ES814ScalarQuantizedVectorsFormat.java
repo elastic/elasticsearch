@@ -9,7 +9,6 @@
 
 package org.elasticsearch.index.codec.vectors;
 
-import org.apache.lucene.codecs.KnnFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.DefaultFlatVectorScorer;
 import org.apache.lucene.codecs.hnsw.FlatFieldVectorsWriter;
 import org.apache.lucene.codecs.hnsw.FlatVectorsFormat;
@@ -23,18 +22,17 @@ import org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsWriter;
 import org.apache.lucene.index.ByteVectorValues;
 import org.apache.lucene.index.FieldInfo;
 import org.apache.lucene.index.FloatVectorValues;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.MergeState;
 import org.apache.lucene.index.SegmentReadState;
 import org.apache.lucene.index.SegmentWriteState;
 import org.apache.lucene.index.Sorter;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.hnsw.CloseableRandomVectorScorerSupplier;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.apache.lucene.util.quantization.QuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.QuantizedVectorsReader;
-import org.apache.lucene.util.quantization.RandomAccessQuantizedByteVectorValues;
 import org.apache.lucene.util.quantization.ScalarQuantizer;
 import org.elasticsearch.simdvec.VectorScorerFactory;
 import org.elasticsearch.simdvec.VectorSimilarityType;
@@ -42,6 +40,7 @@ import org.elasticsearch.simdvec.VectorSimilarityType;
 import java.io.IOException;
 
 import static org.apache.lucene.codecs.lucene99.Lucene99ScalarQuantizedVectorsFormat.DYNAMIC_CONFIDENCE_INTERVAL;
+import static org.elasticsearch.index.mapper.vectors.DenseVectorFieldMapper.MAX_DIMS_COUNT;
 
 public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
 
@@ -49,6 +48,10 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
     private static final int ALLOWED_BITS = (1 << 8) | (1 << 7) | (1 << 4);
 
     private static final FlatVectorsFormat rawVectorFormat = new Lucene99FlatVectorsFormat(DefaultFlatVectorScorer.INSTANCE);
+
+    static final FlatVectorsScorer flatVectorScorer = new ESFlatVectorsScorer(
+        new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE)
+    );
 
     /** The minimum confidence interval */
     private static final float MINIMUM_CONFIDENCE_INTERVAL = 0.9f;
@@ -61,12 +64,12 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
      * calculated as `1-1/(vector_dimensions + 1)`
      */
     public final Float confidenceInterval;
-    final FlatVectorsScorer flatVectorScorer;
 
     private final byte bits;
     private final boolean compress;
 
     public ES814ScalarQuantizedVectorsFormat(Float confidenceInterval, int bits, boolean compress) {
+        super(NAME);
         if (confidenceInterval != null
             && confidenceInterval != DYNAMIC_CONFIDENCE_INTERVAL
             && (confidenceInterval < MINIMUM_CONFIDENCE_INTERVAL || confidenceInterval > MAXIMUM_CONFIDENCE_INTERVAL)) {
@@ -83,7 +86,6 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
             throw new IllegalArgumentException("bits must be one of: 4, 7, 8; bits=" + bits);
         }
         this.confidenceInterval = confidenceInterval;
-        this.flatVectorScorer = new ESFlatVectorsScorer(new ScalarQuantizedVectorScorer(DefaultFlatVectorScorer.INSTANCE));
         this.bits = (byte) bits;
         this.compress = compress;
     }
@@ -137,8 +139,8 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo, KnnFieldVectorsWriter<?> knnFieldVectorsWriter) throws IOException {
-            return delegate.addField(fieldInfo, knnFieldVectorsWriter);
+        public FlatFieldVectorsWriter<?> addField(FieldInfo fieldInfo) throws IOException {
+            return delegate.addField(fieldInfo);
         }
 
         @Override
@@ -243,9 +245,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, RandomAccessVectorValues values)
+        public RandomVectorScorerSupplier getRandomVectorScorerSupplier(VectorSimilarityFunction sim, KnnVectorValues values)
             throws IOException {
-            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorerSupplier(sim, values);
@@ -253,7 +255,7 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
                 if (factory != null) {
                     var scorer = factory.getInt7SQVectorScorerSupplier(
                         VectorSimilarityType.of(sim),
-                        values.getSlice(),
+                        qValues.getSlice(),
                         qValues,
                         qValues.getScalarQuantizer().getConstantMultiplier()
                     );
@@ -266,9 +268,9 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, float[] query)
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, float[] query)
             throws IOException {
-            if (values instanceof RandomAccessQuantizedByteVectorValues qValues && values.getSlice() != null) {
+            if (values instanceof QuantizedByteVectorValues qValues && qValues.getSlice() != null) {
                 // TODO: optimize int4 quantization
                 if (qValues.getScalarQuantizer().getBits() != 7) {
                     return delegate.getRandomVectorScorer(sim, values, query);
@@ -284,9 +286,14 @@ public class ES814ScalarQuantizedVectorsFormat extends FlatVectorsFormat {
         }
 
         @Override
-        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, RandomAccessVectorValues values, byte[] query)
+        public RandomVectorScorer getRandomVectorScorer(VectorSimilarityFunction sim, KnnVectorValues values, byte[] query)
             throws IOException {
             return delegate.getRandomVectorScorer(sim, values, query);
         }
+    }
+
+    @Override
+    public int getMaxDimensions(String fieldName) {
+        return MAX_DIMS_COUNT;
     }
 }

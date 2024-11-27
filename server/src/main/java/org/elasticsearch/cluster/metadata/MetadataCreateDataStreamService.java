@@ -313,7 +313,7 @@ public class MetadataCreateDataStreamService {
             .collect(Collectors.toCollection(ArrayList::new));
         dsBackingIndices.add(writeIndex.getIndex());
         boolean hidden = isSystem || template.getDataStreamTemplate().isHidden();
-        final IndexMode indexMode = metadata.isTimeSeriesTemplate(template) ? IndexMode.TIME_SERIES : null;
+        final IndexMode indexMode = metadata.retrieveIndexModeFromTemplate(template);
         final DataStreamLifecycle lifecycle = isSystem
             ? MetadataIndexTemplateService.resolveLifecycle(template, systemDataStreamDescriptor.getComponentTemplates())
             : MetadataIndexTemplateService.resolveLifecycle(template, metadata.componentTemplates());
@@ -329,7 +329,7 @@ public class MetadataCreateDataStreamService {
             template.getDataStreamTemplate().isAllowCustomRouting(),
             indexMode,
             lifecycle == null && isDslOnlyMode ? DataStreamLifecycle.DEFAULT : lifecycle,
-            template.getDataStreamTemplate().hasFailureStore(),
+            template.getDataStreamTemplate().hasFailureStore() ? DataStreamOptions.FAILURE_STORE_ENABLED : DataStreamOptions.EMPTY,
             new DataStream.DataStreamIndices(DataStream.BACKING_INDEX_PREFIX, dsBackingIndices, false, null),
             // If the failure store shouldn't be initialized on data stream creation, we're marking it for "lazy rollover", which will
             // initialize the failure store on first write.
@@ -425,7 +425,8 @@ public class MetadataCreateDataStreamService {
             .nameResolvedInstant(nameResolvedInstant)
             .performReroute(false)
             .setMatchingTemplate(template)
-            .settings(indexSettings);
+            .settings(indexSettings)
+            .isFailureIndex(true);
 
         try {
             currentState = metadataCreateIndexService.applyCreateIndexRequest(

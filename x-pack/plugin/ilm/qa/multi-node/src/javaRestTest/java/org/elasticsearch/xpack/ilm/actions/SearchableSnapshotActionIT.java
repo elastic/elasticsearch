@@ -982,7 +982,7 @@ public class SearchableSnapshotActionIT extends ESRestTestCase {
      * notification that partial-index is now GREEN.
      */
     private void triggerStateChange() throws IOException {
-        Request rerouteRequest = new Request("POST", "/_cluster/reroute?metric=none");
+        Request rerouteRequest = new Request("POST", "/_cluster/reroute");
         client().performRequest(rerouteRequest);
     }
 }

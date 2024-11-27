@@ -22,6 +22,8 @@ import org.junit.Before;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class CJKFilterFactoryTests extends ESTokenStreamTestCase {
     private static final String RESOURCE = "/org/elasticsearch/analysis/common/cjk_analysis.json";
 

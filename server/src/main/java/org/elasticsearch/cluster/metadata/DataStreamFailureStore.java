@@ -24,38 +24,51 @@ import java.io.IOException;
 
 /**
  * Holds the data stream failure store metadata that enable or disable the failure store of a data stream. Currently, it
- * supports the following configurations:
- * - enabled
+ * supports the following configurations only explicitly enabling or disabling the failure store
  */
-public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
+public record DataStreamFailureStore(Boolean enabled) implements SimpleDiffable<DataStreamFailureStore>, ToXContentObject {
 
     public static final ParseField ENABLED_FIELD = new ParseField("enabled");
 
     public static final ConstructingObjectParser<DataStreamFailureStore, Void> PARSER = new ConstructingObjectParser<>(
         "failure_store",
         false,
-        (args, unused) -> new DataStreamFailureStore(args[0] == null || (Boolean) args[0])
+        (args, unused) -> new DataStreamFailureStore((Boolean) args[0])
     );
 
     static {
-        PARSER.declareBoolean(ConstructingObjectParser.constructorArg(), ENABLED_FIELD);
+        PARSER.declareBoolean(ConstructingObjectParser.optionalConstructorArg(), ENABLED_FIELD);
     }
 
-    public DataStreamFailureStore() {
-        this(true);
+    /**
+     *  @param enabled, true when the failure is enabled, false when it's disabled, null when it depends on other configuration. Currently,
+     *                  null value is not supported because there are no other arguments
+     * @throws IllegalArgumentException when all the constructor arguments are null
+     */
+    public DataStreamFailureStore {
+        if (enabled == null) {
+            throw new IllegalArgumentException("Failure store configuration should have at least one non-null configuration value.");
+        }
     }
 
     public DataStreamFailureStore(StreamInput in) throws IOException {
-        this(in.readBoolean());
+        this(in.readOptionalBoolean());
     }
 
     public static Diff<DataStreamFailureStore> readDiffFrom(StreamInput in) throws IOException {
         return SimpleDiffable.readDiffFrom(DataStreamFailureStore::new, in);
     }
 
+    /**
+     * @return iff the user has explicitly enabled the failure store
+     */
+    public boolean isExplicitlyEnabled() {
+        return enabled != null && enabled;
+    }
+
     @Override
     public void writeTo(StreamOutput out) throws IOException {
-        out.writeBoolean(enabled);
+        out.writeOptionalBoolean(enabled);
     }
 
     @Override
@@ -66,7 +79,9 @@ public record DataStreamFailureStore(boolean enabled) implements SimpleDiffable<
     @Override
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
-        builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+        if (enabled != null) {
+            builder.field(ENABLED_FIELD.getPreferredName(), enabled);
+        }
         builder.endObject();
         return builder;
     }

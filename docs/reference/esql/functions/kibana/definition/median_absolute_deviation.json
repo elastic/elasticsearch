@@ -46,5 +46,6 @@
     "FROM employees\n| STATS MEDIAN(salary), MEDIAN_ABSOLUTE_DEVIATION(salary)",
     "FROM employees\n| STATS m_a_d_max_salary_change = MEDIAN_ABSOLUTE_DEVIATION(MV_MAX(salary_change))"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

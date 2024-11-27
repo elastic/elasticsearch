@@ -23,6 +23,8 @@ import org.elasticsearch.cluster.health.ClusterHealthStatus;
 import org.elasticsearch.cluster.metadata.AliasMetadata;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
+import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.node.DiscoveryNodeRole;
 import org.elasticsearch.cluster.node.DiscoveryNodeUtils;
 import org.elasticsearch.cluster.node.DiscoveryNodes;
@@ -51,8 +53,11 @@ import org.elasticsearch.test.ESTestCase;
 import org.elasticsearch.test.client.NoOpClient;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xcontent.XContentBuilder;
+import org.elasticsearch.xpack.core.security.authc.support.mapper.ExpressionRoleMapping;
+import org.elasticsearch.xpack.core.security.authz.RoleMappingMetadata;
 import org.elasticsearch.xpack.core.security.test.TestRestrictedIndices;
 import org.elasticsearch.xpack.security.SecurityFeatures;
+import org.elasticsearch.xpack.security.action.rolemapping.ReservedRoleMappingAction;
 import org.elasticsearch.xpack.security.support.SecuritySystemIndices.SecurityMainIndexMappingVersion;
 import org.elasticsearch.xpack.security.test.SecurityTestUtils;
 import org.hamcrest.Matchers;
@@ -70,12 +75,14 @@ import java.util.function.BiConsumer;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
+import static org.elasticsearch.xpack.security.support.SecurityIndexManager.FILE_SETTINGS_METADATA_NAMESPACE;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.instanceOf;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.not;
 import static org.hamcrest.Matchers.notNullValue;
 import static org.hamcrest.Matchers.nullValue;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doReturn;
@@ -428,7 +435,7 @@ public class SecurityIndexManagerTests extends ESTestCase {
         final AtomicReference<Exception> prepareException = new AtomicReference<>(null);
 
         // Hard-code a failure here.
-        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString());
+        doReturn("Nope").when(descriptorSpy).getMinimumMappingsVersionMessage(anyString(), any());
         doReturn(null).when(descriptorSpy)
             .getDescriptorCompatibleWith(eq(new SystemIndexDescriptor.MappingsVersion(SecurityMainIndexMappingVersion.latest().id(), 0)));
 
@@ -652,6 +659,138 @@ public class SecurityIndexManagerTests extends ESTestCase {
                 return 1000;
             }
         }));
+    }
+
+    public void testNotReadyForMigrationBecauseOfPrecondition() {
+        final ClusterState.Builder clusterStateBuilder = createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+        clusterStateBuilder.nodeFeatures(
+            Map.of("1", new SecurityFeatures().getFeatures().stream().map(NodeFeature::id).collect(Collectors.toSet()))
+        );
+        manager.clusterChanged(event(markShardsAvailable(clusterStateBuilder)));
+        assertFalse(manager.isReadyForSecurityMigration(new SecurityMigrations.SecurityMigration() {
+            @Override
+            public void migrate(SecurityIndexManager indexManager, Client client, ActionListener<Void> listener) {
+                listener.onResponse(null);
+            }
+
+            @Override
+            public Set<NodeFeature> nodeFeaturesRequired() {
+                return Set.of();
+            }
+
+            @Override
+            public int minMappingVersion() {
+                return 0;
+            }
+
+            @Override
+            public boolean checkPreConditions(SecurityIndexManager.State securityIndexManagerState) {
+                return false;
+            }
+        }));
+    }
+
+    private ClusterState.Builder clusterStateBuilderForMigrationTesting() {
+        return createClusterState(
+            TestRestrictedIndices.INTERNAL_SECURITY_MAIN_INDEX_7,
+            SecuritySystemIndices.SECURITY_MAIN_ALIAS,
+            IndexMetadata.State.OPEN
+        );
+    }
+
+    public void testGetRoleMappingsCleanupMigrationStatus() {
+        {
+            assertThat(
+                SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(
+                    clusterStateBuilderForMigrationTesting().build(),
+                    SecurityMigrations.CLEANUP_ROLE_MAPPING_DUPLICATES_MIGRATION_VERSION
+                ),
+                equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.DONE)
+            );
+        }
+        {
+            // Migration should be skipped
+            ClusterState.Builder clusterStateBuilder = clusterStateBuilderForMigrationTesting();
+            Metadata.Builder metadataBuilder = new Metadata.Builder();
+            metadataBuilder.put(ReservedStateMetadata.builder(FILE_SETTINGS_METADATA_NAMESPACE).build());
+            assertThat(
+                SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(clusterStateBuilder.metadata(metadataBuilder).build(), 1),
+                equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.SKIP)
+            );
+        }
+        {
+            // Not ready for migration
+            ClusterState.Builder clusterStateBuilder = clusterStateBuilderForMigrationTesting();
+            Metadata.Builder metadataBuilder = new Metadata.Builder();
+            ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(FILE_SETTINGS_METADATA_NAMESPACE);
+            // File settings role mappings exist
+            ReservedStateHandlerMetadata reservedStateHandlerMetadata = new ReservedStateHandlerMetadata(
+                ReservedRoleMappingAction.NAME,
+                Set.of("role_mapping_1")
+            );
+            builder.putHandler(reservedStateHandlerMetadata);
+            metadataBuilder.put(builder.build());
+
+            // No role mappings in cluster state yet
+            metadataBuilder.putCustom(RoleMappingMetadata.TYPE, new RoleMappingMetadata(Set.of()));
+
+            assertThat(
+                SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(clusterStateBuilder.metadata(metadataBuilder).build(), 1),
+                equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.NOT_READY)
+            );
+        }
+        {
+            // Old role mappings in cluster state
+            final ClusterState.Builder clusterStateBuilder = clusterStateBuilderForMigrationTesting();
+            Metadata.Builder metadataBuilder = new Metadata.Builder();
+            ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(FILE_SETTINGS_METADATA_NAMESPACE);
+            // File settings role mappings exist
+            ReservedStateHandlerMetadata reservedStateHandlerMetadata = new ReservedStateHandlerMetadata(
+                ReservedRoleMappingAction.NAME,
+                Set.of("role_mapping_1")
+            );
+            builder.putHandler(reservedStateHandlerMetadata);
+            metadataBuilder.put(builder.build());
+
+            // Role mappings in cluster state with fallback name
+            metadataBuilder.putCustom(
+                RoleMappingMetadata.TYPE,
+                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping(RoleMappingMetadata.FALLBACK_NAME, null, null, null, null, true)))
+            );
+
+            assertThat(
+                SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(clusterStateBuilder.metadata(metadataBuilder).build(), 1),
+                equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.NOT_READY)
+            );
+        }
+        {
+            // Ready for migration
+            final ClusterState.Builder clusterStateBuilder = clusterStateBuilderForMigrationTesting();
+            Metadata.Builder metadataBuilder = new Metadata.Builder();
+            ReservedStateMetadata.Builder builder = ReservedStateMetadata.builder(FILE_SETTINGS_METADATA_NAMESPACE);
+            // File settings role mappings exist
+            ReservedStateHandlerMetadata reservedStateHandlerMetadata = new ReservedStateHandlerMetadata(
+                ReservedRoleMappingAction.NAME,
+                Set.of("role_mapping_1")
+            );
+            builder.putHandler(reservedStateHandlerMetadata);
+            metadataBuilder.put(builder.build());
+
+            // Role mappings in cluster state
+            metadataBuilder.putCustom(
+                RoleMappingMetadata.TYPE,
+                new RoleMappingMetadata(Set.of(new ExpressionRoleMapping("role_mapping_1", null, null, null, null, true)))
+            );
+
+            assertThat(
+                SecurityIndexManager.getRoleMappingsCleanupMigrationStatus(clusterStateBuilder.metadata(metadataBuilder).build(), 1),
+                equalTo(SecurityIndexManager.RoleMappingsCleanupMigrationStatus.READY)
+            );
+        }
     }
 
     public void testProcessClosedIndexState() {

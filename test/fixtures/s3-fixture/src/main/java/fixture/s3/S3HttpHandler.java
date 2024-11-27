@@ -13,6 +13,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import org.elasticsearch.ExceptionsHelper;
+import org.elasticsearch.common.Randomness;
 import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.UUIDs;
 import org.elasticsearch.common.bytes.BytesReference;
@@ -168,7 +169,21 @@ public class S3HttpHandler implements HttpHandler {
                 RestUtils.decodeQueryString(request, request.indexOf('?') + 1, params);
                 final var upload = uploads.remove(params.get("uploadId"));
                 if (upload == null) {
-                    exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    if (Randomness.get().nextBoolean()) {
+                        exchange.sendResponseHeaders(RestStatus.NOT_FOUND.getStatus(), -1);
+                    } else {
+                        byte[] response = ("""
+                            <?xml version="1.0" encoding="UTF-8"?>
+                            <Error>
+                            <Code>NoSuchUpload</Code>
+                            <Message>No such upload</Message>
+                            <RequestId>test-request-id</RequestId>
+                            <HostId>test-host-id</HostId>
+                            </Error>""").getBytes(StandardCharsets.UTF_8);
+                        exchange.getResponseHeaders().add("Content-Type", "application/xml");
+                        exchange.sendResponseHeaders(RestStatus.OK.getStatus(), response.length);
+                        exchange.getResponseBody().write(response);
+                    }
                 } else {
                     final var blobContents = upload.complete(extractPartEtags(Streams.readFully(exchange.getRequestBody())));
                     blobs.put(requestComponents.path, blobContents);

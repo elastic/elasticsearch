@@ -1138,6 +1138,42 @@ public class ScopedSettingsTests extends ESTestCase {
         assertTrue(diffed.isEmpty());
     }
 
+    public void testValidateSecureSettingInsecureOverride() {
+        MockSecureSettings secureSettings = new MockSecureSettings();
+        String settingName = "something.secure";
+        secureSettings.setString(settingName, "secure");
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").setSecureSettings(secureSettings).build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
+    }
+
+    public void testValidateSecureSettingInInsecureSettings() {
+        String settingName = "something.secure";
+        Settings settings = Settings.builder().put(settingName, "notreallysecure").build();
+
+        ClusterSettings clusterSettings = new ClusterSettings(
+            settings,
+            Collections.singleton(SecureSetting.secureString(settingName, null))
+        );
+
+        IllegalArgumentException e = expectThrows(IllegalArgumentException.class, () -> clusterSettings.validate(settings, false));
+        assertEquals(
+            e.getMessage(),
+            "Setting [something.secure] is a secure setting "
+                + "and must be stored inside the Elasticsearch keystore, but was found inside elasticsearch.yml"
+        );
+    }
+
     public static IndexMetadata newIndexMeta(String name, Settings indexSettings) {
         return IndexMetadata.builder(name).settings(indexSettings(IndexVersion.current(), 1, 0).put(indexSettings)).build();
     }

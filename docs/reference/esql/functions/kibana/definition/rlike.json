@@ -42,7 +42,8 @@
     }
   ],
   "examples" : [
-    "FROM employees\n| WHERE first_name RLIKE \".leja.*\"\n| KEEP first_name, last_name"
+    "FROM employees\n| WHERE first_name RLIKE \"\"\".leja.*\"\"\"\n| KEEP first_name, last_name"
   ],
-  "preview" : false
+  "preview" : false,
+  "snapshot_only" : false
 }

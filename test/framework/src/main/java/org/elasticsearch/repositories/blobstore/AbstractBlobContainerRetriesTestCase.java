@@ -44,6 +44,8 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
+import static org.elasticsearch.test.NeverMatcher.never;
+import static org.hamcrest.Matchers.anyOf;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.either;
 import static org.hamcrest.Matchers.equalTo;
@@ -280,9 +282,12 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         assertThat(exception, readTimeoutExceptionMatcher());
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
-            either(containsString("read timed out")).or(containsString("premature end of chunk coded message body: closing chunk expected"))
-                .or(containsString("Read timed out"))
-                .or(containsString("unexpected end of file from server"))
+            anyOf(
+                containsString("read timed out"),
+                containsString("premature end of chunk coded message body: closing chunk expected"),
+                containsString("Read timed out"),
+                containsString("unexpected end of file from server")
+            )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(maxRetries));
     }
@@ -323,10 +328,15 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         final int maxRetries = randomInt(20);
         final BlobContainer blobContainer = createBlobContainer(maxRetries, null, null, null);
 
+        final boolean alwaysFlushBody = randomBoolean();
+
         // HTTP server sends a partial response
         final byte[] bytes = randomBlobContent(1);
         httpServer.createContext(downloadStorageEndpoint(blobContainer, "read_blob_incomplete"), exchange -> {
             sendIncompleteContent(exchange, bytes);
+            if (alwaysFlushBody) {
+                exchange.getResponseBody().flush();
+            }
             exchange.close();
         });
 
@@ -341,9 +351,14 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         });
         assertThat(
             exception.getMessage().toLowerCase(Locale.ROOT),
-            either(containsString("premature end of chunk coded message body: closing chunk expected")).or(
-                containsString("premature end of content-length delimited message body")
-            ).or(containsString("connection closed prematurely"))
+            anyOf(
+                // closing the connection after sending the headers and some incomplete body might yield one of these:
+                containsString("premature end of chunk coded message body: closing chunk expected"),
+                containsString("premature end of content-length delimited message body"),
+                containsString("connection closed prematurely"),
+                // if we didn't call exchange.getResponseBody().flush() then we might not even have sent the response headers:
+                alwaysFlushBody ? never() : containsString("the target server failed to respond")
+            )
         );
         assertThat(exception.getSuppressed().length, getMaxRetriesMatcher(Math.min(10, maxRetries)));
     }
@@ -403,7 +418,9 @@ public abstract class AbstractBlobContainerRetriesTestCase extends ESTestCase {
         if (bytesToSend > 0) {
             exchange.getResponseBody().write(bytes, rangeStart, bytesToSend);
         }
-        if (randomBoolean()) {
+        if (randomBoolean() || Runtime.version().feature() >= 23) {
+            // For now in JDK23 we need to always flush. See https://bugs.openjdk.org/browse/JDK-8331847.
+            // TODO: remove the JDK version check once that issue is fixed
             exchange.getResponseBody().flush();
         }
         return bytesToSend;

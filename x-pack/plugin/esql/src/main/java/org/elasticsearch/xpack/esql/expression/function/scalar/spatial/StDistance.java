@@ -14,6 +14,9 @@ import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.compute.ann.Evaluator;
 import org.elasticsearch.compute.ann.Fixed;
+import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.DoubleBlock;
+import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.operator.EvalOperator;
 import org.elasticsearch.geometry.Geometry;
 import org.elasticsearch.geometry.Point;
@@ -30,7 +33,6 @@ import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
 
 import java.io.IOException;
-import java.util.function.Function;
 
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
 import static org.elasticsearch.xpack.esql.expression.function.scalar.spatial.SpatialRelatesUtils.makeGeometryFromLiteral;
@@ -78,8 +80,9 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         @Override
         protected double distance(Point left, Point right) {
-            final double diffX = left.getX() - right.getX();
-            final double diffY = left.getY() - right.getY();
+            // Cast coordinates to float to mimic Lucene behaviour, so we get identical results
+            final double diffX = (double) ((float) left.getX()) - (double) ((float) right.getX());
+            final double diffY = (double) ((float) left.getY()) - (double) ((float) right.getY());
             return Math.sqrt(diffX * diffX + diffY * diffY);
         }
     }
@@ -101,11 +104,6 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
 
         protected abstract double distance(Point left, Point right);
 
-        protected double distance(long encoded, Geometry right) {
-            Point point = spatialCoordinateType.longAsPoint(encoded);
-            return distance(point, (Point) right);
-        }
-
         protected double distance(Geometry left, Geometry right) {
             return distance((Point) left, (Point) right);
         }
@@ -114,8 +112,112 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
             return distance(this.fromBytesRef(left), this.fromBytesRef(right));
         }
 
-        public double distance(BytesRef left, Point right) {
-            return distance(this.fromBytesRef(left), right);
+        public void distanceSourceAndConstant(DoubleBlock.Builder results, int position, BytesRefBlock left, Point right) {
+            int valueCount = left.getValueCount(position);
+            if (valueCount < 1) {
+                results.appendNull();
+            } else {
+                final BytesRef scratch = new BytesRef();
+                final int firstValueIndex = left.getFirstValueIndex(position);
+                double distance = Double.MAX_VALUE;
+                if (valueCount == 1) {
+                    distance = distance(fromBytesRef(left.getBytesRef(firstValueIndex, scratch)), right);
+                } else {
+                    for (int i = 0; i < valueCount; i++) {
+                        double value = distance(fromBytesRef(left.getBytesRef(firstValueIndex + i, scratch)), right);
+                        if (value < distance) {
+                            distance = value;
+                        }
+                    }
+                }
+                results.appendDouble(distance);
+            }
+        }
+
+        public void distanceSourceAndSource(DoubleBlock.Builder results, int position, BytesRefBlock left, BytesRefBlock right) {
+            int leftCount = left.getValueCount(position);
+            int rightCount = right.getValueCount(position);
+            if (leftCount < 1 || rightCount < 1) {
+                results.appendNull();
+            } else {
+                final BytesRef scratchLeft = new BytesRef();
+                final BytesRef scratchRight = new BytesRef();
+                final int leftFirstValueIndex = left.getFirstValueIndex(position);
+                final int rightFirstValueIndex = right.getFirstValueIndex(position);
+                double distance = Double.MAX_VALUE;
+                if (leftCount == 1 && rightCount == 1) {
+                    distance = distance(
+                        fromBytesRef(left.getBytesRef(leftFirstValueIndex, scratchLeft)),
+                        fromBytesRef(right.getBytesRef(rightFirstValueIndex, scratchRight))
+                    );
+                } else {
+                    for (int i = 0; i < leftCount; i++) {
+                        for (int j = 0; j < rightCount; j++) {
+                            double value = distance(
+                                fromBytesRef(left.getBytesRef(leftFirstValueIndex + i, scratchLeft)),
+                                fromBytesRef(right.getBytesRef(rightFirstValueIndex + j, scratchRight))
+                            );
+                            if (value < distance) {
+                                distance = value;
+                            }
+                        }
+                    }
+                }
+                results.appendDouble(distance);
+            }
+        }
+
+        public void distancePointDocValuesAndConstant(DoubleBlock.Builder results, int position, LongBlock left, Point right) {
+            int valueCount = left.getValueCount(position);
+            if (valueCount < 1) {
+                results.appendNull();
+            } else {
+                final int firstValueIndex = left.getFirstValueIndex(position);
+                double distance = Double.MAX_VALUE;
+                if (valueCount == 1) {
+                    distance = distance(spatialCoordinateType.longAsPoint(left.getLong(firstValueIndex)), right);
+                } else {
+                    for (int i = 0; i < valueCount; i++) {
+                        double value = distance(spatialCoordinateType.longAsPoint(left.getLong(firstValueIndex + i)), right);
+                        if (value < distance) {
+                            distance = value;
+                        }
+                    }
+                }
+                results.appendDouble(distance);
+            }
+        }
+
+        public void distancePointDocValuesAndSource(DoubleBlock.Builder results, int position, LongBlock left, BytesRefBlock right) {
+            int leftCount = left.getValueCount(position);
+            int rightCount = right.getValueCount(position);
+            if (leftCount < 1 || rightCount < 1) {
+                results.appendNull();
+            } else {
+                final BytesRef scratchRight = new BytesRef();
+                final int leftFirstValueIndex = left.getFirstValueIndex(position);
+                final int rightFirstValueIndex = right.getFirstValueIndex(position);
+                double distance = Double.MAX_VALUE;
+                if (leftCount == 1 && rightCount == 1) {
+                    distance = distance(
+                        spatialCoordinateType.longAsPoint(left.getLong(leftFirstValueIndex)),
+                        fromBytesRef(right.getBytesRef(rightFirstValueIndex, scratchRight))
+                    );
+                }
+                for (int i = 0; i < leftCount; i++) {
+                    for (int j = 0; j < rightCount; j++) {
+                        double value = distance(
+                            spatialCoordinateType.longAsPoint(left.getLong(leftFirstValueIndex + i)),
+                            fromBytesRef(right.getBytesRef(rightFirstValueIndex + j, scratchRight))
+                        );
+                        if (value < distance) {
+                            distance = value;
+                        }
+                    }
+                }
+                results.appendDouble(distance);
+            }
+
         }
     }
 
@@ -150,6 +252,14 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
+    public StDistance withDocValues(boolean foundLeft, boolean foundRight) {
+        // Only update the docValues flags if the field is found in the attributes
+        boolean leftDV = leftDocValues || foundLeft;
+        boolean rightDV = rightDocValues || foundRight;
+        return new StDistance(source(), left(), right(), leftDV, rightDV);
+    }
+
+    @Override
     public String getWriteableName() {
         return ENTRY.name;
     }
@@ -177,9 +287,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     @Override
-    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator
-    ) {
+    public EvalOperator.ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         if (right().foldable()) {
             return toEvaluator(toEvaluator, left(), makeGeometryFromLiteral(right()), leftDocValues);
         } else if (left().foldable()) {
@@ -209,7 +317,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Geometry geometry,
         boolean docValues
@@ -222,7 +330,7 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
     }
 
     private EvalOperator.ExpressionEvaluator.Factory toEvaluator(
-        Function<Expression, EvalOperator.ExpressionEvaluator.Factory> toEvaluator,
+        ToEvaluator toEvaluator,
         Expression field,
         Point point,
         boolean docValues
@@ -244,45 +352,43 @@ public class StDistance extends BinarySpatialFunction implements EvaluatorMapper
         throw EsqlIllegalArgumentException.illegalDataType(crsType().name());
     }
 
-    @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static double processGeoSourceAndConstant(BytesRef leftValue, @Fixed Point rightValue) throws IOException {
-        return GEO.distance(leftValue, rightValue);
+    @Evaluator(extraName = "GeoSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+        GEO.distanceSourceAndConstant(results, p, left, right);
     }
 
-    @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static double processGeoSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return GEO.distance(leftValue, rightValue);
+    @Evaluator(extraName = "GeoSourceAndSource", warnExceptions = { IllegalArgumentException.class })
+    static void processGeoSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+        GEO.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static double processGeoPointDocValuesAndConstant(long leftValue, @Fixed Point rightValue) {
-        return GEO.distance(leftValue, rightValue);
+    static void processGeoPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+        GEO.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "GeoPointDocValuesAndSource", warnExceptions = { IllegalArgumentException.class })
-    static double processGeoPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return GEO.distance(leftValue, geometry);
+    static void processGeoPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+        GEO.distancePointDocValuesAndSource(results, p, left, right);
     }
 
-    @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static double processCartesianSourceAndConstant(BytesRef leftValue, @Fixed Point rightValue) throws IOException {
-        return CARTESIAN.distance(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianSourceAndConstant", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianSourceAndConstant(DoubleBlock.Builder results, int p, BytesRefBlock left, @Fixed Point right) {
+        CARTESIAN.distanceSourceAndConstant(results, p, left, right);
     }
 
-    @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class, IOException.class })
-    static double processCartesianSourceAndSource(BytesRef leftValue, BytesRef rightValue) throws IOException {
-        return CARTESIAN.distance(leftValue, rightValue);
+    @Evaluator(extraName = "CartesianSourceAndSource", warnExceptions = { IllegalArgumentException.class })
+    static void processCartesianSourceAndSource(DoubleBlock.Builder results, int p, BytesRefBlock left, BytesRefBlock right) {
+        CARTESIAN.distanceSourceAndSource(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndConstant", warnExceptions = { IllegalArgumentException.class })
-    static double processCartesianPointDocValuesAndConstant(long leftValue, @Fixed Point rightValue) {
-        return CARTESIAN.distance(leftValue, rightValue);
+    static void processCartesianPointDocValuesAndConstant(DoubleBlock.Builder results, int p, LongBlock left, @Fixed Point right) {
+        CARTESIAN.distancePointDocValuesAndConstant(results, p, left, right);
     }
 
     @Evaluator(extraName = "CartesianPointDocValuesAndSource")
-    static double processCartesianPointDocValuesAndSource(long leftValue, BytesRef rightValue) {
-        Geometry geometry = SpatialCoordinateTypes.UNSPECIFIED.wkbToGeometry(rightValue);
-        return CARTESIAN.distance(leftValue, geometry);
+    static void processCartesianPointDocValuesAndSource(DoubleBlock.Builder results, int p, LongBlock left, BytesRefBlock right) {
+        CARTESIAN.distancePointDocValuesAndSource(results, p, left, right);
     }
 }

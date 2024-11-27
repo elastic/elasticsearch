@@ -396,7 +396,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L))
         );
 
         logger.info("--> checking filtering alias for one index");
@@ -406,7 +406,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L))
         );
 
         logger.info("--> checking filtering alias for two indices and one complete index");
@@ -416,7 +416,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "test1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for one index");
@@ -426,17 +426,17 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "aliasToTest1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
         assertResponse(
             prepareSearch("foos", "aliasToTests").setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
         assertResponse(
             prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
 
         logger.info("--> checking filtering alias for two indices and non-filtering alias for both indices");
@@ -446,7 +446,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("foos", "aliasToTests").setSize(0).setQuery(QueryBuilders.termQuery("name", "something")),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(2L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(2L))
         );
     }
 
@@ -508,7 +508,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter23", "filter13").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L))
         );
 
         assertResponse(
@@ -517,7 +517,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter23", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(5L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(5L))
         );
 
         assertResponse(
@@ -526,7 +526,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter13", "filter1").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(4L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(4L))
         );
 
         assertResponse(
@@ -535,7 +535,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter13", "filter1", "filter23").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L))
         );
 
         assertResponse(
@@ -544,7 +544,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter23", "filter13", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(6L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(6L))
         );
 
         assertResponse(
@@ -553,7 +553,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         );
         assertResponse(
             prepareSearch("filter23", "filter13", "test1", "test2").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(8L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(8L))
         );
     }
 
@@ -608,7 +608,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
         logger.info("--> checking counts before delete");
         assertResponse(
             prepareSearch("bars").setSize(0).setQuery(QueryBuilders.matchAllQuery()),
-            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value, equalTo(1L))
+            searchResponse -> assertThat(searchResponse.getHits().getTotalHits().value(), equalTo(1L))
         );
     }
 
@@ -1399,7 +1399,7 @@ public class IndexAliasesIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

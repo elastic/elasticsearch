@@ -8,13 +8,22 @@
 package org.elasticsearch.xpack.inference.external.googleaistudio;
 
 import org.apache.logging.log4j.Logger;
+import org.elasticsearch.core.CheckedFunction;
+import org.elasticsearch.inference.InferenceServiceResults;
+import org.elasticsearch.xcontent.XContentParser;
+import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.http.HttpResult;
 import org.elasticsearch.xpack.inference.external.http.retry.BaseResponseHandler;
 import org.elasticsearch.xpack.inference.external.http.retry.ResponseParser;
 import org.elasticsearch.xpack.inference.external.http.retry.RetryException;
 import org.elasticsearch.xpack.inference.external.request.Request;
 import org.elasticsearch.xpack.inference.external.response.googleaistudio.GoogleAiStudioErrorResponseEntity;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventParser;
+import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventProcessor;
 import org.elasticsearch.xpack.inference.logging.ThrottlerManager;
+
+import java.io.IOException;
+import java.util.concurrent.Flow;
 
 import static org.elasticsearch.core.Strings.format;
 import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkForEmptyBody;
@@ -22,9 +31,25 @@ import static org.elasticsearch.xpack.inference.external.http.HttpUtils.checkFor
 public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     static final String GOOGLE_AI_STUDIO_UNAVAILABLE = "The Google AI Studio service may be temporarily overloaded or down";
+    private final boolean canHandleStreamingResponses;
+    private final CheckedFunction<XContentParser, String, IOException> content;
 
     public GoogleAiStudioResponseHandler(String requestType, ResponseParser parseFunction) {
+        this(requestType, parseFunction, false, xContentParser -> {
+            assert false : "do not call this";
+            return "";
+        });
+    }
+
+    public GoogleAiStudioResponseHandler(
+        String requestType,
+        ResponseParser parseFunction,
+        boolean canHandleStreamingResponses,
+        CheckedFunction<XContentParser, String, IOException> content
+    ) {
         super(requestType, parseFunction, GoogleAiStudioErrorResponseEntity::fromResponse);
+        this.canHandleStreamingResponses = canHandleStreamingResponses;
+        this.content = content;
     }
 
     @Override
@@ -43,12 +68,12 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
      * @throws RetryException Throws if status code is {@code >= 300 or < 200 }
      */
     void checkForFailureStatusCode(Request request, HttpResult result) throws RetryException {
-        int statusCode = result.response().getStatusLine().getStatusCode();
-        if (statusCode >= 200 && statusCode < 300) {
+        if (result.isSuccessfulResponse()) {
             return;
         }
 
         // handle error codes
+        int statusCode = result.response().getStatusLine().getStatusCode();
         if (statusCode == 500) {
             throw new RetryException(true, buildError(SERVER_ERROR, request, result));
         } else if (statusCode == 503) {
@@ -70,6 +95,20 @@ public class GoogleAiStudioResponseHandler extends BaseResponseHandler {
 
     private static String resourceNotFoundError(Request request) {
         return format("Resource not found at [%s]", request.getURI());
+    }
+
+    @Override
+    public boolean canHandleStreamingResponses() {
+        return canHandleStreamingResponses;
+    }
+
+    @Override
+    public InferenceServiceResults parseResult(Request request, Flow.Publisher<HttpResult> flow) {
+        var serverSentEventProcessor = new ServerSentEventProcessor(new ServerSentEventParser());
+        var googleAiProcessor = new GoogleAiStudioStreamingProcessor(content);
+        flow.subscribe(serverSentEventProcessor);
+        serverSentEventProcessor.subscribe(googleAiProcessor);
+        return new StreamingChatCompletionResults(googleAiProcessor);
     }
 
 }

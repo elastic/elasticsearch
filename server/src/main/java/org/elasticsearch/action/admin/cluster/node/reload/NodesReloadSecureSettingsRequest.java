@@ -33,7 +33,7 @@ import java.util.Arrays;
 /**
  * Request for a reload secure settings action
  */
-public class NodesReloadSecureSettingsRequest extends BaseNodesRequest<NodesReloadSecureSettingsRequest> {
+public class NodesReloadSecureSettingsRequest extends BaseNodesRequest {
 
     /**
      * The password is used to re-read and decrypt the contents

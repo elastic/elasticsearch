@@ -43,7 +43,7 @@ import static org.elasticsearch.transport.RemoteClusterPortSettings.REMOTE_CLUST
  * {@link SniffConnectionStrategy#REMOTE_CONNECTIONS_PER_CLUSTER} until either all eligible nodes are exhausted or the maximum number of
  * connections per cluster has been reached.
  */
-final class RemoteClusterConnection implements Closeable {
+public final class RemoteClusterConnection implements Closeable {
 
     private final TransportService transportService;
     private final RemoteConnectionManager remoteConnectionManager;
@@ -99,7 +99,7 @@ final class RemoteClusterConnection implements Closeable {
     /**
      * Returns whether this cluster is configured to be skipped when unavailable
      */
-    boolean isSkipUnavailable() {
+    public boolean isSkipUnavailable() {
         return skipUnavailable;
     }
 
@@ -129,9 +129,8 @@ final class RemoteClusterConnection implements Closeable {
             final ThreadContext threadContext = threadPool.getThreadContext();
             final ContextPreservingActionListener<Function<String, DiscoveryNode>> contextPreservingActionListener =
                 new ContextPreservingActionListener<>(threadContext.newRestorableContext(false), listener);
-            try (ThreadContext.StoredContext ignore = threadContext.stashContext()) {
+            try (var ignore = threadContext.newEmptySystemContext()) {
                 // we stash any context here since this is an internal execution and should not leak any existing context information
-                threadContext.markAsSystemContext();
                 Transport.Connection connection = remoteConnectionManager.getAnyRemoteConnection();
 
                 // Use different action to collect nodes information depending on the connection model

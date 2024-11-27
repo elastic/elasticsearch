@@ -36,7 +36,7 @@ public record ResolvedEnrichPolicy(
 
     private static Reader<EsField> getEsFieldReader(StreamInput in) {
         if (in.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-            || in.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+            || in.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
             return EsField::readFrom;
         }
         return EsField::new;
@@ -57,7 +57,7 @@ public record ResolvedEnrichPolicy(
             (o, v) -> {
                 var field = new EsField(v.getName(), v.getDataType(), v.getProperties(), v.isAggregatable(), v.isAlias());
                 if (out.getTransportVersion().onOrAfter(TransportVersions.ESQL_ES_FIELD_CACHED_SERIALIZATION)
-                    || out.getTransportVersion().isPatchFrom(TransportVersions.ESQL_ATTRIBUTE_CACHED_SERIALIZATION_8_15)) {
+                    || out.getTransportVersion().isPatchFrom(TransportVersions.V_8_15_2)) {
                     field.writeTo(o);
                 } else {
                     field.writeContent(o);

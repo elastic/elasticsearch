@@ -10,7 +10,7 @@
 package org.elasticsearch.gradle.internal;
 
 import org.elasticsearch.gradle.Version;
-import org.elasticsearch.gradle.internal.info.BuildParams;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
 import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.gradle.api.Action;
 import org.gradle.api.InvalidUserDataException;
@@ -23,6 +23,7 @@ import org.gradle.api.plugins.JvmToolchainsPlugin;
 import org.gradle.api.provider.Provider;
 import org.gradle.api.provider.ProviderFactory;
 import org.gradle.api.tasks.Copy;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.TaskProvider;
 import org.gradle.jvm.toolchain.JavaToolchainService;
 import org.gradle.language.base.plugins.LifecycleBasePlugin;
@@ -39,6 +40,7 @@ import javax.inject.Inject;
 
 import static java.util.Arrays.asList;
 import static java.util.Arrays.stream;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * We want to be able to do BWC tests for unreleased versions without relying on and waiting for snapshots.
@@ -64,23 +66,29 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         project.getRootProject().getPluginManager().apply(GlobalBuildInfoPlugin.class);
         project.getPlugins().apply(JvmToolchainsPlugin.class);
         toolChainService = project.getExtensions().getByType(JavaToolchainService.class);
-        BuildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
+        BuildParameterExtension buildParams = loadBuildParams(project).get();
+        Boolean isCi = buildParams.isCi();
+        buildParams.getBwcVersions().forPreviousUnreleased((BwcVersions.UnreleasedVersionInfo unreleasedVersion) -> {
             configureBwcProject(
                 project.project(unreleasedVersion.gradleProjectPath()),
+                buildParams,
                 unreleasedVersion,
                 providerFactory,
                 objectFactory,
-                toolChainService
+                toolChainService,
+                isCi
             );
         });
     }
 
     private static void configureBwcProject(
         Project project,
+        BuildParameterExtension buildParams,
         BwcVersions.UnreleasedVersionInfo versionInfo,
         ProviderFactory providerFactory,
         ObjectFactory objectFactory,
-        JavaToolchainService toolChainService
+        JavaToolchainService toolChainService,
+        Boolean isCi
     ) {
         ProjectLayout layout = project.getLayout();
         Provider<BwcVersions.UnreleasedVersionInfo> versionInfoProvider = providerFactory.provider(() -> versionInfo);
@@ -96,7 +104,8 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
                 providerFactory,
                 toolChainService,
                 versionInfoProvider,
-                checkoutDir
+                checkoutDir,
+                isCi
             );
         BwcGitExtension gitExtension = project.getPlugins().apply(InternalBwcGitPlugin.class).getGitExtension();
         Provider<Version> bwcVersion = versionInfoProvider.map(info -> info.version());
@@ -122,6 +131,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
         for (DistributionProject distributionProject : distributionProjects) {
             createBuildBwcTask(
                 bwcSetupExtension,
+                buildParams,
                 project,
                 bwcVersion,
                 distributionProject.name,
@@ -144,6 +154,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
         createBuildBwcTask(
             bwcSetupExtension,
+            buildParams,
             project,
             bwcVersion,
             "jdbc",
@@ -165,13 +176,19 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             DistributionProjectArtifact stableAnalysisPluginProjectArtifact = new DistributionProjectArtifact(
                 new File(
                     checkoutDir.get(),
-                    relativeDir + "/build/distributions/" + stableApiProject.getName() + "-" + bwcVersion.get() + "-SNAPSHOT.jar"
+                    relativeDir
+                        + "/build/distributions/elasticsearch-"
+                        + stableApiProject.getName()
+                        + "-"
+                        + bwcVersion.get()
+                        + "-SNAPSHOT.jar"
                 ),
                 null
             );
 
             createBuildBwcTask(
                 bwcSetupExtension,
+                buildParams,
                 project,
                 bwcVersion,
                 stableApiProject.getName(),
@@ -275,7 +292,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
     }
 
     private static List<Project> resolveStableProjects(Project project) {
-        Set<String> stableProjectNames = Set.of("elasticsearch-logging", "elasticsearch-plugin-api", "elasticsearch-plugin-analysis-api");
+        Set<String> stableProjectNames = Set.of("logging", "plugin-api", "plugin-analysis-api");
         return project.findProject(":libs")
             .getSubprojects()
             .stream()
@@ -291,6 +308,7 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
 
     static void createBuildBwcTask(
         BwcSetupExtension bwcSetupExtension,
+        BuildParameterExtension buildParams,
         Project project,
         Provider<Version> bwcVersion,
         String projectName,
@@ -305,14 +323,16 @@ public class InternalDistributionBwcSetupPlugin implements Plugin<Project> {
             File expectedOutputFile = useNativeExpanded
                 ? new File(projectArtifact.expandedDistDir, "elasticsearch-" + bwcVersion.get() + "-SNAPSHOT")
                 : projectArtifact.distFile;
-            c.getInputs().file(new File(project.getBuildDir(), "refspec"));
+            c.getInputs().file(new File(project.getBuildDir(), "refspec")).withPathSensitivity(PathSensitivity.RELATIVE);
             if (useNativeExpanded) {
                 c.getOutputs().dir(expectedOutputFile);
             } else {
                 c.getOutputs().files(expectedOutputFile);
             }
-            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> BuildParams.isCi() == false);
-            c.getArgs().add(projectPath.replace('/', ':') + ":" + assembleTaskName);
+            c.getOutputs().doNotCacheIf("BWC distribution caching is disabled for local builds", task -> buildParams.isCi() == false);
+            c.getArgs().add("-p");
+            c.getArgs().add(projectPath);
+            c.getArgs().add(assembleTaskName);
             if (project.getGradle().getStartParameter().isBuildCacheEnabled()) {
                 c.getArgs().add("--build-cache");
             }

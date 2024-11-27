@@ -9,13 +9,14 @@
 
 package org.elasticsearch.rest.root;
 
-import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.ActionFilters;
+import org.elasticsearch.action.support.ActionTestUtils;
 import org.elasticsearch.cluster.ClusterName;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.block.ClusterBlock;
 import org.elasticsearch.cluster.block.ClusterBlockLevel;
 import org.elasticsearch.cluster.block.ClusterBlocks;
+import org.elasticsearch.cluster.metadata.Metadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.rest.RestStatus;
@@ -26,7 +27,7 @@ import org.elasticsearch.transport.Transport;
 import org.elasticsearch.transport.TransportService;
 
 import java.util.Collections;
-import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
@@ -39,7 +40,7 @@ public class MainActionTests extends ESTestCase {
         final ClusterService clusterService = mock(ClusterService.class);
         final ClusterName clusterName = new ClusterName("elasticsearch");
         final Settings settings = Settings.builder().put("node.name", "my-node").build();
-        ClusterBlocks blocks;
+        final ClusterBlocks blocks;
         if (randomBoolean()) {
             if (randomBoolean()) {
                 blocks = ClusterBlocks.EMPTY_CLUSTER_BLOCK;
@@ -73,7 +74,12 @@ public class MainActionTests extends ESTestCase {
                 )
                 .build();
         }
-        ClusterState state = ClusterState.builder(clusterName).blocks(blocks).build();
+        final Metadata.Builder metadata = new Metadata.Builder();
+        if (randomBoolean()) {
+            metadata.clusterUUID(randomUUID());
+            metadata.clusterUUIDCommitted(randomBoolean());
+        }
+        final ClusterState state = ClusterState.builder(clusterName).metadata(metadata).blocks(blocks).build();
         when(clusterService.state()).thenReturn(state);
 
         TransportService transportService = new TransportService(
@@ -85,21 +91,21 @@ public class MainActionTests extends ESTestCase {
             null,
             Collections.emptySet()
         );
-        TransportMainAction action = new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService);
-        AtomicReference<MainResponse> responseRef = new AtomicReference<>();
-        action.doExecute(mock(Task.class), new MainRequest(), new ActionListener<>() {
-            @Override
-            public void onResponse(MainResponse mainResponse) {
-                responseRef.set(mainResponse);
-            }
+        final AtomicBoolean listenerCalled = new AtomicBoolean();
+        new TransportMainAction(settings, transportService, mock(ActionFilters.class), clusterService).doExecute(
+            mock(Task.class),
+            new MainRequest(),
+            ActionTestUtils.assertNoFailureListener(mainResponse -> {
+                assertNotNull(mainResponse);
+                assertEquals(
+                    state.metadata().clusterUUIDCommitted() ? state.metadata().clusterUUID() : Metadata.UNKNOWN_CLUSTER_UUID,
+                    mainResponse.getClusterUuid()
+                );
+                assertFalse(listenerCalled.getAndSet(true));
+            })
+        );
 
-            @Override
-            public void onFailure(Exception e) {
-                logger.error("unexpected error", e);
-            }
-        });
-
-        assertNotNull(responseRef.get());
+        assertTrue(listenerCalled.get());
         verify(clusterService, times(1)).state();
     }
 }

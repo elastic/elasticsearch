@@ -441,6 +441,30 @@ public abstract class MappedFieldType {
     }
 
     /**
+     * Create a regexp {@link IntervalsSource} for the given pattern.
+     */
+    public IntervalsSource regexpIntervals(BytesRef pattern, SearchExecutionContext context) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
+     * Create a range {@link IntervalsSource} for the given ranges
+     */
+    public IntervalsSource rangeIntervals(
+        BytesRef lowerTerm,
+        BytesRef upperTerm,
+        boolean includeLower,
+        boolean includeUpper,
+        SearchExecutionContext context
+    ) {
+        throw new IllegalArgumentException(
+            "Can only use interval queries on text fields - not on [" + name + "] which is of type [" + typeName() + "]"
+        );
+    }
+
+    /**
      * An enum used to describe the relation between the range of terms in a
      * shard when compared with a query range
      */

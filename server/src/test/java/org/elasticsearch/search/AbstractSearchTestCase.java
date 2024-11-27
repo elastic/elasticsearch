@@ -89,7 +89,6 @@ public abstract class AbstractSearchTestCase extends ESTestCase {
         return RandomSearchRequestGenerator.randomSearchSourceBuilder(
             HighlightBuilderTests::randomHighlighterBuilder,
             SuggestBuilderTests::randomSuggestBuilder,
-            TestRankBuilder::randomRankBuilder,
             QueryRescorerBuilderTests::randomRescoreBuilder,
             randomExtBuilders,
             CollapseBuilderTests::randomCollapseBuilder,

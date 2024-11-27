@@ -27,27 +27,14 @@ package org.elasticsearch.h3;
  */
 final class BaseCells {
 
-    private static class BaseCellData {
-        // "home" face and normalized ijk coordinates on that face
-        final int homeFace;
-        final int homeI;
-        final int homeJ;
-        final int homeK;
-        // is this base cell a pentagon?
-        final boolean isPentagon;
-        // if a pentagon, what are its two clockwise offset
-        final int[] cwOffsetPent;
-
-        /// faces?
-        BaseCellData(int homeFace, int homeI, int homeJ, int homeK, boolean isPentagon, int[] cwOffsetPent) {
-            this.homeFace = homeFace;
-            this.homeI = homeI;
-            this.homeJ = homeJ;
-            this.homeK = homeK;
-            this.isPentagon = isPentagon;
-            this.cwOffsetPent = cwOffsetPent;
-        }
-    }
+    private record BaseCellData(
+        int homeFace, // "home" face and normalized ijk coordinates on that face
+        int homeI,
+        int homeJ,
+        int homeK,
+        boolean isPentagon,   // is this base cell a pentagon?
+        int[] cwOffsetPent  // if a pentagon, what are its two clockwise offset
+    ) {}
 
     /**
      * Resolution 0 base cell data table.
@@ -185,16 +172,10 @@ final class BaseCells {
     /**
      *  base cell at a given ijk and required rotations into its system
      */
-    private static class BaseCellRotation {
-        final int baseCell;  // base cell number
-        final int ccwRot60;  // number of ccw 60 degree rotations relative to current
-        /// face
-
-        BaseCellRotation(int baseCell, int ccwRot60) {
-            this.baseCell = baseCell;
-            this.ccwRot60 = ccwRot60;
-        }
-    }
+    record BaseCellRotation(
+        int baseCell, // base cell number
+        int ccwRot60  // number of ccw 60 degree rotations relative to current
+    ) {}
 
     /** @brief Resolution 0 base cell lookup table for each face.
      *

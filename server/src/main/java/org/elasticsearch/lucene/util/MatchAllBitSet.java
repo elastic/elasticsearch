@@ -70,6 +70,12 @@ public final class MatchAllBitSet extends BitSet {
     }
 
     @Override
+    public int nextSetBit(int index, int upperBound) {
+        assert index < upperBound;
+        return index;
+    }
+
+    @Override
     public long ramBytesUsed() {
         return RAM_BYTES_USED;
     }

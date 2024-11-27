@@ -37,10 +37,15 @@ public class EsqlMediaTypeParser {
      * format. If there is a {@code format} parameter we use that. If there
      * isn't but there is a {@code Accept} header then we use that. If there
      * isn't then we use the {@code Content-Type} header which is required.
+     *
+     * Also validates certain parameter combinations and throws IllegalArgumentException if invalid
+     * combinations are detected.
      */
     public static MediaType getResponseMediaType(RestRequest request, EsqlQueryRequest esqlRequest) {
         var mediaType = request.hasParam(URL_PARAM_FORMAT) ? mediaTypeFromParams(request) : mediaTypeFromHeaders(request);
-        return validateColumnarRequest(esqlRequest.columnar(), mediaType, request);
+        validateColumnarRequest(esqlRequest.columnar(), mediaType);
+        validateIncludeCCSMetadata(esqlRequest.includeCCSMetadata(), mediaType);
+        return checkNonNullMediaType(mediaType, request);
     }
 
     private static MediaType mediaTypeFromHeaders(RestRequest request) {
@@ -53,7 +58,7 @@ public class EsqlMediaTypeParser {
         return MEDIA_TYPE_REGISTRY.queryParamToMediaType(request.param(URL_PARAM_FORMAT));
     }
 
-    private static MediaType validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType, RestRequest request) {
+    private static void validateColumnarRequest(boolean requestIsColumnar, MediaType fromMediaType) {
         if (requestIsColumnar && fromMediaType instanceof TextFormat) {
             throw new IllegalArgumentException(
                 "Invalid use of [columnar] argument: cannot be used in combination with "
@@ -61,7 +66,16 @@ public class EsqlMediaTypeParser {
                     + " formats"
             );
         }
-        return checkNonNullMediaType(fromMediaType, request);
+    }
+
+    private static void validateIncludeCCSMetadata(boolean includeCCSMetadata, MediaType fromMediaType) {
+        if (includeCCSMetadata && fromMediaType instanceof TextFormat) {
+            throw new IllegalArgumentException(
+                "Invalid use of [include_ccs_metadata] argument: cannot be used in combination with "
+                    + Arrays.stream(TextFormat.values()).map(MediaType::queryParameter).toList()
+                    + " formats"
+            );
+        }
     }
 
     private static MediaType checkNonNullMediaType(MediaType mediaType, RestRequest request) {

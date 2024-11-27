@@ -47,7 +47,7 @@ public final class PercentileDoubleGroupingAggregatorFunction implements Groupin
 
   public static PercentileDoubleGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext, double percentile) {
-    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(driverContext.bigArrays(), percentile), driverContext, percentile);
+    return new PercentileDoubleGroupingAggregatorFunction(channels, PercentileDoubleAggregator.initGrouping(driverContext, percentile), driverContext, percentile);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

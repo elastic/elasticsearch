@@ -25,8 +25,11 @@ import org.elasticsearch.geometry.MultiPolygon;
 import org.elasticsearch.geometry.Polygon;
 import org.elasticsearch.geometry.Rectangle;
 import org.elasticsearch.geometry.utils.WellKnownText;
+import org.elasticsearch.index.query.GeoShapeQueryBuilder;
+import org.elasticsearch.index.query.TermQueryBuilder;
 import org.elasticsearch.search.aggregations.bucket.geogrid.GeoTileUtils;
 import org.elasticsearch.test.rest.ESRestTestCase;
+import org.elasticsearch.test.rest.ObjectPath;
 import org.hamcrest.Matchers;
 import org.junit.AfterClass;
 import org.junit.Before;
@@ -790,7 +793,9 @@ public class VectorTileRestIT extends ESRestTestCase {
                 }
               }
             }""");
+        final int termsUsage = queryUsage(TermQueryBuilder.NAME);
         final VectorTile.Tile tile = execute(mvtRequest);
+        assertThat(queryUsage(TermQueryBuilder.NAME), Matchers.equalTo(termsUsage + 1));
         assertThat(tile.getLayersCount(), Matchers.equalTo(3));
         assertLayer(tile, HITS_LAYER, 4096, 1, 2);
         assertLayer(tile, AGGS_LAYER, 4096, 1, 2);
@@ -1060,10 +1065,19 @@ public class VectorTileRestIT extends ESRestTestCase {
     }
 
     private VectorTile.Tile execute(Request mvtRequest) throws IOException {
+        final int geoShapeUsage = queryUsage(GeoShapeQueryBuilder.NAME);
         final Response response = client().performRequest(mvtRequest);
+        assertThat(queryUsage(GeoShapeQueryBuilder.NAME), Matchers.equalTo(geoShapeUsage + 1));
         final InputStream inputStream = response.getEntity().getContent();
         assertThat(response.getStatusLine().getStatusCode(), Matchers.equalTo(HttpStatus.SC_OK));
         return VectorTile.Tile.parseFrom(inputStream);
+    }
+
+    private int queryUsage(String queryName) throws IOException {
+        final Request request = new Request(HttpGet.METHOD_NAME, "/_cluster/stats?filter_path=indices.search.queries." + queryName);
+        ObjectPath objectPath = ObjectPath.createFromResponse(client().performRequest(request));
+        Integer count = objectPath.evaluate("indices.search.queries." + queryName);
+        return count == null ? 0 : count;
     }
 
     private VectorTile.Tile.Layer getLayer(VectorTile.Tile tile, String layerName) {

@@ -37,6 +37,14 @@ public final class MachineLearningField {
         Setting.Property.NodeScope
     );
 
+    public static final Setting<Integer> MAX_LAZY_ML_NODES = Setting.intSetting(
+        "xpack.ml.max_lazy_ml_nodes",
+        0,
+        0,
+        Setting.Property.OperatorDynamic,
+        Setting.Property.NodeScope
+    );
+
     /**
      * This boolean value indicates if `max_machine_memory_percent` should be ignored and an automatic calculation is used instead.
      *

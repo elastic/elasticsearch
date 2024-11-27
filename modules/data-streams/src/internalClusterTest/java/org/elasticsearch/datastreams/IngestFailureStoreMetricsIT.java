@@ -195,9 +195,7 @@ public class IngestFailureStoreMetricsIT extends ESIntegTestCase {
         // Initialize failure store.
         var rolloverRequest = new RolloverRequest(dataStream, null);
         rolloverRequest.setIndicesOptions(
-            IndicesOptions.builder(rolloverRequest.indicesOptions())
-                .failureStoreOptions(opts -> opts.includeFailureIndices(true).includeRegularIndices(false))
-                .build()
+            IndicesOptions.builder(rolloverRequest.indicesOptions()).selectorOptions(IndicesOptions.SelectorOptions.FAILURES).build()
         );
         var rolloverResponse = client().execute(RolloverAction.INSTANCE, rolloverRequest).actionGet();
         var failureStoreIndex = rolloverResponse.getNewIndex();

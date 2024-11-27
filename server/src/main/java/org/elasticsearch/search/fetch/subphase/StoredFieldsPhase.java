@@ -27,6 +27,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 /**
  * Process stored fields loaded from a HitContext into DocumentFields
@@ -42,7 +43,8 @@ public class StoredFieldsPhase implements FetchSubPhase {
             if (inputs == null) {
                 return List.of();
             }
-            return inputs.stream().map(ft::valueForDisplay).toList();
+            // This is eventually provided to DocumentField, which needs this collection to be mutable
+            return inputs.stream().map(ft::valueForDisplay).collect(Collectors.toList());
         }
 
         boolean hasValue(Map<String, List<Object>> loadedFields) {

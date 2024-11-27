@@ -44,7 +44,7 @@ public final class MedianAbsoluteDeviationLongGroupingAggregatorFunction impleme
 
   public static MedianAbsoluteDeviationLongGroupingAggregatorFunction create(List<Integer> channels,
       DriverContext driverContext) {
-    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, MedianAbsoluteDeviationLongAggregator.initGrouping(driverContext.bigArrays()), driverContext);
+    return new MedianAbsoluteDeviationLongGroupingAggregatorFunction(channels, MedianAbsoluteDeviationLongAggregator.initGrouping(driverContext), driverContext);
   }
 
   public static List<IntermediateStateDesc> intermediateStateDesc() {

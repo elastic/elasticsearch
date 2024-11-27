@@ -2,19 +2,12 @@
 [[put-inference-api]]
 === Create {infer} API
 
-experimental[]
-
 Creates an {infer} endpoint to perform an {infer} task.
 
 [IMPORTANT]
 ====
-* The {infer} APIs enable you to use certain services, such as built-in
-{ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral,
-Azure OpenAI, Google AI Studio, Google Vertex AI, Anthropic or Hugging Face.
-* For built-in models and models uploaded through Eland, the {infer} APIs offer an
-alternative way to use and manage trained models. However, if you do not plan to
-use the {infer} APIs to use these models or if you want to use non-NLP models,
-use the <<ml-df-trained-models-apis>>.
+* The {infer} APIs enable you to use certain services, such as built-in {ml} models (ELSER, E5), models uploaded through Eland, Cohere, OpenAI, Mistral, Azure OpenAI, Google AI Studio, Google Vertex AI, Anthropic, Watsonx.ai, or Hugging Face.
+* For built-in models and models uploaded through Eland, the {infer} APIs offer an alternative way to use and manage trained models. However, if you do not plan to use the {infer} APIs to use these models or if you want to use non-NLP models, use the <<ml-df-trained-models-apis>>.
 ====
 
 
@@ -58,7 +51,7 @@ The following services are available through the {infer} API.
 You can find the available task types next to the service name. 
 Click the links to review the configuration details of the services:
 
-* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`rerank`, `sparse_embedding`, `text_embedding`)
+* <<infer-service-alibabacloud-ai-search,AlibabaCloud AI Search>> (`completion`, `rerank`, `sparse_embedding`, `text_embedding`)
 * <<infer-service-amazon-bedrock,Amazon Bedrock>> (`completion`, `text_embedding`)
 * <<infer-service-anthropic,Anthropic>> (`completion`)
 * <<infer-service-azure-ai-studio,Azure AI Studio>> (`completion`, `text_embedding`)
@@ -71,6 +64,7 @@ Click the links to review the configuration details of the services:
 * <<infer-service-hugging-face,Hugging Face>> (`text_embedding`)
 * <<infer-service-mistral,Mistral>> (`text_embedding`)
 * <<infer-service-openai,OpenAI>> (`completion`, `text_embedding`)
+* <<infer-service-watsonx-ai>> (`text_embedding`)
 
 The {es} and ELSER services run on a {ml} node in your {es} cluster. The rest of
 the services connect to external providers.

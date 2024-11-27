@@ -22,7 +22,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.engine.VersionConflictEngineException;
+import org.elasticsearch.inference.InferenceService;
 import org.elasticsearch.inference.TaskType;
+import org.elasticsearch.inference.UnparsedModel;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
 import org.elasticsearch.search.SearchResponseUtils;
@@ -34,10 +36,13 @@ import org.junit.After;
 import org.junit.Before;
 
 import java.nio.ByteBuffer;
+import java.util.ArrayList;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
@@ -68,7 +73,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         ResourceNotFoundException exception = expectThrows(ResourceNotFoundException.class, () -> listener.actionGet(TIMEOUT));
@@ -82,7 +87,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalArgumentException exception = expectThrows(IllegalArgumentException.class, () -> listener.actionGet(TIMEOUT));
@@ -99,7 +104,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -116,7 +121,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         IllegalStateException exception = expectThrows(IllegalStateException.class, () -> listener.actionGet(TIMEOUT));
@@ -150,7 +155,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModelWithSecrets("1", listener);
 
         var modelConfig = listener.actionGet(TIMEOUT);
@@ -179,7 +184,7 @@ public class ModelRegistryTests extends ESTestCase {
 
         var registry = new ModelRegistry(client);
 
-        var listener = new PlainActionFuture<ModelRegistry.UnparsedModel>();
+        var listener = new PlainActionFuture<UnparsedModel>();
         registry.getModel("1", listener);
 
         registry.getModel("1", listener);
@@ -285,6 +290,56 @@ public class ModelRegistryTests extends ESTestCase {
         assertThat(
             exception.getMessage(),
             is(format("Failed to store inference endpoint [%s]", model.getConfigurations().getInferenceEntityId()))
+        );
+    }
+
+    public void testIdMatchedDefault() {
+        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("foo", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("bar", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+
+        var matched = ModelRegistry.idMatchedDefault("bar", defaultConfigIds);
+        assertEquals(defaultConfigIds.get(1), matched.get());
+        matched = ModelRegistry.idMatchedDefault("baz", defaultConfigIds);
+        assertFalse(matched.isPresent());
+    }
+
+    public void testTaskTypeMatchedDefaults() {
+        var defaultConfigIds = new ArrayList<InferenceService.DefaultConfigId>();
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("s1", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("s2", TaskType.SPARSE_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("d1", TaskType.TEXT_EMBEDDING, mock(InferenceService.class)));
+        defaultConfigIds.add(new InferenceService.DefaultConfigId("c1", TaskType.COMPLETION, mock(InferenceService.class)));
+
+        var matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.SPARSE_EMBEDDING, defaultConfigIds);
+        assertThat(matched, contains(defaultConfigIds.get(0), defaultConfigIds.get(1)));
+        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.TEXT_EMBEDDING, defaultConfigIds);
+        assertThat(matched, contains(defaultConfigIds.get(2)));
+        matched = ModelRegistry.taskTypeMatchedDefaults(TaskType.RERANK, defaultConfigIds);
+        assertThat(matched, empty());
+    }
+
+    public void testDuplicateDefaultIds() {
+        var client = mockBulkClient();
+        var registry = new ModelRegistry(client);
+
+        var id = "my-inference";
+        var mockServiceA = mock(InferenceService.class);
+        when(mockServiceA.name()).thenReturn("service-a");
+        var mockServiceB = mock(InferenceService.class);
+        when(mockServiceB.name()).thenReturn("service-b");
+
+        registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceA));
+        var ise = expectThrows(
+            IllegalStateException.class,
+            () -> registry.addDefaultIds(new InferenceService.DefaultConfigId(id, randomFrom(TaskType.values()), mockServiceB))
+        );
+        assertThat(
+            ise.getMessage(),
+            containsString(
+                "Cannot add default endpoint to the inference endpoint registry with duplicate inference id [my-inference] declared by "
+                    + "service [service-b]. The inference Id is already use by [service-a] service."
+            )
         );
     }
 

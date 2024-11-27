@@ -21,6 +21,8 @@ import org.elasticsearch.test.ESTokenStreamTestCase;
 import java.io.IOException;
 import java.io.StringReader;
 
+import static org.apache.lucene.tests.analysis.BaseTokenStreamTestCase.assertTokenStreamContents;
+
 public class EdgeNGramTokenFilterFactoryTests extends ESTokenStreamTestCase {
 
     public void testDefault() throws IOException {

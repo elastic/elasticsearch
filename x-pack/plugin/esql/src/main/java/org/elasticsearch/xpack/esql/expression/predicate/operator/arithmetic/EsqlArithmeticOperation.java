@@ -7,7 +7,6 @@
 
 package org.elasticsearch.xpack.esql.expression.predicate.operator.arithmetic;
 
-import org.elasticsearch.common.io.stream.NamedWriteableRegistry;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.compute.operator.EvalOperator.ExpressionEvaluator;
@@ -21,8 +20,6 @@ import org.elasticsearch.xpack.esql.expression.function.scalar.math.Cast;
 import org.elasticsearch.xpack.esql.io.stream.PlanStreamInput;
 
 import java.io.IOException;
-import java.util.List;
-import java.util.function.Function;
 
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.xpack.esql.core.type.DataType.DOUBLE;
@@ -32,9 +29,6 @@ import static org.elasticsearch.xpack.esql.core.type.DataType.UNSIGNED_LONG;
 import static org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter.commonType;
 
 public abstract class EsqlArithmeticOperation extends ArithmeticOperation implements EvaluatorMapper {
-    public static List<NamedWriteableRegistry.Entry> getNamedWriteables() {
-        return List.of(Add.ENTRY, Div.ENTRY, Mod.ENTRY, Mul.ENTRY, Sub.ENTRY);
-    }
 
     /**
      * The only role of this enum is to fit the super constructor that expects a BinaryOperation which is
@@ -170,7 +164,7 @@ public abstract class EsqlArithmeticOperation extends ArithmeticOperation implem
     }
 
     @Override
-    public ExpressionEvaluator.Factory toEvaluator(Function<Expression, ExpressionEvaluator.Factory> toEvaluator) {
+    public ExpressionEvaluator.Factory toEvaluator(ToEvaluator toEvaluator) {
         var commonType = dataType();
         var leftType = left().dataType();
         if (leftType.isNumeric()) {

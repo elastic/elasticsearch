@@ -196,14 +196,20 @@ public enum RangeType {
         @Override
         public Number parseFrom(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included == false, null).toEpochMilli();
             return included ? value : nextUp(value);
         }
 
         @Override
         public Number parseTo(RangeFieldMapper.RangeFieldType fieldType, XContentParser parser, boolean coerce, boolean included)
             throws IOException {
-            Number value = parseValue(parser.text(), coerce, fieldType.dateMathParser);
+            assert fieldType.dateMathParser != null;
+            Number value = fieldType.dateMathParser.parse(parser.text(), () -> {
+                throw new IllegalArgumentException("now is not used at indexing time");
+            }, included, null).toEpochMilli();
             return included ? value : nextDown(value);
         }
 
@@ -295,6 +301,7 @@ public enum RangeType {
                     roundUp,
                     zone
                 ).toEpochMilli();
+
             roundUp = includeUpper; // using "lte" should round upper bound up
             Long high = upperTerm == null
                 ? maxValue()

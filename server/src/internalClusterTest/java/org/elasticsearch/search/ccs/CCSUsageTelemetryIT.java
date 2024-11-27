@@ -25,7 +25,6 @@ import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
-import org.elasticsearch.common.util.FeatureFlag;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.query.MatchAllQueryBuilder;
 import org.elasticsearch.plugins.Plugin;
@@ -40,7 +39,6 @@ import org.elasticsearch.test.AbstractMultiClustersTestCase;
 import org.elasticsearch.test.InternalTestCluster;
 import org.elasticsearch.usage.UsageService;
 import org.junit.Assert;
-import org.junit.BeforeClass;
 import org.junit.Rule;
 import org.junit.rules.TestRule;
 import org.junit.runner.Description;
@@ -73,7 +71,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
     private static final Logger LOGGER = LogManager.getLogger(CCSUsageTelemetryIT.class);
     private static final String REMOTE1 = "cluster-a";
     private static final String REMOTE2 = "cluster-b";
-    private static final FeatureFlag CCS_TELEMETRY_FEATURE_FLAG = new FeatureFlag("ccs_telemetry");
 
     @Override
     protected boolean reuseClusters() {
@@ -87,11 +84,6 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
 
     @Rule
     public SkipUnavailableRule skipOverride = new SkipUnavailableRule(REMOTE1, REMOTE2);
-
-    @BeforeClass
-    protected static void skipIfTelemetryDisabled() {
-        assumeTrue("Skipping test as CCS_TELEMETRY_FEATURE_FLAG is disabled", CCS_TELEMETRY_FEATURE_FLAG.isEnabled());
-    }
 
     @Override
     protected Map<String, Boolean> skipUnavailableForRemoteClusters() {
@@ -662,7 +654,7 @@ public class CCSUsageTelemetryIT extends AbstractMultiClustersTestCase {
         int numShardsRemote = randomIntBetween(2, 10);
         for (String clusterAlias : remoteClusterAlias()) {
             final InternalTestCluster remoteCluster = cluster(clusterAlias);
-            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(1, 3));
+            remoteCluster.ensureAtLeastNumDataNodes(randomIntBetween(2, 3));
             assertAcked(
                 client(clusterAlias).admin()
                     .indices()

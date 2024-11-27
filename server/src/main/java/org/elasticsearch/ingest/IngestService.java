@@ -33,13 +33,13 @@ import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateApplier;
 import org.elasticsearch.cluster.ClusterStateTaskExecutor;
 import org.elasticsearch.cluster.ClusterStateTaskListener;
-import org.elasticsearch.cluster.metadata.ComponentTemplate;
 import org.elasticsearch.cluster.metadata.DataStream;
 import org.elasticsearch.cluster.metadata.IndexAbstraction;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.IndexNameExpressionResolver;
 import org.elasticsearch.cluster.metadata.IndexTemplateMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.metadata.MetadataCreateIndexService;
 import org.elasticsearch.cluster.metadata.MetadataIndexTemplateService;
 import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.service.ClusterService;
@@ -47,6 +47,8 @@ import org.elasticsearch.cluster.service.MasterServiceTaskQueue;
 import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.TriConsumer;
 import org.elasticsearch.common.bytes.BytesReference;
+import org.elasticsearch.common.logging.DeprecationCategory;
+import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.common.util.CollectionUtils;
@@ -56,7 +58,9 @@ import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.core.Tuple;
+import org.elasticsearch.core.UpdateForV10;
 import org.elasticsearch.env.Environment;
+import org.elasticsearch.features.NodeFeature;
 import org.elasticsearch.gateway.GatewayService;
 import org.elasticsearch.grok.MatcherWatchdog;
 import org.elasticsearch.index.IndexSettings;
@@ -64,8 +68,6 @@ import org.elasticsearch.index.VersionType;
 import org.elasticsearch.index.analysis.AnalysisRegistry;
 import org.elasticsearch.node.ReportingService;
 import org.elasticsearch.plugins.IngestPlugin;
-import org.elasticsearch.plugins.internal.DocumentParsingProvider;
-import org.elasticsearch.plugins.internal.XContentMeteringParserDecorator;
 import org.elasticsearch.plugins.internal.XContentParserDecorator;
 import org.elasticsearch.script.ScriptService;
 import org.elasticsearch.threadpool.Scheduler;
@@ -98,6 +100,7 @@ import java.util.function.Predicate;
 import java.util.stream.Collectors;
 
 import static org.elasticsearch.core.Strings.format;
+import static org.elasticsearch.core.UpdateForV10.Owner.DATA_MANAGEMENT;
 
 /**
  * Holder class for several ingest related services.
@@ -108,12 +111,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public static final String INGEST_ORIGIN = "ingest";
 
+    public static final NodeFeature PIPELINE_NAME_VALIDATION_WARNINGS = new NodeFeature("ingest.pipeline_name_special_chars_warning");
+
     private static final Logger logger = LogManager.getLogger(IngestService.class);
+    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(IngestService.class);
 
     private final MasterServiceTaskQueue<PipelineClusterStateUpdateTask> taskQueue;
     private final ClusterService clusterService;
     private final ScriptService scriptService;
-    private final DocumentParsingProvider documentParsingProvider;
     private final Map<String, Processor.Factory> processorFactories;
     // Ideally this should be in IngestMetadata class, but we don't have the processor factories around there.
     // We know of all the processor factories when a node with all its plugin have been initialized. Also some
@@ -196,12 +201,10 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         List<IngestPlugin> ingestPlugins,
         Client client,
         MatcherWatchdog matcherWatchdog,
-        DocumentParsingProvider documentParsingProvider,
         FailureStoreMetrics failureStoreMetrics
     ) {
         this.clusterService = clusterService;
         this.scriptService = scriptService;
-        this.documentParsingProvider = documentParsingProvider;
         this.processorFactories = processorFactories(
             ingestPlugins,
             new Processor.Parameters(
@@ -230,7 +233,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     IngestService(IngestService ingestService) {
         this.clusterService = ingestService.clusterService;
         this.scriptService = ingestService.scriptService;
-        this.documentParsingProvider = ingestService.documentParsingProvider;
         this.processorFactories = ingestService.processorFactories;
         this.threadPool = ingestService.threadPool;
         this.taskQueue = ingestService.taskQueue;
@@ -271,61 +273,69 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         final IndexRequest indexRequest,
         final Metadata metadata
     ) {
-        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, Map.of());
-    }
-
-    public static void resolvePipelinesAndUpdateIndexRequest(
-        final DocWriteRequest<?> originalRequest,
-        final IndexRequest indexRequest,
-        final Metadata metadata,
-        Map<String, ComponentTemplate> componentTemplateSubstitutions
-    ) {
-        resolvePipelinesAndUpdateIndexRequest(
-            originalRequest,
-            indexRequest,
-            metadata,
-            System.currentTimeMillis(),
-            componentTemplateSubstitutions
-        );
+        resolvePipelinesAndUpdateIndexRequest(originalRequest, indexRequest, metadata, System.currentTimeMillis());
     }
 
     static void resolvePipelinesAndUpdateIndexRequest(
         final DocWriteRequest<?> originalRequest,
         final IndexRequest indexRequest,
         final Metadata metadata,
-        final long epochMillis,
-        final Map<String, ComponentTemplate> componentTemplateSubstitutions
+        final long epochMillis
     ) {
-        if (indexRequest.isPipelineResolved()) {
-            return;
+        if (indexRequest.isPipelineResolved() == false) {
+            var pipelines = resolvePipelines(originalRequest, indexRequest, metadata, epochMillis);
+            setPipelineOnRequest(indexRequest, pipelines);
         }
+    }
 
-        /*
-         * Here we look for the pipelines associated with the index if the index exists. If the index does not exist we fall back to using
-         * templates to find the pipelines. But if a user has passed in component template substitutions, they want the settings from those
-         * used in place of the settings used to create any previous indices. So in that case we use the templates to find the pipelines --
-         * we don't fall back to the existing index if we don't find any because it is possible the user has intentionally removed the
-         * pipeline.
-         */
-        final Pipelines pipelines;
-        if (componentTemplateSubstitutions.isEmpty()) {
-            pipelines = resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
-                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata, Map.of()))
+    static boolean isRolloverOnWrite(Metadata metadata, IndexRequest indexRequest) {
+        DataStream dataStream = metadata.dataStreams().get(indexRequest.index());
+        if (dataStream == null) {
+            return false;
+        }
+        return dataStream.getBackingIndices().isRolloverOnWrite();
+    }
+
+    /**
+     *  Resolve the default and final pipelines from the cluster state metadata or index templates.
+     *
+     * @param originalRequest initial request
+     * @param indexRequest the index request, which could be different from the initial request if rerouted
+     * @param metadata cluster data metadata
+     * @param epochMillis current time for index name resolution
+     * @return the resolved pipelines
+     */
+    public static Pipelines resolvePipelines(
+        final DocWriteRequest<?> originalRequest,
+        final IndexRequest indexRequest,
+        final Metadata metadata,
+        final long epochMillis
+    ) {
+        if (isRolloverOnWrite(metadata, indexRequest)) {
+            return resolvePipelinesFromIndexTemplates(indexRequest, metadata) //
                 .orElse(Pipelines.NO_PIPELINES_DEFINED);
         } else {
-            pipelines = resolvePipelinesFromIndexTemplates(indexRequest, metadata, componentTemplateSubstitutions).orElse(
-                Pipelines.NO_PIPELINES_DEFINED
-            );
+            return resolvePipelinesFromMetadata(originalRequest, indexRequest, metadata, epochMillis) //
+                .or(() -> resolvePipelinesFromIndexTemplates(indexRequest, metadata)) //
+                .orElse(Pipelines.NO_PIPELINES_DEFINED);
         }
+    }
 
+    /**
+     *  Set the request pipeline on the index request if present, otherwise set the default pipeline.
+     *  Always set the final pipeline.
+     * @param indexRequest the index request
+     * @param resolvedPipelines default and final pipelines resolved from metadata and templates
+     */
+    public static void setPipelineOnRequest(IndexRequest indexRequest, Pipelines resolvedPipelines) {
         // The pipeline coming as part of the request always has priority over the resolved one from metadata or templates
         String requestPipeline = indexRequest.getPipeline();
         if (requestPipeline != null) {
             indexRequest.setPipeline(requestPipeline);
         } else {
-            indexRequest.setPipeline(pipelines.defaultPipeline);
+            indexRequest.setPipeline(resolvedPipelines.defaultPipeline);
         }
-        indexRequest.setFinalPipeline(pipelines.finalPipeline);
+        indexRequest.setFinalPipeline(resolvedPipelines.finalPipeline);
         indexRequest.isPipelineResolved(true);
     }
 
@@ -509,7 +519,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             && currentIngestMetadata.getPipelines().containsKey(request.getId())) {
             var pipelineConfig = XContentHelper.convertToMap(request.getSource(), false, request.getXContentType()).v2();
             var currentPipeline = currentIngestMetadata.getPipelines().get(request.getId());
-            if (currentPipeline.getConfigAsMap().equals(pipelineConfig)) {
+            if (currentPipeline.getConfig().equals(pipelineConfig)) {
                 return true;
             }
         }
@@ -679,10 +689,22 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         }
     }
 
+    @UpdateForV10(owner = DATA_MANAGEMENT) // Change deprecation log for special characters in name to a failure
     void validatePipeline(Map<DiscoveryNode, IngestInfo> ingestInfos, String pipelineId, Map<String, Object> pipelineConfig)
         throws Exception {
         if (ingestInfos.isEmpty()) {
             throw new IllegalStateException("Ingest info is empty");
+        }
+
+        try {
+            MetadataCreateIndexService.validateIndexOrAliasName(
+                pipelineId,
+                (pipelineName, error) -> new IllegalArgumentException(
+                    "Pipeline name [" + pipelineName + "] will be disallowed in a future version for the following reason: " + error
+                )
+            );
+        } catch (IllegalArgumentException e) {
+            deprecationLogger.critical(DeprecationCategory.API, "pipeline_name_special_chars", e.getMessage());
         }
 
         Pipeline pipeline = Pipeline.create(pipelineId, pipelineConfig, processorFactories, scriptService);
@@ -782,10 +804,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         }
                         final int slot = i;
                         final Releasable ref = refs.acquire();
-                        final XContentMeteringParserDecorator meteringParserDecorator = documentParsingProvider.newMeteringParserDecorator(
-                            indexRequest
-                        );
-                        final IngestDocument ingestDocument = newIngestDocument(indexRequest, meteringParserDecorator);
+                        final IngestDocument ingestDocument = newIngestDocument(indexRequest);
                         final org.elasticsearch.script.Metadata originalDocumentMetadata = ingestDocument.getMetadata().clone();
                         // the document listener gives us three-way logic: a document can fail processing (1), or it can
                         // be successfully processed. a successfully processed document can be kept (2) or dropped (3).
@@ -826,7 +845,6 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
                         );
 
                         executePipelines(pipelines, indexRequest, ingestDocument, resolveFailureStore, documentListener);
-                        indexRequest.setNormalisedBytesParsed(meteringParserDecorator.meteredDocumentSize().ingestedBytes());
                         assert actionRequest.index() != null;
 
                         i++;
@@ -1165,14 +1183,14 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
     /**
      * Builds a new ingest document from the passed-in index request.
      */
-    private static IngestDocument newIngestDocument(final IndexRequest request, XContentParserDecorator parserDecorator) {
+    private static IngestDocument newIngestDocument(final IndexRequest request) {
         return new IngestDocument(
             request.index(),
             request.id(),
             request.version(),
             request.routing(),
             request.versionType(),
-            request.sourceAsMap(parserDecorator)
+            request.sourceAsMap(XContentParserDecorator.NOOP)
         );
     }
 
@@ -1274,7 +1292,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             try {
                 Pipeline newPipeline = Pipeline.create(
                     newConfiguration.getId(),
-                    newConfiguration.getConfigAsMap(),
+                    newConfiguration.getConfig(false),
                     processorFactories,
                     scriptService
                 );
@@ -1398,7 +1416,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
 
     public synchronized void reloadPipeline(String id) throws Exception {
         PipelineHolder holder = pipelines.get(id);
-        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfigAsMap(), processorFactories, scriptService);
+        Pipeline updatedPipeline = Pipeline.create(id, holder.configuration.getConfig(false), processorFactories, scriptService);
         Map<String, PipelineHolder> updatedPipelines = new HashMap<>(this.pipelines);
         updatedPipelines.put(id, new PipelineHolder(holder.configuration, updatedPipeline));
         this.pipelines = Map.copyOf(updatedPipelines);
@@ -1466,11 +1484,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
     }
 
-    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(
-        IndexRequest indexRequest,
-        Metadata metadata,
-        Map<String, ComponentTemplate> componentTemplateSubstitutions
-    ) {
+    private static Optional<Pipelines> resolvePipelinesFromIndexTemplates(IndexRequest indexRequest, Metadata metadata) {
         if (indexRequest.index() == null) {
             return Optional.empty();
         }
@@ -1480,7 +1494,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
         // precedence), or if a V2 template does not match, any V1 templates
         String v2Template = MetadataIndexTemplateService.findV2Template(metadata, indexRequest.index(), false);
         if (v2Template != null) {
-            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template, componentTemplateSubstitutions);
+            final Settings settings = MetadataIndexTemplateService.resolveSettings(metadata, v2Template);
             return Optional.of(new Pipelines(IndexSettings.DEFAULT_PIPELINE.get(settings), IndexSettings.FINAL_PIPELINE.get(settings)));
         }
 
@@ -1527,7 +1541,7 @@ public class IngestService implements ClusterStateApplier, ReportingService<Inge
             || NOOP_PIPELINE_NAME.equals(indexRequest.getFinalPipeline()) == false;
     }
 
-    private record Pipelines(String defaultPipeline, String finalPipeline) {
+    public record Pipelines(String defaultPipeline, String finalPipeline) {
 
         private static final Pipelines NO_PIPELINES_DEFINED = new Pipelines(NOOP_PIPELINE_NAME, NOOP_PIPELINE_NAME);
 

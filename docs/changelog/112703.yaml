@@ -1,5 +1,0 @@
-pr: 112703
-summary: JSON parse failures should be 4xx codes
-area: Infra/Core
-type: bug
-issues: []

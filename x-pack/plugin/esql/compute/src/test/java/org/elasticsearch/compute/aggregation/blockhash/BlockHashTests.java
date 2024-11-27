@@ -20,12 +20,15 @@ import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BooleanBlock;
 import org.elasticsearch.compute.data.BytesRefBlock;
+import org.elasticsearch.compute.data.BytesRefVector;
 import org.elasticsearch.compute.data.DoubleBlock;
 import org.elasticsearch.compute.data.ElementType;
 import org.elasticsearch.compute.data.IntBlock;
 import org.elasticsearch.compute.data.IntVector;
 import org.elasticsearch.compute.data.LongBlock;
 import org.elasticsearch.compute.data.MockBlockFactory;
+import org.elasticsearch.compute.data.OrdinalBytesRefBlock;
+import org.elasticsearch.compute.data.OrdinalBytesRefVector;
 import org.elasticsearch.compute.data.Page;
 import org.elasticsearch.compute.data.TestBlockFactory;
 import org.elasticsearch.core.Releasable;
@@ -457,6 +460,133 @@ public class BlockHashTests extends ESTestCase {
                 }
                 assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 4)));
             }, builder);
+        }
+    }
+
+    public void testBasicOrdinals() {
+        try (
+            IntVector.Builder ords = blockFactory.newIntVectorFixedBuilder(8);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(8)
+        ) {
+            ords.appendInt(1);
+            ords.appendInt(0);
+            ords.appendInt(3);
+            ords.appendInt(1);
+            ords.appendInt(3);
+            ords.appendInt(0);
+            ords.appendInt(2);
+            ords.appendInt(3);
+            bytes.appendBytesRef(new BytesRef("item-1"));
+            bytes.appendBytesRef(new BytesRef("item-2"));
+            bytes.appendBytesRef(new BytesRef("item-3"));
+            bytes.appendBytesRef(new BytesRef("item-4"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords, 0, 1, 2, 0, 2, 1, 3, 2);
+                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 4)));
+                    assertKeys(ordsAndKeys.keys, "item-2", "item-1", "item-4", "item-3");
+                } else {
+                    assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=4, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b, seenNull=false}"));
+                    assertOrds(ordsAndKeys.ords, 2, 1, 4, 2, 4, 1, 3, 4);
+                    assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(1, 5)));
+                    assertKeys(ordsAndKeys.keys, "item-1", "item-2", "item-3", "item-4");
+                }
+            }, new OrdinalBytesRefVector(ords.build(), bytes.build()).asBlock());
+        }
+    }
+
+    public void testOrdinalsWithNulls() {
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(4);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(2)
+        ) {
+            ords.appendInt(0);
+            ords.appendNull();
+            ords.appendInt(1);
+            ords.appendNull();
+            bytes.appendBytesRef(new BytesRef("cat"));
+            bytes.appendBytesRef(new BytesRef("dog"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=3, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b}"));
+                    assertOrds(ordsAndKeys.ords, 0, 1, 2, 1);
+                    assertKeys(ordsAndKeys.keys, "cat", null, "dog");
+                } else {
+                    assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=2, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b, seenNull=true}"));
+                    assertOrds(ordsAndKeys.ords, 1, 0, 2, 0);
+                    assertKeys(ordsAndKeys.keys, null, "cat", "dog");
+                }
+                assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 3)));
+            }, new OrdinalBytesRefBlock(ords.build(), bytes.build()));
+        }
+    }
+
+    public void testOrdinalsWithMultiValuedFields() {
+        try (
+            IntBlock.Builder ords = blockFactory.newIntBlockBuilder(4);
+            BytesRefVector.Builder bytes = blockFactory.newBytesRefVectorBuilder(2)
+        ) {
+            ords.appendInt(0);
+            ords.beginPositionEntry();
+            ords.appendInt(0);
+            ords.appendInt(1);
+            ords.endPositionEntry();
+            ords.beginPositionEntry();
+            ords.appendInt(1);
+            ords.appendInt(2);
+            ords.endPositionEntry();
+            ords.beginPositionEntry();
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.endPositionEntry();
+            ords.appendNull();
+            ords.beginPositionEntry();
+            ords.appendInt(2);
+            ords.appendInt(2);
+            ords.appendInt(1);
+            ords.endPositionEntry();
+
+            bytes.appendBytesRef(new BytesRef("foo"));
+            bytes.appendBytesRef(new BytesRef("bar"));
+            bytes.appendBytesRef(new BytesRef("bort"));
+
+            hash(ordsAndKeys -> {
+                if (forcePackedHash) {
+                    assertThat(ordsAndKeys.description, startsWith("PackedValuesBlockHash{groups=[0:BYTES_REF], entries=4, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b}"));
+                    assertOrds(
+                        ordsAndKeys.ords,
+                        new int[] { 0 },
+                        new int[] { 0, 1 },
+                        new int[] { 1, 2 },
+                        new int[] { 2, 1 },
+                        new int[] { 3 },
+                        new int[] { 2, 1 }
+                    );
+                    assertKeys(ordsAndKeys.keys, "foo", "bar", "bort", null);
+                } else {
+                    assertThat(ordsAndKeys.description, startsWith("BytesRefBlockHash{channel=0, entries=3, size="));
+                    assertThat(ordsAndKeys.description, endsWith("b, seenNull=true}"));
+                    assertOrds(
+                        ordsAndKeys.ords,
+                        new int[] { 1 },
+                        new int[] { 1, 2 },
+                        new int[] { 2, 3 },
+                        new int[] { 3, 2 },
+                        new int[] { 0 },
+                        new int[] { 3, 2 }
+                    );
+                    assertKeys(ordsAndKeys.keys, null, "foo", "bar", "bort");
+                }
+                assertThat(ordsAndKeys.nonEmpty, equalTo(intRange(0, 4)));
+            }, new OrdinalBytesRefBlock(ords.build(), bytes.build()));
         }
     }
 
@@ -1017,7 +1147,7 @@ public class BlockHashTests extends ESTestCase {
                 } else {
                     assertThat(
                         ordsAndKeys.description,
-                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=491b}")
+                        equalTo("BytesRefLongBlockHash{keys=[BytesRefKey[channel=1], LongKey[channel=0]], entries=9, size=483b}")
                     );
                     assertOrds(
                         ordsAndKeys.ords,
@@ -1168,7 +1298,9 @@ public class BlockHashTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
             });
             hash2.add(page, new GroupingAggregatorFunction.AddInput() {
                 @Override
@@ -1184,7 +1316,9 @@ public class BlockHashTests extends ESTestCase {
                 }
 
                 @Override
-                public void close() {}
+                public void close() {
+                    fail("hashes should not close AddInput");
+                }
             });
             assertThat(output1.size(), equalTo(output1.size()));
             for (int i = 0; i < output1.size(); i++) {
@@ -1305,10 +1439,13 @@ public class BlockHashTests extends ESTestCase {
             }
 
             @Override
-            public void close() {}
+            public void close() {
+                fail("hashes should not close AddInput");
+            }
         });
         if (blockHash instanceof LongLongBlockHash == false
             && blockHash instanceof BytesRefLongBlockHash == false
+            && blockHash instanceof BytesRef2BlockHash == false
             && blockHash instanceof BytesRef3BlockHash == false) {
             Block[] keys = blockHash.getKeys();
             try (ReleasableIterator<IntBlock> lookup = blockHash.lookup(new Page(keys), ByteSizeValue.ofKb(between(1, 100)))) {

@@ -231,7 +231,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
     // sys prop to disable the field has value feature, defaults to true (enabled) if set to false (disabled) the
     // field caps always returns empty fields ignoring the value of the query param `field_caps_empty_fields_filter`.
-    private final boolean enableFieldHasValue = Booleans.parseBoolean(
+    private static final boolean enableFieldHasValue = Booleans.parseBoolean(
         System.getProperty("es.field_caps_empty_fields_filter", Boolean.TRUE.toString())
     );
 
@@ -3860,8 +3860,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
      * listener handles all exception cases internally.
      */
     public final void syncAfterWrite(Translog.Location location, Consumer<Exception> syncListener) {
-        // TODO AwaitsFix https://github.com/elastic/elasticsearch/issues/97183
-        // assert indexShardOperationPermits.getActiveOperationsCount() != 0;
+        assert indexShardOperationPermits.getActiveOperationsCount() != 0;
         verifyNotClosed();
         getEngine().asyncEnsureTranslogSynced(location, syncListener);
     }
@@ -4080,7 +4079,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
 
         @Override
         public void afterRefresh(boolean didRefresh) {
-            if (enableFieldHasValue) {
+            if (enableFieldHasValue && (didRefresh || fieldInfos == FieldInfos.EMPTY)) {
                 try (Engine.Searcher hasValueSearcher = getEngine().acquireSearcher("field_has_value")) {
                     setFieldInfos(FieldInfos.getMergedFieldInfos(hasValueSearcher.getIndexReader()));
                 } catch (AlreadyClosedException ignore) {

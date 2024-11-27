@@ -332,17 +332,33 @@ public class Annotation implements ToXContentObject, Writeable {
     public XContentBuilder toXContent(XContentBuilder builder, Params params) throws IOException {
         builder.startObject();
         builder.field(ANNOTATION.getPreferredName(), annotation);
-        builder.timeField(CREATE_TIME.getPreferredName(), CREATE_TIME.getPreferredName() + "_string", createTime.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            CREATE_TIME.getPreferredName(),
+            CREATE_TIME.getPreferredName() + "_string",
+            createTime.getTime()
+        );
         builder.field(CREATE_USERNAME.getPreferredName(), createUsername);
-        builder.timeField(TIMESTAMP.getPreferredName(), TIMESTAMP.getPreferredName() + "_string", timestamp.getTime());
+        builder.timestampFieldsFromUnixEpochMillis(
+            TIMESTAMP.getPreferredName(),
+            TIMESTAMP.getPreferredName() + "_string",
+            timestamp.getTime()
+        );
         if (endTimestamp != null) {
-            builder.timeField(END_TIMESTAMP.getPreferredName(), END_TIMESTAMP.getPreferredName() + "_string", endTimestamp.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                END_TIMESTAMP.getPreferredName(),
+                END_TIMESTAMP.getPreferredName() + "_string",
+                endTimestamp.getTime()
+            );
         }
         if (jobId != null) {
             builder.field(Job.ID.getPreferredName(), jobId);
         }
         if (modifiedTime != null) {
-            builder.timeField(MODIFIED_TIME.getPreferredName(), MODIFIED_TIME.getPreferredName() + "_string", modifiedTime.getTime());
+            builder.timestampFieldsFromUnixEpochMillis(
+                MODIFIED_TIME.getPreferredName(),
+                MODIFIED_TIME.getPreferredName() + "_string",
+                modifiedTime.getTime()
+            );
         }
         if (modifiedUsername != null) {
             builder.field(MODIFIED_USERNAME.getPreferredName(), modifiedUsername);

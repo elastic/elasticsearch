@@ -300,7 +300,6 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         restoreMountAndVerify(numDocs, expectedIds, numberOfShards, sourceOnlyRepository, indexName, repoName, snapshotName);
 
         // TODO restart current cluster
-
         // ensureGreen("restored_" + indexName);
         // ensureGreen("mounted_full_copy_" + indexName);
         // ensureGreen("mounted_shared_cache_" + indexName);
@@ -496,7 +495,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 logger.info(searchResponse);
                 assertEquals(0, searchResponse.getHits().getTotalHits().value());
                 assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
-                // TODO the following is https://github.com/elastic/elasticsearch/issues/115631, commenting out here to reduce the noise
+                // TODO the following is a failure tracked in https://github.com/elastic/elasticsearch/issues/115631
+                // commenting out here to reduce the noise
                 // assertEquals(numberOfShards, searchResponse.getSkippedShards());
             } finally {
                 searchResponse.decRef();

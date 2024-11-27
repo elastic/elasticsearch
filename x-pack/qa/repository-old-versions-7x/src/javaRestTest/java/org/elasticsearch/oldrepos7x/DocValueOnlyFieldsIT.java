@@ -30,6 +30,7 @@ import org.junit.rules.TestRule;
 
 import java.io.IOException;
 import java.util.List;
+import java.util.function.Supplier;
 
 /**
  * Tests doc-value-based searches against indices imported from clusters older than N-1.
@@ -43,11 +44,9 @@ import java.util.List;
  */
 public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
-    static final Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    static boolean repoRestored;
-
-    public static TemporaryFolder repoDirectory = new TemporaryFolder();
-
+    private static final Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
+    private static boolean repoRestored = false;
+    private static final TemporaryFolder repoDirectory = new TemporaryFolder();
     public static ElasticsearchCluster currentCluster = ElasticsearchCluster.local()
         .distribution(DistributionType.DEFAULT)
         .nodes(2)
@@ -72,7 +71,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     private static final String REPO_NAME = "doc_values_repo";
     private static final String INDEX_NAME = "test";
     private static final String snapshotName = "snap";
-    private static String repoLocation;
+    private static final Supplier<String> repoLocation = () -> repoDirectory.getRoot().getPath();
 
     public DocValueOnlyFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
         super(testCandidate);
@@ -96,7 +95,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     @BeforeClass
     public static void setupSnapshot() throws IOException {
-        repoLocation = repoDirectory.getRoot().getPath();
         String[] basicTypes = new String[] {
             "byte",
             "double",
@@ -174,7 +172,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + REPO_NAME);
             createRepoRequest.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
+                """, repoLocation.get()));
             assertOK(oldEs.performRequest(createRepoRequest));
 
             Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + REPO_NAME + "/" + snapshotName);
@@ -186,14 +184,15 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     @Before
     public void registerAndRestoreRepo() throws IOException {
-        // The following is bit of a hack. While we wish we could make this an @BeforeClass, it does not work because the client() is only
-        // initialized later, so we do it when running the first test
+        // Ideally we could restore the repo on the "current" cluster in @BeforeClass, but that
+        // does not work because the client() is not initialized then.
+        // To restore only once we guard this operation by a flag.
         if (repoRestored == false) {
             // register repo on new ES and restore snapshot
             Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + REPO_NAME);
             createRepoRequest2.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
+                """, repoLocation.get()));
             assertOK(client().performRequest(createRepoRequest2));
 
             final Request createRestoreRequest = new Request("POST", "/_snapshot/" + REPO_NAME + "/" + snapshotName + "/_restore");
@@ -203,7 +202,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
             repoRestored = true;
         }
-        logger.info("repo [" + REPO_NAME + "] restored");
+        logger.info("Repo [" + REPO_NAME + "] restored.");
     }
 
     @Override

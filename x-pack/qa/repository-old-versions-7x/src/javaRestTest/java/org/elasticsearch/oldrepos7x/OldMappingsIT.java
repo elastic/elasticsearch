@@ -33,6 +33,7 @@ import java.io.IOException;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
+import java.util.function.Supplier;
 import java.util.stream.Collectors;
 
 import static org.hamcrest.Matchers.containsString;
@@ -67,9 +68,9 @@ public class OldMappingsIT extends ESRestTestCase {
     public static TestRule ruleChain = RuleChain.outerRule(repoDirectory).around(oldCluster).around(currentCluster);
 
     private static boolean repoRestored = false;
-    private static String repoLocation;
-    private static String repoName;
-    private static String snapshotName;
+    private static final Supplier<String> repoLocation = () -> repoDirectory.getRoot().getPath();
+    private static final String repoName = "old_mappings_repo";
+    private static final String snapshotName = "snap";
 
     @Override
     protected String getTestRestCluster() {
@@ -96,15 +97,9 @@ public class OldMappingsIT extends ESRestTestCase {
 
     @BeforeClass
     public static void setupOldRepo() throws IOException {
-        repoLocation = repoDirectory.getRoot().getPath();
-
-        repoName = "old_mappings_repo";
-        snapshotName = "snap";
-
         List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses(), (host, port) -> new HttpHost(host, port));
         try (RestClient oldEsClient = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build();) {
             assertOK(oldEsClient.performRequest(createIndex("filebeat", "filebeat.json")));
-
             assertOK(oldEsClient.performRequest(createIndex("custom", "custom.json")));
             assertOK(oldEsClient.performRequest(createIndex("nested", "nested.json")));
 
@@ -158,13 +153,13 @@ public class OldMappingsIT extends ESRestTestCase {
 
             Request getSettingsRequest = new Request("GET", "/_cluster/settings?include_defaults=true");
             Map<String, Object> response = entityAsMap(oldEsClient.performRequest(getSettingsRequest));
-            assertEquals(repoLocation, ((List<?>) (XContentMapValues.extractValue("defaults.path.repo", response))).get(0));
+            assertEquals(repoLocation.get(), ((List<?>) (XContentMapValues.extractValue("defaults.path.repo", response))).get(0));
 
             // register repo on old ES and take snapshot
             Request createRepoRequest = new Request("PUT", "/_snapshot/" + repoName);
             createRepoRequest.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
+                """, repoLocation.get()));
             assertOK(oldEsClient.performRequest(createRepoRequest));
 
             Request createSnapshotRequest = new Request("PUT", "/_snapshot/" + repoName + "/" + snapshotName);
@@ -185,7 +180,7 @@ public class OldMappingsIT extends ESRestTestCase {
             Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + repoName);
             createRepoRequest2.setJsonEntity(Strings.format("""
                 {"type":"fs","settings":{"location":"%s"}}
-                """, repoLocation));
+                """, repoLocation.get()));
             assertOK(client().performRequest(createRepoRequest2));
 
             final Request createRestoreRequest = new Request("POST", "/_snapshot/" + repoName + "/" + snapshotName + "/_restore");

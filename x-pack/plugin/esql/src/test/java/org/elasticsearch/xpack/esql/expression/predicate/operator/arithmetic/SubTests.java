@@ -117,7 +117,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataType.DATETIME,
@@ -130,7 +130,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATE_PERIOD, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.DATE_PERIOD, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.DATE_PERIOD,
@@ -143,7 +143,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             TestCaseSupplier.TestCase testCase = new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.DATETIME, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
                 "SubDatetimesEvaluator[lhs=Attribute[channel=0], rhs=Attribute[channel=1]]",
                 DataType.DATETIME,
@@ -157,7 +157,7 @@ public class SubTests extends AbstractScalarFunctionTestCase {
             return new TestCaseSupplier.TestCase(
                 List.of(
                     new TestCaseSupplier.TypedData(lhs, DataType.TIME_DURATION, "lhs"),
-                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs")
+                    new TestCaseSupplier.TypedData(rhs, DataType.TIME_DURATION, "rhs").forceLiteral()
                 ),
                 "Only folding possible, so there's no evaluator",
                 DataType.TIME_DURATION,

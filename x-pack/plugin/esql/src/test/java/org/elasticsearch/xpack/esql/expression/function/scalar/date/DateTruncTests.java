@@ -139,7 +139,7 @@ public class DateTruncTests extends AbstractScalarFunctionTestCase {
                     new TestCaseSupplier.TypedData(Duration.ofSeconds(1), DataType.TIME_DURATION, "interval").forceLiteral(),
                     new TestCaseSupplier.TypedData(toMillis(dateFragment + ".38Z"), DataType.DATETIME, "date")
                 ),
-                "DateTruncDatetimeEvaluator[date=Attribute[channel=1], interval=Attribute[channel=0]]",
+                Matchers.startsWith("DateTruncDatetimeEvaluator[fieldVal=Attribute[channel=0], rounding=Rounding["),
                 DataType.DATETIME,
                 equalTo(toMillis(dateFragment + ".00Z"))
             );

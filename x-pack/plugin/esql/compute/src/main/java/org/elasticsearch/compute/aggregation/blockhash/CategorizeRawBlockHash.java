@@ -105,9 +105,11 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
                         continue;
                     }
                     int end = first + count;
+                    result.beginPositionEntry();
                     for (int i = first; i < end; i++) {
                         result.appendInt(process(vBlock.getBytesRef(i, vScratch)));
                     }
+                    result.endPositionEntry();
                 }
                 return result.build();
             }

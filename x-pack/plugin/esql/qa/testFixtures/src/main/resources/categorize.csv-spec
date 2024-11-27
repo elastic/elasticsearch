@@ -36,28 +36,28 @@ mv
 required_capability: categorize_v2
 
 FROM mv_sample_data
-  | STATS COUNT() BY category=CATEGORIZE(message)
+  | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(message)
   | SORT category
 ;
 
-COUNT():long | category:keyword
-           7 | .*?Banana.*?
-           3 | .*?Connected.+?to.*?
-           3 | .*?Connection.+?error.*?
-           1 | .*?Disconnected.*?
+COUNT():long | SUM(event_duration):long | category:keyword
+           7 |                 23231327 | .*?Banana.*?
+           3 |                  7971589 | .*?Connected.+?to.*?
+           3 |                 14027356 | .*?Connection.+?error.*?
+           1 |                  1232382 | .*?Disconnected.*?
 ;
 
 row mv
 required_capability: categorize_v2
 
-ROW message = ["connected to a", "connected to b", "disconnected"]
-  | STATS COUNT() BY category=CATEGORIZE(message)
+ROW message = ["connected to a", "connected to b", "disconnected"], str = ["a", "b", "c"]
+  | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)
   | SORT category
 ;
 
-COUNT():long | category:keyword
-           2 | .*?connected.+?to.*?
-           1 | .*?disconnected.*?
+COUNT():long | VALUES(str):keyword | category:keyword
+           2 | [a, b, c]           | .*?connected.+?to.*?
+           1 | [a, b, c]           | .*?disconnected.*?
 ;
 
 with multiple indices
@@ -90,6 +90,22 @@ COUNT():long | category:keyword
            11 | .*?Business.+?Analyst.*?
            13 | .*?Data.+?Scientist.*?
            10 | .*?Head.+?Human.+?Resources.*?
+;
+
+# Throws when calling AbstractCategorizeBlockHash.seenGroupIds() - Requires nulls support?
+mv with many values-Ignore
+required_capability: categorize_v2
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
+  | SORT category DESC
+  | LIMIT 3
+;
+
+SUM(languages):integer | category:keyword
+                    43 | .*?Accountant.*?
+                    46 | .*?Architect.*?
+                    35 | .*?Business.+?Analyst.*?
 ;
 
 mv via eval

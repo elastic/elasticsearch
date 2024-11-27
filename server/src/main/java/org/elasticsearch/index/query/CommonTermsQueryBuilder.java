@@ -15,9 +15,6 @@ import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.ParsingException;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
-import org.elasticsearch.core.UpdateForV9;
-import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentParser;
 
@@ -27,10 +24,6 @@ public class CommonTermsQueryBuilder extends AbstractQueryBuilder<CommonTermsQue
     private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(CommonTermsQueryBuilder.class);
     public static final String COMMON_TERMS_QUERY_DEPRECATION_MSG = "Common Terms Query usage is not supported. "
         + "Use [match] query which can efficiently skip blocks of documents if the total number of hits is not tracked.";
-
-    @UpdateForV9(owner = UpdateForV9.Owner.SEARCH_RELEVANCE) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
-    public static ParseField NAME_V7 = new ParseField("common").withAllDeprecated(COMMON_TERMS_QUERY_DEPRECATION_MSG)
-        .forRestApiVersion(RestApiVersion.equalTo(RestApiVersion.V_7));
 
     @Override
     protected void doWriteTo(StreamOutput out) throws IOException {

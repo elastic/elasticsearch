@@ -1772,6 +1772,7 @@ public class TransportSearchActionTests extends ESTestCase {
                 new NoneCircuitBreakerService(),
                 transportService,
                 searchService,
+                null,
                 new SearchTransportService(transportService, client, null),
                 null,
                 clusterService,

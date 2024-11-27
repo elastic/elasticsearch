@@ -138,7 +138,7 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         Function<String, BlobLocation> uploadedBlobLocationsSupplier,
         LongSupplier timeInMillisSupplier,
         int cacheRegionSize,
-        double estimatedMaxHeaderSizeRatio
+        int estimatedMaxHeaderSizeInBytes
 
     ) {
         this.shardId = shardId;
@@ -150,10 +150,12 @@ public class VirtualBatchedCompoundCommit extends AbstractRefCounted implements 
         this.creationTimeInMillis = timeInMillisSupplier.getAsLong();
         this.notifiedSearchNodeIds = ConcurrentCollections.newConcurrentSet();
         this.cacheRegionSizeInBytes = cacheRegionSize;
-        if (estimatedMaxHeaderSizeRatio < 0.0 || 1.0 < estimatedMaxHeaderSizeRatio) {
-            throw new IllegalArgumentException("Must be 0.0 to 1.0 inclusive but got " + estimatedMaxHeaderSizeRatio);
+        if (estimatedMaxHeaderSizeInBytes < 0 || cacheRegionSizeInBytes < estimatedMaxHeaderSizeInBytes) {
+            throw new IllegalArgumentException(
+                "Must be 0.0 to " + cacheRegionSizeInBytes + " inclusive but got " + estimatedMaxHeaderSizeInBytes
+            );
         }
-        this.estimatedMaxHeaderSizeInBytes = (int) (estimatedMaxHeaderSizeRatio * cacheRegionSize);
+        this.estimatedMaxHeaderSizeInBytes = estimatedMaxHeaderSizeInBytes;
     }
 
     public void addNotifiedSearchNodeIds(Collection<String> nodeIds) {

@@ -40,6 +40,7 @@ import org.apache.lucene.index.SegmentCommitInfo;
 import org.elasticsearch.ExceptionsHelper;
 import org.elasticsearch.action.ActionListener;
 import org.elasticsearch.action.support.PlainActionFuture;
+import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.UnsafePlainActionFuture;
 import org.elasticsearch.blobcache.BlobCacheMetrics;
@@ -188,6 +189,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(
+                StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(),
+                ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
+            )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .build();
         var indexNodeA = startIndexNode(nodeSettings);
@@ -210,11 +215,27 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
         var indexNodeB = startIndexNode(nodeSettings);
         ensureStableCluster(3);
 
-        failObjectStoreAndFetchFromIndexingNodeAfterPrewarming(indexName, indexNodeB, Type.INDEXING);
-
-        final var waitForWarmingsCompleted = new CountDownLatch(2);
-        runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, ActionListener.releasing(waitForWarmingsCompleted::countDown));
-        runOnWarmingComplete(indexNodeB, Type.INDEXING, ActionListener.releasing(waitForWarmingsCompleted::countDown));
+        // wait for INDEXING_EARLY and INDEXING to be completed before blokcing access to the latest BCC.
+        final var waitForWarmingsCompleted = new CountDownLatch(1);
+        final long generationToBlock = getShardEngine(findIndexShard(indexName), IndexEngine.class).getCurrentGeneration();
+        try (var refs = new RefCountingListener(ActionListener.runAfter(ActionListener.running(() -> {
+            logger.info("--> fail object store repository after warming");
+            var mockRepository = getObjectStoreMockRepository(getObjectStoreService(indexNodeB));
+            var transportService = MockTransportService.getInstance(indexNodeB);
+            mockRepository.setRandomControlIOExceptionRate(1.0);
+            mockRepository.setRandomDataFileIOExceptionRate(1.0);
+            mockRepository.setMaximumNumberOfFailures(Long.MAX_VALUE);
+            mockRepository.setRandomIOExceptionPattern(".*" + StatelessCompoundCommit.blobNameFromGeneration(generationToBlock) + ".*");
+            transportService.addSendBehavior((connection, requestId, action, request, options) -> {
+                if (action.equals(TransportGetVirtualBatchedCompoundCommitChunkAction.NAME + "[p]")) {
+                    assert false : "should not have sent a request for VBCC data to the indexing node but sent request " + request;
+                }
+                connection.sendRequest(requestId, action, request, options);
+            });
+        }), waitForWarmingsCompleted::countDown))) {
+            runOnWarmingComplete(indexNodeB, Type.INDEXING_EARLY, refs.acquire().map(ignored -> null));
+            runOnWarmingComplete(indexNodeB, Type.INDEXING, refs.acquire().map(ignored -> null));
+        }
 
         assertThatLogger(() -> {
             var shutdownNodeId = client().admin()
@@ -258,6 +279,10 @@ public class SharedBlobCacheWarmingServiceIT extends AbstractStatelessIntegTestC
             .put(SharedBlobCacheService.SHARED_CACHE_SIZE_SETTING.getKey(), CACHE_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_REGION_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
             .put(SharedBlobCacheService.SHARED_CACHE_RANGE_SIZE_SETTING.getKey(), REGION_SIZE.getStringRep())
+            .put(
+                StatelessCommitService.STATELESS_UPLOAD_MAX_SIZE.getKey(),
+                ByteSizeValue.ofBytes((long) (REGION_SIZE.getBytes() * 0.06d)).getStringRep()
+            )
             .put(StatelessCommitService.STATELESS_COMMIT_USE_INTERNAL_FILES_REPLICATED_CONTENT.getKey(), randomBoolean())
             .build();
         var indexNodeA = startIndexNode(nodeSettings);

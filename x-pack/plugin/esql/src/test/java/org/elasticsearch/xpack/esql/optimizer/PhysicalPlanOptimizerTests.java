@@ -36,7 +36,6 @@ import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats;
 import org.elasticsearch.xpack.esql.EsqlTestUtils.TestConfigurableSearchStats.Config;
 import org.elasticsearch.xpack.esql.VerificationException;
-import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
 import org.elasticsearch.xpack.esql.analysis.AnalyzerContext;
 import org.elasticsearch.xpack.esql.analysis.EnrichResolution;
@@ -6584,7 +6583,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScore() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")
@@ -6611,7 +6609,6 @@ public class PhysicalPlanOptimizerTests extends ESTestCase {
     }
 
     public void testScoreTopN() {
-        assumeTrue("'METADATA _score' is disabled", EsqlCapabilities.Cap.METADATA_SCORE.isEnabled());
         var plan = physicalPlan("""
             from test metadata _score
             | where match(first_name, "john")

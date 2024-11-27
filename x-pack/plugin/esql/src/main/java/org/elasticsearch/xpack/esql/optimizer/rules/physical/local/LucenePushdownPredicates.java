@@ -61,10 +61,7 @@ public interface LucenePushdownPredicates {
     }
 
     default boolean isPushableMetadataAttribute(Expression exp) {
-        if (exp instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE)) {
-            return true;
-        }
-        return false;
+        return exp instanceof MetadataAttribute ma && ma.name().equals(MetadataAttribute.SCORE);
     }
 
     /**

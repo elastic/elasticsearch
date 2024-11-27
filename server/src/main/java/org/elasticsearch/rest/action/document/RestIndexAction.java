@@ -124,7 +124,7 @@ public class RestIndexAction extends BaseRestHandler {
             request.param("type"); // consume and ignore the type
         }
 
-        ReleasableBytesReference source = request.requiredReleasableContent();
+        ReleasableBytesReference source = request.requiredContent();
         IndexRequest indexRequest = new IndexRequest(request.param("index"));
         indexRequest.id(request.param("id"));
         indexRequest.routing(request.param("routing"));

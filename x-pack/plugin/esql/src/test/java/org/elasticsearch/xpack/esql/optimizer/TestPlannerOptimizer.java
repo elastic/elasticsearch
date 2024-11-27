@@ -9,7 +9,6 @@ package org.elasticsearch.xpack.esql.optimizer;
 
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
 import org.elasticsearch.xpack.esql.analysis.Analyzer;
-import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.parser.EsqlParser;
 import org.elasticsearch.xpack.esql.plan.physical.EstimatesRowSize;
 import org.elasticsearch.xpack.esql.plan.physical.PhysicalPlan;
@@ -23,19 +22,22 @@ public class TestPlannerOptimizer {
     private final Analyzer analyzer;
     private final LogicalPlanOptimizer logicalOptimizer;
     private final PhysicalPlanOptimizer physicalPlanOptimizer;
-    private final EsqlFunctionRegistry functionRegistry;
     private final Mapper mapper;
     private final Configuration config;
 
     public TestPlannerOptimizer(Configuration config, Analyzer analyzer) {
+        this(config, analyzer, new LogicalPlanOptimizer(new LogicalOptimizerContext(config)));
+    }
+
+    public TestPlannerOptimizer(Configuration config, Analyzer analyzer, LogicalPlanOptimizer logicalOptimizer) {
         this.analyzer = analyzer;
         this.config = config;
+        this.logicalOptimizer = logicalOptimizer;
 
         parser = new EsqlParser();
-        logicalOptimizer = new LogicalPlanOptimizer(new LogicalOptimizerContext(config));
         physicalPlanOptimizer = new PhysicalPlanOptimizer(new PhysicalOptimizerContext(config));
-        functionRegistry = new EsqlFunctionRegistry();
         mapper = new Mapper();
+
     }
 
     public PhysicalPlan plan(String query) {

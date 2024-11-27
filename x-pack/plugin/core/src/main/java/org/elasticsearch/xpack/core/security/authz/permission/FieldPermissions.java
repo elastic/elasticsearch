@@ -18,6 +18,9 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.regex.Regex;
 import org.elasticsearch.common.util.CollectionUtils;
+import org.elasticsearch.common.util.set.Sets;
+import org.elasticsearch.index.mapper.SeqNoFieldMapper;
+import org.elasticsearch.indices.IndicesModule;
 import org.elasticsearch.plugins.FieldPredicate;
 import org.elasticsearch.xpack.core.security.authz.accesscontrol.FieldSubsetReader;
 import org.elasticsearch.xpack.core.security.authz.permission.FieldPermissionsDefinition.FieldGrantExcludeGroup;
@@ -44,6 +47,8 @@ import java.util.stream.Collectors;
 public final class FieldPermissions implements Accountable, CacheKey {
 
     public static final FieldPermissions DEFAULT = new FieldPermissions();
+
+    private static final Automaton METADATA_FIELDS_ALLOWLIST_AUTOMATON = Automatons.patterns(getMetadataFieldsAllowlist());
 
     private static final long BASE_FIELD_PERM_DEF_BYTES = RamUsageEstimator.shallowSizeOf(new FieldPermissionsDefinition(null, null));
     private static final long BASE_FIELD_GROUP_BYTES = RamUsageEstimator.shallowSizeOf(new FieldGrantExcludeGroup(null, null));
@@ -133,6 +138,16 @@ public final class FieldPermissions implements Accountable, CacheKey {
         return ramBytesUsed;
     }
 
+    private static Set<String> getMetadataFieldsAllowlist() {
+        return Sets.addToCopy(
+            IndicesModule.getBuiltInMetadataFields(),
+            // not returned as builtin field because it doesn't have a registered mapper
+            SeqNoFieldMapper.PRIMARY_TERM_NAME,
+            // size mapper plugin -- included because it's explicitly documented as a field that gets default access granted
+            "_size"
+        );
+    }
+
     /**
      * Return an estimation of the ram bytes used by a {@link CharacterRunAutomaton}
      * that wraps the given automaton.
@@ -159,10 +174,7 @@ public final class FieldPermissions implements Accountable, CacheKey {
         if (grantedFields == null || Arrays.stream(grantedFields).anyMatch(Regex::isMatchAllPattern)) {
             grantedFieldsAutomaton = Automatons.MATCH_ALL;
         } else {
-            // an automaton that includes metadata fields, including join fields created by the _parent field such
-            // as _parent#type
-            Automaton metaFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
-            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), metaFieldsAutomaton);
+            grantedFieldsAutomaton = Operations.union(Automatons.patterns(grantedFields), METADATA_FIELDS_ALLOWLIST_AUTOMATON);
         }
 
         Automaton deniedFieldsAutomaton;
@@ -180,13 +192,25 @@ public final class FieldPermissions implements Accountable, CacheKey {
         );
 
         if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsAutomaton) == false) {
-            throw new ElasticsearchSecurityException(
-                "Exceptions for field permissions must be a subset of the "
-                    + "granted fields but "
-                    + Strings.arrayToCommaDelimitedString(deniedFields)
-                    + " is not a subset of "
-                    + Strings.arrayToCommaDelimitedString(grantedFields)
+            // TODO optimize this: we don't want to break existing roles completely, so we need to account for denied fields
+            // that cover the "_*" pattern, since this was previously supported
+            final Automaton legacyMetadataFieldsAutomaton = Operations.concatenate(Automata.makeChar('_'), Automata.makeAnyString());
+            final Automaton grantedFieldsWithLegacyMetadataFieldsAutomaton = Operations.removeDeadStates(
+                Operations.determinize(
+                    Operations.union(grantedFieldsAutomaton, legacyMetadataFieldsAutomaton),
+                    Operations.DEFAULT_DETERMINIZE_WORK_LIMIT
+                )
             );
+            if (Automatons.subsetOf(deniedFieldsAutomaton, grantedFieldsWithLegacyMetadataFieldsAutomaton) == false) {
+                throw new ElasticsearchSecurityException(
+                    "Exceptions for field permissions must be a subset of the "
+                        + "granted fields but "
+                        + Strings.arrayToCommaDelimitedString(deniedFields)
+                        + " is not a subset of "
+                        + Strings.arrayToCommaDelimitedString(grantedFields)
+                );
+            }
+            // log something?
         }
 
         grantedFieldsAutomaton = Automatons.minusAndDeterminize(grantedFieldsAutomaton, deniedFieldsAutomaton);

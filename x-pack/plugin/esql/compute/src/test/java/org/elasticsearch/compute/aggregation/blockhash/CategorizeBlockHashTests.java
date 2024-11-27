@@ -53,6 +53,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     public void testCategorizeRaw() {
         final Page page;
         final int positions = 7;
+        boolean withNull = randomBoolean();
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -61,6 +62,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("Disconnected"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.2"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
             page = new Page(builder.build());
         }
 
@@ -70,13 +78,16 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions);
 
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
+                    assertEquals(1, groupIds.getInt(0));
+                    assertEquals(2, groupIds.getInt(1));
+                    assertEquals(2, groupIds.getInt(2));
+                    assertEquals(2, groupIds.getInt(3));
+                    assertEquals(3, groupIds.getInt(4));
+                    assertEquals(1, groupIds.getInt(5));
+                    assertEquals(1, groupIds.getInt(6));
+                    if (withNull) {
+                        assertEquals(0, groupIds.getInt(7));
+                    }
                 }
 
                 @Override
@@ -101,6 +112,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
     public void testCategorizeIntermediate() {
         Page page1;
         int positions1 = 7;
+        boolean withNull = randomBoolean();
         try (BytesRefBlock.Builder builder = blockFactory.newBytesRefBlockBuilder(positions1)) {
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.1"));
             builder.appendBytesRef(new BytesRef("Connection error"));
@@ -109,6 +121,13 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             builder.appendBytesRef(new BytesRef("Connection error"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.3"));
             builder.appendBytesRef(new BytesRef("Connected to 10.1.0.4"));
+            if (withNull) {
+                if (randomBoolean()) {
+                    builder.appendNull();
+                } else {
+                    builder.appendBytesRef(new BytesRef(""));
+                }
+            }
             page1 = new Page(builder.build());
         }
         Page page2;
@@ -133,13 +152,16 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions1);
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(1, groupIds.getInt(2));
-                    assertEquals(0, groupIds.getInt(3));
-                    assertEquals(1, groupIds.getInt(4));
-                    assertEquals(0, groupIds.getInt(5));
-                    assertEquals(0, groupIds.getInt(6));
+                    assertEquals(1, groupIds.getInt(0));
+                    assertEquals(2, groupIds.getInt(1));
+                    assertEquals(2, groupIds.getInt(2));
+                    assertEquals(1, groupIds.getInt(3));
+                    assertEquals(2, groupIds.getInt(4));
+                    assertEquals(1, groupIds.getInt(5));
+                    assertEquals(1, groupIds.getInt(6));
+                    if (withNull) {
+                        assertEquals(0, groupIds.getInt(7));
+                    }
                 }
 
                 @Override
@@ -158,11 +180,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {
                     assertEquals(groupIds.getPositionCount(), positions2);
-                    assertEquals(0, groupIds.getInt(0));
-                    assertEquals(1, groupIds.getInt(1));
-                    assertEquals(0, groupIds.getInt(2));
-                    assertEquals(1, groupIds.getInt(3));
-                    assertEquals(2, groupIds.getInt(4));
+                    assertEquals(1, groupIds.getInt(0));
+                    assertEquals(2, groupIds.getInt(1));
+                    assertEquals(1, groupIds.getInt(2));
+                    assertEquals(2, groupIds.getInt(3));
+                    assertEquals(3, groupIds.getInt(4));
                 }
 
                 @Override
@@ -189,7 +211,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         .map(groupIds::getInt)
                         .boxed()
                         .collect(Collectors.toSet());
-                    assertEquals(values, Set.of(0, 1));
+                    if (withNull) {
+                        assertEquals(Set.of(1, 2), values);
+                    } else {
+                        assertEquals(Set.of(1, 2), values);
+                    }
                 }
 
                 @Override
@@ -212,7 +238,11 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
                         .collect(Collectors.toSet());
                     // The category IDs {0, 1, 2} should map to groups {0, 2, 3}, because
                     // 0 matches an existing category (Connected to ...), and the others are new.
-                    assertEquals(values, Set.of(0, 2, 3));
+                    if (withNull) {
+                        assertEquals(Set.of(0, 1, 3, 4), values);
+                    } else {
+                        assertEquals(Set.of(1, 3, 4), values);
+                    }
                 }
 
                 @Override

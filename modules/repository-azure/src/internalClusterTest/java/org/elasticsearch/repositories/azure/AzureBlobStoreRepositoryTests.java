@@ -9,7 +9,6 @@
 package org.elasticsearch.repositories.azure;
 
 import fixture.azure.AzureHttpHandler;
-import fixture.azure.MockAzureBlobStore;
 
 import com.azure.storage.common.policy.RequestRetryOptions;
 import com.azure.storage.common.policy.RetryPolicyType;
@@ -188,8 +187,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             super(
                 account,
                 container,
-                null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */,
-                MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE
+                null /* no auth header validation - sometimes it's omitted in these tests (TODO why?) */
             );
         }
     }

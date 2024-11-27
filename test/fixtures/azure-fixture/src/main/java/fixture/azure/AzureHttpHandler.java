@@ -66,6 +66,10 @@ public class AzureHttpHandler implements HttpHandler {
     private final Predicate<String> authHeaderPredicate;
     private final MockAzureBlobStore mockAzureBlobStore;
 
+    public AzureHttpHandler(String account, String container, Predicate<String> authHeaderPredicate) {
+        this(account, container, authHeaderPredicate, MockAzureBlobStore.LeaseExpiryPredicate.NEVER_EXPIRE);
+    }
+
     public AzureHttpHandler(
         final String account,
         final String container,

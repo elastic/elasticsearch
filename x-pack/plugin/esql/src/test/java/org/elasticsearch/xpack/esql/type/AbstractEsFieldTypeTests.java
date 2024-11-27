@@ -25,14 +25,13 @@ import java.util.TreeMap;
 
 public abstract class AbstractEsFieldTypeTests<T extends EsField> extends AbstractWireTestCase<EsField> {
     public static EsField randomAnyEsField(int maxDepth) {
-        return switch (between(0, 6)) {
+        return switch (between(0, 5)) {
             case 0 -> EsFieldTests.randomEsField(maxDepth);
             case 1 -> DateEsFieldTests.randomDateEsField(maxDepth);
             case 2 -> InvalidMappedFieldTests.randomInvalidMappedField(maxDepth);
             case 3 -> KeywordEsFieldTests.randomKeywordEsField(maxDepth);
             case 4 -> TextEsFieldTests.randomTextEsField(maxDepth);
-            case 5 -> SemanticTextEsFieldTests.randomSemanticTextEsField(maxDepth);
-            case 6 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth);
+            case 5 -> UnsupportedEsFieldTests.randomUnsupportedEsField(maxDepth);
             default -> throw new IllegalArgumentException();
         };
     }

@@ -2386,7 +2386,7 @@ public class AnalyzerTests extends ESTestCase {
             new FieldCapabilitiesIndexResponse("idx", "idx", Map.of(), true, IndexMode.STANDARD)
         );
         FieldCapabilitiesResponse caps = new FieldCapabilitiesResponse(idxResponses, List.of());
-        IndexResolution resolution = new IndexResolver(null, null).mergedMappings("test*", Map.of(), caps);
+        IndexResolution resolution = new IndexResolver(null).mergedMappings("test*", caps);
         var analyzer = analyzer(resolution, TEST_VERIFIER, configuration(query));
         return analyze(query, analyzer);
     }

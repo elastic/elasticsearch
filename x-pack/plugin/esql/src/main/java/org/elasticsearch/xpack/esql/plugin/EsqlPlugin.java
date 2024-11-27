@@ -113,10 +113,10 @@ public class EsqlPlugin extends Plugin implements ActionPlugin {
         setupSharedSecrets();
         return List.of(
             new PlanExecutor(
-                new IndexResolver(services.client(), services.clusterService()),
+                new IndexResolver(services.client()),
                 services.telemetryProvider().getMeterRegistry(),
                 getLicenseState(),
-                new InferenceResolver(services.client())
+                new InferenceResolver(services.client(), services.clusterService())
             ),
             new ExchangeService(services.clusterService().getSettings(), services.threadPool(), ThreadPool.Names.SEARCH, blockFactory),
             blockFactory

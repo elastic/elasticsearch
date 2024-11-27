@@ -16,7 +16,6 @@ import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.type.DateEsField;
 import org.elasticsearch.xpack.esql.core.type.EsField;
 import org.elasticsearch.xpack.esql.core.type.KeywordEsField;
-import org.elasticsearch.xpack.esql.core.type.SemanticTextEsField;
 import org.elasticsearch.xpack.esql.core.type.TextEsField;
 import org.elasticsearch.xpack.esql.core.type.UnsupportedEsField;
 import org.elasticsearch.xpack.esql.type.EsqlDataTypeRegistry;
@@ -111,9 +110,6 @@ public class LoadMapping {
                 field = new KeywordEsField(name, properties, docValues, length, normalized);
             } else if (esDataType == DATETIME) {
                 field = DateEsField.dateEsField(name, properties, docValues);
-            } else if (esDataType == SEMANTIC_TEXT) {
-                String inferenceId = textSetting(content.get("inference_id"), "test_inference_id");
-                field = new SemanticTextEsField(name, properties, docValues, false, Set.of(inferenceId));
             } else if (esDataType == UNSUPPORTED) {
                 String type = content.get("type").toString();
                 field = new UnsupportedEsField(name, type, null, properties);

@@ -84,7 +84,7 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         String[] indices = new String[] { "test" };
 
         Client qlClient = mock(Client.class);
-        IndexResolver idxResolver = new IndexResolver(qlClient, null);
+        IndexResolver idxResolver = new IndexResolver(qlClient);
         // simulate a valid field_caps response so we can parse and correctly analyze de query
         FieldCapabilitiesResponse fieldCapabilitiesResponse = mock(FieldCapabilitiesResponse.class);
         when(fieldCapabilitiesResponse.getIndices()).thenReturn(indices);
@@ -101,8 +101,8 @@ public class PlanExecutorMetricsTests extends ESTestCase {
         ClusterService clusterService = mock(ClusterService.class);
         when(clusterService.state()).thenReturn(new ClusterState.Builder(new ClusterName("name")).build());
 
-        IndexResolver indexResolver = new IndexResolver(esqlClient, clusterService);
-        InferenceResolver inferenceResolver = new InferenceResolver(esqlClient);
+        IndexResolver indexResolver = new IndexResolver(esqlClient);
+        InferenceResolver inferenceResolver = new InferenceResolver(esqlClient, clusterService);
         doAnswer((Answer<Void>) invocation -> {
             @SuppressWarnings("unchecked")
             ActionListener<FieldCapabilitiesResponse> listener = (ActionListener<FieldCapabilitiesResponse>) invocation.getArguments()[2];

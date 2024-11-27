@@ -21,8 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.TypeResolutions;
 import org.elasticsearch.xpack.esql.core.querydsl.query.QueryStringQuery;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
-import org.elasticsearch.xpack.esql.core.type.EsField;
-import org.elasticsearch.xpack.esql.core.type.SemanticTextEsField;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.Param;
@@ -121,29 +119,6 @@ public class Match extends FullTextFunction implements Validatable {
                     field.sourceText()
                 )
             );
-        } else {
-            EsField esField = ((FieldAttribute) field).field();
-            if (esField instanceof SemanticTextEsField stf && stf.inferenceIds().size() > 1) {
-                failures.add(
-                    Failure.fail(
-                        field,
-                        "[{}] {} cannot operate on [{}] because it is configured with multiple inference IDs.",
-                        functionName(),
-                        functionType(),
-                        field.sourceText()
-                    )
-                );
-            }
-            if (esField instanceof SemanticTextEsField && configuration.isCrossClusterSearch()) {
-                failures.add(
-                    Failure.fail(
-                        field,
-                        "[{}] {} does not allow semantic_text fields with cross cluster queries.",
-                        functionName(),
-                        functionType()
-                    )
-                );
-            }
         }
     }
 

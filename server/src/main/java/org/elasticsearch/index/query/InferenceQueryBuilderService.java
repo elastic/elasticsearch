@@ -10,10 +10,10 @@ package org.elasticsearch.index.query;
 
 import java.util.function.BiFunction;
 
-public class QueryBuilderService {
+public class InferenceQueryBuilderService {
     private final BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder;
 
-    QueryBuilderService(BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
+    InferenceQueryBuilderService(BiFunction<String, String, AbstractQueryBuilder<?>> defaultInferenceQueryBuilder) {
         this.defaultInferenceQueryBuilder = defaultInferenceQueryBuilder;
     }
 

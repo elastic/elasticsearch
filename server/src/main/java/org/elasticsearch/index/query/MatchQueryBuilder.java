@@ -411,13 +411,13 @@ public class MatchQueryBuilder extends AbstractQueryBuilder<MatchQueryBuilder> {
     }
 
     private QueryBuilder createInferenceSubQuery(
-        QueryBuilderService queryBuilderService,
+        InferenceQueryBuilderService inferenceQueryBuilderService,
         String indexName,
         String fieldName,
         Object value
     ) {
         BoolQueryBuilder boolQueryBuilder = new BoolQueryBuilder();
-        boolQueryBuilder.must(queryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString()));
+        boolQueryBuilder.must(inferenceQueryBuilderService.getDefaultInferenceQueryBuilder(fieldName, value.toString()));
         boolQueryBuilder.filter(new TermQueryBuilder(IndexFieldMapper.NAME, indexName));
         return boolQueryBuilder;
     }

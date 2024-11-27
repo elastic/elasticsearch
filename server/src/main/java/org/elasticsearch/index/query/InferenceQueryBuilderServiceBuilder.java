@@ -16,15 +16,15 @@ import java.util.List;
 import java.util.Objects;
 import java.util.function.BiFunction;
 
-public class QueryBuilderServiceBuilder {
+public class InferenceQueryBuilderServiceBuilder {
     private PluginsService pluginsService;
 
-    public QueryBuilderServiceBuilder pluginsService(PluginsService pluginsService) {
+    public InferenceQueryBuilderServiceBuilder pluginsService(PluginsService pluginsService) {
         this.pluginsService = pluginsService;
         return this;
     }
 
-    public QueryBuilderService build() {
+    public InferenceQueryBuilderService build() {
         Objects.requireNonNull(pluginsService);
 
         List<BiFunction<String, String, AbstractQueryBuilder<?>>> definedInferenceQueryBuilders = new ArrayList<>();
@@ -42,6 +42,6 @@ public class QueryBuilderServiceBuilder {
             );
         }
 
-        return new QueryBuilderService(definedInferenceQueryBuilders.getFirst());
+        return new InferenceQueryBuilderService(definedInferenceQueryBuilders.getFirst());
     }
 }

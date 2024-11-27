@@ -70,7 +70,7 @@ public class QueryRewriteContext {
     protected Predicate<String> allowedFields;
     private final ResolvedIndices resolvedIndices;
     private final PointInTimeBuilder pit;
-    private final QueryBuilderService queryBuilderService;
+    private final InferenceQueryBuilderService inferenceQueryBuilderService;
 
     public QueryRewriteContext(
         final XContentParserConfiguration parserConfiguration,
@@ -88,7 +88,7 @@ public class QueryRewriteContext {
         final ScriptCompiler scriptService,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final QueryBuilderService queryBuilderService
+        final InferenceQueryBuilderService inferenceQueryBuilderService
     ) {
 
         this.parserConfiguration = parserConfiguration;
@@ -107,7 +107,7 @@ public class QueryRewriteContext {
         this.scriptService = scriptService;
         this.resolvedIndices = resolvedIndices;
         this.pit = pit;
-        this.queryBuilderService = queryBuilderService;
+        this.inferenceQueryBuilderService = inferenceQueryBuilderService;
     }
 
     public QueryRewriteContext(final XContentParserConfiguration parserConfiguration, final Client client, final LongSupplier nowInMillis) {
@@ -137,7 +137,7 @@ public class QueryRewriteContext {
         final LongSupplier nowInMillis,
         final ResolvedIndices resolvedIndices,
         final PointInTimeBuilder pit,
-        final QueryBuilderService queryBuilderService
+        final InferenceQueryBuilderService inferenceQueryBuilderService
     ) {
         this(
             parserConfiguration,
@@ -155,7 +155,7 @@ public class QueryRewriteContext {
             null,
             resolvedIndices,
             pit,
-            queryBuilderService
+            inferenceQueryBuilderService
         );
     }
 
@@ -435,7 +435,7 @@ public class QueryRewriteContext {
         return value.split(",")[0].trim();
     }
 
-    public QueryBuilderService getQueryBuilderService() {
-        return queryBuilderService;
+    public InferenceQueryBuilderService getQueryBuilderService() {
+        return inferenceQueryBuilderService;
     }
 }

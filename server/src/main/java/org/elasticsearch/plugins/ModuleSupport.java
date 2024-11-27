@@ -65,6 +65,8 @@ public class ModuleSupport {
         }
     }
 
+    private static final Set<String> FORBIDDEN_PACKAGE_NAMES = Set.of("org.apache.commons.lang.enum");
+
     @SuppressForbidden(reason = "need access to the jar file")
     static ModuleDescriptor createModuleDescriptor(
         String name,
@@ -88,7 +90,7 @@ public class ModuleSupport {
                 JarEntry moduleInfo = jf.getJarEntry("module-info.class");
                 if (moduleInfo != null) {
                     var descriptor = getDescriptorForModularJar(path);
-                    pkgs.addAll(descriptor.packages());
+                    pkgs.addAll(descriptor.packages().stream().filter(Predicate.not(FORBIDDEN_PACKAGE_NAMES::contains)).toList());
                     servicesUsedInBundle.addAll(descriptor.uses());
                     for (ModuleDescriptor.Provides p : descriptor.provides()) {
                         String serviceName = p.service();

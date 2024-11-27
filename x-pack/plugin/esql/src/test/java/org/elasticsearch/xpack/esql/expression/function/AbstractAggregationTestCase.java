@@ -111,7 +111,8 @@ public abstract class AbstractAggregationTestCase extends AbstractFunctionTestCa
                         testCase.getExpectedTypeError(),
                         null,
                         null,
-                        null
+                        null,
+                        testCase.canBuildEvaluator()
                     );
                 }));
             }

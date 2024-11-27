@@ -506,7 +506,6 @@ public class OrdinalsGroupingOperator implements Operator {
                 aggregatorFactories,
                 () -> BlockHash.build(
                     List.of(new GroupSpec(channelIndex, groupingElementType)),
-                    null,
                     driverContext.blockFactory(),
                     maxPageSize,
                     false

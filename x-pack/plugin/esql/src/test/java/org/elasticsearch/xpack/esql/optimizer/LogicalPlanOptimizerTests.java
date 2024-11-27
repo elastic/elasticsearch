@@ -3964,6 +3964,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var evalFieldAlias = as(eval.fields().get(0), Alias.class);
         var evalField = as(evalFieldAlias.child(), Concat.class);
 
+        assertThat(evalFieldAlias.name(), is("CATEGORIZE(CONCAT(first_name, \"abc\"))"));
         assertThat(categorize.field(), is(evalFieldAlias.toAttribute()));
         assertThat(evalField.source().text(), is("CONCAT(first_name, \"abc\")"));
         assertThat(categorizeAlias.source(), is(evalFieldAlias.source()));

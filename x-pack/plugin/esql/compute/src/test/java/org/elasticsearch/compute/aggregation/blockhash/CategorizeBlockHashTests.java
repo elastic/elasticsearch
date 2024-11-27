@@ -181,9 +181,7 @@ public class CategorizeBlockHashTests extends BlockHashTestCase {
             page2.releaseBlocks();
         }
 
-        try (
-            BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)
-        ) {
+        try (BlockHash intermediateHash = new CategorizedIntermediateBlockHash(0, blockFactory, true)) {
             intermediateHash.add(intermediatePage1, new GroupingAggregatorFunction.AddInput() {
                 @Override
                 public void add(int positionOffset, IntBlock groupIds) {

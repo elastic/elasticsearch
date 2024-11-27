@@ -125,23 +125,7 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      *                                 production until we can. And this lets us continue to compile and
      *                                 test them.
      */
-    public static BlockHash build(
-        List<GroupSpec> groups,
-        AggregatorMode aggregatorMode,
-        BlockFactory blockFactory,
-        int emitBatchSize,
-        boolean allowBrokenOptimizations
-    ) {
-        if (groups.stream().anyMatch(GroupSpec::isCategorize)) {
-            if (groups.size() != 1) {
-                throw new IllegalArgumentException("only a single CATEGORIZE group can used");
-            }
-
-            return aggregatorMode.isInputPartial()
-                ? new CategorizedIntermediateBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial())
-                : new CategorizeRawBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial());
-        }
-
+    public static BlockHash build(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize, boolean allowBrokenOptimizations) {
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
@@ -180,6 +164,19 @@ public abstract class BlockHash implements Releasable, SeenGroupIds {
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Builds a BlockHash for the Categorize grouping function.
+     */
+    public static BlockHash buildCategorizeBlockHash(List<GroupSpec> groups, AggregatorMode aggregatorMode, BlockFactory blockFactory) {
+        if (groups.size() != 1) {
+            throw new IllegalArgumentException("only a single CATEGORIZE group can used");
+        }
+
+        return aggregatorMode.isInputPartial()
+            ? new CategorizedIntermediateBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial())
+            : new CategorizeRawBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial());
     }
 
     /**

@@ -1381,7 +1381,7 @@ public class BlockHashTests extends BlockHashTestCase {
         }
         return forcePackedHash
             ? new PackedValuesBlockHash(specs, blockFactory, emitBatchSize)
-            : BlockHash.build(specs, null, blockFactory, emitBatchSize, true);
+            : BlockHash.build(specs, blockFactory, emitBatchSize, true);
     }
 
     static void hash(boolean collectKeys, BlockHash blockHash, Consumer<OrdsAndKeys> callback, Block... values) {

@@ -164,7 +164,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
                     source,
                     aggregateExec,
                     aggregatorFactories,
-                    aggregatorMode,
                     groupSpecs.get(0).attribute,
                     groupSpecs.get(0).elementType(),
                     context
@@ -345,7 +344,6 @@ public abstract class AbstractPhysicalOperationProviders implements PhysicalOper
         PhysicalOperation source,
         AggregateExec aggregateExec,
         List<GroupingAggregator.Factory> aggregatorFactories,
-        AggregatorMode aggregatorMode,
         Attribute attrSource,
         ElementType groupType,
         LocalExecutionPlannerContext context

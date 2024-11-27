@@ -46,9 +46,16 @@ public class HashAggregationOperator implements Operator {
     ) implements OperatorFactory {
         @Override
         public Operator get(DriverContext driverContext) {
+            if (groups.stream().anyMatch(BlockHash.GroupSpec::isCategorize)) {
+                return new HashAggregationOperator(
+                    aggregators,
+                    () -> BlockHash.buildCategorizeBlockHash(groups, aggregatorMode, driverContext.blockFactory()),
+                    driverContext
+                );
+            }
             return new HashAggregationOperator(
                 aggregators,
-                () -> BlockHash.build(groups, aggregatorMode, driverContext.blockFactory(), maxPageSize, false),
+                () -> BlockHash.build(groups, driverContext.blockFactory(), maxPageSize, false),
                 driverContext
             );
         }

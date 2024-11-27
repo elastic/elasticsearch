@@ -38,7 +38,7 @@ tasks.named("javaRestTest") {
   enabled = false
 }
 
-['7.16.3', '7.17.25'].each { versionString ->
+['7.9.0', '7.17.25'].each { versionString ->
   String versionNoDots = versionString.replace('.', '_')
 
   tasks.register("javaRestTest#${versionNoDots}", StandaloneRestIntegTestTask) {

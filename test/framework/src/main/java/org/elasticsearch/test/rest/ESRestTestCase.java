@@ -10,7 +10,6 @@
 package org.elasticsearch.test.rest;
 
 import io.netty.handler.codec.http.HttpMethod;
-
 import org.apache.http.Header;
 import org.apache.http.HttpEntity;
 import org.apache.http.HttpHost;
@@ -87,6 +86,7 @@ import org.junit.After;
 import org.junit.AfterClass;
 import org.junit.Before;
 
+import javax.net.ssl.SSLContext;
 import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStream;
@@ -118,13 +118,12 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.function.BiFunction;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
-
-import javax.net.ssl.SSLContext;
 
 import static java.util.Collections.sort;
 import static java.util.Collections.unmodifiableList;
@@ -408,6 +407,10 @@ public abstract class ESRestTestCase extends ESTestCase {
     }
 
     protected List<HttpHost> parseClusterHosts(String hostsString) {
+        return parseClusterHosts(hostsString, this::buildHttpHost);
+    }
+
+    public static List<HttpHost> parseClusterHosts(String hostsString, BiFunction<String, Integer, HttpHost> httpHostSupplier) {
         String[] stringUrls = hostsString.split(",");
         List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
         for (String stringUrl : stringUrls) {
@@ -417,7 +420,7 @@ public abstract class ESRestTestCase extends ESTestCase {
             }
             String host = stringUrl.substring(0, portSeparator);
             int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            hosts.add(buildHttpHost(host, port));
+            hosts.add(httpHostSupplier.apply(host, port));
         }
         return unmodifiableList(hosts);
     }

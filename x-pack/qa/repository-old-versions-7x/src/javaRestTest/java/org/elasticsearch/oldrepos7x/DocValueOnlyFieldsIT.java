@@ -29,6 +29,7 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
+import java.util.List;
 
 /**
  * Tests doc-value-based searches against indices imported from clusters older than N-1.
@@ -43,7 +44,7 @@ import java.io.IOException;
 public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
 
     static final Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
-    static boolean setupDone;
+    static boolean repoRestored;
 
     public static TemporaryFolder repoDirectory = new TemporaryFolder();
 
@@ -54,8 +55,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
         .setting("xpack.license.self_generated.type", "trial")
         .setting("xpack.ml.enabled", "false")
         .setting("path.repo", () -> repoDirectory.getRoot().getPath())
-        .setting("xpack.searchable.snapshot.shared_cache.size", "16MB")
-        .setting("xpack.searchable.snapshot.shared_cache.region_size", "256KB")
         .build();
 
     public static ElasticsearchCluster oldCluster = ElasticsearchCluster.local()
@@ -73,7 +72,6 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     private static final String REPO_NAME = "doc_values_repo";
     private static final String INDEX_NAME = "test";
     private static final String snapshotName = "snap";
-
     private static String repoLocation;
 
     public DocValueOnlyFieldsIT(@Name("yaml") ClientYamlTestCandidate testCandidate) {
@@ -111,9 +109,8 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             "keyword",
             "ip",
             "geo_point" }; // date is manually added as it need further configuration
-
-        int oldEsPort = Integer.parseInt(System.getProperty("tests.es.port"));
-        try (RestClient oldEs = RestClient.builder(new HttpHost("127.0.0.1", oldEsPort)).build()) {
+        List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses(), (host, port) -> new HttpHost(host, port));
+        try (RestClient oldEs = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build();) {
             Request createIndex = new Request("PUT", "/" + INDEX_NAME);
             int numberOfShards = randomIntBetween(1, 3);
 
@@ -133,7 +130,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             createIndex.setJsonEntity(Strings.toString(settingsBuilder));
             assertOK(oldEs.performRequest(createIndex));
 
-            Request doc1 = new Request("PUT", "/" + INDEX_NAME + "/" + "doc" + "/" + "1");
+            Request doc1 = new Request("PUT", "/" + INDEX_NAME + "/" + "_doc" + "/" + "1");
             doc1.addParameter("refresh", "true");
             XContentBuilder bodyDoc1 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -153,7 +150,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             doc1.setJsonEntity(Strings.toString(bodyDoc1));
             assertOK(oldEs.performRequest(doc1));
 
-            Request doc2 = new Request("PUT", "/" + INDEX_NAME + "/" + "doc" + "/" + "2");
+            Request doc2 = new Request("PUT", "/" + INDEX_NAME + "/" + "_doc" + "/" + "2");
             doc2.addParameter("refresh", "true");
             XContentBuilder bodyDoc2 = XContentFactory.jsonBuilder()
                 .startObject()
@@ -191,7 +188,7 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
     public void registerAndRestoreRepo() throws IOException {
         // The following is bit of a hack. While we wish we could make this an @BeforeClass, it does not work because the client() is only
         // initialized later, so we do it when running the first test
-        if (setupDone = false) {
+        if (repoRestored == false) {
             // register repo on new ES and restore snapshot
             Request createRepoRequest2 = new Request("PUT", "/_snapshot/" + REPO_NAME);
             createRepoRequest2.setJsonEntity(Strings.format("""
@@ -204,7 +201,13 @@ public class DocValueOnlyFieldsIT extends ESClientYamlSuiteTestCase {
             createRestoreRequest.setJsonEntity("{\"indices\":\"" + INDEX_NAME + "\"}");
             assertOK(client().performRequest(createRestoreRequest));
 
-            setupDone = true;
+            repoRestored = true;
         }
+        logger.info("repo [" + REPO_NAME + "] restored");
+    }
+
+    @Override
+    protected String getTestRestCluster() {
+        return currentCluster.getHttpAddresses();
     }
 }

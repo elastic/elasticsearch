@@ -44,7 +44,6 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
 import java.util.HashMap;
@@ -54,7 +53,6 @@ import java.util.Map;
 import java.util.Set;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.contains;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.empty;
@@ -106,7 +104,7 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
     @BeforeClass
     public static void setupOldRepo() throws IOException {
         String repoLocationBase = repoDirectory.getRoot().getPath();
-        List<HttpHost> oldClusterHosts = parseOldClusterHosts(oldCluster.getHttpAddresses());
+        List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses(), (host, port) -> new HttpHost(host, port));
         Version oldVersion = Version.fromString(System.getProperty("tests.old_cluster_version"));
         try (RestClient oldEs = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build()) {
             checkClusterVersion(oldEs, oldVersion);
@@ -523,20 +521,5 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
         Request request = new Request("POST", "/" + index + "/_close");
         ObjectPath doc = ObjectPath.createFromResponse(client.performRequest(request));
         assertTrue(doc.evaluate("shards_acknowledged"));
-    }
-
-    private static List<HttpHost> parseOldClusterHosts(String hostsString) {
-        String[] stringUrls = hostsString.split(",");
-        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-            }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            hosts.add(new HttpHost(host, port));
-        }
-        return unmodifiableList(hosts);
     }
 }

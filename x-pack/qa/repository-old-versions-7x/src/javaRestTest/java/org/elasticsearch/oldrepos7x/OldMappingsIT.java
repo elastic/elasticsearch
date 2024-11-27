@@ -30,13 +30,11 @@ import org.junit.rules.TemporaryFolder;
 import org.junit.rules.TestRule;
 
 import java.io.IOException;
-import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
-import static java.util.Collections.unmodifiableList;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.hasKey;
 import static org.hamcrest.Matchers.hasSize;
@@ -103,7 +101,7 @@ public class OldMappingsIT extends ESRestTestCase {
         repoName = "old_mappings_repo";
         snapshotName = "snap";
 
-        List<HttpHost> oldClusterHosts = parseOldClusterHosts(oldCluster.getHttpAddresses());
+        List<HttpHost> oldClusterHosts = parseClusterHosts(oldCluster.getHttpAddresses(), (host, port) -> new HttpHost(host, port));
         try (RestClient oldEsClient = RestClient.builder(oldClusterHosts.toArray(new HttpHost[oldClusterHosts.size()])).build();) {
             assertOK(oldEsClient.performRequest(createIndex("filebeat", "filebeat.json")));
 
@@ -198,21 +196,6 @@ public class OldMappingsIT extends ESRestTestCase {
 
             repoRestored = true;
         }
-    }
-
-    private static List<HttpHost> parseOldClusterHosts(String hostsString) {
-        String[] stringUrls = hostsString.split(",");
-        List<HttpHost> hosts = new ArrayList<>(stringUrls.length);
-        for (String stringUrl : stringUrls) {
-            int portSeparator = stringUrl.lastIndexOf(':');
-            if (portSeparator < 0) {
-                throw new IllegalArgumentException("Illegal cluster url [" + stringUrl + "]");
-            }
-            String host = stringUrl.substring(0, portSeparator);
-            int port = Integer.valueOf(stringUrl.substring(portSeparator + 1));
-            hosts.add(new HttpHost(host, port));
-        }
-        return unmodifiableList(hosts);
     }
 
     public void testFileBeatApache2MappingOk() throws IOException {

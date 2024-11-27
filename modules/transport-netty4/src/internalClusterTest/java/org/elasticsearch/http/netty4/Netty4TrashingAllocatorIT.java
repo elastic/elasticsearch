@@ -89,7 +89,7 @@ public class Netty4TrashingAllocatorIT extends ESNetty4IntegTestCase {
 
                 @Override
                 protected RestChannelConsumer prepareRequest(RestRequest request, NodeClient client) throws IOException {
-                    var content = request.releasableContent();
+                    var content = request.content();
                     var iter = content.iterator();
                     return (chan) -> {
                         request.getHttpRequest().release();

@@ -127,7 +127,12 @@ public class CategorizeRawBlockHash extends AbstractCategorizeBlockHash {
         }
 
         private int process(BytesRef v) {
-            return categorizer.computeCategory(v.utf8ToString(), analyzer).getId() + 1;
+            var category = categorizer.computeCategory(v.utf8ToString(), analyzer);
+            if (category == null) {
+                seenNull = true;
+                return NULL_ORD;
+            }
+            return category.getId() + 1;
         }
 
         @Override

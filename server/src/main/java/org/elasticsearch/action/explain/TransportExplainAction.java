@@ -90,7 +90,7 @@ public class TransportExplainAction extends TransportSingleShardAction<ExplainRe
         // Indices are resolved twice (they are resolved again later by the base class), but that's ok for this action type
         ResolvedIndices resolvedIndices = ResolvedIndices.resolveWithIndicesRequest(
             request,
-            clusterService.state(),
+            getProjectState().metadata(),
             indexNameExpressionResolver,
             remoteClusterService,
             request.nowInMillis

@@ -226,9 +226,6 @@ tests:
 - class: org.elasticsearch.xpack.inference.InferenceRestIT
   method: test {p0=inference/30_semantic_text_inference/Calculates embeddings using the default ELSER 2 endpoint}
   issue: https://github.com/elastic/elasticsearch/issues/117349
-- class: org.elasticsearch.xpack.security.operator.OperatorPrivilegesIT
-  method: testEveryActionIsEitherOperatorOnlyOrNonOperator
-  issue: https://github.com/elastic/elasticsearch/issues/102992
 - class: org.elasticsearch.xpack.test.rest.XPackRestIT
   method: test {p0=transform/transforms_reset/Test reset running transform}
   issue: https://github.com/elastic/elasticsearch/issues/117473
@@ -246,6 +243,11 @@ tests:
 - class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
   method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
   issue: https://github.com/elastic/elasticsearch/issues/116777
+- class: org.elasticsearch.reservedstate.service.FileSettingsServiceTests
+  method: testStopWorksInMiddleOfProcessing
+  issue: https://github.com/elastic/elasticsearch/issues/117591
+- class: org.elasticsearch.repositories.s3.RepositoryS3ClientYamlTestSuiteIT
+  issue: https://github.com/elastic/elasticsearch/issues/117596
 
 # Examples:
 #

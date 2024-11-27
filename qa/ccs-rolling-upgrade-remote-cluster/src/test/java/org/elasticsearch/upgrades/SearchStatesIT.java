@@ -53,6 +53,11 @@ public class SearchStatesIT extends ESRestTestCase {
     record Node(String id, String name, Version version, String transportAddress, String httpAddress, Map<String, Object> attributes) {}
 
     static List<Node> getNodes(RestClient restClient) throws IOException {
+        ensureHealth(restClient, (request) -> {
+            request.addParameter("wait_for_nodes", "3");
+            request.addParameter("timeout", "10s");
+        });
+
         Response response = restClient.performRequest(new Request("GET", "_nodes"));
         ObjectPath objectPath = ObjectPath.createFromResponse(response);
         final Map<String, Object> nodeMap = objectPath.evaluate("nodes");
@@ -86,30 +91,26 @@ public class SearchStatesIT extends ESRestTestCase {
         return hosts;
     }
 
-    public static void configureRemoteClusters(RestClient restClient) throws Exception {
-        final List<Node>[] remoteNodes = new List<Node>[1];
-        assertBusy(() -> {
-            remoteNodes[0] = getNodes(restClient);
-            assertThat(remoteNodes[0], hasSize(3));
-        });
+    public static void configureRemoteClusters(List<Node> remoteNodes) throws Exception {
+        assertThat(remoteNodes, hasSize(3));
         final String remoteClusterSettingPrefix = "cluster.remote." + CLUSTER_ALIAS + ".";
         try (RestClient localClient = newLocalClient()) {
             final Settings remoteConnectionSettings;
             if (randomBoolean()) {
-                final List<String> seeds = remoteNodes[0].stream()
+                final List<String> seeds = remoteNodes.stream()
                     .filter(n -> n.attributes.containsKey("gateway"))
                     .map(n -> n.transportAddress)
                     .collect(Collectors.toList());
                 assertThat(seeds, hasSize(2));
-                LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", seeds, remoteNodes[0]);
+                LOGGER.info("--> use sniff mode with seed [{}], remote nodes [{}]", seeds, remoteNodes);
                 remoteConnectionSettings = Settings.builder()
                     .putNull(remoteClusterSettingPrefix + "proxy_address")
                     .put(remoteClusterSettingPrefix + "mode", "sniff")
                     .putList(remoteClusterSettingPrefix + "seeds", seeds)
                     .build();
             } else {
-                final Node proxyNode = randomFrom(remoteNodes[0]);
-                LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, remoteNodes[0]);
+                final Node proxyNode = randomFrom(remoteNodes);
+                LOGGER.info("--> use proxy node [{}], remote nodes [{}]", proxyNode, remoteNodes);
                 remoteConnectionSettings = Settings.builder()
                     .putNull(remoteClusterSettingPrefix + "seeds")
                     .put(remoteClusterSettingPrefix + "mode", "proxy")
@@ -203,7 +204,7 @@ public class SearchStatesIT extends ESRestTestCase {
             createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(1, 5)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(remoteClient);
+            configureRemoteClusters(getNodes(remoteClient));
             int iterations = between(1, 20);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, null);
@@ -223,7 +224,7 @@ public class SearchStatesIT extends ESRestTestCase {
             createIndex(remoteClient, remoteIndex, Settings.builder().put(IndexMetadata.SETTING_NUMBER_OF_SHARDS, between(5, 20)).build());
             int remoteNumDocs = indexDocs(remoteClient, remoteIndex, between(10, 100));
 
-            configureRemoteClusters(remoteClient);
+            configureRemoteClusters(getNodes(remoteClient));
             int iterations = between(1, 10);
             for (int i = 0; i < iterations; i++) {
                 verifySearch(localIndex, localNumDocs, CLUSTER_ALIAS + ":" + remoteIndex, remoteNumDocs, between(1, 10));

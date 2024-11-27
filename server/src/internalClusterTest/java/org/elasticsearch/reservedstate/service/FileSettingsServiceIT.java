@@ -22,11 +22,13 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.Randomness;
+import org.elasticsearch.common.Priority;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.reservedstate.action.ReservedClusterSettingsAction;
 import org.elasticsearch.test.ESIntegTestCase;
+import org.elasticsearch.test.ESTestCase;
 import org.junit.Before;
 
 import java.io.IOException;
@@ -34,6 +36,7 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.StandardCopyOption;
 import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.CyclicBarrier;
 import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicLong;
@@ -379,6 +382,40 @@ public class FileSettingsServiceIT extends ESIntegTestCase {
 
         writeJSONFile(masterNode, testErrorJSON, logger, versionCounter.incrementAndGet());
         assertClusterStateNotSaved(savedClusterState.v1(), savedClusterState.v2());
+    }
+
+    public void testLastSettingsInBatchApplied() throws Exception {
+        internalCluster().setBootstrapMasterNodeIndex(0);
+        logger.info("--> start data node / non master node");
+        String dataNode = internalCluster().startNode(Settings.builder().put(dataOnlyNode()).put("discovery.initial_state_timeout", "1s"));
+        FileSettingsService dataFileSettingsService = internalCluster().getInstance(FileSettingsService.class, dataNode);
+
+        assertFalse(dataFileSettingsService.watching());
+
+        logger.info("--> start master node");
+        final String masterNode = internalCluster().startMasterOnlyNode();
+        assertMasterNode(internalCluster().nonMasterClient(), masterNode);
+        var savedClusterState = setupClusterStateListener(masterNode);
+
+        FileSettingsService masterFileSettingsService = internalCluster().getInstance(FileSettingsService.class, masterNode);
+
+        assertTrue(masterFileSettingsService.watching());
+        assertFalse(dataFileSettingsService.watching());
+
+        final var masterNodeClusterService = internalCluster().getCurrentMasterNodeInstance(ClusterService.class);
+        final var barrier = new CyclicBarrier(2);
+        masterNodeClusterService.createTaskQueue("block", Priority.NORMAL, batchExecutionContext -> {
+            safeAwait(barrier);
+            safeAwait(barrier);
+            batchExecutionContext.taskContexts().forEach(c -> c.success(() -> {}));
+            return batchExecutionContext.initialState();
+        }).submitTask("block", ESTestCase::fail, null);
+
+        safeAwait(barrier);
+        writeJSONFile(masterNode, testJSON, versionCounter, logger);      // Valid but skipped
+        writeJSONFile(masterNode, testJSON43mb, versionCounter, logger);  // The last valid setting
+        safeAwait(barrier);
+        assertClusterStateSaveOK(savedClusterState.v1(), savedClusterState.v2(), "43mb");
     }
 
     public void testErrorCanRecoverOnRestart() throws Exception {

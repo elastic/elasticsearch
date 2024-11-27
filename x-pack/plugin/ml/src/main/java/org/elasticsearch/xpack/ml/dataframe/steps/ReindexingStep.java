@@ -147,7 +147,6 @@ public class ReindexingStep extends AbstractDataFrameAnalyticsStep {
             reindexRequest.setSourceQuery(config.getSource().getParsedQuery());
             reindexRequest.getSearchRequest().allowPartialSearchResults(false);
             reindexRequest.getSearchRequest().source().fetchSource(config.getSource().getSourceFiltering());
-            reindexRequest.getSearchRequest().source().sort(SeqNoFieldMapper.NAME, SortOrder.ASC);
             reindexRequest.setDestIndex(config.getDest().getIndex());
 
             // We explicitly set slices to 1 as we cannot parallelize in order to have the incremental id

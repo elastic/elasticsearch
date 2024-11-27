@@ -484,7 +484,8 @@ public class OldRepositoryAccessIT extends ESRestTestCase {
                 logger.info(searchResponse);
                 assertEquals(0, searchResponse.getHits().getTotalHits().value());
                 assertEquals(numberOfShards, searchResponse.getSuccessfulShards());
-                assertEquals(numberOfShards, searchResponse.getSkippedShards());
+                int expectedSkips = numberOfShards == 1 ? 1 : numberOfShards - 1;
+                assertEquals(expectedSkips, searchResponse.getSkippedShards());
             } finally {
                 searchResponse.decRef();
             }

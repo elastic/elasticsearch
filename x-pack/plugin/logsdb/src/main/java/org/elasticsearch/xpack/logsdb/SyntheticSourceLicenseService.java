@@ -29,7 +29,7 @@ final class SyntheticSourceLicenseService {
     // You can only override this property if you received explicit approval from Elastic.
     static final String CUTOFF_DATE_SYS_PROP_NAME = "es.mapping.synthetic_source_fallback_to_stored_source.cutoff_date_restricted_override";
     private static final Logger LOGGER = LogManager.getLogger(SyntheticSourceLicenseService.class);
-    static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2025, 2, 1, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
+    static final long DEFAULT_CUTOFF_DATE = LocalDateTime.of(2025, 1, 31, 0, 0).toInstant(ZoneOffset.UTC).toEpochMilli();
 
     /**
      * A setting that determines whether source mode should always be stored source. Regardless of licence.

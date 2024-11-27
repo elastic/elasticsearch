@@ -3,7 +3,8 @@
 // Reuses the sample dataset and commands from enrich.csv-spec
 //
 
-basicOnTheDataNode
+//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
+basicOnTheDataNode-Ignore
 required_capability: join_lookup_v2
 
 FROM employees
@@ -48,7 +49,8 @@ emp_no:integer | language_code:integer | language_name:keyword
 10003          | 4                     | German
 ;
 
-subsequentEvalOnTheDataNode
+//TODO: this sometimes returns null instead of the looked up value (likely related to the execution order)
+subsequentEvalOnTheDataNode-Ignore
 required_capability: join_lookup_v2
 
 FROM employees

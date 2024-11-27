@@ -412,6 +412,10 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         remoteClusterService::isSkipUnavailable
                     );
                     task.getProgressListener().notifySearchStart(clusters);
+                    if (resolvedIndices.getLocalIndices() == null) {
+                        task.getProgressListener()
+                            .notifyListShards(Collections.emptyList(), Collections.emptyList(), clusters, false, timeProvider);
+                    }
                     ccsRemoteReduce(
                         task,
                         parentTaskId,

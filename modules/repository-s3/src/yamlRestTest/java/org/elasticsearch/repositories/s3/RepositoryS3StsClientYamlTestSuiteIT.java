@@ -9,8 +9,9 @@
 
 package org.elasticsearch.repositories.s3;
 
+import fixture.aws.sts.AwsStsHttpFixture;
+import fixture.s3.DynamicS3Credentials;
 import fixture.s3.S3HttpFixture;
-import fixture.s3.S3HttpFixtureWithSTS;
 
 import com.carrotsearch.randomizedtesting.annotations.Name;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
@@ -24,13 +25,27 @@ import org.junit.rules.TestRule;
 
 public class RepositoryS3StsClientYamlTestSuiteIT extends AbstractRepositoryS3ClientYamlTestSuiteIT {
 
-    public static final S3HttpFixture s3Fixture = new S3HttpFixture();
-    private static final S3HttpFixtureWithSTS s3Sts = new S3HttpFixtureWithSTS();
+    private static final DynamicS3Credentials dynamicS3Credentials = new DynamicS3Credentials();
+
+    private static final S3HttpFixture s3HttpFixture = new S3HttpFixture(
+        true,
+        "sts_bucket",
+        "sts_base_path",
+        dynamicS3Credentials::isAuthorized
+    );
+
+    private static final AwsStsHttpFixture stsHttpFixture = new AwsStsHttpFixture(dynamicS3Credentials::addValidCredentials, """
+        Atza|IQEBLjAsAhRFiXuWpUXuRvQ9PZL3GMFcYevydwIUFAHZwXZXXXXXXXXJnrulxKDHwy87oGKPznh0D6bEQZTSCzyoCtL_8S07pLpr0zMbn6w1lfVZKNTBdDans\
+        FBmtGnIsIapjI6xKR02Yc_2bQ8LZbUXSGm6Ry6_BG7PrtLZtj_dfCTj92xNGed-CrKqjG7nPBjNIL016GGvuS5gSvPRUxWES3VYfm1wl7WTI7jn-Pcb6M-buCgHhFO\
+        zTQxod27L9CqnOLio7N3gZAGpsp6n1-AJBOCJckcyXe2c6uD0srOJeZlKUm2eTDVMf8IehDVI0r1QOnTV6KzzAI3OY87Vd_cVMQ""");
 
     public static ElasticsearchCluster cluster = ElasticsearchCluster.local()
         .module("repository-s3")
-        .setting("s3.client.integration_test_sts.endpoint", s3Sts::getAddress)
-        .systemProperty("com.amazonaws.sdk.stsMetadataServiceEndpointOverride", () -> s3Sts.getAddress() + "/assume-role-with-web-identity")
+        .setting("s3.client.integration_test_sts.endpoint", s3HttpFixture::getAddress)
+        .systemProperty(
+            "com.amazonaws.sdk.stsMetadataServiceEndpointOverride",
+            () -> stsHttpFixture.getAddress() + "/assume-role-with-web-identity"
+        )
         .configFile("repository-s3/aws-web-identity-token-file", Resource.fromClasspath("aws-web-identity-token-file"))
         .environment("AWS_WEB_IDENTITY_TOKEN_FILE", System.getProperty("awsWebIdentityTokenExternalLocation"))
         // // The AWS STS SDK requires the role and session names to be set. We can verify that they are sent to S3S in the
@@ -40,7 +55,7 @@ public class RepositoryS3StsClientYamlTestSuiteIT extends AbstractRepositoryS3Cl
         .build();
 
     @ClassRule
-    public static TestRule ruleChain = RuleChain.outerRule(s3Fixture).around(s3Sts).around(cluster);
+    public static TestRule ruleChain = RuleChain.outerRule(s3HttpFixture).around(stsHttpFixture).around(cluster);
 
     @ParametersFactory
     public static Iterable<Object[]> parameters() throws Exception {

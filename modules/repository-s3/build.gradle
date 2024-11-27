@@ -1,7 +1,3 @@
-import org.apache.tools.ant.filters.ReplaceTokens
-import org.elasticsearch.gradle.internal.info.BuildParams
-import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
-
 /*
  * Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
  * or more contributor license agreements. Licensed under the "Elastic License
@@ -10,6 +6,9 @@ import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
  * your election, the "Elastic License 2.0", the "GNU Affero General Public
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
+import org.apache.tools.ant.filters.ReplaceTokens
+import org.elasticsearch.gradle.internal.test.InternalClusterTestPlugin
+
 apply plugin: 'elasticsearch.internal-yaml-rest-test'
 apply plugin: 'elasticsearch.internal-cluster-test'
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -46,6 +45,8 @@ dependencies {
   testImplementation project(':test:fixtures:s3-fixture')
   yamlRestTestImplementation project(":test:framework")
   yamlRestTestImplementation project(':test:fixtures:s3-fixture')
+  yamlRestTestImplementation project(':test:fixtures:ec2-imds-fixture')
+  yamlRestTestImplementation project(':test:fixtures:aws-sts-fixture')
   yamlRestTestImplementation project(':test:fixtures:minio-fixture')
   internalClusterTestImplementation project(':test:fixtures:minio-fixture')
 

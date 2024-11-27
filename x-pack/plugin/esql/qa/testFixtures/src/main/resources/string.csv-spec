@@ -390,7 +390,6 @@ emp_no:integer | name:keyword
 
 // Note: no matches in MV returned
 in
-required_capability: mv_warn
 
 from employees | where job_positions in ("Internship", first_name) | keep emp_no, job_positions;
 ignoreOrder:true
@@ -582,7 +581,6 @@ emp_no:integer |positions:keyword                                               
 ;
 
 lessThanMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions < "C" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions < \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -595,7 +593,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 greaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions > "C" | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[job_positions > \\\"C\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -612,7 +609,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions == \\\"Accountant\\\"\] failed, treating result as null. Only first 20 failures recorded.
@@ -624,7 +620,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 equalToOrEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions == "Accountant" or job_positions == "Tech Lead" | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions\] failed, treating result as null. Only first 20 failures recorded.
@@ -637,7 +632,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 inMultivalue
-required_capability: mv_warn
 
 from employees | where job_positions in ("Accountant", "Tech Lead") | keep emp_no, job_positions | sort emp_no;
 warningRegex:evaluation of \[job_positions in \(\\\"Accountant\\\", \\"Tech Lead\\\"\)\] failed, treating result as null. Only first 20 failures recorded.
@@ -650,7 +644,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notLessThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions < "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions < \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -667,7 +660,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notGreaterThanMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions > "C") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions > \\\"C\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -680,7 +672,6 @@ emp_no:integer |job_positions:keyword
 ;
 
 notEqualToMultivalue
-required_capability: mv_warn
 
 from employees | where not(job_positions == "Accountant") | keep emp_no, job_positions | sort emp_no | limit 6;
 warningRegex:evaluation of \[.*job_positions == \\\"Accountant\\\".*\] failed, treating result as null. Only first 20 failures recorded.
@@ -937,7 +928,6 @@ beta             | Kubernetes cluster       | [beta k8s server, beta k8s server2
 ;
 
 lengthOfText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = length(host_group), l2 = length(description) | keep l1, l2;
 ignoreOrder:true
@@ -951,7 +941,6 @@ null                   | 19
 ;
 
 startsWithText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = starts_with(host_group, host), l2 = starts_with(description, host) | keep l1, l2;
 ignoreOrder:true
@@ -965,7 +954,6 @@ false                  | null
 ;
 
 substringOfText
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = substring(host_group, 0, 5), l2 = substring(description, 0, 5) | keep l1, l2;
 ignoreOrder:true
@@ -979,7 +967,6 @@ Gatew                  | null
 ;
 
 concatOfText
-required_capability: mv_warn
 
 from hosts | where host == "epsilon" | eval l1 = concat(host, "/", host_group), l2 = concat(host_group, "/", description) | sort l1 |  keep l1, l2;
 warning:Line 1:86: evaluation of [concat(host_group, \"/\", description)] failed, treating result as null. Only first 20 failures recorded.
@@ -1518,7 +1505,6 @@ min(f_l):integer | max(f_l):integer | job_positions:keyword
 ;
 
 locateWarnings#[skip:-8.13.99,reason:new string function added in 8.14]
-required_capability: mv_warn
 
 from hosts | where host=="epsilon" | eval l1 = locate(host_group, "ate"), l2 = locate(description, "ate") | keep l1, l2;
 ignoreOrder:true

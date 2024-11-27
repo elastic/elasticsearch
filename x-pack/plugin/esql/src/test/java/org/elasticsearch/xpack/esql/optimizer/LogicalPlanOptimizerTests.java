@@ -2141,7 +2141,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         mvExpand = as(topN.child(), MvExpand.class);
         var limit = as(mvExpand.child(), Limit.class);
         assertThat(limit.limit().fold(), equalTo(7300));
-        as(limit.child(), Row.class);
+        as(limit.child(), LocalRelation.class);
     }
 
     /**
@@ -2286,7 +2286,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var expand = as(plan, MvExpand.class);
         assertThat(expand.limit(), equalTo(1000));
         var topN = as(expand.child(), TopN.class);
-        var row = as(topN.child(), Row.class);
+        var row = as(topN.child(), LocalRelation.class);
     }
 
     /**
@@ -2327,7 +2327,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         assertThat(expand.limit(), equalTo(1000));
         var limit2 = as(expand.child(), Limit.class);
         assertThat(limit2.limit().fold(), is(1000));
-        var row = as(limit2.child(), Row.class);
+        var row = as(limit2.child(), LocalRelation.class);
     }
 
     private static List<String> orderNames(TopN topN) {
@@ -2563,7 +2563,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testRLikeWrongPattern() {
         String query = "from test | where first_name rlike \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid regex pattern for RLIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[invalid range: from (95) cannot be > to (93)]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -2571,7 +2571,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
 
     public void testLikeWrongPattern() {
         String query = "from test | where first_name like \"(?i)(^|[^a-zA-Z0-9_-])nmap($|\\\\.)\"";
-        String error = "line 1:20: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
+        String error = "line 1:19: Invalid pattern for LIKE [(?i)(^|[^a-zA-Z0-9_-])nmap($|\\.)]: "
             + "[Invalid sequence - escape character is not followed by special wildcard char]";
         ParsingException e = expectThrows(ParsingException.class, () -> plan(query));
         assertThat(e.getMessage(), is(error));
@@ -3545,7 +3545,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var filterProp = ((GreaterThan) filter.condition()).left();
         assertTrue(expand.expanded().semanticEquals(filterProp));
         assertFalse(expand.target().semanticEquals(filterProp));
-        var row = as(expand.child(), Row.class);
+        var row = as(expand.child(), LocalRelation.class);
     }
 
     /**
@@ -3564,7 +3564,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**
@@ -3583,7 +3583,7 @@ public class LogicalPlanOptimizerTests extends ESTestCase {
         var limit = as(plan, Limit.class);
         var agg = as(limit.child(), Aggregate.class);
         assertThat(Expressions.names(agg.groupings()), contains("a", "b"));
-        var row = as(agg.child(), Row.class);
+        var row = as(agg.child(), LocalRelation.class);
     }
 
     /**

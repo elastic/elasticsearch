@@ -100,7 +100,6 @@ public class MockNode extends Node {
             ScriptService scriptService,
             BigArrays bigArrays,
             FetchPhase fetchPhase,
-            ResponseCollectorService responseCollectorService,
             CircuitBreakerService circuitBreakerService,
             ExecutorSelector executorSelector,
             Tracer tracer
@@ -114,7 +113,6 @@ public class MockNode extends Node {
                     scriptService,
                     bigArrays,
                     fetchPhase,
-                    responseCollectorService,
                     circuitBreakerService,
                     executorSelector,
                     tracer
@@ -127,7 +125,6 @@ public class MockNode extends Node {
                 scriptService,
                 bigArrays,
                 fetchPhase,
-                responseCollectorService,
                 circuitBreakerService,
                 executorSelector,
                 tracer

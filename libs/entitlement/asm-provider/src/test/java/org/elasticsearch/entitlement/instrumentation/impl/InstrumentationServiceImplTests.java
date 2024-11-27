@@ -45,6 +45,12 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         void check$org_example_TestTargetClass$staticMethodWithOverload(Class<?> clazz, int x, String y);
     }
 
+    interface TestCheckerCtors {
+        void check$org_example_TestTargetClass$(Class<?> clazz);
+
+        void check$org_example_TestTargetClass$(Class<?> clazz, int x, String y);
+    }
+
     public void testInstrumentationTargetLookup() throws IOException, ClassNotFoundException {
         Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestChecker.class.getName());
 
@@ -142,6 +148,38 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
     }
 
+    public void testInstrumentationTargetLookupWithCtors() throws IOException, ClassNotFoundException {
+        Map<MethodKey, CheckerMethod> methodsMap = instrumentationService.lookupMethodsToInstrument(TestCheckerCtors.class.getName());
+
+        assertThat(methodsMap, aMapWithSize(2));
+        assertThat(
+            methodsMap,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of("I", "java/lang/String"))),
+                equalTo(
+                    new CheckerMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
+                        "check$org_example_TestTargetClass$",
+                        List.of("Ljava/lang/Class;", "I", "Ljava/lang/String;")
+                    )
+                )
+            )
+        );
+        assertThat(
+            methodsMap,
+            hasEntry(
+                equalTo(new MethodKey("org/example/TestTargetClass", "<init>", List.of())),
+                equalTo(
+                    new CheckerMethod(
+                        "org/elasticsearch/entitlement/instrumentation/impl/InstrumentationServiceImplTests$TestCheckerCtors",
+                        "check$org_example_TestTargetClass$",
+                        List.of("Ljava/lang/Class;")
+                    )
+                )
+            )
+        );
+    }
+
     public void testParseCheckerMethodSignatureStaticMethod() {
         var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
             "check$org_example_TestClass$staticMethod",
@@ -167,6 +205,24 @@ public class InstrumentationServiceImplTests extends ESTestCase {
         );
 
         assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass$InnerClass", "staticMethod", List.of())));
+    }
+
+    public void testParseCheckerMethodSignatureCtor() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$org_example_TestClass$",
+            new Type[] { Type.getType(Class.class) }
+        );
+
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of())));
+    }
+
+    public void testParseCheckerMethodSignatureCtorWithArgs() {
+        var methodKey = InstrumentationServiceImpl.parseCheckerMethodSignature(
+            "check$org_example_TestClass$",
+            new Type[] { Type.getType(Class.class), Type.getType("I"), Type.getType(String.class) }
+        );
+
+        assertThat(methodKey, equalTo(new MethodKey("org/example/TestClass", "<init>", List.of("I", "java/lang/String"))));
     }
 
     public void testParseCheckerMethodSignatureIncorrectName() {

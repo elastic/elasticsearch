@@ -36,7 +36,7 @@ public abstract class AliasAction {
 
     /**
      * Should this action remove the index? Actions that return true from this will never execute
-     * {@link #apply(NewAliasValidator, Metadata.Builder, IndexMetadata)}.
+     * {@link #apply(NewAliasValidator, ProjectMetadata.Builder, IndexMetadata)}.
      */
     abstract boolean removeIndex();
 
@@ -44,11 +44,11 @@ public abstract class AliasAction {
      * Apply the action.
      *
      * @param aliasValidator call to validate a new alias before adding it to the builder
-     * @param metadata metadata builder for the changes made by all actions as part of this request
+     * @param metadata Project metadata builder for the changes made by all actions as part of this request
      * @param index metadata for the index being changed
      * @return did this action make any changes?
      */
-    abstract boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index);
+    abstract boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index);
 
     /**
      * Validate a new alias.
@@ -131,7 +131,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(alias, indexRouting, searchRouting, filter, writeIndex);
 
             AliasMetadata newAliasMd = AliasMetadata.newAliasMetadataBuilder(alias)
@@ -187,7 +187,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             if (false == index.getAliases().containsKey(alias)) {
                 if (mustExist != null && mustExist) {
                     throw new AliasesNotFoundException(alias);
@@ -214,7 +214,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             throw new UnsupportedOperationException();
         }
     }
@@ -252,7 +252,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             aliasValidator.validate(aliasName, null, null, filter, isWriteDataStream);
             return metadata.put(aliasName, dataStreamName, isWriteDataStream, filter);
         }
@@ -277,7 +277,7 @@ public abstract class AliasAction {
         }
 
         @Override
-        boolean apply(NewAliasValidator aliasValidator, Metadata.Builder metadata, IndexMetadata index) {
+        boolean apply(NewAliasValidator aliasValidator, ProjectMetadata.Builder metadata, IndexMetadata index) {
             boolean mustExist = this.mustExist != null ? this.mustExist : false;
             return metadata.removeDataStreamAlias(aliasName, dataStreamName, mustExist);
         }

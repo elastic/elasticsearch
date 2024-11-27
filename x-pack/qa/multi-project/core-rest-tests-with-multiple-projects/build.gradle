@@ -65,7 +65,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.get_settings/20_aliases/Getting settings for aliases should return the real index as key', // aliases do not work
     '^indices.open/*/*',
     '^indices.open/*/*/*',
-    '^indices.put_alias/*/*',
     // This test is blocked on the ability to add ingest pipelines in multiple projects.
     '^indices.put_index_template/15_composition/Using deprecated component templates and pipelines in index template',
     '^indices.put_settings/*/*',

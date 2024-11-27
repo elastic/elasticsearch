@@ -267,8 +267,9 @@ public class MetadataRolloverService {
             silent,
             rerouteCompletionIsNotRequired()
         );
+
         newState = indexAliasesService.applyAliasActions(
-            newState,
+            newState.projectState(),
             rolloverAliasToNewIndex(sourceIndexName, rolloverIndexName, explicitWriteIndex, aliasMetadata.isHidden(), aliasName)
         );
 

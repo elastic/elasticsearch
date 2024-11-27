@@ -221,6 +221,7 @@ COUNT():long | category:keyword
            2 | .*?DB.+?servers.*?
            2 | .*?Gateway.+?instances.*?
            5 | .*?Kubernetes.+?cluster.*?
+           1 | null
 ;
 
 on TO_UPPER
@@ -321,22 +322,20 @@ COUNT():long | category:keyword
            7 | .*?.*?
 ;
 
-# Doesn't give the correct results - Requires nulls support
-on null-Ignore
+on null
 required_capability: categorize_v2
 
 FROM sample_data
   | EVAL x = null
-  | STATS COUNT() BY category=CATEGORIZE(x)
+  | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(x)
   | SORT category
 ;
 
-COUNT():long | category:keyword
-           7 | null
+COUNT():long | SUM(event_duration):long | category:keyword
+           7 |                 23231327 |  null
 ;
 
-# Doesn't give the correct results - Requires nulls support
-on null string-Ignore
+on null string
 required_capability: categorize_v2
 
 FROM sample_data

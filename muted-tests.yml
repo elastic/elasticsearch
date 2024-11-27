@@ -371,6 +371,9 @@ tests:
 - class: org.elasticsearch.xpack.esql.qa.multi_node.FieldExtractorIT
   method: testConstantKeywordField
   issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.discovery.ClusterDisruptionIT
+  method: testAckedIndexing
+  issue: https://github.com/elastic/elasticsearch/issues/117024
 
 # Examples:
 #

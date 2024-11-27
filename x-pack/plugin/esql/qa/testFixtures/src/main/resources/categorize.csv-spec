@@ -92,20 +92,33 @@ COUNT():long | category:keyword
            10 | .*?Head.+?Human.+?Resources.*?
 ;
 
-# Throws when calling AbstractCategorizeBlockHash.seenGroupIds() - Requires nulls support?
-mv with many values-Ignore
+mv with many values and SUM
+required_capability: categorize_v2
+
+FROM employees
+  | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
+  | SORT category
+  | LIMIT 3
+;
+
+SUM(languages):long | category:keyword
+                 43 | .*?Accountant.*?
+                 46 | .*?Architect.*?
+                 35 | .*?Business.+?Analyst.*?
+;
+
+mv with many values and nulls and SUM
 required_capability: categorize_v2
 
 FROM employees
   | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
   | SORT category DESC
-  | LIMIT 3
+  | LIMIT 2
 ;
 
-SUM(languages):integer | category:keyword
-                    43 | .*?Accountant.*?
-                    46 | .*?Architect.*?
-                    35 | .*?Business.+?Analyst.*?
+SUM(languages):long | category:keyword
+                 27 | null
+                 46 | .*?Tech.+?Lead.*?
 ;
 
 mv via eval

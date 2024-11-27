@@ -13,6 +13,7 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
 import org.elasticsearch.compute.data.BlockFactory;
 import org.elasticsearch.compute.data.BytesRefBlock;
@@ -74,7 +75,7 @@ public abstract class AbstractCategorizeBlockHash extends BlockHash {
 
     @Override
     public BitArray seenGroupIds(BigArrays bigArrays) {
-        throw new UnsupportedOperationException();
+        return new SeenGroupIds.Range(seenNull ? 0 : 1, Math.toIntExact(categorizer.getCategoryCount() + 1)).seenGroupIds(bigArrays);
     }
 
     @Override

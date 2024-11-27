@@ -20,7 +20,6 @@ import org.elasticsearch.common.bytes.BytesArray;
 import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
-import org.elasticsearch.common.logging.DeprecationLogger;
 import org.elasticsearch.common.lucene.uid.Versions;
 import org.elasticsearch.common.util.set.Sets;
 import org.elasticsearch.common.xcontent.XContentHelper;
@@ -51,7 +50,6 @@ import static org.elasticsearch.xcontent.XContentFactory.jsonBuilder;
 // It's not possible to suppress teh warning at #realtime(boolean) at a method-level.
 @SuppressWarnings("unchecked")
 public final class TermVectorsRequest extends SingleShardRequest<TermVectorsRequest> implements RealtimeRequest {
-    private static final DeprecationLogger deprecationLogger = DeprecationLogger.getLogger(TermVectorsRequest.class);
 
     private static final ParseField INDEX = new ParseField("_index");
     private static final ParseField ID = new ParseField("_id");

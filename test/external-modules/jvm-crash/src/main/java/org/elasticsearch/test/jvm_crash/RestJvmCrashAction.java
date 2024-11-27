@@ -30,7 +30,8 @@ public class RestJvmCrashAction implements RestHandler {
     static {
         try {
             AccessController.doPrivileged((PrivilegedExceptionAction<?>) () -> {
-                Class<?> unsafe = Class.forName("sun.misc.Unsafe");
+                // Bypass UberModuleClassLoader, as server does not have our very dangerous permissions
+                Class<?> unsafe = ClassLoader.getSystemClassLoader().loadClass("sun.misc.Unsafe");
 
                 FREE_MEMORY = unsafe.getMethod("freeMemory", long.class);
                 Field f = unsafe.getDeclaredField("theUnsafe");

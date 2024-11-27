@@ -33,7 +33,7 @@ public class SemanticQuery extends Query {
 
     @Override
     public QueryBuilder asBuilder() {
-        QueryBuilder childQueryBuilder;
+        QueryBuilder childQueryBuilder = null;
 
         if (inferenceResults instanceof TextExpansionResults) {
             childQueryBuilder = textExpansionQueryBuilder((TextExpansionResults) inferenceResults);

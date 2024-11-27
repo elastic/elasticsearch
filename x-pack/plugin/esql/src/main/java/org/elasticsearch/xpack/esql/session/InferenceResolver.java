@@ -131,12 +131,14 @@ public class InferenceResolver {
         analyzedPlan.forEachExpressionDown(Match.class, match -> {
             if (match.field().dataType() == DataType.SEMANTIC_TEXT && match.field() instanceof FieldAttribute field) {
                 if (isCrossClusterSearch) {
-                    failures.add(Failure.fail(
-                        match.field(),
-                        "[{}] {} does not allow semantic_text fields with cross cluster queries.",
-                        match.functionName(),
-                        match.functionType()
-                    ));
+                    failures.add(
+                        Failure.fail(
+                            match.field(),
+                            "[{}] {} does not allow semantic_text fields with cross cluster queries.",
+                            match.functionName(),
+                            match.functionType()
+                        )
+                    );
                 }
 
                 EsField esField = field.field();

@@ -1800,12 +1800,26 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
         indexEventListener.beforeIndexShardRecovery(this, indexSettings, listener);
     }
 
+    public volatile Releasable hollowPermits = null;
+    public AtomicBoolean unhollowing = new AtomicBoolean(false);
+
     public void postRecovery(String reason, ActionListener<Void> listener) throws IndexShardStartedException, IndexShardRelocatedException,
         IndexShardClosedException {
         assert postRecoveryComplete == null;
         SubscribableListener<Void> subscribableListener = new SubscribableListener<>();
         postRecoveryComplete = subscribableListener;
         final ActionListener<Void> finalListener = ActionListener.runBefore(listener, () -> subscribableListener.onResponse(null));
+        final ActionListener<Void> finalHollowListener = ActionListener.wrap(ignored -> {
+            if (shardRouting.primary()) {
+                this.asyncBlockOperations(ActionListener.wrap(r -> {
+                    logger.warn("IRAKLIS got permits for shard " + shardId);
+                    hollowPermits = r;
+                    finalListener.onResponse(null);
+                }, finalListener::onFailure), TimeValue.timeValueMinutes(1L).duration(), TimeUnit.MINUTES);
+            } else {
+                finalListener.onResponse(null);
+            }
+        }, finalListener::onFailure);
         try {
             getEngine().refresh("post_recovery");
             // we need to refresh again to expose all operations that were index until now. Otherwise
@@ -1821,10 +1835,40 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
                 recoveryState.setStage(RecoveryState.Stage.DONE);
                 changeState(IndexShardState.POST_RECOVERY, reason);
             }
-            indexEventListener.afterIndexShardRecovery(this, finalListener);
+            indexEventListener.afterIndexShardRecovery(this, finalHollowListener);
         } catch (Exception e) {
-            finalListener.onFailure(e);
+            finalHollowListener.onFailure(e);
         }
+    }
+
+    public void unhollow() {
+        if (hollowPermits != null && unhollowing.compareAndSet(false, true)) {
+            threadPool.generic().execute(() -> {
+                ActionListener.run(ActionListener.<Void>wrap(ignored -> {
+                    final EngineConfig config = newEngineConfig(replicationTracker);
+                    config.setEnableGcDeletes(false);
+                    synchronized (engineMutex) {
+                        IOUtils.close(currentEngineReference.get());
+                        final Engine newEngine = createEngine(config);
+                        currentEngineReference.set(newEngine);
+                        onNewEngine(newEngine);
+                        active.set(true);
+                    }
+                    onSettingsChanged();
+                    checkAndCallWaitForEngineOrClosedShardListeners();
+
+                    getEngine().skipTranslogRecovery();
+                    getEngine().refresh("post_recovery");
+                    indexEventListener.afterIndexShardRecovery(this, ActionListener.wrap(r -> {
+                        hollowPermits.close();
+                        logger.warn("IRAKLIS released permits for shard " + shardId);
+                        hollowPermits = null;
+                        unhollowing.set(false);
+                    }, e -> { assert false : e; }));
+                }, e -> { assert false : e; }), l -> indexEventListener.beforeIndexShardRecovery(this, indexSettings, l));
+            });
+        }
+        ;
     }
 
     /**
@@ -3553,6 +3597,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
     ) {
         verifyNotClosed();
         assert shardRouting.primary() : "acquirePrimaryOperationPermit should only be called on primary shard: " + shardRouting;
+        unhollow();
         indexShardOperationPermits.acquire(wrapPrimaryOperationPermitListener(onPermitAcquired), executorOnDelay, forceExecution);
     }
 
@@ -3600,6 +3645,7 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             onPermitAcquired.onFailure(e);
         });
         try {
+            unhollow();
             indexShardOperationPermits.blockOperations(wrappedListener, timeout, timeUnit, threadPool.generic());
         } catch (Exception e) {
             forceRefreshes.close();
@@ -4261,28 +4307,6 @@ public class IndexShard extends AbstractIndexShardComponent implements IndicesCl
             }
             refreshMetric.inc(System.nanoTime() - currentRefreshStartTime);
         }
-    }
-
-    public void myReset(ActionListener<Void> listener) throws IOException {
-        ActionListener.run(ActionListener.<Void>wrap(ignored -> {
-            ActionListener.run(listener, l -> {
-                final EngineConfig config = newEngineConfig(replicationTracker);
-                config.setEnableGcDeletes(false);
-                synchronized (engineMutex) {
-                    IOUtils.close(currentEngineReference.get());
-                    final Engine newEngine = createEngine(config);
-                    currentEngineReference.set(newEngine);
-                    onNewEngine(newEngine);
-                    active.set(true);
-                }
-                onSettingsChanged();
-                checkAndCallWaitForEngineOrClosedShardListeners();
-
-                getEngine().skipTranslogRecovery();
-                getEngine().refresh("post_recovery");
-                indexEventListener.afterIndexShardRecovery(this, l);
-            });
-        }, e -> { listener.onFailure(e); }), l -> indexEventListener.beforeIndexShardRecovery(this, indexSettings, l));
     }
 
     /**

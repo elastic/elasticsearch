@@ -8,6 +8,7 @@
 package org.elasticsearch.xpack.inference.external.http.sender;
 
 import org.elasticsearch.common.Strings;
+import org.elasticsearch.inference.UnifiedCompletionRequest;
 import org.elasticsearch.test.ESTestCase;
 import org.hamcrest.Matchers;
 
@@ -18,7 +19,8 @@ public class InferenceInputsTests extends ESTestCase {
         InferenceInputs inputs = new DocumentsOnlyInput(List.of(), false);
         assertThat(inputs.castTo(DocumentsOnlyInput.class), Matchers.instanceOf(DocumentsOnlyInput.class));
 
-        assertThat(UnifiedChatInput.of(List.of(), false).castTo(UnifiedChatInput.class), Matchers.instanceOf(UnifiedChatInput.class));
+        var emptyRequest = new UnifiedCompletionRequest(List.of(), null, null, null, null, null, null, null, null, null);
+        assertThat(new UnifiedChatInput(emptyRequest, false).castTo(UnifiedChatInput.class), Matchers.instanceOf(UnifiedChatInput.class));
         assertThat(
             new QueryAndDocsInputs("hello", List.of(), false).castTo(QueryAndDocsInputs.class),
             Matchers.instanceOf(QueryAndDocsInputs.class)

@@ -12,7 +12,7 @@ esplugin {
   name = 'x-pack-sql'
   description 'The Elasticsearch plugin that powers SQL for Elasticsearch'
   classname = 'org.elasticsearch.xpack.sql.plugin.SqlPlugin'
-  extendedPlugins = ['x-pack-ql', 'lang-painless']
+  extendedPlugins = ['x-pack-ql', 'lang-painless', 'x-pack-core']
 }
 
 ext {

@@ -210,7 +210,7 @@ class Elasticsearch {
         bootstrap.setPluginsLoader(pluginsLoader);
 
         if (Boolean.parseBoolean(System.getProperty("es.entitlements.enabled"))) {
-            logger.info("Bootstrapping Entitlements");
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping Entitlements");
 
             List<Tuple<Path, Boolean>> pluginData = new ArrayList<>();
             Set<PluginBundle> moduleBundles = PluginsUtils.getModuleBundles(nodeEnv.modulesFile());
@@ -225,7 +225,7 @@ class Elasticsearch {
             EntitlementBootstrap.bootstrap(pluginData, callerClass -> null);
         } else {
             // install SM after natives, shutdown hooks, etc.
-            logger.info("Bootstrapping java SecurityManager");
+            LogManager.getLogger(Elasticsearch.class).info("Bootstrapping java SecurityManager");
             org.elasticsearch.bootstrap.Security.configure(
                 nodeEnv,
                 SECURITY_FILTER_BAD_DEFAULTS_SETTING.get(args.nodeSettings()),

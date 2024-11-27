@@ -119,7 +119,6 @@ class NodeServiceProvider {
         ScriptService scriptService,
         BigArrays bigArrays,
         FetchPhase fetchPhase,
-        ResponseCollectorService responseCollectorService,
         CircuitBreakerService circuitBreakerService,
         ExecutorSelector executorSelector,
         Tracer tracer
@@ -131,7 +130,6 @@ class NodeServiceProvider {
             scriptService,
             bigArrays,
             fetchPhase,
-            responseCollectorService,
             circuitBreakerService,
             executorSelector,
             tracer

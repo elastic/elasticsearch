@@ -2314,7 +2314,6 @@ public class SnapshotResiliencyTests extends ESTestCase {
                     scriptService,
                     bigArrays,
                     new FetchPhase(Collections.emptyList()),
-                    responseCollectorService,
                     new NoneCircuitBreakerService(),
                     EmptySystemIndices.INSTANCE.getExecutorSelector(),
                     Tracer.NOOP
@@ -2481,6 +2480,7 @@ public class SnapshotResiliencyTests extends ESTestCase {
                         new NoneCircuitBreakerService(),
                         transportService,
                         searchService,
+                        responseCollectorService,
                         searchTransportService,
                         searchPhaseController,
                         clusterService,

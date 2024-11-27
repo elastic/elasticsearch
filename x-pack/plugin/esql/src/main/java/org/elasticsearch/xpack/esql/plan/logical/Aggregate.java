@@ -157,13 +157,7 @@ public class Aggregate extends UnaryPlan {
 
     @Override
     protected AttributeSet computeReferences() {
-        AttributeSet result = Expressions.references(groupings).combine(Expressions.references(aggregates));
-        for (Expression grouping : groupings) {
-            if (grouping instanceof Alias) {
-                result.remove(((Alias) grouping).toAttribute());
-            }
-        }
-        return result;
+        return computeReferences(aggregates, groupings);
     }
 
     public static AttributeSet computeReferences(List<? extends NamedExpression> aggregates, List<? extends Expression> groupings) {

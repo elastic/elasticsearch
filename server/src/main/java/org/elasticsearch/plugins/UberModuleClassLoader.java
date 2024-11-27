@@ -79,18 +79,7 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
     private static Map<String, Set<String>> getModuleToServiceMap(List<ModuleLayer> moduleLayers) {
         Set<String> allUnqualifiedExports = new HashSet<>();
         Set<ModuleDescriptor> allReadableModules = new HashSet<>();
-        for (var layer : moduleLayers) {
-            allUnqualifiedExports.addAll(unqualifiedExportsForLayer(layer));
-            allReadableModules.addAll(readableModulesForLayer(layer));
-            for (var parentLayer : layer.parents()) {
-                // ModuleLayer.boot() contains all ES libs too, so we want it to be an explicit parent
-                if (parentLayer != ModuleLayer.boot()) {
-                    allUnqualifiedExports.addAll(unqualifiedExportsForLayer(parentLayer));
-                    allReadableModules.addAll(readableModulesForLayer(parentLayer));
-                    // TODO: recurse?
-                }
-            }
-        }
+        collectLayersInfo(moduleLayers, allUnqualifiedExports, allReadableModules, true);
 
         return allReadableModules.stream()
             .collect(
@@ -103,6 +92,25 @@ public class UberModuleClassLoader extends SecureClassLoader implements AutoClos
                         .collect(Collectors.toSet())
                 )
             );
+    }
+
+    private static void collectLayersInfo(
+        List<ModuleLayer> moduleLayers,
+        Set<String> allUnqualifiedExports,
+        Set<ModuleDescriptor> allReadableModules,
+        boolean allowBootLayer
+    ) {
+        if (moduleLayers == null || moduleLayers.isEmpty()) {
+            return;
+        }
+        for (var layer : moduleLayers) {
+            // ModuleLayer.boot() contains all ES libs too, so we want it to be an explicit parent
+            if (allowBootLayer || layer != ModuleLayer.boot()) {
+                allUnqualifiedExports.addAll(unqualifiedExportsForLayer(layer));
+                allReadableModules.addAll(readableModulesForLayer(layer));
+                collectLayersInfo(layer.parents(), allUnqualifiedExports, allReadableModules, false);
+            }
+        }
     }
 
     static UberModuleClassLoader getInstance(ClassLoader parent, String moduleName, Set<URL> jarUrls) {

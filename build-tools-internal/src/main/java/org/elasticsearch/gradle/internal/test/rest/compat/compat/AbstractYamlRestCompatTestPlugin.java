@@ -12,6 +12,8 @@ package org.elasticsearch.gradle.internal.test.rest.compat.compat;
 import org.elasticsearch.gradle.Version;
 import org.elasticsearch.gradle.VersionProperties;
 import org.elasticsearch.gradle.internal.ElasticsearchJavaBasePlugin;
+import org.elasticsearch.gradle.internal.info.BuildParameterExtension;
+import org.elasticsearch.gradle.internal.info.GlobalBuildInfoPlugin;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestApiTask;
 import org.elasticsearch.gradle.internal.test.rest.CopyRestTestsTask;
 import org.elasticsearch.gradle.internal.test.rest.LegacyYamlRestTestPlugin;
@@ -46,6 +48,7 @@ import java.util.Map;
 import javax.inject.Inject;
 
 import static org.elasticsearch.gradle.internal.test.rest.RestTestUtil.setupYamlRestTestDependenciesDefaults;
+import static org.elasticsearch.gradle.internal.util.ParamsUtils.loadBuildParams;
 
 /**
  * Apply this plugin to run the YAML based REST tests from a prior major version against this version's cluster.
@@ -74,6 +77,8 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
 
     @Override
     public void apply(Project project) {
+        project.getRootProject().getRootProject().getPlugins().apply(GlobalBuildInfoPlugin.class);
+        BuildParameterExtension buildParams = loadBuildParams(project).get();
 
         final Path compatRestResourcesDir = Path.of("restResources").resolve("v" + COMPATIBLE_VERSION);
         final Path compatSpecsDir = compatRestResourcesDir.resolve("yamlSpecs");
@@ -89,7 +94,6 @@ public abstract class AbstractYamlRestCompatTestPlugin implements Plugin<Project
         SourceSet yamlCompatTestSourceSet = sourceSets.create(SOURCE_SET_NAME);
         SourceSet yamlTestSourceSet = sourceSets.getByName(YamlRestTestPlugin.YAML_REST_TEST);
         GradleUtils.extendSourceSet(project, YamlRestTestPlugin.YAML_REST_TEST, SOURCE_SET_NAME);
-
         // copy compatible rest specs
         Configuration bwcMinorConfig = project.getConfigurations().create(BWC_MINOR_CONFIG_NAME);
         Dependency bwcMinor = project.getDependencies()

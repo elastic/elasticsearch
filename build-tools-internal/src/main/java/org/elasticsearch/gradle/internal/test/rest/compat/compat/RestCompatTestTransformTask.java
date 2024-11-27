@@ -53,6 +53,8 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.Internal;
 import org.gradle.api.tasks.Nested;
 import org.gradle.api.tasks.OutputDirectory;
+import org.gradle.api.tasks.PathSensitive;
+import org.gradle.api.tasks.PathSensitivity;
 import org.gradle.api.tasks.SkipWhenEmpty;
 import org.gradle.api.tasks.TaskAction;
 import org.gradle.api.tasks.util.PatternFilterable;
@@ -420,6 +422,7 @@ public abstract class RestCompatTestTransformTask extends DefaultTask {
     @SkipWhenEmpty
     @IgnoreEmptyDirectories
     @InputFiles
+    @PathSensitive(PathSensitivity.RELATIVE)
     public FileTree getTestFiles() {
         return sourceDirectory.getAsFileTree().matching(testPatternSet);
     }

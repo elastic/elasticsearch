@@ -430,10 +430,20 @@ public class AzureHttpHandler implements HttpHandler {
                     logger.debug("--> Sending response:\n{}", response);
                     exchange.getResponseBody().write(response.toString().getBytes(StandardCharsets.UTF_8));
                 }
-            } else {
-                logger.warn("--> Unrecognised request received: {}", request);
-                sendError(exchange, RestStatus.NOT_FOUND, "ResourceNotFound", "The specified resource doesn't exist.");
-            }
+            } else if (Regex.simpleMatch("PUT /*/*/*master.dat", request)
+                && Regex.simpleMatch("PUT /" + account + "/" + container + "*", request) == false) {
+                    // An attempt to put master.dat to a different container. This is probably
+                    // org.elasticsearch.repositories.blobstore.BlobStoreRepository#startVerification
+                    throw new MockAzureBlobStore.AzureBlobStoreError(
+                        RestStatus.NOT_FOUND,
+                        "ContainerNotFound",
+                        "The specified container does not exist."
+                    );
+                } else {
+                    final String message = "You sent a request that is not supported by AzureHttpHandler: " + request;
+                    failTestWithAssertionError(message);
+                    throw new MockAzureBlobStore.BadRequestException("UnrecognisedRequest", message);
+                }
         } catch (MockAzureBlobStore.AzureBlobStoreError e) {
             sendError(exchange, e);
         } catch (Exception e) {

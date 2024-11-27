@@ -84,7 +84,6 @@ tasks.named("yamlRestTest").configure {
     '^indices.split/*/*',
     '^indices.stats/*/*',
     '^indices.update_aliases/*/*',
-    '^indices.validate_query/*/*',
     '^logsdb/*/*',
     '^mget/*/*',
     '^mget/*/*/*',

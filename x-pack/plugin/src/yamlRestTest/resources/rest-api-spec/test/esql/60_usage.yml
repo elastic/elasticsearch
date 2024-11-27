@@ -30,7 +30,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ snapshot_test_for_telemetry, fn_bit_length ]
+          capabilities: [ snapshot_test_for_telemetry, fn_byte_length ]
       reason: "Test that should only be executed on snapshot versions"
 
   - do: {xpack.usage: {}}
@@ -91,7 +91,8 @@ setup:
   - match: {esql.functions.cos: $functions_cos}
   - gt: {esql.functions.to_long: $functions_to_long}
   - match: {esql.functions.coalesce: $functions_coalesce}
-  - length: {esql.functions: 119} # check the "sister" test below for a likely update to the same esql.functions length check
+  # Testing for the entire function set isn't feasbile, so we just check that we return the correct count as an approximation.
+  - length: {esql.functions: 122} # check the "sister" test below for a likely update to the same esql.functions length check
 
 ---
 "Basic ESQL usage output (telemetry) non-snapshot version":
@@ -101,7 +102,7 @@ setup:
         - method: POST
           path: /_query
           parameters: []
-          capabilities: [ non_snapshot_test_for_telemetry, fn_bit_length ]
+          capabilities: [ non_snapshot_test_for_telemetry, fn_byte_length ]
       reason: "Test that should only be executed on release versions"
 
   - do: {xpack.usage: {}}

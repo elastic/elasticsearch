@@ -104,6 +104,7 @@ public class TransportVersions {
     public static final TransportVersion V_8_14_0 = def(8_636_00_1);
     public static final TransportVersion V_8_15_0 = def(8_702_00_2);
     public static final TransportVersion V_8_15_2 = def(8_702_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_15 = def(8_702_00_4);
     public static final TransportVersion ML_INFERENCE_DONT_DELETE_WHEN_SEMANTIC_TEXT_EXISTS = def(8_703_00_0);
     public static final TransportVersion INFERENCE_ADAPTIVE_ALLOCATIONS = def(8_704_00_0);
     public static final TransportVersion INDEX_REQUEST_UPDATE_BY_SCRIPT_ORIGIN = def(8_705_00_0);
@@ -175,6 +176,9 @@ public class TransportVersions {
     public static final TransportVersion ML_INFERENCE_ATTACH_TO_EXISTSING_DEPLOYMENT = def(8_771_00_0);
     public static final TransportVersion CONVERT_FAILURE_STORE_OPTIONS_TO_SELECTOR_OPTIONS_INTERNALLY = def(8_772_00_0);
     public static final TransportVersion INFERENCE_DONT_PERSIST_ON_READ_BACKPORT_8_16 = def(8_772_00_1);
+    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO_BACKPORT_8_16 = def(8_772_00_2);
+    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE_BACKPORT_8_16 = def(8_772_00_3);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES_BACKPORT_8_16 = def(8_772_00_4);
     public static final TransportVersion REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_773_00_0);
     public static final TransportVersion REVERT_REMOVE_MIN_COMPATIBLE_SHARD_NODE = def(8_774_00_0);
     public static final TransportVersion ESQL_FIELD_ATTRIBUTE_PARENT_SIMPLIFIED = def(8_775_00_0);
@@ -190,7 +194,21 @@ public class TransportVersions {
     public static final TransportVersion LOGSDB_TELEMETRY_STATS = def(8_785_00_0);
     public static final TransportVersion KQL_QUERY_ADDED = def(8_786_00_0);
     public static final TransportVersion ROLE_MONITOR_STATS = def(8_787_00_0);
-
+    public static final TransportVersion DATA_STREAM_INDEX_VERSION_DEPRECATION_CHECK = def(8_788_00_0);
+    public static final TransportVersion ADD_COMPATIBILITY_VERSIONS_TO_NODE_INFO = def(8_789_00_0);
+    public static final TransportVersion VERTEX_AI_INPUT_TYPE_ADDED = def(8_790_00_0);
+    public static final TransportVersion SKIP_INNER_HITS_SEARCH_SOURCE = def(8_791_00_0);
+    public static final TransportVersion QUERY_RULES_LIST_INCLUDES_TYPES = def(8_792_00_0);
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS = def(8_793_00_0);
+    public static final TransportVersion INDEX_STATS_ADDITIONAL_FIELDS_REVERT = def(8_794_00_0);
+    public static final TransportVersion FAST_REFRESH_RCO_2 = def(8_795_00_0);
+    public static final TransportVersion ESQL_ENRICH_RUNTIME_WARNINGS = def(8_796_00_0);
+    public static final TransportVersion INGEST_PIPELINE_CONFIGURATION_AS_MAP = def(8_797_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE_FIX_8_17 = def(8_797_00_1);
+    public static final TransportVersion INDEXING_PRESSURE_THROTTLING_STATS = def(8_798_00_0);
+    public static final TransportVersion REINDEX_DATA_STREAMS = def(8_799_00_0);
+    public static final TransportVersion ESQL_REMOVE_NODE_LEVEL_PLAN = def(8_800_00_0);
+    public static final TransportVersion LOGSDB_TELEMETRY_CUSTOM_CUTOFF_DATE = def(8_801_00_0);
     /*
      * STOP! READ THIS FIRST! No, really,
      *        ____ _____ ___  ____  _        ____  _____    _    ____    _____ _   _ ___ ____    _____ ___ ____  ____ _____ _

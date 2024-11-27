@@ -6,7 +6,6 @@
  */
 
 import org.elasticsearch.gradle.Version
-import org.elasticsearch.gradle.internal.info.BuildParams
 import org.elasticsearch.gradle.testclusters.StandaloneRestIntegTestTask
 
 apply plugin: 'elasticsearch.internal-java-rest-test'
@@ -15,6 +14,7 @@ apply plugin: 'elasticsearch.bwc-test'
 dependencies {
   javaRestTestImplementation project(xpackModule('esql:qa:testFixtures'))
   javaRestTestImplementation project(xpackModule('esql:qa:server'))
+  javaRestTestImplementation project(xpackModule('esql'))
 }
 
 def supportedVersion = bwcVersion -> {
@@ -22,7 +22,7 @@ def supportedVersion = bwcVersion -> {
   return bwcVersion.onOrAfter(Version.fromString("8.13.0"));
 }
 
-BuildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
+buildParams.bwcVersions.withWireCompatible(supportedVersion) { bwcVersion, baseName ->
   tasks.register(bwcTaskName(bwcVersion), StandaloneRestIntegTestTask) {
     usesBwcDistribution(bwcVersion)
     systemProperty("tests.old_cluster_version", bwcVersion)

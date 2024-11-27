@@ -69,7 +69,7 @@ setup:
 
   - do:
       warnings:
-        - "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in Elasticsearch 9.0"
+        - "the [elasticsearch_version] field of an enrich policy has no effect and will be removed in a future version of Elasticsearch"
       enrich.put_policy:
         name: policy-crud-warning
         body:

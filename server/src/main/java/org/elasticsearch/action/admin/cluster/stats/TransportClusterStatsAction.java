@@ -27,6 +27,7 @@ import org.elasticsearch.action.support.CancellableFanOut;
 import org.elasticsearch.action.support.RefCountingListener;
 import org.elasticsearch.action.support.SubscribableListener;
 import org.elasticsearch.action.support.nodes.TransportNodesAction;
+import org.elasticsearch.client.internal.Client;
 import org.elasticsearch.cluster.ClusterSnapshotStats;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.health.ClusterHealthStatus;
@@ -108,20 +109,19 @@ public class TransportClusterStatsAction extends TransportNodesAction<
     private final MetadataStatsCache<MappingStats> mappingStatsCache;
     private final MetadataStatsCache<AnalysisStats> analysisStatsCache;
     private final RemoteClusterService remoteClusterService;
-    private final TransportRemoteClusterStatsAction remoteClusterStatsAction;
 
     @Inject
     public TransportClusterStatsAction(
         ThreadPool threadPool,
         ClusterService clusterService,
         TransportService transportService,
+        Client client,
         NodeService nodeService,
         IndicesService indicesService,
         RepositoriesService repositoriesService,
         UsageService usageService,
         ActionFilters actionFilters,
-        Settings settings,
-        TransportRemoteClusterStatsAction remoteClusterStatsAction
+        Settings settings
     ) {
         super(
             TYPE.name(),
@@ -141,7 +141,9 @@ public class TransportClusterStatsAction extends TransportNodesAction<
         this.analysisStatsCache = new MetadataStatsCache<>(threadPool.getThreadContext(), AnalysisStats::of);
         this.remoteClusterService = transportService.getRemoteClusterService();
         this.settings = settings;
-        this.remoteClusterStatsAction = remoteClusterStatsAction;
+
+        // register remote-cluster action with transport service only and not as a local-node Action that the Client can invoke
+        new TransportRemoteClusterStatsAction(client, transportService, actionFilters);
     }
 
     @Override

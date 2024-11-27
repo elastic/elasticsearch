@@ -18,6 +18,7 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
+import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
@@ -47,7 +48,7 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        AbstractSearchAsyncAction<?> context,
+        AsyncSearchContext context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase
     ) {
         this(

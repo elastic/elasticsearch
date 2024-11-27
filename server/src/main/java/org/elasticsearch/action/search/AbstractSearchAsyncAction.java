@@ -68,8 +68,8 @@ import static org.elasticsearch.core.Strings.format;
  * The fan out and collect algorithm is traditionally used as the initial phase which can either be a query execution or collection of
  * distributed frequencies
  */
-abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase {
-    private static final float DEFAULT_INDEX_BOOST = 1.0f;
+abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> extends SearchPhase implements AsyncSearchContext {
+    static final float DEFAULT_INDEX_BOOST = 1.0f;
     private final Logger logger;
     private final NamedWriteableRegistry namedWriteableRegistry;
     private final SearchTransportService searchTransportService;
@@ -524,7 +524,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
         results.consumeShardFailure(shardIndex);
     }
 
-    private static boolean isTaskCancelledException(Exception e) {
+    static boolean isTaskCancelledException(Exception e) {
         return ExceptionsHelper.unwrapCausesAndSuppressed(e, ex -> ex instanceof TaskCancelledException).isPresent();
     }
 
@@ -806,7 +806,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      */
     protected abstract SearchPhase getNextPhase();
 
-    private static final class PendingExecutions {
+    static final class PendingExecutions {
         private final Semaphore semaphore;
         private final ConcurrentLinkedQueue<Consumer<Releasable>> queue = new ConcurrentLinkedQueue<>();
 

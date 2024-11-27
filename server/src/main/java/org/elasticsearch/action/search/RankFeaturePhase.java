@@ -38,7 +38,7 @@ import java.util.List;
 public class RankFeaturePhase extends SearchPhase {
 
     private static final Logger logger = LogManager.getLogger(RankFeaturePhase.class);
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext context;
     final SearchPhaseResults<SearchPhaseResult> queryPhaseResults;
     final SearchPhaseResults<SearchPhaseResult> rankPhaseResults;
     private final AggregatedDfs aggregatedDfs;
@@ -48,24 +48,16 @@ public class RankFeaturePhase extends SearchPhase {
     RankFeaturePhase(
         SearchPhaseResults<SearchPhaseResult> queryPhaseResults,
         AggregatedDfs aggregatedDfs,
-        AbstractSearchAsyncAction<?> context,
+        AsyncSearchContext context,
         RankFeaturePhaseRankCoordinatorContext rankFeaturePhaseRankCoordinatorContext
     ) {
         super("rank-feature");
         assert rankFeaturePhaseRankCoordinatorContext != null;
         this.rankFeaturePhaseRankCoordinatorContext = rankFeaturePhaseRankCoordinatorContext;
-        if (context.getNumShards() != queryPhaseResults.getNumShards()) {
-            throw new IllegalStateException(
-                "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
-                    + "!="
-                    + queryPhaseResults.getNumShards()
-            );
-        }
         this.context = context;
         this.queryPhaseResults = queryPhaseResults;
         this.aggregatedDfs = aggregatedDfs;
-        this.rankPhaseResults = new ArraySearchPhaseResults<>(context.getNumShards());
+        this.rankPhaseResults = new ArraySearchPhaseResults<>(queryPhaseResults.getNumShards());
         context.addReleasable(rankPhaseResults);
         this.progressListener = context.getTask().getProgressListener();
     }
@@ -94,10 +86,10 @@ public class RankFeaturePhase extends SearchPhase {
         // to operate on the first `rank_window_size * num_shards` results and merge them appropriately.
         SearchPhaseController.ReducedQueryPhase reducedQueryPhase = queryPhaseResults.reduce();
         ScoreDoc[] queryScoreDocs = reducedQueryPhase.sortedTopDocs().scoreDocs(); // rank_window_size
-        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(context.getNumShards(), queryScoreDocs);
+        final List<Integer>[] docIdsToLoad = SearchPhaseController.fillDocIdsToLoad(queryPhaseResults.getNumShards(), queryScoreDocs);
         final CountedCollector<SearchPhaseResult> rankRequestCounter = new CountedCollector<>(
             rankPhaseResults,
-            context.getNumShards(),
+            queryPhaseResults.getNumShards(),
             () -> onPhaseDone(rankFeaturePhaseRankCoordinatorContext, reducedQueryPhase),
             context
         );

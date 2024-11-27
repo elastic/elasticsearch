@@ -1506,9 +1506,8 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
             );
             boolean success = false;
             try {
-                final AbstractSearchAsyncAction<?> searchPhase;
                 if (searchRequest.searchType() == DFS_QUERY_THEN_FETCH) {
-                    searchPhase = new SearchDfsQueryThenFetchAsyncAction(
+                    var searchPhase = new SearchDfsQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1526,9 +1525,11 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 } else {
                     assert searchRequest.searchType() == QUERY_THEN_FETCH : searchRequest.searchType();
-                    searchPhase = new SearchQueryThenFetchAsyncAction(
+                    var searchPhase = new SearchQueryThenFetchAsyncAction(
                         logger,
                         namedWriteableRegistry,
                         searchTransportService,
@@ -1546,9 +1547,9 @@ public class TransportSearchAction extends HandledTransportAction<SearchRequest,
                         clusters,
                         client
                     );
+                    success = true;
+                    searchPhase.start();
                 }
-                success = true;
-                searchPhase.start();
             } finally {
                 if (success == false) {
                     queryResultConsumer.close();

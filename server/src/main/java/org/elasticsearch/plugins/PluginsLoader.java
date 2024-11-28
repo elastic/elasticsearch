@@ -64,18 +64,26 @@ public class PluginsLoader {
          * @return The {@link ClassLoader} used to instantiate the main class for the plugin
          */
         ClassLoader pluginClassLoader();
+
+        /**
+         * @return The {@link ModuleLayer} for the plugin modules
+         */
+        ModuleLayer pluginModuleLayer();
     }
 
     /**
      * Contains information about the {@link ClassLoader}s and {@link ModuleLayer} required for loading a plugin
-     * @param pluginBundle Information about the bundle of jars used in this plugin
+     *
+     * @param pluginBundle      Information about the bundle of jars used in this plugin
      * @param pluginClassLoader The {@link ClassLoader} used to instantiate the main class for the plugin
-     * @param spiClassLoader The exported {@link ClassLoader} visible to other Java modules
-     * @param spiModuleLayer The exported {@link ModuleLayer} visible to other Java modules
+     * @param pluginModuleLayer The {@link ModuleLayer} containing the Java modules of the plugin
+     * @param spiClassLoader    The exported {@link ClassLoader} visible to other Java modules
+     * @param spiModuleLayer    The exported {@link ModuleLayer} visible to other Java modules
      */
     private record LoadedPluginLayer(
         PluginBundle pluginBundle,
         ClassLoader pluginClassLoader,
+        ModuleLayer pluginModuleLayer,
         ClassLoader spiClassLoader,
         ModuleLayer spiModuleLayer
     ) implements PluginLayer {
@@ -253,7 +261,16 @@ public class PluginsLoader {
             spiLayerAndLoader = pluginLayerAndLoader;
         }
 
-        loaded.put(name, new LoadedPluginLayer(bundle, pluginClassLoader, spiLayerAndLoader.loader, spiLayerAndLoader.layer));
+        loaded.put(
+            name,
+            new LoadedPluginLayer(
+                bundle,
+                pluginClassLoader,
+                pluginLayerAndLoader.layer(),
+                spiLayerAndLoader.loader,
+                spiLayerAndLoader.layer
+            )
+        );
     }
 
     static LayerAndLoader createSPI(
@@ -389,7 +406,7 @@ public class PluginsLoader {
         return result;
     }
 
-    static final String toPackageName(String className) {
+    static String toPackageName(String className) {
         assert className.endsWith(".") == false;
         int index = className.lastIndexOf('.');
         if (index == -1) {
@@ -399,11 +416,11 @@ public class PluginsLoader {
     }
 
     @SuppressForbidden(reason = "I need to convert URL's to Paths")
-    static final Path[] urlsToPaths(Set<URL> urls) {
+    static Path[] urlsToPaths(Set<URL> urls) {
         return urls.stream().map(PluginsLoader::uncheckedToURI).map(PathUtils::get).toArray(Path[]::new);
     }
 
-    static final URI uncheckedToURI(URL url) {
+    static URI uncheckedToURI(URL url) {
         try {
             return url.toURI();
         } catch (URISyntaxException e) {

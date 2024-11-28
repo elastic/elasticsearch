@@ -29,6 +29,7 @@ import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.core.Nullable;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.mapper.DateFieldMapper;
 import org.elasticsearch.index.mapper.MappedFieldType;
 import org.elasticsearch.index.mapper.NumberFieldMapper;
@@ -105,7 +106,8 @@ public class ShardSizeStatsReaderImpl implements ShardSizeStatsReader {
                 var interactiveSize = 0L;
                 var nonInteractiveSize = 0L;
 
-                var indexMetadata = clusterService.state().metadata().getProject().index(indexShard.shardId().getIndex());
+                final Index index = indexShard.shardId().getIndex();
+                var indexMetadata = clusterService.state().metadata().lookupProject(index).map(pm -> pm.index(index)).orElse(null);
                 if (indexMetadata == null) {
                     return null;
                 }

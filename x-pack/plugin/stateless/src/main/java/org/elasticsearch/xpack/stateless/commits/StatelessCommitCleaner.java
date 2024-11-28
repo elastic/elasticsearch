@@ -25,10 +25,12 @@ import org.elasticsearch.action.support.RetryableAction;
 import org.elasticsearch.cluster.ClusterChangedEvent;
 import org.elasticsearch.cluster.ClusterState;
 import org.elasticsearch.cluster.ClusterStateListener;
+import org.elasticsearch.cluster.metadata.ProjectMetadata;
 import org.elasticsearch.common.component.AbstractLifecycleComponent;
 import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.gateway.GatewayService;
+import org.elasticsearch.index.Index;
 import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.index.shard.ShardId;
 import org.elasticsearch.logging.LogManager;
@@ -146,7 +148,8 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
                         var commit = it.next();
                         try {
                             // Can throw if the index or shard is not there anymore
-                            if (state.routingTable().shardRoutingTable(commit.shardId()).primaryShard().started()) {
+                            final ProjectMetadata projectMetadata = state.metadata().projectFor(commit.shardId().getIndex());
+                            if (state.routingTable(projectMetadata.id()).shardRoutingTable(commit.shardId()).primaryShard().started()) {
                                 pendingCommitsToDelete.add(commit);
                                 anyMoved = true;
                                 it.remove();
@@ -222,21 +225,24 @@ public class StatelessCommitCleaner extends AbstractLifecycleComponent implement
             // new master has not found out what to do yet, but this is essentially unassigned.
             return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
         }
-        var indexRoutingTable = state.routingTable().index(shardId.getIndex());
+        final Index index = shardId.getIndex();
+        final ProjectMetadata projectMetadata = state.metadata().lookupProject(index).orElse(null);
+        if (projectMetadata == null) {
+            logger.debug("project not found while getting shard [{}] deletion state", shardId);
+            return ShardDeletionState.INDEX_DELETED;
+        }
+        var indexRoutingTable = state.routingTable(projectMetadata.id()).index(index);
         if (indexRoutingTable == null) {
-            if (state.getMetadata().getProject().hasIndex(shardId.getIndex()) == false) {
-                return ShardDeletionState.INDEX_DELETED;
-            } else {
-                logger.warn("found no index routing for {} but found it in metadata", shardId);
-                assert false;
-                // better safe than sorry in this case.
-                return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
-            }
+            // This should not be possible since https://github.com/elastic/elasticsearch/issues/33888
+            logger.warn("found no index routing for {} but found it in metadata", shardId);
+            assert false;
+            // better safe than sorry in this case.
+            return ShardDeletionState.LOCAL_NODE_IS_NOT_PRIMARY;
         }
 
         var primaryShard = indexRoutingTable.shard(shardId.getId()).primaryShard();
         var localNode = state.nodes().getLocalNode();
-        var currentPrimaryTerm = state.metadata().getProject().index(shardId.getIndex()).primaryTerm(shardId.getId());
+        var currentPrimaryTerm = projectMetadata.index(index).primaryTerm(shardId.getId());
 
         if (currentPrimaryTerm == allocationPrimaryTerm) {
             if (localNode.getId().equals(primaryShard.currentNodeId())) {

@@ -10,6 +10,8 @@ package org.elasticsearch.xpack.esql.optimizer;
 import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 
 import org.apache.lucene.search.IndexSearcher;
+import org.apache.lucene.util.BytesRef;
+import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
@@ -41,7 +43,6 @@ import org.elasticsearch.xpack.esql.core.util.Holder;
 import org.elasticsearch.xpack.esql.enrich.ResolvedEnrichPolicy;
 import org.elasticsearch.xpack.esql.expression.function.EsqlFunctionRegistry;
 import org.elasticsearch.xpack.esql.expression.function.fulltext.Match;
-import org.elasticsearch.xpack.esql.expression.function.fulltext.MatchTests;
 import org.elasticsearch.xpack.esql.index.EsIndex;
 import org.elasticsearch.xpack.esql.index.IndexResolution;
 import org.elasticsearch.xpack.esql.parser.ParsingException;
@@ -67,12 +68,17 @@ import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
+import org.elasticsearch.xpack.versionfield.Version;
 import org.junit.Before;
 
 import java.io.IOException;
+import java.math.BigInteger;
+import java.net.InetAddress;
+import java.net.UnknownHostException;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.function.BiFunction;
 
 import static java.util.Arrays.asList;
 import static org.elasticsearch.compute.aggregation.AggregatorMode.FINAL;
@@ -1273,31 +1279,93 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
      *       estimatedRowSize[324]
      */
     public void testSingleMatchFilterPushdown() {
-        // Check for every possible query data type
-        for (DataType queryDataType : Match.DATA_TYPES) {
-            var query = MatchTests.randomQuery(queryDataType);
-            var queryText = query;
-            if (query instanceof String) {
-                queryText = "\"" + query + "\"";
-            }
-            var esqlQuery = """
-                from test
-                | where first_name:""" + queryText;
-            try {
-                var plan = plannerOptimizer.plan(esqlQuery);
+        var analyzer = makeAnalyzer("mapping-all-types.json");
 
+        BiFunction<Object, DataType, String> queryValueProvider = (value, dataType) -> {
+            if (dataType == DataType.TEXT || dataType == DataType.KEYWORD) {
+                return queryValueAsString(value, dataType);
+            }
+            return queryValueAsCasting(value, dataType);
+        };
+
+        // Check for every possible query data type
+        for (DataType fieldDataType : Match.FIELD_DATA_TYPES) {
+            var queryValue = randomQueryValue(fieldDataType);
+
+            String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);
+            var esqlQuery = String.format(
+                Locale.ROOT,
+                "from test | where %s:%s",
+                fieldName,
+                queryValueAsCasting(queryValue, fieldDataType)
+            );
+
+            try {
+                var plan = plannerOptimizer.plan(esqlQuery, IS_SV_STATS, analyzer);
                 var limit = as(plan, LimitExec.class);
                 var exchange = as(limit.child(), ExchangeExec.class);
                 var project = as(exchange.child(), ProjectExec.class);
                 var fieldExtract = as(project.child(), FieldExtractExec.class);
                 var actualLuceneQuery = as(fieldExtract.child(), EsQueryExec.class).query();
 
-                var expectedLuceneQuery = new MatchQueryBuilder("first_name", query);
-                assertThat("Unexpected match query for data type " + queryDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
+                var expectedLuceneQuery = new MatchQueryBuilder(fieldName, queryValue);
+                assertThat("Unexpected match query for data type " + fieldDataType, actualLuceneQuery, equalTo(expectedLuceneQuery));
             } catch (ParsingException e) {
                 fail("Error parsing ESQL query: " + esqlQuery + "\n" + e.getMessage());
             }
         }
+    }
+
+    private static Object randomQueryValue(DataType dataType) {
+        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
+            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
+        }
+        Object value = EsqlTestUtils.randomLiteral(dataType).value();
+        if (value instanceof BytesRef bytesRef) {
+            switch (dataType) {
+                case TEXT, KEYWORD -> value = bytesRef.utf8ToString();
+                case VERSION -> value = new Version(bytesRef).toString();
+                case IP -> {
+                    try {
+                        value = NetworkAddress.format(InetAddress.getByAddress(bytesRef.bytes));
+                    } catch (UnknownHostException e) {
+                        throw new IllegalArgumentException(e);
+                    }
+                }
+                default -> throw new IllegalArgumentException("Unexpected type: " + dataType + " has BytesRef as value");
+            }
+        } else if (dataType == DataType.UNSIGNED_LONG) {
+            value = BigInteger.valueOf((Long) value);
+        }
+
+        return value;
+    }
+
+    private static String queryValueAsCasting(Object value, DataType dataType) {
+        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
+            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
+        }
+        if (value instanceof String) {
+            value = "\"" + value + "\"";
+        }
+        return switch (dataType) {
+            case VERSION -> value + "::VERSION";
+            case IP -> value + "::IP";
+            case DATETIME -> value + "::DATETIME";
+            case DATE_NANOS -> value + "::DATE_NANOS";
+            case INTEGER -> value + "::INTEGER";
+            case LONG -> value + "::LONG";
+            case BOOLEAN -> String.valueOf(value).toLowerCase(Locale.ROOT);
+            case UNSIGNED_LONG -> "\"" + value + "\"::UNSIGNED_LONG";
+            default -> value.toString();
+        };
+    }
+
+    private static String queryValueAsString(Object value, DataType dataType) {
+        if (Match.FIELD_DATA_TYPES.contains(dataType) == false) {
+            throw new IllegalArgumentException("Unsupported type in tests: " + dataType);
+        }
+        return "\"" + String.valueOf(value) + "\"";
     }
 
     /**

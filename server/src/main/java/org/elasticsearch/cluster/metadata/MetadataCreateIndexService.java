@@ -1773,7 +1773,7 @@ public class MetadataCreateIndexService {
         if (useRefreshBlock(settings) == false) {
             return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {};
         }
-        logger.info("applying refresh block on index creation");
+        logger.debug("applying refresh block on index creation");
         return (clusterBlocks, indexMetadata, minClusterTransportVersion) -> {
             if (applyRefreshBlock(indexMetadata, minClusterTransportVersion)) {
                 clusterBlocks.addIndexBlock(indexMetadata.getIndex().getName(), IndexMetadata.INDEX_REFRESH_BLOCK);

@@ -63,6 +63,7 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
      * an insertion.
      */
     public T put(long key, T value) {
+        assert value != null : "Null values are not supported";
         if (size >= maxSize) {
             assert size == maxSize;
             grow();
@@ -94,9 +95,6 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
     }
 
     private T set(long key, T value) {
-        if (value == null) {
-            throw new IllegalArgumentException("Null values are not supported");
-        }
         for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
             final T previous = values.getAndSet(i, value);
             if (previous == null) {
@@ -116,7 +114,7 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
 
     @Override
     public Iterator<Cursor<T>> iterator() {
-        return new Iterator<Cursor<T>>() {
+        return new Iterator<>() {
 
             boolean cached;
             final Cursor<T> cursor;
@@ -181,9 +179,21 @@ public final class LongObjectPagedHashMap<T> extends AbstractPagedHashMap implem
     protected void removeAndAdd(long index) {
         final long key = keys.get(index);
         final T value = values.getAndSet(index, null);
-        --size;
-        final T removed = set(key, value);
-        assert removed == null;
+        reset(key, value);
+    }
+
+    private void reset(long key, T value) {
+        final ObjectArray<T> values = this.values;
+        final long mask = this.mask;
+        for (long i = slot(hash(key), mask);; i = nextSlot(i, mask)) {
+            final T previous = values.get(i);
+            if (previous == null) {
+                // slot was free
+                keys.set(i, key);
+                values.set(i, value);
+                break;
+            }
+        }
     }
 
     public static final class Cursor<T> {

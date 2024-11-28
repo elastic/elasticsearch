@@ -116,7 +116,7 @@ public class EnrollmentProcessTests extends PackagingTestCase {
                 makeRequestAsElastic("https://localhost:9200/_cluster/health", "password"),
                 containsString("\"number_of_nodes\":2")
             ),
-            20,
+            60,
             TimeUnit.SECONDS
         );
 

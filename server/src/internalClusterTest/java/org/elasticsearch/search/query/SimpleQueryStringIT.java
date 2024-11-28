@@ -51,6 +51,7 @@ import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertFirs
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertNoFailuresAndResponse;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponse;
+import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertResponses;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHits;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertSearchHitsWithoutFailures;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.hasId;
@@ -383,14 +384,10 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("3").setSource("f3", "foo bar baz"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), response -> {
+        assertResponses(response -> {
             assertHitCount(response, 2L);
             assertHits(response.getHits(), "1", "3");
-        });
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("bar")), response -> {
-            assertHitCount(response, 2L);
-            assertHits(response.getHits(), "1", "3");
-        });
+        }, prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), prepareSearch("test").setQuery(simpleQueryStringQuery("bar")));
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")), response -> {
             assertHitCount(response, 3L);
             assertHits(response.getHits(), "1", "2", "3");
@@ -407,21 +404,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")), response -> {
+        assertResponses(response -> {
             assertHits(response.getHits(), "1", "2");
             assertHitCount(response, 2L);
-        });
+        },
+            prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("bar \"2015/09/02\"")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\" \"2015/09/01\""))
+        );
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\"")), response -> {
             assertHits(response.getHits(), "1");
             assertHitCount(response, 1L);
-        });
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("bar \"2015/09/02\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
-        });
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\" \"2015/09/01\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
         });
     }
 
@@ -435,21 +428,17 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("2").setSource("f1", "bar", "f_date", "2015/09/01", "f_float", "1.8", "f_ip", "127.0.0.2"));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")), response -> {
+        assertResponses(response -> {
             assertHits(response.getHits(), "1", "2");
             assertHitCount(response, 2L);
-        });
+        },
+            prepareSearch("test").setQuery(simpleQueryStringQuery("foo bar")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.2 \"2015/09/02\"")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1 1.8"))
+        );
         assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("\"2015/09/02\"")), response -> {
             assertHits(response.getHits(), "1");
             assertHitCount(response, 1L);
-        });
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.2 \"2015/09/02\"")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
-        });
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1 1.8")), response -> {
-            assertHits(response.getHits(), "1", "2");
-            assertHitCount(response, 2L);
         });
     }
 
@@ -463,34 +452,27 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
         reqs.add(prepareIndex("test").setId("1").setSource(docBody, XContentType.JSON));
         indexRandom(true, false, reqs);
 
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("foo")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("Baz")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("19")), response -> assertHits(response.getHits(), "1"));
-        // nested doesn't match because it's hidden
-        assertResponse(
+        assertResponses(
+            response -> assertHits(response.getHits(), "1"),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("foo")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("Bar")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("Baz")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("19")),
+            // nested doesn't match because it's hidden
             prepareSearch("test").setQuery(simpleQueryStringQuery("1476383971")),
-            response -> assertHits(response.getHits(), "1")
-        );
-        // bool doesn't match
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("7")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("23")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("1293")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("42")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("1.7")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")), response -> assertHits(response.getHits(), "1"));
-        assertResponse(
+            // bool doesn't match
+            prepareSearch("test").setQuery(simpleQueryStringQuery("7")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("23")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("1293")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("42")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("1.7")),
+            prepareSearch("test").setQuery(simpleQueryStringQuery("1.5")),
             prepareSearch("test").setQuery(simpleQueryStringQuery("127.0.0.1")),
-            response -> assertHits(response.getHits(), "1")
-        );
-        // binary doesn't match
-        // suggest doesn't match
-        // geo_point doesn't match
-        // geo_shape doesn't match
-
-        assertResponse(
-            prepareSearch("test").setQuery(simpleQueryStringQuery("foo Bar 19 127.0.0.1").defaultOperator(Operator.AND)),
-            response -> assertHits(response.getHits(), "1")
+            // binary doesn't match
+            // suggest doesn't match
+            // geo_point doesn't match
+            // geo_shape doesn't match
+            prepareSearch("test").setQuery(simpleQueryStringQuery("foo Bar 19 127.0.0.1").defaultOperator(Operator.AND))
         );
     }
 
@@ -609,7 +591,7 @@ public class SimpleQueryStringIT extends ESIntegTestCase {
     }
 
     private void assertHits(SearchHits hits, String... ids) {
-        assertThat(hits.getTotalHits().value, equalTo((long) ids.length));
+        assertThat(hits.getTotalHits().value(), equalTo((long) ids.length));
         Set<String> hitIds = new HashSet<>();
         for (SearchHit hit : hits.getHits()) {
             hitIds.add(hit.getId());

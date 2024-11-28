@@ -1,0 +1,45 @@
+setup:
+  - requires:
+      cluster_features:
+        - "put_database_configuration_action.ipinfo"
+      reason: "ipinfo support added in 8.16"
+
+---
+"Test ip_location processor with defaults":
+  - do:
+      ingest.put_pipeline:
+        id: "my_pipeline"
+        body:  >
+          {
+            "description": "_description",
+            "processors": [
+              {
+                "ip_location" : {
+                  "field" : "field1"
+                }
+              }
+            ]
+          }
+  - match: { acknowledged: true }
+
+  - do:
+      index:
+        index: test
+        id: "1"
+        pipeline: "my_pipeline"
+        body: {field1: "89.160.20.128"}
+
+  - do:
+      get:
+        index: test
+        id: "1"
+  - match: { _source.field1: "89.160.20.128" }
+  - length: { _source.ip_location: 7 }
+  - match: { _source.ip_location.city_name: "Linköping" }
+  - match: { _source.ip_location.country_iso_code: "SE" }
+  - match: { _source.ip_location.location.lon: 15.6167 }
+  - match: { _source.ip_location.location.lat: 58.4167 }
+  - match: { _source.ip_location.region_iso_code: "SE-E" }
+  - match: { _source.ip_location.country_name: "Sweden" }
+  - match: { _source.ip_location.region_name: "Östergötland County" }
+  - match: { _source.ip_location.continent_name: "Europe" }

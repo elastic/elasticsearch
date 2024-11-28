@@ -18,6 +18,7 @@ import org.elasticsearch.inference.TaskSettings;
 import org.elasticsearch.xcontent.XContentBuilder;
 
 import java.io.IOException;
+import java.util.HashMap;
 import java.util.Map;
 import java.util.Objects;
 
@@ -87,7 +88,7 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
 
     @Override
     public TransportVersion getMinimalSupportedVersion() {
-        return TransportVersions.ML_INFERENCE_AZURE_OPENAI_COMPLETIONS;
+        return TransportVersions.V_8_15_0;
     }
 
     @Override
@@ -106,5 +107,13 @@ public class AzureOpenAiCompletionTaskSettings implements TaskSettings {
     @Override
     public int hashCode() {
         return Objects.hash(user);
+    }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AzureOpenAiCompletionRequestTaskSettings updatedSettings = AzureOpenAiCompletionRequestTaskSettings.fromMap(
+            new HashMap<>(newSettings)
+        );
+        return of(this, updatedSettings);
     }
 }

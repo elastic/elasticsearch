@@ -43,7 +43,10 @@ enum Database {
             Property.TIMEZONE,
             Property.LOCATION,
             Property.POSTAL_CODE,
-            Property.ACCURACY_RADIUS
+            Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -62,7 +65,10 @@ enum Database {
             Property.CONTINENT_NAME,
             Property.COUNTRY_NAME,
             Property.COUNTRY_IN_EUROPEAN_UNION,
-            Property.COUNTRY_ISO_CODE
+            Property.COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
@@ -124,7 +130,10 @@ enum Database {
             Property.CONNECTION_TYPE,
             Property.POSTAL_CODE,
             Property.POSTAL_CONFIDENCE,
-            Property.ACCURACY_RADIUS
+            Property.ACCURACY_RADIUS,
+            Property.REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+            Property.REGISTERED_COUNTRY_ISO_CODE,
+            Property.REGISTERED_COUNTRY_NAME
         ),
         Set.of(
             Property.COUNTRY_ISO_CODE,
@@ -181,6 +190,10 @@ enum Database {
             Property.POSTAL_CODE
         ),
         Set.of(Property.COUNTRY_ISO_CODE, Property.REGION_NAME, Property.CITY_NAME, Property.LOCATION)
+    ),
+    CountryV2(
+        Set.of(Property.IP, Property.CONTINENT_CODE, Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE),
+        Set.of(Property.CONTINENT_NAME, Property.COUNTRY_NAME, Property.COUNTRY_ISO_CODE)
     ),
     PrivacyDetection(
         Set.of(Property.IP, Property.HOSTING, Property.PROXY, Property.RELAY, Property.TOR, Property.VPN, Property.SERVICE),
@@ -272,7 +285,10 @@ enum Database {
         PROXY,
         RELAY,
         VPN,
-        SERVICE;
+        SERVICE,
+        REGISTERED_COUNTRY_IN_EUROPEAN_UNION,
+        REGISTERED_COUNTRY_ISO_CODE,
+        REGISTERED_COUNTRY_NAME;
 
         /**
          * Parses a string representation of a property into an actual Property instance. Not all properties that exist are

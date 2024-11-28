@@ -91,7 +91,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
             0,
             3,
             String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+            () -> randomAlphaOfLengthBetween(1, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
         );
         final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
             .collect(Collectors.toCollection(ArrayList::new));
@@ -121,7 +121,7 @@ public class SearchRequestCacheDisablingInterceptorTests extends ESTestCase {
             0,
             3,
             String[]::new,
-            () -> randomAlphaOfLengthBetween(0, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
+            () -> randomAlphaOfLengthBetween(1, 5) + ":" + randomAlphaOfLengthBetween(3, 8)
         );
         final ArrayList<String> allIndices = Arrays.stream(ArrayUtils.concat(localIndices, remoteIndices))
             .collect(Collectors.toCollection(ArrayList::new));

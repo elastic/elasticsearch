@@ -15,6 +15,7 @@ import org.elasticsearch.xpack.esql.core.expression.AttributeSet;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Expressions;
 import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
+import org.elasticsearch.xpack.esql.expression.function.grouping.Categorize;
 import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.plan.logical.Project;
@@ -30,7 +31,6 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
     }
 
     @Override
-    @SuppressWarnings("unchecked")
     protected LogicalPlan rule(UnaryPlan plan) {
         LogicalPlan child = plan.child();
 
@@ -62,12 +62,15 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
         if (plan instanceof Aggregate a) {
             if (child instanceof Project p) {
                 var groupings = a.groupings();
-                List<Attribute> groupingAttrs = new ArrayList<>(a.groupings().size());
+                List<NamedExpression> groupingAttrs = new ArrayList<>(a.groupings().size());
                 for (Expression grouping : groupings) {
                     if (grouping instanceof Attribute attribute) {
                         groupingAttrs.add(attribute);
+                    } else if (grouping instanceof Alias as && as.child() instanceof Categorize) {
+                        groupingAttrs.add(as);
                     } else {
-                        // After applying ReplaceStatsNestedExpressionWithEval, groupings can only contain attributes.
+                        // After applying ReplaceAggregateNestedExpressionWithEval,
+                        // groupings (except Categorize) can only contain attributes.
                         throw new EsqlIllegalArgumentException("Expected an Attribute, got {}", grouping);
                     }
                 }
@@ -138,23 +141,33 @@ public final class CombineProjections extends OptimizerRules.OptimizerRule<Unary
     }
 
     private static List<Expression> combineUpperGroupingsAndLowerProjections(
-        List<? extends Attribute> upperGroupings,
+        List<? extends NamedExpression> upperGroupings,
         List<? extends NamedExpression> lowerProjections
     ) {
         // Collect the alias map for resolving the source (f1 = 1, f2 = f1, etc..)
-        AttributeMap<Attribute> aliases = new AttributeMap<>();
+        AttributeMap<Expression> aliases = new AttributeMap<>();
         for (NamedExpression ne : lowerProjections) {
-            // Projections are just aliases for attributes, so casting is safe.
-            aliases.put(ne.toAttribute(), (Attribute) Alias.unwrap(ne));
+            // record the alias
+            aliases.put(ne.toAttribute(), Alias.unwrap(ne));
         }
-
         // Replace any matching attribute directly with the aliased attribute from the projection.
-        AttributeSet replaced = new AttributeSet();
-        for (Attribute attr : upperGroupings) {
-            // All substitutions happen before; groupings must be attributes at this point.
-            replaced.add(aliases.resolve(attr, attr));
+        AttributeSet seen = new AttributeSet();
+        List<Expression> replaced = new ArrayList<>();
+        for (NamedExpression ne : upperGroupings) {
+            // Duplicated attributes are ignored.
+            if (ne instanceof Attribute attribute) {
+                var newExpression = aliases.resolve(attribute, attribute);
+                if (newExpression instanceof Attribute newAttribute && seen.add(newAttribute) == false) {
+                    // Already seen, skip
+                    continue;
+                }
+                replaced.add(newExpression);
+            } else {
+                // For grouping functions, this will replace nested properties too
+                replaced.add(ne.transformUp(Attribute.class, a -> aliases.resolve(a, a)));
+            }
         }
-        return new ArrayList<>(replaced);
+        return replaced;
     }
 
     /**

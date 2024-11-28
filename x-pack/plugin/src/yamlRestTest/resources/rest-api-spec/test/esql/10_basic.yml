@@ -423,6 +423,35 @@ setup:
   - match: {values.0: ["2024-08-06T00:00:00.000Z","2024-08-03T00:00:00.000Z","2024-08-06T03:00:00.000Z"]}
 
 ---
+"Test Named Input Params For Field Names":
+  - requires:
+      test_runner_features: [ capabilities ]
+      capabilities:
+        - method: POST
+          path: /_query
+          parameters: [ ]
+          capabilities: [ named_parameter_for_field_and_function_names_simplified_syntax ]
+      reason: "named or positional parameters for field names"
+
+  - do:
+      esql.query:
+        body:
+          query: 'from test | stats x = count(?f1), y = sum(?f2) by ?f3 | sort ?f3 | keep ?f3, x, y  | limit 3'
+          params: [{"f1" : {"identifier" : "time"}}, {"f2" : { "identifier" : "count" }}, {"f3" : { "identifier" : "color"}}]
+
+  - length: {columns: 3}
+  - match: {columns.0.name: "color"}
+  - match: {columns.0.type: "keyword"}
+  - match: {columns.1.name: "x"}
+  - match: {columns.1.type: "long"}
+  - match: {columns.2.name: "y" }
+  - match: {columns.2.type: "long" }
+  - length: {values: 3}
+  - match: {values.0: ["blue",10,420]}
+  - match: {values.1: ["green",10,440]}
+  - match: {values.2: ["red",20,860]}
+
+---
 version is not allowed:
   - requires:
       cluster_features: ["gte_v8.14.0"]

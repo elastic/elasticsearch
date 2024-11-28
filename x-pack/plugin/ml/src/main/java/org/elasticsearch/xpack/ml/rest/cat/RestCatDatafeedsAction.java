@@ -12,6 +12,7 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.Table;
 import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
+import org.elasticsearch.core.UpdateForV9;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.RestResponse;
 import org.elasticsearch.rest.Scope;
@@ -51,6 +52,7 @@ public class RestCatDatafeedsAction extends AbstractCatAction {
         if (Strings.isNullOrEmpty(datafeedId)) {
             datafeedId = GetDatafeedsStatsAction.ALL;
         }
+        @UpdateForV9(owner = UpdateForV9.Owner.MACHINE_LEARNING) // v7 REST API no longer exists: eliminate ref to RestApiVersion.V_7
         Request request = new Request(datafeedId);
         checkAndSetDeprecatedParam(
             DEPRECATED_ALLOW_NO_DATAFEEDS_PARAM,

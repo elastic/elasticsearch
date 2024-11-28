@@ -17,6 +17,7 @@ import org.apache.arrow.vector.ipc.message.IpcOption;
 import org.apache.arrow.vector.ipc.message.MessageSerializer;
 import org.apache.arrow.vector.types.Types.MinorType;
 import org.apache.arrow.vector.types.pojo.Field;
+import org.apache.arrow.vector.types.pojo.FieldType;
 import org.apache.arrow.vector.types.pojo.Schema;
 import org.apache.lucene.util.BytesRef;
 import org.elasticsearch.action.ActionListener;
@@ -44,6 +45,7 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     public static class Column {
         private final BlockConverter converter;
         private final String name;
+        private boolean multivalued;
 
         public Column(String esqlType, String name) {
             this.converter = ESQL_CONVERTERS.get(esqlType);
@@ -61,20 +63,24 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
     public ArrowResponse(List<Column> columns, List<Page> pages) {
         this.columns = columns;
 
-        currentSegment = new SchemaResponse(this);
-        List<ResponseSegment> rest = new ArrayList<>(pages.size());
-        for (int p = 0; p < pages.size(); p++) {
-            var page = pages.get(p);
-            rest.add(new PageResponse(this, page));
-            // Multivalued fields are not supported yet.
-            for (int b = 0; b < page.getBlockCount(); b++) {
-                if (page.getBlock(b).mayHaveMultivaluedFields()) {
-                    throw new IllegalArgumentException(
-                        "ES|QL response field [" + columns.get(b).name + "] is multi-valued. This isn't supported yet by the Arrow format"
-                    );
+        // Find multivalued columns
+        int colSize = columns.size();
+        for (int col = 0; col < colSize; col++) {
+            for (Page page : pages) {
+                if (page.getBlock(col).mayHaveMultivaluedFields()) {
+                    columns.get(col).multivalued = true;
+                    break;
                 }
             }
         }
+
+        currentSegment = new SchemaResponse(this);
+        List<ResponseSegment> rest = new ArrayList<>(pages.size());
+
+        for (Page page : pages) {
+            rest.add(new PageResponse(this, page));
+        }
+
         rest.add(new EndResponse(this));
         segments = rest.iterator();
     }
@@ -185,6 +191,9 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
      * @see <a href="https://arrow.apache.org/docs/format/Columnar.html#ipc-streaming-format">IPC Streaming Format</a>
      */
     private static class SchemaResponse extends ResponseSegment {
+
+        private static final FieldType LIST_FIELD_TYPE = FieldType.nullable(MinorType.LIST.getType());
+
         private boolean done = false;
 
         SchemaResponse(ArrowResponse response) {
@@ -204,7 +213,20 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
         }
 
         private Schema arrowSchema() {
-            return new Schema(response.columns.stream().map(c -> new Field(c.name, c.converter.arrowFieldType(), List.of())).toList());
+            return new Schema(response.columns.stream().map(c -> {
+                var fieldType = c.converter.arrowFieldType();
+                if (c.multivalued) {
+                    // A variable-sized list is a vector of offsets and a child vector of values
+                    // See https://arrow.apache.org/docs/format/Columnar.html#variable-size-list-layout
+                    var listType = new FieldType(true, LIST_FIELD_TYPE.getType(), null, fieldType.getMetadata());
+                    // Value vector is non-nullable (ES|QL multivalues cannot contain nulls).
+                    var valueType = new FieldType(false, fieldType.getType(), fieldType.getDictionary(), null);
+                    // The nested vector is named "$data$", following what the Arrow/Java library does.
+                    return new Field(c.name, listType, List.of(new Field("$data$", valueType, null)));
+                } else {
+                    return new Field(c.name, fieldType, null);
+                }
+            }).toList());
         }
     }
 
@@ -257,7 +279,14 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
                 @Override
                 public void write(ArrowBuf buffer) throws IOException {
-                    extraPosition += bufWriters.get(bufIdx++).write(out);
+                    var len = bufWriters.get(bufIdx++).write(out);
+                    // Consistency check
+                    if (len != buffer.writerIndex()) {
+                        throw new IllegalStateException(
+                            "Buffer [" + (bufIdx - 1) + "]: wrote [" + len + "] bytes, but expected [" + buffer.writerIndex() + "]"
+                        );
+                    }
+                    extraPosition += len;
                 }
 
                 @Override
@@ -277,11 +306,26 @@ public class ArrowResponse implements ChunkedRestResponseBodyPart, Releasable {
 
             // Create Arrow buffers for each of the blocks in this page
             for (int b = 0; b < page.getBlockCount(); b++) {
-                var converter = response.columns.get(b).converter;
+                var column = response.columns.get(b);
+                var converter = column.converter;
 
                 Block block = page.getBlock(b);
-                nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
-                converter.convert(block, bufs, bufWriters);
+                if (column.multivalued) {
+                    // List node.
+                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                    // Value vector, does not contain nulls.
+                    nodes.add(new ArrowFieldNode(BlockConverter.valueCount(block), 0));
+                } else {
+                    nodes.add(new ArrowFieldNode(block.getPositionCount(), converter.nullValuesCount(block)));
+                }
+                converter.convert(block, column.multivalued, bufs, bufWriters);
+            }
+
+            // Consistency check
+            if (bufs.size() != bufWriters.size()) {
+                throw new IllegalStateException(
+                    "Inconsistent Arrow buffers: [" + bufs.size() + "] buffers and [" + bufWriters.size() + "] writers"
+                );
             }
 
             // Create the batch and serialize it

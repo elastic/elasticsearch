@@ -9,11 +9,10 @@ package org.elasticsearch.compute.operator;
 
 import org.elasticsearch.TransportVersions;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.common.collect.Iterators;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
+import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentObject;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ToXContent;
@@ -168,24 +167,24 @@ public class DriverProfile implements Writeable, ChunkedToXContentObject {
 
     @Override
     public Iterator<? extends ToXContent> toXContentChunked(ToXContent.Params params) {
-        return Iterators.concat(ChunkedToXContentHelper.startObject(), Iterators.single((b, p) -> {
-            b.timeField("start_millis", "start", startMillis);
-            b.timeField("stop_millis", "stop", stopMillis);
-            b.field("took_nanos", tookNanos);
-            if (b.humanReadable()) {
-                b.field("took_time", TimeValue.timeValueNanos(tookNanos));
-            }
-            b.field("cpu_nanos", cpuNanos);
-            if (b.humanReadable()) {
-                b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
-            }
-            b.field("iterations", iterations);
-            return b;
-        }),
-            ChunkedToXContentHelper.array("operators", operators.iterator()),
-            Iterators.single((b, p) -> b.field("sleeps", sleeps)),
-            ChunkedToXContentHelper.endObject()
-        );
+        return ChunkedToXContent.builder(params).object(ob -> {
+            ob.append((b, p) -> {
+                b.timestampFieldsFromUnixEpochMillis("start_millis", "start", startMillis);
+                b.timestampFieldsFromUnixEpochMillis("stop_millis", "stop", stopMillis);
+                b.field("took_nanos", tookNanos);
+                if (b.humanReadable()) {
+                    b.field("took_time", TimeValue.timeValueNanos(tookNanos));
+                }
+                b.field("cpu_nanos", cpuNanos);
+                if (b.humanReadable()) {
+                    b.field("cpu_time", TimeValue.timeValueNanos(cpuNanos));
+                }
+                b.field("iterations", iterations);
+                return b;
+            });
+            ob.array("operators", operators.iterator());
+            ob.field("sleeps", sleeps);
+        });
     }
 
     @Override

@@ -11,20 +11,17 @@ import org.elasticsearch.ElasticsearchStatusException;
 import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.rest.RestStatus;
 import org.elasticsearch.test.ESTestCase;
-import org.elasticsearch.xpack.core.inference.results.StreamingChatCompletionResults;
 import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEvent;
-import org.elasticsearch.xpack.inference.external.response.streaming.ServerSentEventField;
-import org.hamcrest.Matcher;
-import org.hamcrest.Matchers;
 
 import java.util.ArrayDeque;
-import java.util.Arrays;
 import java.util.Deque;
 import java.util.Map;
 import java.util.concurrent.Flow;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.elasticsearch.xpack.inference.common.DelegatingProcessorTests.onNext;
+import static org.elasticsearch.xpack.inference.external.response.streaming.StreamingInferenceTestUtils.containsResults;
+import static org.elasticsearch.xpack.inference.external.response.streaming.StreamingInferenceTestUtils.events;
 import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.isA;
 import static org.hamcrest.Matchers.notNullValue;
@@ -131,21 +128,6 @@ public class AnthropicStreamingProcessorTests extends ESTestCase {
 
         verify(upstream, times(1)).request(1);
         verify(downstream, times(0)).onNext(any());
-    }
-
-    private Deque<ServerSentEvent> events(String... data) {
-        var item = new ArrayDeque<ServerSentEvent>();
-        Arrays.stream(data).map(datum -> new ServerSentEvent(ServerSentEventField.DATA, datum)).forEach(item::offer);
-        return item;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Matcher<Iterable<? extends StreamingChatCompletionResults.Result>> containsResults(String... results) {
-        Matcher<StreamingChatCompletionResults.Result>[] resultMatcher = Arrays.stream(results)
-            .map(StreamingChatCompletionResults.Result::new)
-            .map(Matchers::equalTo)
-            .toArray(Matcher[]::new);
-        return Matchers.contains(resultMatcher);
     }
 
     private static ElasticsearchStatusException onError(Deque<ServerSentEvent> item) {

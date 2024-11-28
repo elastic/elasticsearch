@@ -1,5 +1,0 @@
-pr: 113699
-summary: "[ESQL] Fix init value in max float aggregation"
-area: ES|QL
-type: bug
-issues: []

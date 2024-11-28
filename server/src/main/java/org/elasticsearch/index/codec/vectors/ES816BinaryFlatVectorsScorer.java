@@ -20,10 +20,10 @@
 package org.elasticsearch.index.codec.vectors;
 
 import org.apache.lucene.codecs.hnsw.FlatVectorsScorer;
+import org.apache.lucene.index.KnnVectorValues;
 import org.apache.lucene.index.VectorSimilarityFunction;
 import org.apache.lucene.util.ArrayUtil;
 import org.apache.lucene.util.VectorUtil;
-import org.apache.lucene.util.hnsw.RandomAccessVectorValues;
 import org.apache.lucene.util.hnsw.RandomVectorScorer;
 import org.apache.lucene.util.hnsw.RandomVectorScorerSupplier;
 import org.elasticsearch.simdvec.ESVectorUtil;
@@ -45,9 +45,9 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
-        RandomAccessVectorValues vectorValues
+        KnnVectorValues vectorValues
     ) throws IOException {
-        if (vectorValues instanceof RandomAccessBinarizedByteVectorValues) {
+        if (vectorValues instanceof BinarizedByteVectorValues) {
             throw new UnsupportedOperationException(
                 "getRandomVectorScorerSupplier(VectorSimilarityFunction,RandomAccessVectorValues) not implemented for binarized format"
             );
@@ -58,10 +58,10 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorer getRandomVectorScorer(
         VectorSimilarityFunction similarityFunction,
-        RandomAccessVectorValues vectorValues,
+        KnnVectorValues vectorValues,
         float[] target
     ) throws IOException {
-        if (vectorValues instanceof RandomAccessBinarizedByteVectorValues binarizedVectors) {
+        if (vectorValues instanceof BinarizedByteVectorValues binarizedVectors) {
             BinaryQuantizer quantizer = binarizedVectors.getQuantizer();
             float[] centroid = binarizedVectors.getCentroid();
             // FIXME: precompute this once?
@@ -82,7 +82,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     @Override
     public RandomVectorScorer getRandomVectorScorer(
         VectorSimilarityFunction similarityFunction,
-        RandomAccessVectorValues vectorValues,
+        KnnVectorValues vectorValues,
         byte[] target
     ) throws IOException {
         return nonQuantizedDelegate.getRandomVectorScorer(similarityFunction, vectorValues, target);
@@ -91,7 +91,7 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     RandomVectorScorerSupplier getRandomVectorScorerSupplier(
         VectorSimilarityFunction similarityFunction,
         ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues scoringVectors,
-        RandomAccessBinarizedByteVectorValues targetVectors
+        BinarizedByteVectorValues targetVectors
     ) {
         return new BinarizedRandomVectorScorerSupplier(scoringVectors, targetVectors, similarityFunction);
     }
@@ -104,12 +104,12 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer supplier over binarized vector values */
     static class BinarizedRandomVectorScorerSupplier implements RandomVectorScorerSupplier {
         private final ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors;
-        private final RandomAccessBinarizedByteVectorValues targetVectors;
+        private final BinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         BinarizedRandomVectorScorerSupplier(
             ES816BinaryQuantizedVectorsWriter.OffHeapBinarizedQueryVectorValues queryVectors,
-            RandomAccessBinarizedByteVectorValues targetVectors,
+            BinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             this.queryVectors = queryVectors;
@@ -149,14 +149,15 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
     /** Vector scorer over binarized vector values */
     public static class BinarizedRandomVectorScorer extends RandomVectorScorer.AbstractRandomVectorScorer {
         private final BinaryQueryVector queryVector;
-        private final RandomAccessBinarizedByteVectorValues targetVectors;
+        private final BinarizedByteVectorValues targetVectors;
         private final VectorSimilarityFunction similarityFunction;
 
         private final float sqrtDimensions;
+        private final float maxX1;
 
         public BinarizedRandomVectorScorer(
             BinaryQueryVector queryVectors,
-            RandomAccessBinarizedByteVectorValues targetVectors,
+            BinarizedByteVectorValues targetVectors,
             VectorSimilarityFunction similarityFunction
         ) {
             super(targetVectors);
@@ -164,24 +165,12 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
             this.targetVectors = targetVectors;
             this.similarityFunction = similarityFunction;
             // FIXME: precompute this once?
-            this.sqrtDimensions = (float) Utils.constSqrt(targetVectors.dimension());
-        }
-
-        // FIXME: utils class; pull this out
-        private static class Utils {
-            public static double sqrtNewtonRaphson(double x, double curr, double prev) {
-                return (curr == prev) ? curr : sqrtNewtonRaphson(x, 0.5 * (curr + x / curr), curr);
-            }
-
-            public static double constSqrt(double x) {
-                return x >= 0 && Double.isInfinite(x) == false ? sqrtNewtonRaphson(x, x, 0) : Double.NaN;
-            }
+            this.sqrtDimensions = targetVectors.sqrtDimensions();
+            this.maxX1 = targetVectors.maxX1();
         }
 
         @Override
         public float score(int targetOrd) throws IOException {
-            // FIXME: implement fastscan in the future?
-
             byte[] quantizedQuery = queryVector.vector();
             int quantizedSum = queryVector.factors().quantizedSum();
             float lower = queryVector.factors().lower();
@@ -218,17 +207,13 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
             }
             assert Float.isFinite(dist);
 
-            // TODO: this is useful for mandatory rescoring by accounting for bias
-            // However, for just oversampling & rescoring, it isn't strictly useful.
-            // We should consider utilizing this bias in the future to determine which vectors need to
-            // be rescored
-            // float ooqSqr = (float) Math.pow(ooq, 2);
-            // float errorBound = (float) (normVmC * normOC * (maxX1 * Math.sqrt((1 - ooqSqr) / ooqSqr)));
-            // float score = dist - errorBound;
+            float ooqSqr = (float) Math.pow(ooq, 2);
+            float errorBound = (float) (vmC * normOC * (maxX1 * Math.sqrt((1 - ooqSqr) / ooqSqr)));
+            float score = Float.isFinite(errorBound) ? dist - errorBound : dist;
             if (similarityFunction == MAXIMUM_INNER_PRODUCT) {
-                return VectorUtil.scaleMaxInnerProductScore(dist);
+                return VectorUtil.scaleMaxInnerProductScore(score);
             }
-            return Math.max((1f + dist) / 2f, 0);
+            return Math.max((1f + score) / 2f, 0);
         }
 
         private float euclideanScore(
@@ -256,17 +241,13 @@ public class ES816BinaryFlatVectorsScorer implements FlatVectorsScorer {
 
             long qcDist = ESVectorUtil.ipByteBinByte(quantizedQuery, binaryCode);
             float score = sqrX + distanceToCentroid + factorPPC * lower + (qcDist * 2 - quantizedSum) * factorIP * width;
-            // TODO: this is useful for mandatory rescoring by accounting for bias
-            // However, for just oversampling & rescoring, it isn't strictly useful.
-            // We should consider utilizing this bias in the future to determine which vectors need to
-            // be rescored
-            // float projectionDist = (float) Math.sqrt(xX0 * xX0 - targetDistToC * targetDistToC);
-            // float error = 2.0f * maxX1 * projectionDist;
-            // float y = (float) Math.sqrt(distanceToCentroid);
-            // float errorBound = y * error;
-            // if (Float.isFinite(errorBound)) {
-            // score = dist + errorBound;
-            // }
+            float projectionDist = (float) Math.sqrt(xX0 * xX0 - targetDistToC * targetDistToC);
+            float error = 2.0f * maxX1 * projectionDist;
+            float y = (float) Math.sqrt(distanceToCentroid);
+            float errorBound = y * error;
+            if (Float.isFinite(errorBound)) {
+                score = score + errorBound;
+            }
             return Math.max(1 / (1f + score), 0);
         }
     }

@@ -73,6 +73,7 @@ import static org.elasticsearch.xpack.esql.EsqlTestUtils.statsForMissingField;
 import static org.elasticsearch.xpack.esql.EsqlTestUtils.withDefaultLimitWarning;
 import static org.elasticsearch.xpack.esql.core.tree.Source.EMPTY;
 import static org.hamcrest.Matchers.contains;
+import static org.hamcrest.Matchers.equalTo;
 import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.is;
 import static org.hamcrest.Matchers.nullValue;
@@ -193,11 +194,10 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
 
     /**
      * Expects
-     * EsqlProject[[first_name{f}#6]]
-     * \_Limit[1000[INTEGER]]
-     *   \_MvExpand[last_name{f}#9,last_name{r}#15]
-     *     \_Limit[1000[INTEGER]]
-     *       \_EsRelation[test][_meta_field{f}#11, emp_no{f}#5, first_name{f}#6, ge..]
+     * EsqlProject[[first_name{f}#9, last_name{r}#18]]
+     * \_MvExpand[last_name{f}#12,last_name{r}#18,1000]
+     *   \_Limit[1000[INTEGER]]
+     *     \_EsRelation[test][_meta_field{f}#14, emp_no{f}#8, first_name{f}#9, ge..]
      */
     public void testMissingFieldInMvExpand() {
         var plan = plan("""
@@ -213,11 +213,8 @@ public class LocalLogicalPlanOptimizerTests extends ESTestCase {
         var projections = project.projections();
         assertThat(Expressions.names(projections), contains("first_name", "last_name"));
 
-        var limit = as(project.child(), Limit.class);
-        // MvExpand cannot be optimized (yet) because the target NamedExpression cannot be replaced with a NULL literal
-        // https://github.com/elastic/elasticsearch/issues/109974
-        // See LocalLogicalPlanOptimizer.ReplaceMissingFieldWithNull
-        var mvExpand = as(limit.child(), MvExpand.class);
+        var mvExpand = as(project.child(), MvExpand.class);
+        assertThat(mvExpand.limit(), equalTo(1000));
         var limit2 = as(mvExpand.child(), Limit.class);
         as(limit2.child(), EsRelation.class);
     }

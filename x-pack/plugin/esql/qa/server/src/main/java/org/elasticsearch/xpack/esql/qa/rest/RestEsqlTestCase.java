@@ -31,7 +31,9 @@ import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ToXContent;
 import org.elasticsearch.xcontent.XContentBuilder;
 import org.elasticsearch.xcontent.XContentType;
+import org.elasticsearch.xpack.esql.AssertWarnings;
 import org.elasticsearch.xpack.esql.EsqlTestUtils;
+import org.elasticsearch.xpack.esql.action.EsqlCapabilities;
 import org.junit.After;
 import org.junit.Assert;
 import org.junit.Before;
@@ -53,9 +55,9 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Set;
 import java.util.function.IntFunction;
-import java.util.regex.Pattern;
 
 import static java.util.Collections.emptySet;
+import static java.util.Map.entry;
 import static org.elasticsearch.common.logging.LoggerMessageFormat.format;
 import static org.elasticsearch.test.ListMatcher.matchesList;
 import static org.elasticsearch.test.MapMatcher.assertMap;
@@ -83,9 +85,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     private static final String TEST_INDEX_NAME = "rest-esql-test";
 
     private static final Logger LOGGER = LogManager.getLogger(RestEsqlTestCase.class);
-
-    private static final List<String> NO_WARNINGS = List.of();
-    private static final List<Pattern> NO_WARNINGS_REGEX = List.of();
 
     private static final String MAPPING_ALL_TYPES;
 
@@ -130,6 +129,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         private Boolean keepOnCompletion = null;
 
         private Boolean profile = null;
+        private Boolean includeCCSMetadata = null;
 
         private CheckedConsumer<XContentBuilder, IOException> filter;
 
@@ -199,6 +199,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             return this;
         }
 
+        public RequestObjectBuilder includeCCSMetadata(boolean includeCCSMetadata) {
+            this.includeCCSMetadata = includeCCSMetadata;
+            return this;
+        }
+
         public RequestObjectBuilder filter(CheckedConsumer<XContentBuilder, IOException> filter) {
             this.filter = filter;
             return this;
@@ -221,6 +226,9 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 }
                 if (profile != null) {
                     builder.field("profile", profile);
+                }
+                if (includeCCSMetadata != null) {
+                    builder.field("include_ccs_metadata", includeCCSMetadata);
                 }
                 if (filter != null) {
                     builder.startObject("filter");
@@ -383,7 +391,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         options.addHeader("Content-Type", mediaType);
         options.addHeader("Accept", "text/csv; header=absent");
         request.setOptions(options);
-        HttpEntity entity = performRequest(request, NO_WARNINGS, NO_WARNINGS_REGEX);
+        HttpEntity entity = performRequest(request, new AssertWarnings.NoWarnings());
         String actual = Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
         assertEquals("keyword0,0\r\n", actual);
     }
@@ -402,9 +410,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             "long",
             // TODO: https://github.com/elastic/elasticsearch/issues/102935
             // "unsigned_long",
-            // TODO: https://github.com/elastic/elasticsearch/issues/100130
-            // "half_float",
-            // "float",
+            "half_float",
+            "float",
             "double",
             "scaled_float"
         );
@@ -435,11 +442,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             for (String truePredicate : trueForSingleValuesPredicates) {
                 String comparison = fieldWithType + truePredicate;
                 var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), comparison));
-                List<String> expectedWarnings = List.of(
-                    "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
-                    "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                AssertWarnings assertWarnings = new AssertWarnings.ExactStrings(
+                    List.of(
+                        "Line 1:29: evaluation of [" + comparison + "] failed, treating result as null. Only first 20 failures recorded.",
+                        "Line 1:29: java.lang.IllegalArgumentException: single-value function encountered multi-value"
+                    )
                 );
-                var result = runEsql(query, expectedWarnings, NO_WARNINGS_REGEX, mode);
+                var result = runEsql(query, assertWarnings, mode);
 
                 var values = as(result.get("values"), ArrayList.class);
                 assertThat(
@@ -509,7 +518,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
 
         for (String p : predicates) {
             var query = requestObjectBuilder().query(format(null, "from {} | where {}", testIndexName(), p));
-            var result = runEsql(query, List.of(), NO_WARNINGS_REGEX, mode);
+            var result = runEsql(query, new AssertWarnings.NoWarnings(), mode);
             var values = as(result.get("values"), ArrayList.class);
             assertThat(
                 format(null, "Comparison [{}] should return all rows with single values.", p),
@@ -663,6 +672,131 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         );
     }
 
+    public void testErrorMessageForArrayValuesInParams() throws IOException {
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsql(RequestObjectBuilder.jsonBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
+        );
+        assertThat(
+            EntityUtils.toString(re.getResponse().getEntity()),
+            containsString("Failed to parse params: [1:45] n1=[5, 6, 7] is not supported as a parameter")
+        );
+    }
+
+    public void testNamedParamsForIdentifierAndIdentifierPatterns() throws IOException {
+        assumeTrue(
+            "named parameters for identifiers and patterns require snapshot build",
+            EsqlCapabilities.Cap.NAMED_PARAMETER_FOR_FIELD_AND_FUNCTION_NAMES_SIMPLIFIED_SYNTAX.isEnabled()
+        );
+        bulkLoadTestData(10);
+        // positive
+        var query = requestObjectBuilder().query(
+            format(
+                null,
+                "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = ?fn1(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                testIndexName()
+            )
+        )
+            .params(
+                "[{\"n1\" : {\"identifier\" : \"integer\"}}, {\"n2\" : {\"identifier\" : \"short\"}}, "
+                    + "{\"n3\" : {\"identifier\" : \"double\"}}, {\"n4\" : {\"identifier\" : \"boolean\"}}, "
+                    + "{\"n5\" : {\"pattern\" : \"xx*\"}}, {\"fn1\" : {\"identifier\" : \"max\"}}]"
+            );
+        Map<String, Object> result = runEsql(query);
+        Map<String, String> colA = Map.of("name", "boolean", "type", "boolean");
+        Map<String, String> colB = Map.of("name", "xx2", "type", "double");
+        assertEquals(List.of(colA, colB), result.get("columns"));
+        assertEquals(List.of(List.of(false, 9.1), List.of(true, 8.1)), result.get("values"));
+
+        // missing params
+        ResponseException re = expectThrows(
+            ResponseException.class,
+            () -> runEsqlSync(
+                requestObjectBuilder().query(
+                    format(
+                        null,
+                        "from {} | eval x1 = ?n1 | where ?n2 == x1 | stats xx2 = max(?n3) by ?n4 | keep ?n4, ?n5 | sort ?n4",
+                        testIndexName()
+                    )
+                ).params("[]")
+            )
+        );
+        String error = re.getMessage();
+        assertThat(error, containsString("ParsingException"));
+        assertThat(error, containsString("Unknown query parameter [n1]"));
+
+        // param inside backquote is not recognized as a param
+        Map<String, Integer> commandsWithLineNumber = Map.ofEntries(
+            entry("eval x1 = `?n1`", 33),
+            entry("where `?n1` == 1", 29),
+            entry("stats x = max(n2) by `?n1`", 44),
+            entry("stats x = max(`?n1`) by n2", 37),
+            entry("keep `?n1`", 28),
+            entry("sort `?n1`", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params("[{\"n1\" : {\"identifier\" : \"integer\"}}, {\"n2\" : {\"identifier\" : \"short\"}}]")
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [?n1]"));
+        }
+
+        commandsWithLineNumber = Map.ofEntries(
+            entry("rename ?n1 as ?n2", 30),
+            entry("enrich idx2 ON ?n1 WITH ?n2 = ?n3", 38),
+            entry("keep ?n1", 28),
+            entry("drop ?n1", 28)
+        );
+        for (Map.Entry<String, Integer> command : commandsWithLineNumber.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | {}", testIndexName(), command.getKey()))
+                        .params(
+                            "[{\"n1\" : {\"identifier\" : \"`n1`\"}}, {\"n2\" : {\"identifier\" : \"`n2`\"}}, "
+                                + "{\"n3\" : {\"identifier\" : \"`n3`\"}}]"
+                        )
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("VerificationException"));
+            assertThat(error, containsString("line 1:" + command.getValue() + ": Unknown column [`n1`]"));
+        }
+
+        // param cannot be used as a command name
+        Map<String, String> paramsAsCommandNames = Map.ofEntries(
+            entry("eval", "x = 1"),
+            entry("where", "x == 1"),
+            entry("stats", "x = count(*)"),
+            entry("keep", "x"),
+            entry("drop", "x"),
+            entry("rename", "x as y"),
+            entry("sort", "x"),
+            entry("dissect", "x \"%{foo}\""),
+            entry("grok", "x \"%{WORD:foo}\""),
+            entry("enrich", "idx2 ON x"),
+            entry("mvExpand", "x")
+        );
+        for (Map.Entry<String, String> command : paramsAsCommandNames.entrySet()) {
+            re = expectThrows(
+                ResponseException.class,
+                () -> runEsqlSync(
+                    requestObjectBuilder().query(format(null, "from {} | ?cmd {}", testIndexName(), command.getValue()))
+                        .params("[{\"cmd\" : {\"identifier\" : \"" + command.getKey() + "\"}}]")
+                )
+            );
+            error = re.getMessage();
+            assertThat(error, containsString("ParsingException"));
+            assertThat(error, containsString("line 1:23: mismatched input '?cmd' expecting {'dissect', 'drop'"));
+        }
+    }
+
     public void testErrorMessageForLiteralDateMathOverflow() throws IOException {
         List<String> dateMathOverflowExpressions = List.of(
             "2147483647 day + 1 day",
@@ -702,14 +836,6 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         assertThat(re.getResponse().getStatusLine().getStatusCode(), equalTo(400));
     }
 
-    public void testErrorMessageForArrayValuesInParams() throws IOException {
-        ResponseException re = expectThrows(
-            ResponseException.class,
-            () -> runEsql(requestObjectBuilder().query("row a = 1 | eval x = ?").params("[{\"n1\": [5, 6, 7]}]"))
-        );
-        assertThat(EntityUtils.toString(re.getResponse().getEntity()), containsString("n1=[5, 6, 7] is not supported as a parameter"));
-    }
-
     public void testComplexFieldNames() throws IOException {
         bulkLoadTestData(1);
         // catch verification exception, field names not found
@@ -736,6 +862,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
      *     query. It's part of the "configuration" of the query.
      * </p>
      */
+    @AwaitsFix(bugUrl = "Disabled temporarily until JOIN implementation is completed")
     public void testInlineStatsNow() throws IOException {
         assumeTrue("INLINESTATS only available on snapshots", Build.current().isSnapshot());
         indexTimestampData(1);
@@ -883,35 +1010,26 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
     }
 
     public Map<String, Object> runEsql(RequestObjectBuilder requestObject) throws IOException {
-        return runEsql(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX, mode);
+        return runEsql(requestObject, new AssertWarnings.NoWarnings(), mode);
     }
 
     public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlSync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
+        return runEsqlSync(requestObject, new AssertWarnings.NoWarnings());
     }
 
     public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject) throws IOException {
-        return runEsqlAsync(requestObject, NO_WARNINGS, NO_WARNINGS_REGEX);
+        return runEsqlAsync(requestObject, new AssertWarnings.NoWarnings());
     }
 
-    static Map<String, Object> runEsql(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex,
-        Mode mode
-    ) throws IOException {
+    static Map<String, Object> runEsql(RequestObjectBuilder requestObject, AssertWarnings assertWarnings, Mode mode) throws IOException {
         if (mode == ASYNC) {
-            return runEsqlAsync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return runEsqlAsync(requestObject, assertWarnings);
         } else {
-            return runEsqlSync(requestObject, expectedWarnings, expectedWarningsRegex);
+            return runEsqlSync(requestObject, assertWarnings);
         }
     }
 
-    public static Map<String, Object> runEsqlSync(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
-    ) throws IOException {
+    public static Map<String, Object> runEsqlSync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         requestObject.build();
         Request request = prepareRequest(SYNC);
         String mediaType = attachBody(requestObject, request);
@@ -927,15 +1045,11 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
         request.setOptions(options);
 
-        HttpEntity entity = performRequest(request, expectedWarnings, expectedWarningsRegex);
+        HttpEntity entity = performRequest(request, assertWarnings);
         return entityToMap(entity, requestObject.contentType());
     }
 
-    public static Map<String, Object> runEsqlAsync(
-        RequestObjectBuilder requestObject,
-        List<String> expectedWarnings,
-        List<Pattern> expectedWarningsRegex
-    ) throws IOException {
+    public static Map<String, Object> runEsqlAsync(RequestObjectBuilder requestObject, AssertWarnings assertWarnings) throws IOException {
         addAsyncParameters(requestObject);
         requestObject.build();
         Request request = prepareRequest(ASYNC);
@@ -975,7 +1089,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
                 assertThat(response.getHeader("X-Elasticsearch-Async-Id"), nullValue());
                 assertThat(response.getHeader("X-Elasticsearch-Async-Is-Running"), is("?0"));
             }
-            assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+            assertWarnings(response, assertWarnings);
             json.remove("is_running"); // remove this to not mess up later map assertions
             return Collections.unmodifiableMap(json);
         } else {
@@ -985,7 +1099,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             if (isRunning == false) {
                 // must have completed immediately so keep_on_completion must be true
                 assertThat(requestObject.keepOnCompletion(), is(true));
-                assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+                assertWarnings(response, assertWarnings);
                 // we already have the results, but let's remember them so that we can compare to async get
                 initialColumns = json.get("columns");
                 initialValues = json.get("values");
@@ -1015,7 +1129,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
             assertEquals(initialValues, result.get("values"));
         }
 
-        assertWarnings(response, expectedWarnings, expectedWarningsRegex);
+        assertWarnings(response, assertWarnings);
         assertDeletable(id);
         return removeAsyncProperties(result);
     }
@@ -1089,7 +1203,7 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         }
         request.setOptions(options);
 
-        HttpEntity entity = performRequest(request, NO_WARNINGS, NO_WARNINGS_REGEX);
+        HttpEntity entity = performRequest(request, new AssertWarnings.NoWarnings());
         return Streams.copyToString(new InputStreamReader(entity.getContent(), StandardCharsets.UTF_8));
     }
 
@@ -1211,9 +1325,8 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return mediaType;
     }
 
-    private static HttpEntity performRequest(Request request, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex)
-        throws IOException {
-        return assertWarnings(performRequest(request), allowedWarnings, allowedWarningsRegex);
+    private static HttpEntity performRequest(Request request, AssertWarnings assertWarnings) throws IOException {
+        return assertWarnings(performRequest(request), assertWarnings);
     }
 
     private static Response performRequest(Request request) throws IOException {
@@ -1226,13 +1339,13 @@ public abstract class RestEsqlTestCase extends ESRestTestCase {
         return response;
     }
 
-    private static HttpEntity assertWarnings(Response response, List<String> allowedWarnings, List<Pattern> allowedWarningsRegex) {
+    private static HttpEntity assertWarnings(Response response, AssertWarnings assertWarnings) {
         List<String> warnings = new ArrayList<>(response.getWarnings());
         warnings.removeAll(mutedWarnings());
         if (shouldLog()) {
             LOGGER.info("RESPONSE warnings (after muted)={}", warnings);
         }
-        EsqlTestUtils.assertWarnings(warnings, allowedWarnings, allowedWarningsRegex);
+        assertWarnings.assertWarnings(warnings);
         return response.getEntity();
     }
 

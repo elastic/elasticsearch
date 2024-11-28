@@ -15,21 +15,16 @@ import org.elasticsearch.common.Strings;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.io.stream.Writeable;
-import org.elasticsearch.common.logging.DeprecationCategory;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.xcontent.ObjectParser;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.XContentBuilder;
-import org.elasticsearch.xcontent.XContentParser;
 
 import java.io.IOException;
 import java.time.ZoneId;
 import java.util.Objects;
-
-import static org.elasticsearch.core.RestApiVersion.equalTo;
 
 /**
  * A class that handles all the parsing, bwc and deprecations surrounding date histogram intervals.
@@ -91,29 +86,6 @@ public class DateIntervalWrapper implements ToXContentFragment, Writeable {
     private IntervalTypeEnum intervalType = IntervalTypeEnum.NONE;
 
     public static <T extends DateIntervalConsumer<T>> void declareIntervalFields(ObjectParser<T, String> parser) {
-        /*
-         REST version compatibility.  When in V_7 compatibility mode, continue to parse the old style interval parameter,
-         but immediately adapt it into either fixed or calendar interval.
-         */
-        parser.declareField((wrapper, interval) -> {
-            DEPRECATION_LOGGER.warn(DeprecationCategory.AGGREGATIONS, "date-interval-getter", DEPRECATION_TEXT);
-            if (interval instanceof Long) {
-                wrapper.fixedInterval(new DateHistogramInterval(interval + "ms"));
-            } else {
-                if (interval != null && DateHistogramAggregationBuilder.DATE_FIELD_UNITS.containsKey(interval.toString())) {
-                    wrapper.calendarInterval((DateHistogramInterval) interval);
-                } else {
-                    wrapper.fixedInterval((DateHistogramInterval) interval);
-                }
-            }
-        }, p -> {
-            if (p.currentToken() == XContentParser.Token.VALUE_NUMBER) {
-                return p.longValue();
-            } else {
-                return new DateHistogramInterval(p.text());
-            }
-        }, Histogram.INTERVAL_FIELD.forRestApiVersion(equalTo(RestApiVersion.V_7)), ObjectParser.ValueType.LONG);
-
         parser.declareField(
             DateIntervalConsumer::calendarInterval,
             p -> new DateHistogramInterval(p.text()),

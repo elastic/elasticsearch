@@ -170,10 +170,10 @@ public final class TopFieldGroups extends TopFieldDocs {
             final TopFieldGroups shard = shardHits[shardIDX];
             // totalHits can be non-zero even if no hits were
             // collected, when searchAfter was used:
-            totalHitCount += shard.totalHits.value;
+            totalHitCount += shard.totalHits.value();
             // If any hit count is a lower bound then the merged
             // total hit count is a lower bound as well
-            if (shard.totalHits.relation == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
+            if (shard.totalHits.relation() == TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO) {
                 totalHitsRelation = TotalHits.Relation.GREATER_THAN_OR_EQUAL_TO;
             }
             if (CollectionUtils.isEmpty(shard.scoreDocs) == false) {

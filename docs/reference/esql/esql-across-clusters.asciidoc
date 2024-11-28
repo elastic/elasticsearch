@@ -188,9 +188,10 @@ FROM *:my-index-000001
 [[ccq-cluster-details]]
 ==== Cross-cluster metadata
 
-ES|QL {ccs} responses include metadata about the search on each cluster when the response format is JSON.
+Using the `"include_ccs_metadata": true` option, users can request that
+ES|QL {ccs} responses include metadata about the search on each cluster (when the response format is JSON).
 Here we show an example using the async search endpoint. {ccs-cap} metadata is also present in the synchronous
-search endpoint.
+search endpoint response when requested.
 
 [source,console]
 ----
@@ -200,7 +201,8 @@ POST /_query/async?format=json
     FROM my-index-000001,cluster_one:my-index-000001,cluster_two:my-index*
     | STATS COUNT(http.response.status_code) BY user.id
     | LIMIT 2
-  """
+  """,
+  "include_ccs_metadata": true
 }
 ----
 // TEST[setup:my_index]
@@ -238,7 +240,7 @@ Which returns:
       "(local)": { <4>
         "status": "successful",
         "indices": "blogs",
-        "took": 36,  <5>
+        "took": 41,  <5>
         "_shards": { <6>
           "total": 13,
           "successful": 13,
@@ -260,7 +262,7 @@ Which returns:
       "cluster_two": {
         "status": "successful",
         "indices": "cluster_two:my-index*",
-        "took": 41,
+        "took": 40,
         "_shards": {
           "total": 18,
           "successful": 18,
@@ -286,7 +288,7 @@ it is identified as "(local)".
 <5> How long (in milliseconds) the search took on each cluster. This can be useful to determine
 which clusters have slower response times than others.
 <6> The shard details for the search on that cluster, including a count of shards that were
-skipped due to the can-match phase. Shards are skipped when they cannot have any matching data
+skipped due to the can-match phase results. Shards are skipped when they cannot have any matching data
 and therefore are not included in the full ES|QL query.
 
 
@@ -294,9 +296,6 @@ The cross-cluster metadata can be used to determine whether any data came back f
 For instance, in the query below, the wildcard expression for `cluster-two` did not resolve
 to a concrete index (or indices). The cluster is, therefore, marked as 'skipped' and the total
 number of shards searched is set to zero.
-Since the other cluster did have a matching index, the search did not return an error, but
-instead returned all the matching data it could find.
-
 
 [source,console]
 ----
@@ -306,7 +305,8 @@ POST /_query/async?format=json
     FROM cluster_one:my-index*,cluster_two:logs*
     | STATS COUNT(http.response.status_code) BY user.id
     | LIMIT 2
-  """
+  """,
+  "include_ccs_metadata": true
 }
 ----
 // TEST[continued]

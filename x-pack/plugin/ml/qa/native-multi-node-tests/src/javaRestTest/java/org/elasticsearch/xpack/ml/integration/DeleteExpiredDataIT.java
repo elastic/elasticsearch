@@ -345,7 +345,7 @@ public class DeleteExpiredDataIT extends MlNativeAutodetectIntegTestCase {
         assertResponse(
             prepareSearch(AnomalyDetectorsIndex.jobStateIndexPattern()).setFetchSource(false).setTrackTotalHits(true).setSize(10000),
             stateDocsResponse -> {
-                assertThat(stateDocsResponse.getHits().getTotalHits().value, greaterThanOrEqualTo(5L));
+                assertThat(stateDocsResponse.getHits().getTotalHits().value(), greaterThanOrEqualTo(5L));
 
                 int nonExistingJobDocsCount = 0;
                 List<String> nonExistingJobExampleIds = new ArrayList<>();

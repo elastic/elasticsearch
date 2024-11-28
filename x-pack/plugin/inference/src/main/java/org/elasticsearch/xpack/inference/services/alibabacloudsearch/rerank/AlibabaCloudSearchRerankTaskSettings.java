@@ -102,4 +102,10 @@ public class AlibabaCloudSearchRerankTaskSettings implements TaskSettings {
     public int hashCode() {
         return Objects.hash();
     }
+
+    @Override
+    public TaskSettings updatedTaskSettings(Map<String, Object> newSettings) {
+        AlibabaCloudSearchRerankTaskSettings updatedSettings = new AlibabaCloudSearchRerankTaskSettings();
+        return of(this, updatedSettings);
+    }
 }

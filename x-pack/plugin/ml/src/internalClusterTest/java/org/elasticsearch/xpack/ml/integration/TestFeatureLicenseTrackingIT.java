@@ -107,7 +107,6 @@ public class TestFeatureLicenseTrackingIT extends MlSingleNodeTestCase {
         });
     }
 
-    @AwaitsFix(bugUrl = "https://github.com/elastic/elasticsearch/issues/102381")
     public void testFeatureTrackingInferenceModelPipeline() throws Exception {
         String modelId = "test-load-models-classification-license-tracking";
         Map<String, String> oneHotEncoding = new HashMap<>();

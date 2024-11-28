@@ -86,6 +86,20 @@ public class InternalSettingsPreparerTests extends ESTestCase {
         }
     }
 
+    public void testReplacePlaceholderFailure() {
+        try {
+            InternalSettingsPreparer.prepareEnvironment(
+                Settings.builder().put(baseEnvSettings).put("cluster.name", "${ES_CLUSTER_NAME}").build(),
+                emptyMap(),
+                null,
+                () -> "default_node_name"
+            );
+            fail("Expected SettingsException");
+        } catch (SettingsException e) {
+            assertEquals("Failed to replace property placeholders from [elasticsearch.yml]", e.getMessage());
+        }
+    }
+
     public void testSecureSettings() {
         MockSecureSettings secureSettings = new MockSecureSettings();
         secureSettings.setString("foo", "secret");

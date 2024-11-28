@@ -11,8 +11,10 @@ import org.elasticsearch.common.unit.ByteSizeValue;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
 import org.elasticsearch.common.util.BytesRefHash;
+import org.elasticsearch.common.util.Int3Hash;
 import org.elasticsearch.common.util.LongHash;
 import org.elasticsearch.common.util.LongLongHash;
+import org.elasticsearch.compute.aggregation.AggregatorMode;
 import org.elasticsearch.compute.aggregation.GroupingAggregatorFunction;
 import org.elasticsearch.compute.aggregation.SeenGroupIds;
 import org.elasticsearch.compute.data.Block;
@@ -28,15 +30,36 @@ import java.util.Iterator;
 import java.util.List;
 
 /**
- * A specialized hash table implementation maps values of a {@link Block} to ids (in longs).
- * This class delegates to {@link LongHash} or {@link BytesRefHash}.
- *
- * @see LongHash
- * @see BytesRefHash
+ * Specialized hash table implementations that map rows to a <strong>set</strong>
+ * of bucket IDs to which they belong to implement {@code GROUP BY} expressions.
+ * <p>
+ *     A row is always in at least one bucket so the results are never {@code null}.
+ *     {@code null} valued key columns will map to some integer bucket id.
+ *     If none of key columns are multivalued then the output is always an
+ *     {@link IntVector}. If any of the key are multivalued then a row is
+ *     in a bucket for each value. If more than one key is multivalued then
+ *     the row is in the combinatorial explosion of all value combinations.
+ *     Luckily for the number of values rows can only be in each bucket once.
+ *     Unluckily, it's the responsibility of {@link BlockHash} to remove those
+ *     duplicates.
+ * </p>
+ * <p>
+ *     These classes typically delegate to some combination of {@link BytesRefHash},
+ *     {@link LongHash}, {@link LongLongHash}, {@link Int3Hash}. They don't
+ *     <strong>technically</strong> have to be hash tables, so long as they
+ *     implement the deduplication semantics above and vend integer ids.
+ * </p>
+ * <p>
+ *     The integer ids are assigned to offsets into arrays of aggregation states
+ *     so its permissible to have gaps in the ints. But large gaps are a bad
+ *     idea because they'll waste space in the aggregations that use these
+ *     positions. For example, {@link BooleanBlockHash} assigns {@code 0} to
+ *     {@code null}, {@code 1} to {@code false}, and {@code 1} to {@code true}
+ *     and that's <strong>fine</strong> and simple and good because it'll never
+ *     leave a big gap, even if we never see {@code null}.
+ * </p>
  */
-public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
-    permits BooleanBlockHash, BytesRefBlockHash, DoubleBlockHash, IntBlockHash, LongBlockHash, BytesRef3BlockHash, //
-    NullBlockHash, PackedValuesBlockHash, BytesRefLongBlockHash, LongLongBlockHash, TimeSeriesBlockHash {
+public abstract class BlockHash implements Releasable, SeenGroupIds {
 
     protected final BlockFactory blockFactory;
 
@@ -83,7 +106,15 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
     @Override
     public abstract BitArray seenGroupIds(BigArrays bigArrays);
 
-    public record GroupSpec(int channel, ElementType elementType) {}
+    /**
+     * @param isCategorize Whether this group is a CATEGORIZE() or not.
+     *                     May be changed in the future when more stateful grouping functions are added.
+     */
+    public record GroupSpec(int channel, ElementType elementType, boolean isCategorize) {
+        public GroupSpec(int channel, ElementType elementType) {
+            this(channel, elementType, false);
+        }
+    }
 
     /**
      * Creates a specialized hash table that maps one or more {@link Block}s to ids.
@@ -98,8 +129,19 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
         if (groups.size() == 1) {
             return newForElementType(groups.get(0).channel(), groups.get(0).elementType(), blockFactory);
         }
-        if (groups.size() == 3 && groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
-            return new BytesRef3BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, groups.get(2).channel, emitBatchSize);
+        if (groups.stream().allMatch(g -> g.elementType == ElementType.BYTES_REF)) {
+            switch (groups.size()) {
+                case 2:
+                    return new BytesRef2BlockHash(blockFactory, groups.get(0).channel, groups.get(1).channel, emitBatchSize);
+                case 3:
+                    return new BytesRef3BlockHash(
+                        blockFactory,
+                        groups.get(0).channel,
+                        groups.get(1).channel,
+                        groups.get(2).channel,
+                        emitBatchSize
+                    );
+            }
         }
         if (allowBrokenOptimizations && groups.size() == 2) {
             var g1 = groups.get(0);
@@ -122,6 +164,19 @@ public abstract sealed class BlockHash implements Releasable, SeenGroupIds //
      */
     public static BlockHash buildPackedValuesBlockHash(List<GroupSpec> groups, BlockFactory blockFactory, int emitBatchSize) {
         return new PackedValuesBlockHash(groups, blockFactory, emitBatchSize);
+    }
+
+    /**
+     * Builds a BlockHash for the Categorize grouping function.
+     */
+    public static BlockHash buildCategorizeBlockHash(List<GroupSpec> groups, AggregatorMode aggregatorMode, BlockFactory blockFactory) {
+        if (groups.size() != 1) {
+            throw new IllegalArgumentException("only a single CATEGORIZE group can used");
+        }
+
+        return aggregatorMode.isInputPartial()
+            ? new CategorizedIntermediateBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial())
+            : new CategorizeRawBlockHash(groups.get(0).channel, blockFactory, aggregatorMode.isOutputPartial());
     }
 
     /**

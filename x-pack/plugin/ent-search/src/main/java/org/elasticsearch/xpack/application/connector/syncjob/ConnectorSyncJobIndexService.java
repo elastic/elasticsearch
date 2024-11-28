@@ -417,7 +417,7 @@ public class ConnectorSyncJobIndexService {
             .map(ConnectorSyncJobIndexService::hitToConnectorSyncJob)
             .toList();
 
-        return new ConnectorSyncJobsResult(connectorSyncJobs, (int) searchResponse.getHits().getTotalHits().value);
+        return new ConnectorSyncJobsResult(connectorSyncJobs, (int) searchResponse.getHits().getTotalHits().value());
     }
 
     private static ConnectorSyncJobSearchResult hitToConnectorSyncJob(SearchHit searchHit) {

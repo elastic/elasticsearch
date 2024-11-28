@@ -15,10 +15,8 @@ import org.elasticsearch.common.bytes.BytesReference;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.xcontent.XContentHelper;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.index.mapper.Mapper;
 import org.elasticsearch.index.mapper.MapperService;
-import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.xcontent.ParseField;
 import org.elasticsearch.xcontent.ToXContentFragment;
 import org.elasticsearch.xcontent.ToXContentObject;
@@ -30,8 +28,6 @@ import java.io.InputStream;
 import java.util.Collections;
 import java.util.Map;
 import java.util.Objects;
-
-import static org.elasticsearch.rest.BaseRestHandler.DEFAULT_INCLUDE_TYPE_NAME_POLICY;
 
 /**
  * Response object for {@link GetFieldMappingsRequest} API
@@ -91,16 +87,7 @@ public class GetFieldMappingsResponse extends ActionResponse implements ToXConte
             builder.startObject(indexEntry.getKey());
             builder.startObject(MAPPINGS.getPreferredName());
             if (indexEntry.getValue() != null) {
-                if (builder.getRestApiVersion() == RestApiVersion.V_7
-                    && params.paramAsBoolean(BaseRestHandler.INCLUDE_TYPE_NAME_PARAMETER, DEFAULT_INCLUDE_TYPE_NAME_POLICY)) {
-                    if (indexEntry.getValue().size() > 0) {
-                        builder.startObject(MapperService.SINGLE_MAPPING_NAME);
-                        addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                        builder.endObject();
-                    }
-                } else {
-                    addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
-                }
+                addFieldMappingsToBuilder(builder, params, indexEntry.getValue());
             }
 
             builder.endObject();

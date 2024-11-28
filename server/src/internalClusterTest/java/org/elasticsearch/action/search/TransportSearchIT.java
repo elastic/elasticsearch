@@ -27,6 +27,7 @@ import org.elasticsearch.common.breaker.CircuitBreaker;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.settings.Settings;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.common.util.concurrent.AtomicArray;
 import org.elasticsearch.core.TimeValue;
 import org.elasticsearch.index.IndexSettings;
@@ -143,7 +144,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 randomBoolean()
             );
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(1, searchResponse.getHits().getTotalHits().value);
+                assertEquals(1, searchResponse.getHits().getTotalHits().value());
                 SearchHit[] hits = searchResponse.getHits().getHits();
                 assertEquals(1, hits.length);
                 SearchHit hit = hits[0];
@@ -162,7 +163,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 randomBoolean()
             );
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(1, searchResponse.getHits().getTotalHits().value);
+                assertEquals(1, searchResponse.getHits().getTotalHits().value());
                 SearchHit[] hits = searchResponse.getHits().getHits();
                 assertEquals(1, hits.length);
                 SearchHit hit = hits[0];
@@ -221,7 +222,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             );
             searchRequest.indices("<test-{now/d}>");
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(1, searchResponse.getHits().getTotalHits().value);
+                assertEquals(1, searchResponse.getHits().getTotalHits().value());
                 assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
             });
         }
@@ -241,7 +242,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             sourceBuilder.query(rangeQuery);
             searchRequest.source(sourceBuilder);
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(1, searchResponse.getHits().getTotalHits().value);
+                assertEquals(1, searchResponse.getHits().getTotalHits().value());
                 assertEquals("test-1970.01.01", searchResponse.getHits().getHits()[0].getIndex());
             });
         }
@@ -280,7 +281,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 ? originalRequest
                 : SearchRequest.subSearchRequest(taskId, originalRequest, Strings.EMPTY_ARRAY, "remote", nowInMillis, true);
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(2, searchResponse.getHits().getTotalHits().value);
+                assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(1, longTerms.getBuckets().size());
@@ -296,7 +297,7 @@ public class TransportSearchIT extends ESIntegTestCase {
                 false
             );
             assertResponse(client().search(searchRequest), searchResponse -> {
-                assertEquals(2, searchResponse.getHits().getTotalHits().value);
+                assertEquals(2, searchResponse.getHits().getTotalHits().value());
                 InternalAggregations aggregations = searchResponse.getAggregations();
                 LongTerms longTerms = aggregations.get("terms");
                 assertEquals(2, longTerms.getBuckets().size());
@@ -432,7 +433,7 @@ public class TransportSearchIT extends ESIntegTestCase {
             () -> assertResponse(
                 prepareSearch("test").setQuery(new RangeQueryBuilder("created_date").gte("2020-01-02").lte("2020-01-03"))
                     .setPreFilterShardSize(randomIntBetween(1, 3)),
-                resp -> assertThat(resp.getHits().getTotalHits().value, equalTo(2L))
+                resp -> assertThat(resp.getHits().getTotalHits().value(), equalTo(2L))
             )
         );
     }
@@ -669,7 +670,7 @@ public class TransportSearchIT extends ESIntegTestCase {
         }
 
         @Override
-        public InternalAggregation[] buildAggregations(long[] owningBucketOrds) throws IOException {
+        public InternalAggregation[] buildAggregations(LongArray owningBucketOrds) {
             return new InternalAggregation[] { buildEmptyAggregation() };
         }
 

@@ -100,8 +100,9 @@ public class TestDeprecationHeaderRestAction extends BaseRestHandler {
             Route.builder(GET, "/_test_cluster/deprecated_settings")
                 .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.current())
                 .build(),
-            // TODO: s/deprecated/deprecatedForRemoval when removing `deprecated` method
-            Route.builder(POST, "/_test_cluster/deprecated_settings").deprecated(DEPRECATED_ENDPOINT, RestApiVersion.current()).build(),
+            Route.builder(POST, "/_test_cluster/deprecated_settings")
+                .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.current())
+                .build(),
             Route.builder(GET, "/_test_cluster/compat_only")
                 .deprecatedForRemoval(DEPRECATED_ENDPOINT, RestApiVersion.minimumSupported())
                 .build(),

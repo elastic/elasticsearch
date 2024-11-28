@@ -1,0 +1,99 @@
+---
+teardown:
+  - do:
+      indices.delete_data_stream:
+        name: my-logs-fs
+        ignore: 404
+
+  - do:
+      indices.delete_index_template:
+        name: template
+        ignore: 404
+
+  - do:
+      indices.delete_data_stream:
+        name: my-logs-db
+        ignore: 404
+  - do:
+      indices.delete_index_template:
+        name: template1
+        ignore: 404
+
+---
+Test failure store with logsdb:
+  - requires:
+      test_runner_features: [ capabilities, allowed_warnings ]
+      capabilities:
+        - method: PUT
+          path: /{index}
+          capabilities: [ logsdb_index_mode ]
+        - method: POST
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+        - method: PUT
+          path: /_bulk
+          capabilities: [ 'failure_store_status' ]
+      reason: "Support for 'logsdb' index mode & failure status capability required"
+
+  - do:
+      allowed_warnings:
+        - "index template [my-template] has index patterns [my-logs-fs*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template
+        body:
+          index_patterns: ["my-logs-fs*"]
+          data_stream:
+            failure_store: true
+          template:
+            settings:
+              index:
+                mode: logsdb
+                number_of_replicas: 1
+                number_of_shards: 2
+  - do:
+      allowed_warnings:
+        - "index template [my-template2] has index patterns [my-logs-db*] matching patterns from existing older templates [global] with patterns (global => [*]); this template [my-template2] will take precedence during new index creation"
+      indices.put_index_template:
+        name: my-template2
+        body:
+          index_patterns: [ "my-logs-db*" ]
+          data_stream: {}
+          template:
+            settings:
+              index:
+                mode: logsdb
+                number_of_replicas: 1
+                number_of_shards: 2
+
+  - do:
+      bulk:
+        refresh: true
+        body:
+          - '{ "create": { "_index": "my-logs-fs"} }'
+          - '{"@timestamp":"2019-08-06T12:09:12.375Z", "log.level": "INFO", "message":"Tomcat started on port(s): 8080 (http) with context path ''", "service.name":"spring-petclinic","process.thread.name":"restartedMain","log.logger":"org.springframework.boot.web.embedded.tomcat.TomcatWebServer"}'
+          - '{ "create": { "_index": "my-logs-db"} }'
+          - '{ "@timestamp": "2022-01-01", "log.level": "INFO", "message":"Tomcat started on port(s): 8080 (http) with context path ''", "service.name":"spring-petclinic","process.thread.name":"restartedMain","log.logger":"org.springframework.boot.web.embedded.tomcat.TomcatWebServer" }'
+          - '{ "create": { "_index": "my-logs-fs"} }'
+          - '{"log.level": "INFO", "message":"Tomcat started on port(s): 8080 (http) with context path ''", "service.name":"spring-petclinic","process.thread.name":"restartedMain","log.logger":"org.springframework.boot.web.embedded.tomcat.TomcatWebServer"}'
+          - '{ "create": { "_index": "my-logs-db"} }'
+          - '{"log.level": "INFO", "message":"Tomcat started on port(s): 8080 (http) with context path ''", "service.name":"spring-petclinic","process.thread.name":"restartedMain","log.logger":"org.springframework.boot.web.embedded.tomcat.TomcatWebServer"}'
+  - is_true: errors
+
+  # Successfully indexed to backing index
+  - match: { items.0.create._index: '/\.ds-my-logs-fs-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.0.create.status: 201 }
+  - is_false: items.0.create.failure_store
+  - match: { items.1.create._index: '/\.ds-my-logs-db-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.1.create.status: 201 }
+  - is_false: items.1.create.failure_store
+
+  # Successfully indexed to failure store
+  - match: { items.2.create._index: '/\.fs-my-logs-fs-(\d{4}\.\d{2}\.\d{2}-)?000002/' }
+  - match: { items.2.create.status: 201 }
+  - match: { items.2.create.failure_store: used }
+
+  # Rejected, eligible to go to failure store, but failure store not enabled
+  - match: { items.3.create._index: '/\.ds-my-logs-db-(\d{4}\.\d{2}\.\d{2}-)?000001/' }
+  - match: { items.3.create.status: 400 }
+  - match: { items.3.create.error.type: document_parsing_exception }
+  - match: { items.3.create.failure_store: not_enabled }

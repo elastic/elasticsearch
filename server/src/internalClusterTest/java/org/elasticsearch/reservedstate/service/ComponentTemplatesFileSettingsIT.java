@@ -9,6 +9,7 @@
 
 package org.elasticsearch.reservedstate.service;
 
+import org.apache.lucene.tests.util.LuceneTestCase;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateRequest;
 import org.elasticsearch.action.admin.cluster.state.ClusterStateResponse;
 import org.elasticsearch.action.admin.indices.template.get.GetComponentTemplateAction;
@@ -26,16 +27,12 @@ import org.elasticsearch.cluster.metadata.ReservedStateHandlerMetadata;
 import org.elasticsearch.cluster.metadata.ReservedStateMetadata;
 import org.elasticsearch.cluster.service.ClusterService;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.core.Strings;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.test.ESIntegTestCase;
 import org.elasticsearch.xcontent.XContentParserConfiguration;
 
 import java.io.ByteArrayInputStream;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.StandardCopyOption;
 import java.util.Map;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutionException;
@@ -54,6 +51,7 @@ import static org.hamcrest.Matchers.hasSize;
 import static org.hamcrest.Matchers.notNullValue;
 
 @ESIntegTestCase.ClusterScope(scope = ESIntegTestCase.Scope.TEST, numDataNodes = 0, autoManageMasterNodes = false)
+@LuceneTestCase.SuppressFileSystems("*")
 public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
 
     private static AtomicLong versionCounter = new AtomicLong(1);
@@ -365,15 +363,7 @@ public class ComponentTemplatesFileSettingsIT extends ESIntegTestCase {
     }
 
     private void writeJSONFile(String node, String json) throws Exception {
-        long version = versionCounter.incrementAndGet();
-
-        FileSettingsService fileSettingsService = internalCluster().getInstance(FileSettingsService.class, node);
-
-        Files.createDirectories(fileSettingsService.watchedFileDir());
-        Path tempFilePath = createTempFile();
-
-        Files.write(tempFilePath, Strings.format(json, version).getBytes(StandardCharsets.UTF_8));
-        Files.move(tempFilePath, fileSettingsService.watchedFile(), StandardCopyOption.ATOMIC_MOVE);
+        FileSettingsServiceIT.writeJSONFile(node, json, logger, versionCounter.incrementAndGet());
     }
 
     private Tuple<CountDownLatch, AtomicLong> setupClusterStateListener(String node) {

@@ -21,6 +21,7 @@ import org.apache.lucene.util.Bits;
 import org.elasticsearch.common.lucene.Lucene;
 import org.elasticsearch.common.util.BigArrays;
 import org.elasticsearch.common.util.BitArray;
+import org.elasticsearch.common.util.LongArray;
 import org.elasticsearch.core.Releasable;
 import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationExecutionContext;
@@ -102,7 +103,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
             public void collect(int docId, long owningBucketOrd) throws IOException {
                 if (parentDocs.get(docId) && globalOrdinals.advanceExact(docId)) {
                     int globalOrdinal = (int) globalOrdinals.nextOrd();
-                    assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                    assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                     collectionStrategy.add(owningBucketOrd, globalOrdinal);
                 }
             }
@@ -115,7 +116,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
     }
 
     @Override
-    protected void prepareSubAggs(long[] ordsToCollect) throws IOException {
+    protected void prepareSubAggs(LongArray ordsToCollect) throws IOException {
         IndexReader indexReader = searcher().getIndexReader();
         for (LeafReaderContext ctx : indexReader.leaves()) {
             Scorer childDocsScorer = outFilter.scorer(ctx);
@@ -134,11 +135,6 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                 public float score() {
                     return 1f;
                 }
-
-                @Override
-                public int docID() {
-                    return childDocsIter.docID();
-                }
             });
 
             final Bits liveDocs = ctx.reader().getLiveDocs();
@@ -150,7 +146,7 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                     continue;
                 }
                 int globalOrdinal = (int) globalOrdinals.nextOrd();
-                assert globalOrdinal != -1 && globalOrdinals.nextOrd() == SortedSetDocValues.NO_MORE_ORDS;
+                assert globalOrdinal != -1 && globalOrdinals.docValueCount() == 1;
                 /*
                  * Check if we contain every ordinal. It's almost certainly be
                  * faster to replay all the matching ordinals and filter them down
@@ -158,9 +154,10 @@ public abstract class ParentJoinAggregator extends BucketsAggregator implements 
                  * structure that maps a primitive long to a list of primitive
                  * longs.
                  */
-                for (long owningBucketOrd : ordsToCollect) {
-                    if (collectionStrategy.exists(owningBucketOrd, globalOrdinal)) {
-                        collectBucket(sub, docId, owningBucketOrd);
+                for (long ord = 0; ord < ordsToCollect.size(); ord++) {
+                    long ordToCollect = ordsToCollect.get(ord);
+                    if (collectionStrategy.exists(ordToCollect, globalOrdinal)) {
+                        collectBucket(sub, docId, ordToCollect);
                     }
                 }
             }

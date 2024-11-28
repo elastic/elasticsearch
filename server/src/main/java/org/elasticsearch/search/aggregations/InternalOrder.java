@@ -13,7 +13,6 @@ import org.elasticsearch.common.io.stream.DelayableWriteable;
 import org.elasticsearch.common.io.stream.StreamInput;
 import org.elasticsearch.common.io.stream.StreamOutput;
 import org.elasticsearch.common.logging.DeprecationLogger;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.search.aggregations.Aggregator.BucketComparator;
 import org.elasticsearch.search.aggregations.bucket.MultiBucketsAggregation.Bucket;
 import org.elasticsearch.search.aggregations.support.AggregationPath;
@@ -590,15 +589,6 @@ public abstract class InternalOrder extends BucketOrder {
             }
             if (orderKey == null) {
                 throw new ParsingException(parser.getTokenLocation(), "Must specify at least one field for [order]");
-            }
-            // _term and _time order deprecated in 6.0; replaced by _key
-            if (parser.getRestApiVersion() == RestApiVersion.V_7 && ("_term".equals(orderKey) || "_time".equals(orderKey))) {
-                deprecationLogger.compatibleCritical(
-                    "_term_and_time_key_removal",
-                    "Deprecated aggregation order key [{}] used, replaced by [_key]",
-                    orderKey
-                );
-                return orderAsc ? KEY_ASC : KEY_DESC;
             }
             return switch (orderKey) {
                 case "_key" -> orderAsc ? KEY_ASC : KEY_DESC;

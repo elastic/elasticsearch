@@ -21,7 +21,6 @@ import org.elasticsearch.xpack.esql.core.expression.Literal;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.core.util.NumericUtils;
-import org.elasticsearch.xpack.esql.expression.function.scalar.convert.AbstractConvertFunction;
 import org.elasticsearch.xpack.versionfield.Version;
 import org.hamcrest.Matcher;
 
@@ -91,7 +90,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         List<TypedDataSupplier> lhsSuppliers = new ArrayList<>();
         List<TypedDataSupplier> rhsSuppliers = new ArrayList<>();
         List<TestCaseSupplier> suppliers = new ArrayList<>();
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType type : DataType.stringTypes()) {
             lhsSuppliers.addAll(stringCases(type));
             rhsSuppliers.addAll(stringCases(type));
             casesCrossProduct(
@@ -760,7 +759,7 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         Function<BytesRef, Object> expectedValue,
         Function<BytesRef, List<String>> expectedWarnings
     ) {
-        for (DataType type : AbstractConvertFunction.STRING_TYPES) {
+        for (DataType type : DataType.stringTypes()) {
             unary(
                 suppliers,
                 expectedEvaluatorToString,
@@ -1433,20 +1432,48 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
             String foldingExceptionMessage,
             Object extra
         ) {
+            this(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type))
+            );
+        }
+
+        TestCase(
+            List<TypedData> data,
+            Matcher<String> evaluatorToString,
+            DataType expectedType,
+            Matcher<?> matcher,
+            String[] expectedWarnings,
+            String[] expectedBuildEvaluatorWarnings,
+            String expectedTypeError,
+            Class<? extends Throwable> foldingExceptionClass,
+            String foldingExceptionMessage,
+            Object extra,
+            boolean canBuildEvaluator
+        ) {
             this.source = Source.EMPTY;
             this.data = data;
             this.evaluatorToString = evaluatorToString;
-            this.expectedType = expectedType;
+            this.expectedType = expectedType == null ? null : expectedType.noText();
             @SuppressWarnings("unchecked")
             Matcher<Object> downcast = (Matcher<Object>) matcher;
             this.matcher = downcast;
             this.expectedWarnings = expectedWarnings;
             this.expectedBuildEvaluatorWarnings = expectedBuildEvaluatorWarnings;
             this.expectedTypeError = expectedTypeError;
-            this.canBuildEvaluator = data.stream().allMatch(d -> d.forceLiteral || DataType.isRepresentable(d.type));
             this.foldingExceptionClass = foldingExceptionClass;
             this.foldingExceptionMessage = foldingExceptionMessage;
             this.extra = extra;
+            this.canBuildEvaluator = canBuildEvaluator;
         }
 
         public Source getSource() {
@@ -1522,6 +1549,25 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
         }
 
         /**
+         * Build a new {@link TestCase} with new {@link #data}.
+         */
+        public TestCase withData(List<TestCaseSupplier.TypedData> data) {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
          * Build a new {@link TestCase} with new {@link #extra()}.
          */
         public TestCase withExtra(Object extra) {
@@ -1535,7 +1581,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
-                extra
+                extra,
+                canBuildEvaluator
             );
         }
 
@@ -1550,7 +1597,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
-                extra
+                extra,
+                canBuildEvaluator
             );
         }
 
@@ -1569,7 +1617,8 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedTypeError,
                 foldingExceptionClass,
                 foldingExceptionMessage,
-                extra
+                extra,
+                canBuildEvaluator
             );
         }
 
@@ -1593,7 +1642,30 @@ public record TestCaseSupplier(String name, List<DataType> types, Supplier<TestC
                 expectedTypeError,
                 clazz,
                 message,
-                extra
+                extra,
+                canBuildEvaluator
+            );
+        }
+
+        /**
+         * Build a new {@link TestCase} that can't build an evaluator.
+         * <p>
+         *     Useful for special cases that can't be executed, but should still be considered.
+         * </p>
+         */
+        public TestCase withoutEvaluator() {
+            return new TestCase(
+                data,
+                evaluatorToString,
+                expectedType,
+                matcher,
+                expectedWarnings,
+                expectedBuildEvaluatorWarnings,
+                expectedTypeError,
+                foldingExceptionClass,
+                foldingExceptionMessage,
+                extra,
+                false
             );
         }
 

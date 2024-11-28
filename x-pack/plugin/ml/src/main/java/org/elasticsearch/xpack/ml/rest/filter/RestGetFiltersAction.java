@@ -8,7 +8,6 @@ package org.elasticsearch.xpack.ml.rest.filter;
 
 import org.elasticsearch.client.internal.node.NodeClient;
 import org.elasticsearch.common.Strings;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.rest.BaseRestHandler;
 import org.elasticsearch.rest.RestRequest;
 import org.elasticsearch.rest.Scope;
@@ -23,20 +22,15 @@ import java.io.IOException;
 import java.util.List;
 
 import static org.elasticsearch.rest.RestRequest.Method.GET;
+import static org.elasticsearch.xpack.core.ml.job.config.MlFilter.ID;
 import static org.elasticsearch.xpack.ml.MachineLearning.BASE_PATH;
-import static org.elasticsearch.xpack.ml.MachineLearning.PRE_V7_BASE_PATH;
 
 @ServerlessScope(Scope.PUBLIC)
 public class RestGetFiltersAction extends BaseRestHandler {
 
     @Override
     public List<Route> routes() {
-        return List.of(
-            Route.builder(GET, BASE_PATH + "filters/{" + MlFilter.ID + "}")
-                .replaces(GET, PRE_V7_BASE_PATH + "filters/{" + MlFilter.ID + "}", RestApiVersion.V_7)
-                .build(),
-            Route.builder(GET, BASE_PATH + "filters/").replaces(GET, PRE_V7_BASE_PATH + "filters/", RestApiVersion.V_7).build()
-        );
+        return List.of(new Route(GET, BASE_PATH + "filters/{" + ID + "}"), new Route(GET, BASE_PATH + "filters/"));
     }
 
     @Override

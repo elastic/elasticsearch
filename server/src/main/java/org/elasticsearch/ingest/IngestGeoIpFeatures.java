@@ -22,7 +22,13 @@ public class IngestGeoIpFeatures implements FeatureSpecification {
         "get_database_configuration_action.multi_node"
     );
 
+    public static final NodeFeature PUT_DATABASE_CONFIGURATION_ACTION_IPINFO = new NodeFeature("put_database_configuration_action.ipinfo");
+
     public Set<NodeFeature> getFeatures() {
-        return Set.of(GEOIP_DOWNLOADER_DATABASE_CONFIGURATION, GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE);
+        return Set.of(
+            GEOIP_DOWNLOADER_DATABASE_CONFIGURATION,
+            GET_DATABASE_CONFIGURATION_ACTION_MULTI_NODE,
+            PUT_DATABASE_CONFIGURATION_ACTION_IPINFO
+        );
     }
 }

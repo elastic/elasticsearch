@@ -22,11 +22,18 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
 
     public static ElasticsearchInternalServiceSettings validInstance(String modelId) {
         boolean useAdaptive = randomBoolean();
+        var deploymentId = randomBoolean() ? null : randomAlphaOfLength(5);
         if (useAdaptive) {
             var adaptive = new AdaptiveAllocationsSettings(true, 1, randomIntBetween(2, 8));
-            return new ElasticsearchInternalServiceSettings(randomBoolean() ? 1 : null, randomIntBetween(1, 16), modelId, adaptive);
+            return new ElasticsearchInternalServiceSettings(
+                randomBoolean() ? 1 : null,
+                randomIntBetween(1, 16),
+                modelId,
+                adaptive,
+                deploymentId
+            );
         } else {
-            return new ElasticsearchInternalServiceSettings(randomIntBetween(1, 10), randomIntBetween(1, 16), modelId, null);
+            return new ElasticsearchInternalServiceSettings(randomIntBetween(1, 10), randomIntBetween(1, 16), modelId, null, deploymentId);
         }
     }
 
@@ -48,7 +55,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations() == null ? 1 : instance.getNumAllocations() + 1,
                     instance.getNumThreads(),
                     instance.modelId(),
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             case 1 -> new ElserInternalServiceSettings(
@@ -56,7 +64,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations(),
                     instance.getNumThreads() + 1,
                     instance.modelId(),
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             case 2 -> new ElserInternalServiceSettings(
@@ -64,7 +73,8 @@ public class ElasticsearchInternalServiceSettingsTests extends AbstractWireSeria
                     instance.getNumAllocations(),
                     instance.getNumThreads(),
                     instance.modelId() + "-bar",
-                    instance.getAdaptiveAllocationsSettings()
+                    instance.getAdaptiveAllocationsSettings(),
+                    instance.getDeploymentId()
                 )
             );
             default -> throw new IllegalStateException();

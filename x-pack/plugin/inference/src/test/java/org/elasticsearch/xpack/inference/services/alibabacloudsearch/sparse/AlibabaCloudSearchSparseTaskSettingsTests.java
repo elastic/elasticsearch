@@ -19,6 +19,8 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.elasticsearch.xpack.inference.InputTypeTests.randomWithIngestAndSearch;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings.INPUT_TYPE;
+import static org.elasticsearch.xpack.inference.services.alibabacloudsearch.sparse.AlibabaCloudSearchSparseTaskSettings.RETURN_TOKEN;
 import static org.hamcrest.Matchers.is;
 
 public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSerializingTestCase<AlibabaCloudSearchSparseTaskSettings> {
@@ -31,9 +33,31 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
 
     public void testFromMap() {
         MatcherAssert.assertThat(
-            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(Map.of(AlibabaCloudSearchSparseTaskSettings.INPUT_TYPE, "ingest"))),
+            AlibabaCloudSearchSparseTaskSettings.fromMap(new HashMap<>(Map.of(INPUT_TYPE, "ingest"))),
             is(new AlibabaCloudSearchSparseTaskSettings(InputType.INGEST, null))
         );
+    }
+
+    public void testUpdatedTaskSettings() {
+        {
+            var initialSettings = createRandom();
+            var newSettings = createRandom();
+            AlibabaCloudSearchSparseTaskSettings updatedSettings = (AlibabaCloudSearchSparseTaskSettings) initialSettings
+                .updatedTaskSettings(Map.of(RETURN_TOKEN, newSettings.isReturnToken()));
+        }
+        {
+            var initialSettings = createRandom();
+            var newSettings = createRandom();
+            AlibabaCloudSearchSparseTaskSettings updatedSettings = (AlibabaCloudSearchSparseTaskSettings) initialSettings
+                .updatedTaskSettings(
+                    Map.of(
+                        INPUT_TYPE,
+                        newSettings.getInputType() == null ? InputType.SEARCH.toString() : newSettings.getInputType().toString(),
+                        RETURN_TOKEN,
+                        newSettings.isReturnToken()
+                    )
+                );
+        }
     }
 
     public void testIsEmpty() {
@@ -69,11 +93,11 @@ public class AlibabaCloudSearchSparseTaskSettingsTests extends AbstractWireSeria
         var map = new HashMap<String, Object>();
 
         if (inputType != null) {
-            map.put(AlibabaCloudSearchSparseTaskSettings.INPUT_TYPE, inputType.toString());
+            map.put(INPUT_TYPE, inputType.toString());
         }
 
         if (returnToken != null) {
-            map.put(AlibabaCloudSearchSparseTaskSettings.RETURN_TOKEN, returnToken);
+            map.put(RETURN_TOKEN, returnToken);
         }
 
         return map;

@@ -23,7 +23,6 @@ import org.elasticsearch.common.xcontent.ChunkedToXContent;
 import org.elasticsearch.common.xcontent.ChunkedToXContentHelper;
 import org.elasticsearch.core.IOUtils;
 import org.elasticsearch.core.Releasables;
-import org.elasticsearch.core.RestApiVersion;
 import org.elasticsearch.core.Streams;
 import org.elasticsearch.rest.ChunkedRestResponseBodyPart;
 import org.elasticsearch.rest.RestChannel;
@@ -224,7 +223,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
         @Override
         public void onError(Throwable throwable) {
             if (isLastPart.compareAndSet(false, true)) {
-                logger.error("A failure occurred in ElasticSearch while streaming the response.", throwable);
+                logger.warn("A failure occurred in ElasticSearch while streaming the response.", throwable);
                 nextBodyPartListener().onResponse(new ServerSentEventResponseBodyPart(ServerSentEvents.ERROR, errorChunk(throwable)));
             }
         }
@@ -299,9 +298,7 @@ public class ServerSentEventsRestActionListener implements ActionListener<Infere
             this.xContentBuilder = new LazyInitializable<>(
                 () -> channel.newBuilder(channel.request().getXContentType(), null, true, Streams.noCloseStream(out))
             );
-            this.serialization = channel.request().getRestApiVersion() == RestApiVersion.V_7
-                ? item.toXContentChunkedV7(params)
-                : item.toXContentChunked(params);
+            this.serialization = item.toXContentChunked(channel.request().getRestApiVersion(), params);
         }
 
         @Override

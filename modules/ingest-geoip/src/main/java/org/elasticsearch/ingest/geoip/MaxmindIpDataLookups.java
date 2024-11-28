@@ -26,6 +26,8 @@ import com.maxmind.geoip2.record.Location;
 import com.maxmind.geoip2.record.Postal;
 import com.maxmind.geoip2.record.Subdivision;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.common.network.InetAddresses;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.core.Nullable;
@@ -34,8 +36,10 @@ import java.io.IOException;
 import java.net.InetAddress;
 import java.util.HashMap;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Function;
 
 /**
  * A collection of {@link IpDataLookup} implementations for MaxMind databases
@@ -44,6 +48,63 @@ final class MaxmindIpDataLookups {
 
     private MaxmindIpDataLookups() {
         // utility class
+    }
+
+    private static final Logger logger = LogManager.getLogger(MaxmindIpDataLookups.class);
+
+    // the actual prefixes from the metadata are cased like the literal strings, but
+    // prefix dispatch and checks case-insensitive, so the actual constants are lowercase
+    static final String GEOIP2_PREFIX = "GeoIP2".toLowerCase(Locale.ROOT);
+    static final String GEOLITE2_PREFIX = "GeoLite2".toLowerCase(Locale.ROOT);
+
+    // note: the secondary dispatch on suffix happens to be case sensitive
+    private static final String CITY_DB_SUFFIX = "-City";
+    private static final String COUNTRY_DB_SUFFIX = "-Country";
+    private static final String ASN_DB_SUFFIX = "-ASN";
+    private static final String ANONYMOUS_IP_DB_SUFFIX = "-Anonymous-IP";
+    private static final String CONNECTION_TYPE_DB_SUFFIX = "-Connection-Type";
+    private static final String DOMAIN_DB_SUFFIX = "-Domain";
+    private static final String ENTERPRISE_DB_SUFFIX = "-Enterprise";
+    private static final String ISP_DB_SUFFIX = "-ISP";
+
+    @Nullable
+    static Database getMaxmindDatabase(final String databaseType) {
+        if (databaseType.endsWith(CITY_DB_SUFFIX)) {
+            return Database.City;
+        } else if (databaseType.endsWith(COUNTRY_DB_SUFFIX)) {
+            return Database.Country;
+        } else if (databaseType.endsWith(ASN_DB_SUFFIX)) {
+            return Database.Asn;
+        } else if (databaseType.endsWith(ANONYMOUS_IP_DB_SUFFIX)) {
+            return Database.AnonymousIp;
+        } else if (databaseType.endsWith(CONNECTION_TYPE_DB_SUFFIX)) {
+            return Database.ConnectionType;
+        } else if (databaseType.endsWith(DOMAIN_DB_SUFFIX)) {
+            return Database.Domain;
+        } else if (databaseType.endsWith(ENTERPRISE_DB_SUFFIX)) {
+            return Database.Enterprise;
+        } else if (databaseType.endsWith(ISP_DB_SUFFIX)) {
+            return Database.Isp;
+        } else {
+            // no match was found
+            logger.trace("returning null for unsupported database_type [{}]", databaseType);
+            return null;
+        }
+    }
+
+    @Nullable
+    static Function<Set<Database.Property>, IpDataLookup> getMaxmindLookup(final Database database) {
+        return switch (database) {
+            case City -> MaxmindIpDataLookups.City::new;
+            case Country -> MaxmindIpDataLookups.Country::new;
+            case Asn -> MaxmindIpDataLookups.Asn::new;
+            case AnonymousIp -> MaxmindIpDataLookups.AnonymousIp::new;
+            case ConnectionType -> MaxmindIpDataLookups.ConnectionType::new;
+            case Domain -> MaxmindIpDataLookups.Domain::new;
+            case Enterprise -> MaxmindIpDataLookups.Enterprise::new;
+            case Isp -> MaxmindIpDataLookups.Isp::new;
+            default -> null;
+        };
     }
 
     static class AnonymousIp extends AbstractBase<AnonymousIpResponse> {
@@ -136,6 +197,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final CityResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
             Continent continent = response.getContinent();
@@ -225,6 +287,22 @@ final class MaxmindIpDataLookups {
                             data.put("postal_code", postal.getCode());
                         }
                     }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
+                        }
+                    }
                 }
             }
             return data;
@@ -267,6 +345,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final CountryResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             Continent continent = response.getContinent();
 
             Map<String, Object> data = new HashMap<>();
@@ -301,6 +380,22 @@ final class MaxmindIpDataLookups {
                         String continentName = continent.getName();
                         if (continentName != null) {
                             data.put("continent_name", continentName);
+                        }
+                    }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }
@@ -345,6 +440,7 @@ final class MaxmindIpDataLookups {
         @Override
         protected Map<String, Object> transform(final EnterpriseResponse response) {
             com.maxmind.geoip2.record.Country country = response.getCountry();
+            com.maxmind.geoip2.record.Country registeredCountry = response.getRegisteredCountry();
             com.maxmind.geoip2.record.City city = response.getCity();
             Location location = response.getLocation();
             Continent continent = response.getContinent();
@@ -540,6 +636,22 @@ final class MaxmindIpDataLookups {
                     case CONNECTION_TYPE -> {
                         if (connectionType != null) {
                             data.put("connection_type", connectionType.toString());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_IN_EUROPEAN_UNION -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            // isInEuropeanUnion is a boolean so it can't be null. But it really only makes sense if we have a country
+                            data.put("registered_country_in_european_union", registeredCountry.isInEuropeanUnion());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_ISO_CODE -> {
+                        if (registeredCountry.getIsoCode() != null) {
+                            data.put("registered_country_iso_code", registeredCountry.getIsoCode());
+                        }
+                    }
+                    case REGISTERED_COUNTRY_NAME -> {
+                        if (registeredCountry.getName() != null) {
+                            data.put("registered_country_name", registeredCountry.getName());
                         }
                     }
                 }

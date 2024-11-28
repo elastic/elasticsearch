@@ -56,7 +56,7 @@ import java.util.function.Predicate;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
-import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_OPERATIONS_TOTAL;
+import static org.elasticsearch.repositories.RepositoriesMetrics.METRIC_REQUESTS_TOTAL;
 import static org.elasticsearch.repositories.blobstore.BlobStoreTestUtil.randomPurpose;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertAcked;
 import static org.elasticsearch.test.hamcrest.ElasticsearchAssertions.assertHitCount;
@@ -379,7 +379,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
             final Map<AzureBlobStore.StatsKey, AzureBlobStore.StatsCounter> statsCollectors = blobStore.getMetricsRecorder().statsCounters;
 
             final List<Measurement> metrics = Measurement.combine(
-                getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_OPERATIONS_TOTAL)
+                getTelemetryPlugin(nodeName).getLongCounterMeasurement(METRIC_REQUESTS_TOTAL)
             );
 
             assertThat(
@@ -404,7 +404,7 @@ public class AzureBlobStoreRepositoryTests extends ESMockAPIBasedRepositoryInteg
                 assertThat(
                     nodeName + "/" + statsKey + " has correct sum",
                     metric.getLong(),
-                    equalTo(statsCollectors.get(statsKey).operations().sum())
+                    equalTo(statsCollectors.get(statsKey).requests().sum())
                 );
                 aggregatedMetrics.compute(statsKey.operation(), (k, v) -> v == null ? metric.getLong() : v + metric.getLong());
             });

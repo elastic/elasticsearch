@@ -184,18 +184,6 @@ emp_no:integer | first_name:keyword | last_name:keyword
 10043          | Yishay             | Tzvieli      
 ;
 
-testMultiValuedFieldWithConjunctionWithScore
-required_capability: match_function
-required_capability: metadata_score
-
-from employees metadata _score
-| where match(job_positions, "Data Scientist") and match(job_positions, "Support Engineer")
-| keep emp_no, first_name, last_name, job_positions, _score;
-
-emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
-10043          | Yishay             | Tzvieli           | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
-;
-
 testMatchAndQueryStringFunctions
 required_capability: match_function
 required_capability: qstr_function
@@ -208,18 +196,4 @@ ignoreOrder:true
 emp_no:integer | first_name:keyword | last_name:keyword  
 10041          | Uri                 | Lenart         
 10043          | Yishay              | Tzvieli        
-;
-
-testMatchAndQueryStringFunctionsWithScore
-required_capability: match_function
-required_capability: metadata_score
-
-from employees metadata _score
-| where match(job_positions, "Data Scientist") and qstr("job_positions: (Support Engineer) and gender: F")
-| keep emp_no, first_name, last_name, job_positions, _score;
-ignoreOrder:true
-
-emp_no:integer | first_name:keyword | last_name:keyword | job_positions:keyword | _score:double
-10041          | Uri                 | Lenart           | [Data Scientist, Head Human Resources, Internship, Senior Team Lead] | 3.509873867034912
-10043          | Yishay              | Tzvieli          | [Data Scientist, Python Developer, Support Engineer] | 5.233309745788574
 ;

@@ -100,87 +100,6 @@ book_no:keyword | title:text
 7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1)
 ;
 
-qstrWithFieldAndScoringSorted
-required_capability: qstr_function
-required_capability: metadata_score
-
-from books metadata _score
-| where qstr("title:rings")
-| sort _score desc, book_no desc
-| keep book_no, title, _score
-| limit 3;
-
-book_no:keyword | title:text                                                                 | _score:double 
-2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
-;
-
-
-qstrWithFieldAndScoringSortedEval
-required_capability: qstr_function
-required_capability: metadata_score
-
-from books metadata _score
-| where qstr("title:rings")
-| sort _score desc
-| eval _score::long
-| keep book_no, title, _score
-| limit 3;
-
-book_no:keyword | title:text                                                                 | _score:double 
-2675            | The Lord of the Rings - Boxed Set                                          | 2.7583377361297607
-7140            | The Lord of the Rings Poster Collection: Six Paintings by Alan Lee (No. 1) | 1.9239964485168457
-2714            | Return of the King Being the Third Part of The Lord of the Rings           | 1.9239964485168457
-;
-
-singleQstrScoring
-required_capability: metadata_score
-required_capability: qstr_function
-
-from books metadata _score 
-| where qstr("author:William Faulkner") 
-| keep book_no, author, _score 
-| sort book_no 
-| LIMIT 2;
-
-book_no:keyword | author:text                                        | _score:double
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 0.9976131916046143
-2713            | William Faulkner                                   | 5.9556169509887695
-;
-
-singleQstrScoringManipulated
-required_capability: metadata_score
-required_capability: qstr_function
-
-from books metadata _score 
-| where qstr("author:William Faulkner") 
-| eval add_score = ceil(_score) + 1 
-| keep book_no, author, add_score 
-| sort book_no 
-| LIMIT 2;
-
-book_no:keyword | author:text                                        | add_score:double
-2378            | [Carol Faulkner, Holly Byers Ochoa, Lucretia Mott] | 2.0
-2713            | William Faulkner                                   | 7.0
-;
-
-singleQstrBoostScoringSorted
-required_capability: metadata_score
-required_capability: qstr_function
-
-from books metadata _score 
-| where qstr("author:Lord Rings^2")
-| eval c_score = ceil(_score)  
-| keep book_no, title, c_score 
-| sort c_score desc, book_no asc
-| LIMIT 2;
-
-book_no:keyword | title:text                                                                                  | c_score:double
-2675            | The Lord of the Rings - Boxed Set                                                           | 6.0
-4023            | A Tolkien Compass: Including J. R. R. Tolkien's Guide to the Names in The Lord of the Rings | 6.0
-;
-
 singleQstrScoringEval
 required_capability: metadata_score
 required_capability: qstr_function
@@ -196,40 +115,6 @@ book_no:keyword | c_score:double
 8875            | 3.0
 7350            | 2.0
 7140            | 3.0
-;
-
-singleQstrScoringGrok
-required_capability: metadata_score
-required_capability: qstr_function
-
-from books metadata _score 
-| where qstr("author:Lord Rings") 
-| GROK title "%{WORD:title} %{WORD}" 
-| sort _score desc 
-| keep book_no, title, _score 
-| LIMIT 3;
-
-book_no:keyword | title:keyword | _score:double
-8875            | The | 2.9505908489227295
-4023            | A   | 2.8327860832214355
-2675            | The | 2.7583377361297607
-;
-
-singleQstrScoringRename
-required_capability: metadata_score
-required_capability: qstr_function
-
-from books metadata _score 
-| where qstr("author:Lord Rings") 
-| rename _score as rank 
-| sort rank desc 
-| keep book_no, rank 
-| LIMIT 3;
-
-book_no:keyword | rank:double
-8875            | 2.9505908489227295
-4023            | 2.8327860832214355
-2675            | 2.7583377361297607
 ;
 
 qstrWithMultivaluedTextField

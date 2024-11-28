@@ -712,7 +712,7 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
                 try {
                     SearchShardTarget searchShardTarget = entry.getSearchShardTarget();
                     Transport.Connection connection = getConnection(searchShardTarget.getClusterAlias(), searchShardTarget.getNodeId());
-                    sendReleaseSearchContext(entry.getContextId(), connection, getOriginalIndices(entry.getShardIndex()));
+                    sendReleaseSearchContext(entry.getContextId(), connection);
                 } catch (Exception inner) {
                     inner.addSuppressed(exception);
                     logger.trace("failed to release context", inner);
@@ -728,10 +728,10 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
       * @see org.elasticsearch.search.fetch.FetchSearchResult#getContextId()
       *
       */
-    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         assert isPartOfPointInTime(contextId) == false : "Must not release point in time context [" + contextId + "]";
         if (connection != null) {
-            searchTransportService.sendFreeContext(connection, contextId, originalIndices);
+            searchTransportService.sendFreeContext(connection, contextId, ActionListener.noop());
         }
     }
 

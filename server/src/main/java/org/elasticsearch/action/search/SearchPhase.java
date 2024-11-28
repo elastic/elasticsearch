@@ -102,11 +102,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
                 logger.trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
-                context.sendReleaseSearchContext(
-                    phaseResult.getContextId(),
-                    connection,
-                    context.getOriginalIndices(phaseResult.getShardIndex())
-                );
+                context.sendReleaseSearchContext(phaseResult.getContextId(), connection);
             } catch (Exception e) {
                 context.getLogger().trace("failed to release context", e);
             }

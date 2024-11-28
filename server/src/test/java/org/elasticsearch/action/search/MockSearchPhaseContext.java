@@ -160,7 +160,7 @@ public final class MockSearchPhaseContext extends AbstractSearchAsyncAction<Sear
     }
 
     @Override
-    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection, OriginalIndices originalIndices) {
+    public void sendReleaseSearchContext(ShardSearchContextId contextId, Transport.Connection connection) {
         releasedSearchContexts.add(contextId);
     }
 

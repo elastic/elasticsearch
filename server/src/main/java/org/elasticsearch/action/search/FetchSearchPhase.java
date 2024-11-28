@@ -8,6 +8,7 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.lucene.search.ScoreDoc;
 import org.elasticsearch.common.util.concurrent.AbstractRunnable;
@@ -18,7 +19,6 @@ import org.elasticsearch.search.SearchShardTarget;
 import org.elasticsearch.search.dfs.AggregatedDfs;
 import org.elasticsearch.search.fetch.FetchSearchResult;
 import org.elasticsearch.search.fetch.ShardFetchSearchRequest;
-import org.elasticsearch.search.internal.SearchContext;
 import org.elasticsearch.search.internal.ShardSearchContextId;
 import org.elasticsearch.search.rank.RankDoc;
 import org.elasticsearch.search.rank.RankDocShardInfo;
@@ -35,10 +35,11 @@ import java.util.function.BiFunction;
  * Then it reaches out to all relevant shards to fetch the topN hits.
  */
 final class FetchSearchPhase extends SearchPhase {
+    private static final Logger logger = LogManager.getLogger(FetchSearchPhase.class);
+
     private final AtomicArray<SearchPhaseResult> searchPhaseShardResults;
     private final BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory;
-    private final AbstractSearchAsyncAction<?> context;
-    private final Logger logger;
+    private final AsyncSearchContext context;
     private final SearchProgressListener progressListener;
     private final AggregatedDfs aggregatedDfs;
     @Nullable
@@ -67,24 +68,15 @@ final class FetchSearchPhase extends SearchPhase {
     FetchSearchPhase(
         SearchPhaseResults<SearchPhaseResult> resultConsumer,
         AggregatedDfs aggregatedDfs,
-        AbstractSearchAsyncAction<?> context,
+        AsyncSearchContext context,
         @Nullable SearchPhaseController.ReducedQueryPhase reducedQueryPhase,
         BiFunction<SearchResponseSections, AtomicArray<SearchPhaseResult>, SearchPhase> nextPhaseFactory
     ) {
         super("fetch");
-        if (context.getNumShards() != resultConsumer.getNumShards()) {
-            throw new IllegalStateException(
-                "number of shards must match the length of the query results but doesn't:"
-                    + context.getNumShards()
-                    + "!="
-                    + resultConsumer.getNumShards()
-            );
-        }
         this.searchPhaseShardResults = resultConsumer.getAtomicArray();
         this.aggregatedDfs = aggregatedDfs;
         this.nextPhaseFactory = nextPhaseFactory;
         this.context = context;
-        this.logger = context.getLogger();
         this.progressListener = context.getTask().getProgressListener();
         this.reducedQueryPhase = reducedQueryPhase;
         this.resultConsumer = reducedQueryPhase == null ? resultConsumer : null;

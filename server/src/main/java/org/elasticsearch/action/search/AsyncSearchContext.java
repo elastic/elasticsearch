@@ -10,7 +10,9 @@
 package org.elasticsearch.action.search;
 
 import org.elasticsearch.common.util.concurrent.AtomicArray;
+import org.elasticsearch.core.Releasable;
 import org.elasticsearch.search.SearchPhaseResult;
+import org.elasticsearch.search.SearchShardTarget;
 
 public interface AsyncSearchContext {
 
@@ -21,4 +23,12 @@ public interface AsyncSearchContext {
     SearchTransportService getSearchTransport();
 
     SearchTask getTask();
+
+    void onPhaseFailure(SearchPhase phase, String msg, Throwable cause);
+
+    void addReleasable(Releasable releasable);
+
+    void execute(Runnable command);
+
+    void onShardFailure(int shardIndex, SearchShardTarget shard, Exception e);
 }

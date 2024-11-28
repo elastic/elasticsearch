@@ -8,6 +8,8 @@
  */
 package org.elasticsearch.action.search;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 import org.elasticsearch.cluster.routing.GroupShardsIterator;
 import org.elasticsearch.core.CheckedRunnable;
 import org.elasticsearch.search.SearchPhaseResult;
@@ -22,6 +24,9 @@ import java.util.function.Function;
  * Base class for all individual search phases like collecting distributed frequencies, fetching documents, querying shards.
  */
 abstract class SearchPhase implements CheckedRunnable<IOException> {
+
+    private static final Logger logger = LogManager.getLogger(SearchPhase.class);
+
     private final String name;
 
     protected SearchPhase(String name) {
@@ -79,7 +84,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
     /**
      * Releases shard targets that are not used in the docsIdsToLoad.
      */
-    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AbstractSearchAsyncAction<?> context) {
+    protected static void releaseIrrelevantSearchContext(SearchPhaseResult searchPhaseResult, AsyncSearchContext context) {
         // we only release search context that we did not fetch from, if we are not scrolling
         // or using a PIT and if it has at least one hit that didn't make it to the global topDocs
         if (searchPhaseResult == null) {
@@ -94,7 +99,7 @@ abstract class SearchPhase implements CheckedRunnable<IOException> {
             && context.getRequest().scroll() == null
             && (context.isPartOfPointInTime(phaseResult.getContextId()) == false)) {
             try {
-                context.getLogger().trace("trying to release search context [{}]", phaseResult.getContextId());
+                logger.trace("trying to release search context [{}]", phaseResult.getContextId());
                 SearchShardTarget shardTarget = phaseResult.getSearchShardTarget();
                 Transport.Connection connection = context.getConnection(shardTarget.getClusterAlias(), shardTarget.getNodeId());
                 context.sendReleaseSearchContext(

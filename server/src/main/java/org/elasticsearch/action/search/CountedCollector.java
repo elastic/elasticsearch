@@ -22,9 +22,9 @@ final class CountedCollector<R extends SearchPhaseResult> {
     private final SearchPhaseResults<R> resultConsumer;
     private final CountDown counter;
     private final Runnable onFinish;
-    private final AbstractSearchAsyncAction<?> context;
+    private final AsyncSearchContext context;
 
-    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, AbstractSearchAsyncAction<?> context) {
+    CountedCollector(SearchPhaseResults<R> resultConsumer, int expectedOps, Runnable onFinish, AsyncSearchContext context) {
         this.resultConsumer = resultConsumer;
         this.counter = new CountDown(expectedOps);
         this.onFinish = onFinish;

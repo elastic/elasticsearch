@@ -485,7 +485,8 @@ abstract class AbstractSearchAsyncAction<Result extends SearchPhaseResult> exten
      * @param shardTarget the shard target for this failure
      * @param e the failure reason
      */
-    void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
+    @Override
+    public void onShardFailure(final int shardIndex, SearchShardTarget shardTarget, Exception e) {
         if (TransportActions.isShardNotAvailableException(e)) {
             // Groups shard not available exceptions under a generic exception that returns a SERVICE_UNAVAILABLE(503)
             // temporary error.

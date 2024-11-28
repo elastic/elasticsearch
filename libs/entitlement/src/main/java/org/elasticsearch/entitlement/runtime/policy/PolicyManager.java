@@ -66,7 +66,7 @@ public class PolicyManager {
         // TODO: this will be checked using policies
         if (requestingModule.isNamed()
             && requestingModule.getName().equals("org.elasticsearch.server")
-            && type == FlagEntitlementType.SYSTEM_EXIT) {
+            && (type == FlagEntitlementType.SYSTEM_EXIT || type == FlagEntitlementType.CREATE_CLASSLOADER)) {
             logger.debug("Allowed: caller [{}] in module [{}] has entitlement [{}]", callerClass, requestingModule.getName(), type);
             return;
         }

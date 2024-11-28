@@ -12,8 +12,6 @@ import com.carrotsearch.randomizedtesting.annotations.ParametersFactory;
 import org.apache.lucene.search.IndexSearcher;
 import org.elasticsearch.common.network.NetworkAddress;
 import org.elasticsearch.common.settings.Settings;
-import org.elasticsearch.common.time.DateFormatter;
-import org.elasticsearch.common.time.FormatNames;
 import org.elasticsearch.core.Tuple;
 import org.elasticsearch.index.IndexMode;
 import org.elasticsearch.index.mapper.MapperService;
@@ -69,6 +67,7 @@ import org.elasticsearch.xpack.esql.session.Configuration;
 import org.elasticsearch.xpack.esql.stats.Metrics;
 import org.elasticsearch.xpack.esql.stats.SearchContextStats;
 import org.elasticsearch.xpack.esql.stats.SearchStats;
+import org.elasticsearch.xpack.esql.type.EsqlDataTypeConverter;
 import org.elasticsearch.xpack.kql.query.KqlQueryBuilder;
 import org.junit.Before;
 
@@ -1381,7 +1380,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
     private void checkMatchFunctionPushDown(
         BiFunction<Object, DataType, String> queryValueProvider,
         Function<Object, Object> expectedValueProvider,
-        Collection<DataType> fieldDataTypes, String queryFormat
+        Collection<DataType> fieldDataTypes,
+        String queryFormat
     ) {
         var analyzer = makeAnalyzer("mapping-all-types.json");
         // Check for every possible query data type
@@ -1389,12 +1389,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             var queryValue = randomQueryValue(fieldDataType);
 
             String fieldName = fieldDataType == DataType.DATETIME ? "date" : fieldDataType.name().toLowerCase(Locale.ROOT);
-            var esqlQuery = String.format(
-                Locale.ROOT,
-                queryFormat,
-                fieldName,
-                queryValueProvider.apply(queryValue, fieldDataType)
-            );
+            var esqlQuery = String.format(Locale.ROOT, queryFormat, fieldName, queryValueProvider.apply(queryValue, fieldDataType));
 
             try {
                 var plan = plannerOptimizer.plan(esqlQuery, IS_SV_STATS, analyzer);
@@ -1418,9 +1413,8 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
             case INTEGER -> randomInt();
             case LONG -> randomLong();
             case UNSIGNED_LONG -> randomBigInteger();
-            case DATE_NANOS -> DateFormatter.forPattern(FormatNames.STRICT_DATE_OPTIONAL_TIME_NANOS.getName())
-                .formatNanos(randomMillisUpToYear9999() * 1_000_000);
-            case DATETIME -> DateFormatter.forPattern(FormatNames.ISO8601.getName()).formatMillis(randomMillisUpToYear9999());
+            case DATE_NANOS -> EsqlDataTypeConverter.nanoTimeToString(randomMillisUpToYear9999());
+            case DATETIME -> EsqlDataTypeConverter.dateTimeToString(randomMillisUpToYear9999());
             case DOUBLE -> randomDouble();
             case KEYWORD -> randomAlphaOfLength(5);
             case IP -> NetworkAddress.format(randomIp(randomBoolean()));

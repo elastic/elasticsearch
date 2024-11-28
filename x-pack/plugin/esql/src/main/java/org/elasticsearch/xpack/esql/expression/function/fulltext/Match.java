@@ -200,6 +200,11 @@ public class Match extends FullTextFunction implements Validatable {
             };
         } else if (query().dataType() == DataType.UNSIGNED_LONG) {
             return NumericUtils.unsignedLongAsBigInteger((Long) queryAsObject);
+        } else if (query().dataType() == DataType.DATETIME && queryAsObject instanceof Long) {
+            // When casting to date and datetime, we get a long back. But Match query needs a date string
+            return EsqlDataTypeConverter.dateTimeToString((Long) queryAsObject);
+        } else if (query().dataType() == DATE_NANOS && queryAsObject instanceof Long) {
+            return EsqlDataTypeConverter.nanoTimeToString((Long) queryAsObject);
         }
 
         return queryAsObject;

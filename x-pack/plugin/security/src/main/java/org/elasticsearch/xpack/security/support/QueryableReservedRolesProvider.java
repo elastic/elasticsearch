@@ -28,8 +28,11 @@ public final class QueryableReservedRolesProvider implements QueryableBuiltInRol
 
     /**
      * Constructs a new reserved roles provider.
+     *
+     * @param reservedRolesStore the store to fetch the reserved roles from.
+     *                           Having a store reference here is necessary to ensure that static fields are initialized.
      */
-    public QueryableReservedRolesProvider() {
+    public QueryableReservedRolesProvider(ReservedRolesStore reservedRolesStore) {
         this.reservedRolesSupplier = CachedSupplier.wrap(() -> {
             final Collection<RoleDescriptor> roleDescriptors = ReservedRolesStore.roleDescriptors();
             return new QueryableBuiltInRoles(

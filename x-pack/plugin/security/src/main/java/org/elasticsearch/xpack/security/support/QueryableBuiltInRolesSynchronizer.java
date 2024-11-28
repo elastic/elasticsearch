@@ -39,6 +39,8 @@ import org.elasticsearch.index.IndexNotFoundException;
 import org.elasticsearch.threadpool.ThreadPool;
 import org.elasticsearch.xpack.core.security.action.role.BulkRolesResponse;
 import org.elasticsearch.xpack.core.security.authz.RoleDescriptor;
+import org.elasticsearch.xpack.core.security.authz.store.ReservedRolesStore;
+import org.elasticsearch.xpack.security.authz.store.FileRolesStore;
 import org.elasticsearch.xpack.security.authz.store.QueryableBuiltInRolesStore;
 
 import java.util.Collection;
@@ -105,14 +107,16 @@ public class QueryableBuiltInRolesSynchronizer implements ClusterStateListener {
     public QueryableBuiltInRolesSynchronizer(
         ClusterService clusterService,
         FeatureService featureService,
-        QueryableBuiltInRoles.Provider rolesProvider,
+        QueryableBuiltInRolesProviderFactory rolesProviderFactory,
         QueryableBuiltInRolesStore queryableBuiltInRolesStore,
+        ReservedRolesStore reservedRolesStore,
+        FileRolesStore fileRolesStore,
         SecurityIndexManager securityIndex,
         ThreadPool threadPool
     ) {
         this.clusterService = clusterService;
         this.featureService = featureService;
-        this.builtinRolesProvider = rolesProvider;
+        this.builtinRolesProvider = rolesProviderFactory.createProvider(reservedRolesStore, fileRolesStore);
         this.queryableBuiltInRolesStore = queryableBuiltInRolesStore;
         this.securityIndex = securityIndex;
         this.executor = threadPool.generic();

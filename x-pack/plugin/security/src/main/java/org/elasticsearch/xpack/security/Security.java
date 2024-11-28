@@ -412,9 +412,8 @@ import org.elasticsearch.xpack.security.rest.action.user.RestQueryUserAction;
 import org.elasticsearch.xpack.security.rest.action.user.RestSetEnabledAction;
 import org.elasticsearch.xpack.security.support.CacheInvalidatorRegistry;
 import org.elasticsearch.xpack.security.support.ExtensionComponents;
-import org.elasticsearch.xpack.security.support.QueryableBuiltInRoles;
+import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesProviderFactory;
 import org.elasticsearch.xpack.security.support.QueryableBuiltInRolesSynchronizer;
-import org.elasticsearch.xpack.security.support.QueryableReservedRolesProvider;
 import org.elasticsearch.xpack.security.support.ReloadableSecurityComponent;
 import org.elasticsearch.xpack.security.support.SecurityIndexManager;
 import org.elasticsearch.xpack.security.support.SecurityMigrationExecutor;
@@ -636,7 +635,7 @@ public class Security extends Plugin
     private final SetOnce<ReservedRoleNameChecker.Factory> reservedRoleNameCheckerFactory = new SetOnce<>();
     private final SetOnce<FileRoleValidator> fileRoleValidator = new SetOnce<>();
     private final SetOnce<SecondaryAuthActions> secondaryAuthActions = new SetOnce<>();
-    private final SetOnce<QueryableBuiltInRoles.Provider> queryableRolesProvider = new SetOnce<>();
+    private final SetOnce<QueryableBuiltInRolesProviderFactory> queryableRolesProviderFactory = new SetOnce<>();
     private final SetOnce<SecurityMigrationExecutor> securityMigrationExecutor = new SetOnce<>();
 
     // Node local retry count for migration jobs that's checked only on the master node to make sure
@@ -1208,15 +1207,17 @@ public class Security extends Plugin
         reservedRoleMappingAction.set(new ReservedRoleMappingAction());
 
         if (QUERYABLE_BUILT_IN_ROLES_ENABLED) {
-            if (queryableRolesProvider.get() == null) {
-                queryableRolesProvider.set(new QueryableReservedRolesProvider());
+            if (queryableRolesProviderFactory.get() == null) {
+                queryableRolesProviderFactory.set(new QueryableBuiltInRolesProviderFactory.Default());
             }
             components.add(
                 new QueryableBuiltInRolesSynchronizer(
                     clusterService,
                     featureService,
-                    queryableRolesProvider.get(),
+                    queryableRolesProviderFactory.get(),
                     new QueryableBuiltInRolesStore(nativeRolesStore),
+                    reservedRolesStore,
+                    fileRolesStore.get(),
                     systemIndices.getMainIndexManager(),
                     threadPool
                 )
@@ -2338,7 +2339,7 @@ public class Security extends Plugin
         loadSingletonExtensionAndSetOnce(loader, grantApiKeyRequestTranslator, RestGrantApiKeyAction.RequestTranslator.class);
         loadSingletonExtensionAndSetOnce(loader, fileRoleValidator, FileRoleValidator.class);
         loadSingletonExtensionAndSetOnce(loader, secondaryAuthActions, SecondaryAuthActions.class);
-        loadSingletonExtensionAndSetOnce(loader, queryableRolesProvider, QueryableBuiltInRoles.Provider.class);
+        loadSingletonExtensionAndSetOnce(loader, queryableRolesProviderFactory, QueryableBuiltInRolesProviderFactory.class);
     }
 
     private <T> void loadSingletonExtensionAndSetOnce(ExtensionLoader loader, SetOnce<T> setOnce, Class<T> clazz) {

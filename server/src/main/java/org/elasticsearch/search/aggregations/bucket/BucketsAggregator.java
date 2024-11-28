@@ -105,7 +105,6 @@ public abstract class BucketsAggregator extends AggregatorBase {
         try {
             docCounts = bigArrays().newLongArray(newNumBuckets, true);
             success = true;
-            docCounts.fill(0, newNumBuckets, 0);
             for (long i = 0; i < oldDocCounts.size(); i++) {
                 long docCount = oldDocCounts.get(i);
 

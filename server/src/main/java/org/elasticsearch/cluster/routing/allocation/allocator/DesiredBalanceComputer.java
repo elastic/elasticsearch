@@ -415,9 +415,32 @@ public class DesiredBalanceComputer {
             );
         }
 
-        var nodeWeightStats = getNodeWeightStats(routingAllocation);
+        var nodeWeightStats = routingNodes.getBalanceWeightStatsPerNode();
+        var nodeWeightStatsCalculatedFromRoutingNodes = getNodeWeightStats(routingAllocation);
+        assert assertWeightsEqual(nodeWeightStats, nodeWeightStatsCalculatedFromRoutingNodes) : "weight stats seem to be different!";
         long lastConvergedIndex = hasChanges ? previousDesiredBalance.lastConvergedIndex() : desiredBalanceInput.index();
-        return new DesiredBalance(lastConvergedIndex, assignments, nodeWeightStats, finishReason);
+        return new DesiredBalance(lastConvergedIndex, assignments, nodeWeightStatsCalculatedFromRoutingNodes, finishReason);
+    }
+
+    private boolean assertWeightsEqual(
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> stats1,
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> stats2
+    ) {
+        assert stats1.size() == stats2.size() : "Different sizes";
+        for (var node : stats1.keySet()) {
+            var stat1 = stats1.get(node);
+            var stat2 = stats2.get(node);
+            assert stat2 != null : "stat for node " + node.getName() + " not found";
+            assert stat1.shardCount() == stat2.shardCount() : "shard count for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.writeLoad(), stat2.writeLoad()) : "write load for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.diskUsageInBytes(), stat2.diskUsageInBytes()) : "disk usage for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.nodeWeight(), stat2.nodeWeight()) : "node weight for " + node.getName() + "not equal";
+        }
+        return true;
+    }
+
+    private boolean doubleEqual(double d1, double d2) {
+        return Math.abs(d1 - d2) < 0.0001;
     }
 
     private Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getNodeWeightStats(RoutingAllocation routingAllocation) {
@@ -425,7 +448,7 @@ public class DesiredBalanceComputer {
             routingAllocation.metadata(),
             routingAllocation.routingNodes(),
             routingAllocation.clusterInfo(),
-            null  // we don't need the undesired shard stats here
+            null
         );
         return stats.entrySet()
             .stream()

@@ -16,6 +16,7 @@ import org.apache.lucene.util.IntroSorter;
 import org.elasticsearch.cluster.ClusterInfo;
 import org.elasticsearch.cluster.metadata.IndexMetadata;
 import org.elasticsearch.cluster.metadata.Metadata;
+import org.elasticsearch.cluster.node.DiscoveryNode;
 import org.elasticsearch.cluster.routing.RoutingNode;
 import org.elasticsearch.cluster.routing.RoutingNodes;
 import org.elasticsearch.cluster.routing.ShardRouting;
@@ -159,6 +160,28 @@ public class BalancedShardsAllocator implements ShardsAllocator {
         balancer.allocateUnassigned();
         balancer.moveShards();
         balancer.balance();
+
+        collectAndRecordNodeWeightStats(balancer, weightFunction, allocation);
+    }
+
+    private void collectAndRecordNodeWeightStats(Balancer balancer, WeightFunction weightFunction, RoutingAllocation allocation) {
+        Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> nodeLevelWeights = new HashMap<>();
+        for (var entry : balancer.nodes.entrySet()) {
+            var node = entry.getValue();
+            var nodeWeight = weightFunction.nodeWeight(
+                node.numShards(),
+                balancer.avgShardsPerNode(),
+                node.writeLoad(),
+                balancer.avgWriteLoadPerNode(),
+                node.diskUsageInBytes(),
+                balancer.avgDiskUsageInBytesPerNode()
+            );
+            nodeLevelWeights.put(
+                node.routingNode.node(),
+                new DesiredBalanceMetrics.NodeWeightStats(node.numShards(), node.diskUsageInBytes(), node.writeLoad(), nodeWeight)
+            );
+        }
+        allocation.routingNodes().setBalanceWeightStatsPerNode(nodeLevelWeights);
     }
 
     @Override

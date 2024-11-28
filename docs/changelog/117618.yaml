@@ -2,4 +2,4 @@ pr: 117618
 summary: SearchStatesIt failures reported by CI
 area: Search
 type: bug
-issues: []
+issues: [116617, 116618]

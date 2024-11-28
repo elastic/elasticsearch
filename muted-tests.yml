@@ -362,9 +362,9 @@ tests:
 - class: org.elasticsearch.xpack.spatial.search.GeoGridAggAndQueryConsistencyIT
   method: testGeoPointGeoTile
   issue: https://github.com/elastic/elasticsearch/issues/115818
-- class: org.elasticsearch.xpack.esql.qa.single_node.FieldExtractorIT
-  method: testConstantKeywordField
-  issue: https://github.com/elastic/elasticsearch/issues/117524
+- class: org.elasticsearch.backwards.MixedClusterClientYamlTestSuiteIT
+  method: test {p0=synonyms/90_synonyms_reloading_for_synset/Reload analyzers for specific synonym set}
+  issue: https://github.com/elastic/elasticsearch/issues/116777
 
 # Examples:
 #

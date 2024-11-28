@@ -343,7 +343,7 @@ public class TransportVersions {
             }
         }
 
-        return Collections.unmodifiableNavigableMap(builder);
+        return builder;
     }
 
     static Collection<TransportVersion> getAllVersions() {

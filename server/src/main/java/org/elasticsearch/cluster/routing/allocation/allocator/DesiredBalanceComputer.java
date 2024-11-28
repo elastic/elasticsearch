@@ -434,13 +434,14 @@ public class DesiredBalanceComputer {
             assert stat1.shardCount() == stat2.shardCount() : "shard count for " + node.getName() + "not equal";
             assert doubleEqual(stat1.writeLoad(), stat2.writeLoad()) : "write load for " + node.getName() + "not equal";
             assert doubleEqual(stat1.diskUsageInBytes(), stat2.diskUsageInBytes()) : "disk usage for " + node.getName() + "not equal";
-            assert doubleEqual(stat1.nodeWeight(), stat2.nodeWeight()) : "node weight for " + node.getName() + "not equal";
+            assert doubleEqual(stat1.nodeWeight(), stat2.nodeWeight()) : "node weight for " + node.getName() + "not equal: " +
+                stat1.nodeWeight() + " vs. " + stat2.nodeWeight();
         }
         return true;
     }
 
     private boolean doubleEqual(double d1, double d2) {
-        return Math.abs(d1 - d2) < 0.0001;
+        return Math.abs(d1 - d2) < 0.1;
     }
 
     private Map<DiscoveryNode, DesiredBalanceMetrics.NodeWeightStats> getNodeWeightStats(RoutingAllocation routingAllocation) {

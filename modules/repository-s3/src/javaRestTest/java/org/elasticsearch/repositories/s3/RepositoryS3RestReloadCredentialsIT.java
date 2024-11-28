@@ -77,12 +77,11 @@ public class RepositoryS3RestReloadCredentialsIT extends ESRestTestCase {
         keystoreSettings.put("s3.client.default.access_key", accessKey1);
         keystoreSettings.put("s3.client.default.secret_key", randomSecretKey());
         cluster.updateStoredSecureSettings();
-        final Request reloadSecureSettingsRequest = new Request("POST", "/_nodes/reload_secure_settings");
-        reloadSecureSettingsRequest.setJsonEntity("""
-            {
-              "secure_settings_password": "keystore-password"
-            }
-            """);
+        final Request reloadSecureSettingsRequest = newXContentRequest(
+            HttpMethod.POST,
+            "/_nodes/reload_secure_settings",
+            (b, p) -> b.field("secure_settings_password", "keystore-password")
+        );
         assertOK(client().performRequest(reloadSecureSettingsRequest));
 
         // Check access using initial credentials

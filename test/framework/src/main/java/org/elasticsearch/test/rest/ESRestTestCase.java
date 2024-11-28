@@ -2204,6 +2204,18 @@ public abstract class ESRestTestCase extends ESTestCase {
         }
     }
 
+    protected static boolean isXPackIngestPipeline(String id) {
+        if (id.matches("(logs|metrics|traces)-apm(\\.\\w+)?@default-pipeline")) {
+            return true;
+        }
+        return switch (id) {
+            case "logs-default-pipeline", "logs@default-pipeline", "logs@json-message", "logs@json-pipeline" -> true;
+            case "apm@pipeline", "traces-apm@pipeline", "metrics-apm@pipeline" -> true;
+            case "behavioral_analytics-events-final_pipeline", "ent-search-generic-ingestion", "search-default-ingestion" -> true;
+            default -> false;
+        };
+    }
+
     public void flush(String index, boolean force) throws IOException {
         logger.info("flushing index {} force={}", index, force);
         final Request flushRequest = new Request("POST", "/" + index + "/_flush");

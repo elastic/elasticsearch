@@ -394,7 +394,7 @@ public class LocalPhysicalPlanOptimizerTests extends MapperServiceTestCase {
                 return newBatches;
             }
         };
-        var analyzer = makeAnalyzer("mapping-default.json");
+        var analyzer = makeAnalyzer("mapping-default.json", new EnrichResolution());
         var plannerOptimizer = new TestPlannerOptimizer(config, analyzer, logicalOptimizer);
         var plan = plannerOptimizer.plan("""
             from test

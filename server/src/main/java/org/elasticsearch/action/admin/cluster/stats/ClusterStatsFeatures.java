@@ -7,13 +7,20 @@
  * License v3.0 only", or the "Server Side Public License, v 1".
  */
 
-package org.elasticsearch.inference;
+package org.elasticsearch.action.admin.cluster.stats;
 
-import org.elasticsearch.core.Nullable;
+import org.elasticsearch.features.FeatureSpecification;
+import org.elasticsearch.features.NodeFeature;
 
-public record ChunkingOptions(@Nullable Integer windowSize, @Nullable Integer span) {
+import java.util.Set;
 
-    public boolean settingsArePresent() {
-        return windowSize != null || span != null;
+/**
+ * Spec for cluster stats features.
+ */
+public class ClusterStatsFeatures implements FeatureSpecification {
+
+    @Override
+    public Set<NodeFeature> getFeatures() {
+        return Set.of(MappingStats.SOURCE_MODES_FEATURE);
     }
 }

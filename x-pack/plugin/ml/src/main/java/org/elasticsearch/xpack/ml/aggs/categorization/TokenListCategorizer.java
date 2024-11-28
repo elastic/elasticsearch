@@ -19,6 +19,7 @@ import org.elasticsearch.core.Releasables;
 import org.elasticsearch.search.aggregations.AggregationReduceContext;
 import org.elasticsearch.search.aggregations.InternalAggregations;
 import org.elasticsearch.xpack.ml.aggs.categorization.TokenListCategory.TokenAndWeight;
+import org.elasticsearch.xpack.ml.job.categorization.CategorizationAnalyzer;
 
 import java.io.IOException;
 import java.nio.charset.StandardCharsets;
@@ -83,6 +84,8 @@ public class TokenListCategorizer implements Accountable {
     @Nullable
     private final CategorizationPartOfSpeechDictionary partOfSpeechDictionary;
 
+    private final List<TokenListCategory> categoriesById;
+
     /**
      * Categories stored in such a way that the most common are accessed first.
      * This is implemented as an {@link ArrayList} with bespoke ordering rather
@@ -108,7 +111,16 @@ public class TokenListCategorizer implements Accountable {
         this.lowerThreshold = threshold;
         this.upperThreshold = (1.0f + threshold) / 2.0f;
         this.categoriesByNumMatches = new ArrayList<>();
+        this.categoriesById = new ArrayList<>();
         cacheRamUsage(0);
+    }
+
+    public TokenListCategory computeCategory(String s, CategorizationAnalyzer analyzer) {
+        try (TokenStream ts = analyzer.tokenStream("text", s)) {
+            return computeCategory(ts, s.length(), 1);
+        } catch (IOException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     public TokenListCategory computeCategory(TokenStream ts, int unfilteredStringLen, long numDocs) throws IOException {
@@ -301,6 +313,7 @@ public class TokenListCategorizer implements Accountable {
             maxUnfilteredStringLen,
             numDocs
         );
+        categoriesById.add(newCategory);
         categoriesByNumMatches.add(newCategory);
         cacheRamUsage(newCategory.ramBytesUsed());
         return repositionCategory(newCategory, newIndex);
@@ -410,6 +423,17 @@ public class TokenListCategorizer implements Accountable {
         } else {
             return 1.0f;
         }
+    }
+
+    public List<SerializableTokenListCategory> toCategories(int size) {
+        return categoriesByNumMatches.stream()
+            .limit(size)
+            .map(category -> new SerializableTokenListCategory(category, bytesRefHash))
+            .toList();
+    }
+
+    public List<SerializableTokenListCategory> toCategoriesById() {
+        return categoriesById.stream().map(category -> new SerializableTokenListCategory(category, bytesRefHash)).toList();
     }
 
     public InternalCategorizationAggregation.Bucket[] toOrderedBuckets(int size) {

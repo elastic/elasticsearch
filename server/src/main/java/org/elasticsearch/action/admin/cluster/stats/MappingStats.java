@@ -71,7 +71,7 @@ public final class MappingStats implements ToXContentFragment, Writeable {
             AnalysisStats.countMapping(mappingCounts, indexMetadata);
 
             var sourceMode = SourceFieldMapper.INDEX_MAPPER_SOURCE_MODE_SETTING.get(indexMetadata.getSettings());
-            sourceModeUsageCount.compute(sourceMode.toString().toLowerCase(Locale.ENGLISH), (k, v) -> v == null ? 1 : v + 1);
+            sourceModeUsageCount.merge(sourceMode.toString().toLowerCase(Locale.ENGLISH), 1, Integer::sum);
         }
         final AtomicLong totalFieldCount = new AtomicLong();
         final AtomicLong totalDeduplicatedFieldCount = new AtomicLong();

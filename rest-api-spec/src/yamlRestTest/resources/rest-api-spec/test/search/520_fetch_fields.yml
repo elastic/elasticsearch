@@ -145,6 +145,9 @@ fetch _seq_no via fields:
 
 ---
 fetch _source via fields:
+  - requires:
+      cluster_features: ["error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
       catch: bad_request
@@ -159,6 +162,9 @@ fetch _source via fields:
 
 ---
 fetch _feature via fields:
+  - requires:
+      cluster_features: ["error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
       catch: bad_request
@@ -173,6 +179,9 @@ fetch _feature via fields:
 
 ---
 fetch _nested_path via fields:
+  - requires:
+      cluster_features: ["error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
       catch: bad_request
@@ -187,6 +196,9 @@ fetch _nested_path via fields:
 
 ---
 fetch _field_names via fields:
+  - requires:
+      cluster_features: ["error_code_changed"]
+      reason: The fields_api returns a 400 instead a 5xx when _seq_no is requested via fields
 
   - do:
       catch: bad_request

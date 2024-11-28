@@ -1,5 +1,0 @@
-pr: 117530
-summary: Track requests and operations separately to better serve metering/stats endpoints
-area: Snapshot/Restore
-type: bug
-issues: []

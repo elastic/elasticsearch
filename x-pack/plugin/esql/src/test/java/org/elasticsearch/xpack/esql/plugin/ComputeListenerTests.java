@@ -353,10 +353,7 @@ public class ComputeListenerTests extends ESTestCase {
         assertThat(response.getTook().millis(), greaterThanOrEqualTo(0L));
         assertThat(executionInfo.getCluster(remoteAlias).getTook().millis(), greaterThanOrEqualTo(0L));
         assertThat(executionInfo.getCluster(remoteAlias).getTook(), equalTo(response.getTook()));
-
-        // the status in the (remote) executionInfo will still be RUNNING, since the SUCCESSFUL status gets set on the querying
-        // cluster executionInfo in the acquireCompute CCS listener, NOT present in this test - see testCollectComputeResultsInCCSListener
-        assertThat(executionInfo.getCluster(remoteAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.RUNNING));
+        assertThat(executionInfo.getCluster(remoteAlias).getStatus(), equalTo(EsqlExecutionInfo.Cluster.Status.SUCCESSFUL));
 
         Mockito.verifyNoInteractions(transportService.getTaskManager());
     }
@@ -376,6 +373,17 @@ public class ComputeListenerTests extends ESTestCase {
         // fully filled in for cross-cluster searches
         executionInfo.swapCluster(localCluster, (k, v) -> new EsqlExecutionInfo.Cluster(localCluster, "logs*", false));
         executionInfo.swapCluster("my_remote", (k, v) -> new EsqlExecutionInfo.Cluster("my_remote", "my_remote:logs*", false));
+
+        // before acquire-compute, can-match (SearchShards) runs filling in total shards and skipped shards, so simulate that here
+        executionInfo.swapCluster(
+            localCluster,
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(10).setSkippedShards(1).build()
+        );
+        executionInfo.swapCluster(
+            "my_remote",
+            (k, v) -> new EsqlExecutionInfo.Cluster.Builder(v).setTotalShards(10).setSkippedShards(1).build()
+        );
+
         try (
             ComputeListener computeListener = ComputeListener.create(
                 // whereRunning=localCluster simulates running on the querying cluster

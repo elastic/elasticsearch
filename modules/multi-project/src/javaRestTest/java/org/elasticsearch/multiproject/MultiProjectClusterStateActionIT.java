@@ -13,7 +13,6 @@ import org.elasticsearch.client.Request;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.junit.ClassRule;
 
@@ -23,7 +22,7 @@ import java.util.Map;
 /**
  * REST test for ensuring the /_cluster/state API is able to serialize multiple projects.
  */
-public class MultiProjectClusterStateActionIT extends ESRestTestCase {
+public class MultiProjectClusterStateActionIT extends MultiProjectRestTestCase {
 
     @ClassRule
     public static ElasticsearchCluster CLUSTER = ElasticsearchCluster.local()
@@ -51,7 +50,7 @@ public class MultiProjectClusterStateActionIT extends ESRestTestCase {
         assertNotNull(projects);
         assertEquals(1, projects.size());
 
-        client().performRequest(new Request("PUT", "/_project/foo"));
+        createProject("foo");
         response = client().performRequest(new Request("GET", "/_cluster/state?multi_project"));
         projects = ObjectPath.<List<Map<String, ?>>>eval("metadata.projects", entityAsMap(response));
         assertNotNull(projects);

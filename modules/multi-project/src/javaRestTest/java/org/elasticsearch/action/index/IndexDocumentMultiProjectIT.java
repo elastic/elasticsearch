@@ -10,27 +10,25 @@
 package org.elasticsearch.action.index;
 
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.FixForMultiProject;
 import org.elasticsearch.core.Strings;
+import org.elasticsearch.multiproject.MultiProjectRestTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.junit.ClassRule;
 import org.junit.Rule;
 import org.junit.rules.TestName;
 
-import java.io.IOException;
 import java.util.List;
 import java.util.Locale;
 
 import static org.hamcrest.Matchers.hasEntry;
 import static org.hamcrest.Matchers.is;
 
-public class IndexDocumentMultiProjectIT extends ESRestTestCase {
+public class IndexDocumentMultiProjectIT extends MultiProjectRestTestCase {
 
     protected static final int NODE_NUM = 3;
 
@@ -50,6 +48,11 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
             .setting("xpack.security.enabled", "false") // TODO multi-project: make this test suite work with Security enabled
             .setting("xpack.ml.enabled", "false"); // TODO multi-project: make this test suite work with ML enabled
         return clusterBuilder.build();
+    }
+
+    @Override
+    protected boolean preserveClusterUponCompletion() {
+        return true;
     }
 
     @Override
@@ -110,15 +113,4 @@ public class IndexDocumentMultiProjectIT extends ESRestTestCase {
         }
     }
 
-    private void createProject(String projectId) throws IOException {
-        Request putProjectRequest = new Request("PUT", "/_project/" + projectId);
-        Response putProjectResponse = adminClient().performRequest(putProjectRequest);
-        assertOK(putProjectResponse);
-    }
-
-    private static void setRequestProjectId(Request request, String projectId) {
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader("X-Elastic-Project-Id", projectId);
-        request.setOptions(options);
-    }
 }

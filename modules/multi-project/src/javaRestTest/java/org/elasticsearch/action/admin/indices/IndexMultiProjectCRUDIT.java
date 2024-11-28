@@ -11,17 +11,15 @@ package org.elasticsearch.action.admin.indices;
 
 import org.apache.http.util.EntityUtils;
 import org.elasticsearch.client.Request;
-import org.elasticsearch.client.RequestOptions;
 import org.elasticsearch.client.Response;
 import org.elasticsearch.client.ResponseException;
 import org.elasticsearch.common.xcontent.XContentHelper;
 import org.elasticsearch.common.xcontent.support.XContentMapValues;
 import org.elasticsearch.core.Strings;
-import org.elasticsearch.tasks.Task;
+import org.elasticsearch.multiproject.MultiProjectRestTestCase;
 import org.elasticsearch.test.cluster.ElasticsearchCluster;
 import org.elasticsearch.test.cluster.local.LocalClusterSpecBuilder;
 import org.elasticsearch.test.cluster.local.distribution.DistributionType;
-import org.elasticsearch.test.rest.ESRestTestCase;
 import org.elasticsearch.xcontent.ObjectPath;
 import org.elasticsearch.xcontent.json.JsonXContent;
 import org.junit.ClassRule;
@@ -35,7 +33,7 @@ import java.util.Map;
 import static org.hamcrest.Matchers.containsString;
 import static org.hamcrest.Matchers.is;
 
-public class IndexMultiProjectCRUDIT extends ESRestTestCase {
+public class IndexMultiProjectCRUDIT extends MultiProjectRestTestCase {
 
     protected static final int NODE_NUM = 3;
 
@@ -331,15 +329,4 @@ public class IndexMultiProjectCRUDIT extends ESRestTestCase {
         return ObjectPath.eval(indexName + ".settings.index", getIndexResponseBodyMap);
     }
 
-    private static void setRequestProjectId(Request request, String projectId) {
-        RequestOptions.Builder options = RequestOptions.DEFAULT.toBuilder();
-        options.addHeader(Task.X_ELASTIC_PROJECT_ID_HTTP_HEADER, projectId);
-        request.setOptions(options);
-    }
-
-    private void createProject(String projectId) throws IOException {
-        Request putProjectRequest = new Request("PUT", "/_project/" + projectId);
-        Response putProjectResponse = adminClient().performRequest(putProjectRequest);
-        assertOK(putProjectResponse);
-    }
 }

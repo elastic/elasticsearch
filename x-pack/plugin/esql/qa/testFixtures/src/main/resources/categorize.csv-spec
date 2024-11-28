@@ -1,5 +1,5 @@
 standard aggs
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS count=COUNT(),
@@ -17,7 +17,7 @@ count:long | sum:long |     avg:double     | count_distinct:long | category:keyw
 ;
 
 values aggs
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS values=MV_SORT(VALUES(message)),
@@ -33,7 +33,7 @@ values:keyword                                                        |      top
 ;
 
 mv
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM mv_sample_data
   | STATS COUNT(), SUM(event_duration) BY category=CATEGORIZE(message)
@@ -48,7 +48,7 @@ COUNT():long | SUM(event_duration):long | category:keyword
 ;
 
 row mv
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = ["connected to a", "connected to b", "disconnected"], str = ["a", "b", "c"]
   | STATS COUNT(), VALUES(str) BY category=CATEGORIZE(message)
@@ -61,7 +61,7 @@ COUNT():long | VALUES(str):keyword | category:keyword
 ;
 
 with multiple indices
-required_capability: categorize_v2
+required_capability: categorize_v3
 required_capability: union_types
 
 FROM sample_data*
@@ -76,7 +76,7 @@ COUNT():long | category:keyword
 ;
 
 mv with many values
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM employees
   | STATS COUNT() BY category=CATEGORIZE(job_positions)
@@ -93,7 +93,7 @@ COUNT():long | category:keyword
 ;
 
 mv with many values and SUM
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM employees
   | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
@@ -108,7 +108,7 @@ SUM(languages):long | category:keyword
 ;
 
 mv with many values and nulls and SUM
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM employees
   | STATS SUM(languages) BY category=CATEGORIZE(job_positions)
@@ -122,7 +122,7 @@ SUM(languages):long | category:keyword
 ;
 
 mv via eval
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL message = MV_APPEND(message, "Banana")
@@ -138,7 +138,7 @@ COUNT():long | category:keyword
 ;
 
 mv via eval const
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL message = ["Banana", "Bread"]
@@ -152,7 +152,7 @@ COUNT():long | category:keyword
 ;
 
 mv via eval const without aliases
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL message = ["Banana", "Bread"]
@@ -166,7 +166,7 @@ COUNT():long | CATEGORIZE(message):keyword
 ;
 
 mv const in parameter
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
@@ -179,7 +179,7 @@ COUNT():long | c:keyword
 ;
 
 agg alias shadowing
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS c = COUNT() BY c = CATEGORIZE(["Banana", "Bread"])
@@ -194,7 +194,7 @@ c:keyword
 ;
 
 chained aggregations using categorize
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(message)
@@ -209,7 +209,7 @@ COUNT():long | category:keyword
 ;
 
 stats without aggs
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS BY category=CATEGORIZE(message)
@@ -223,7 +223,7 @@ category:keyword
 ;
 
 text field
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM hosts
   | STATS COUNT() BY category=CATEGORIZE(host_group)
@@ -238,7 +238,7 @@ COUNT():long | category:keyword
 ;
 
 on TO_UPPER
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(TO_UPPER(message))
@@ -252,7 +252,7 @@ COUNT():long | category:keyword
 ;
 
 on CONCAT
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " banana"))
@@ -266,7 +266,7 @@ COUNT():long | category:keyword
 ;
 
 on CONCAT with unicode
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(CONCAT(message, " 👍🏽😊"))
@@ -280,7 +280,7 @@ COUNT():long | category:keyword
 ;
 
 on REVERSE(CONCAT())
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(REVERSE(CONCAT(message, " 👍🏽😊")))
@@ -294,7 +294,7 @@ COUNT():long | category:keyword
 ;
 
 and then TO_LOWER
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(message)
@@ -309,7 +309,7 @@ COUNT():long | category:keyword
 ;
 
 on const empty string
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE("")
@@ -321,7 +321,7 @@ COUNT():long | category:keyword
 ;
 
 on const empty string from eval
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL x = ""
@@ -334,7 +334,7 @@ COUNT():long | category:keyword
 ;
 
 on null
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL x = null
@@ -347,7 +347,7 @@ COUNT():long | SUM(event_duration):long | category:keyword
 ;
 
 on null string
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL x = null::string
@@ -360,7 +360,7 @@ COUNT():long | category:keyword
 ;
 
 filtering out all data
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | WHERE @timestamp < "2023-10-23T00:00:00Z"
@@ -372,7 +372,7 @@ COUNT():long | category:keyword
 ;
 
 filtering out all data with constant
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS COUNT() BY category=CATEGORIZE(message)
@@ -383,7 +383,7 @@ COUNT():long | category:keyword
 ;
 
 drop output columns
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS count=COUNT() BY category=CATEGORIZE(message)
@@ -398,7 +398,7 @@ x:integer
 ;
 
 category value processing
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = ["connected to a", "connected to b", "disconnected"]
   | STATS COUNT() BY category=CATEGORIZE(message)
@@ -412,7 +412,7 @@ COUNT():long | category:keyword
 ;
 
 row aliases
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = "connected to a"
   | EVAL x = message
@@ -426,7 +426,7 @@ COUNT():long | category:keyword         | y:keyword
 ;
 
 from aliases
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL x = message
@@ -442,7 +442,7 @@ COUNT():long | category:keyword         | y:keyword
 ;
 
 row aliases with keep
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = "connected to a"
   | EVAL x = message
@@ -458,7 +458,7 @@ COUNT():long | y:keyword
 ;
 
 from aliases with keep
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | EVAL x = message
@@ -476,7 +476,7 @@ COUNT():long | y:keyword
 ;
 
 row rename
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = "connected to a"
   | RENAME message as x
@@ -490,7 +490,7 @@ COUNT():long | y:keyword
 ;
 
 from rename
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | RENAME message as x
@@ -506,7 +506,7 @@ COUNT():long | y:keyword
 ;
 
 row drop
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 ROW message = "connected to a"
   | STATS c = COUNT() BY category=CATEGORIZE(message)
@@ -519,7 +519,7 @@ c:long
 ;
 
 from drop
-required_capability: categorize_v2
+required_capability: categorize_v3
 
 FROM sample_data
   | STATS c = COUNT() BY category=CATEGORIZE(message)

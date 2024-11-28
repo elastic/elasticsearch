@@ -43,6 +43,7 @@ import org.elasticsearch.xpack.esql.optimizer.rules.logical.PushDownRegexExtract
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.RemoveStatsOverride;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateAggExpressionWithEval;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregateNestedExpressionWithEval;
+import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAggregatesWithNull;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceAliasingEvalWithProject;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceLimitAndSortAsTopN;
 import org.elasticsearch.xpack.esql.optimizer.rules.logical.ReplaceOrderByExpressionWithEval;
@@ -159,10 +160,14 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new PruneEmptyPlans(),
             new PropagateEmptyRelation(),
             new ConvertStringToByteRef(),
+            // nulls in expressions
             new FoldNull(),
+            new ReplaceAggregatesWithNull(),
+            // constant folding related
             new SplitInWithFoldableValue(),
             new PropagateEvalFoldables(),
             new ConstantFolding(),
+            new SubstituteSurrogates(),
             new PartiallyFoldCase(),
             // boolean
             new BooleanSimplification(),
@@ -177,6 +182,8 @@ public class LogicalPlanOptimizer extends ParameterizedRuleExecutor<LogicalPlan,
             new SimplifyComparisonsArithmetics(DataType::areCompatible),
             new ReplaceStatsFilteredAggWithEval(),
             new ExtractAggregateCommonFilter(),
+            // TODO see https://github.com/elastic/elasticsearch/issues/113393
+            // new ReplaceStatsAggExpressionWithEval(),
             // prune/elimination
             new PruneFilters(),
             new PruneColumns(),

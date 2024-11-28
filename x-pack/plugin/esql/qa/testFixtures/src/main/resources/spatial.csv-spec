@@ -36,6 +36,18 @@ wkt:keyword                                                                     
 ["POINT(42.97109630194 14.7552534413725)", "POINT(75.8092915005895 22.727749187571)"] |[POINT(42.97109630194 14.7552534413725), POINT(75.8092915005895 22.727749187571)]
 ;
 
+centroidOfNull
+required_capability: extend_aggs_on_constants_support
+FROM airports 
+| eval z = TO_GEOPOINT(null) 
+| STATS centroidNull = ST_CENTROID_AGG(null), 
+        centroidExpNull = ST_CENTROID_AGG(TO_GEOPOINT(null::string)), 
+        centroidEvalNull = ST_CENTROID_AGG(z);
+
+centroidNull:null|centroidExpNull:geo_point|centroidEvalNull:geo_point
+POINT (NaN NaN)  |null                     |null
+;
+
 centroidFromStringNested
 required_capability: st_centroid_agg
 

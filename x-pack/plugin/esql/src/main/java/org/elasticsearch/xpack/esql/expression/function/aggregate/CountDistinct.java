@@ -18,13 +18,17 @@ import org.elasticsearch.compute.aggregation.CountDistinctDoubleAggregatorFuncti
 import org.elasticsearch.compute.aggregation.CountDistinctIntAggregatorFunctionSupplier;
 import org.elasticsearch.compute.aggregation.CountDistinctLongAggregatorFunctionSupplier;
 import org.elasticsearch.xpack.esql.EsqlIllegalArgumentException;
+import org.elasticsearch.xpack.esql.capabilities.Validatable;
+import org.elasticsearch.xpack.esql.common.Failures;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.Nullability;
 import org.elasticsearch.xpack.esql.core.tree.NodeInfo;
 import org.elasticsearch.xpack.esql.core.tree.Source;
 import org.elasticsearch.xpack.esql.core.type.DataType;
 import org.elasticsearch.xpack.esql.expression.EsqlTypeResolutions;
 import org.elasticsearch.xpack.esql.expression.SurrogateExpression;
+import org.elasticsearch.xpack.esql.expression.Validations;
 import org.elasticsearch.xpack.esql.expression.function.Example;
 import org.elasticsearch.xpack.esql.expression.function.FunctionInfo;
 import org.elasticsearch.xpack.esql.expression.function.OptionalArgument;
@@ -43,12 +47,11 @@ import java.util.function.BiFunction;
 
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.DEFAULT;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.ParamOrdinal.SECOND;
-import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isFoldable;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isType;
 import static org.elasticsearch.xpack.esql.core.expression.TypeResolutions.isWholeNumber;
 import static org.elasticsearch.xpack.esql.core.util.CollectionUtils.nullSafeList;
 
-public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression {
+public class CountDistinct extends AggregateFunction implements OptionalArgument, ToAggregator, SurrogateExpression, Validatable {
     public static final NamedWriteableRegistry.Entry ENTRY = new NamedWriteableRegistry.Entry(
         Expression.class,
         "CountDistinct",
@@ -187,6 +190,11 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
     }
 
     @Override
+    public Nullability nullable() {
+        return Nullability.FALSE;
+    }
+
+    @Override
     protected TypeResolution resolveType() {
         if (childrenResolved() == false) {
             return new TypeResolution("Unresolved children");
@@ -206,13 +214,22 @@ public class CountDistinct extends AggregateFunction implements OptionalArgument
         if (resolution.unresolved() || precision == null) {
             return resolution;
         }
-        return isWholeNumber(precision, sourceText(), SECOND).and(isFoldable(precision, sourceText(), SECOND));
+        return isWholeNumber(precision, sourceText(), SECOND);
+    }
+
+    public void validate(Failures failures) {
+        if (precision != null) {
+            failures.add(Validations.isFoldable(precision, this, SECOND));
+        }
     }
 
     @Override
     public AggregatorFunctionSupplier supplier(List<Integer> inputChannels) {
         DataType type = field().dataType();
-        int precision = this.precision == null ? DEFAULT_PRECISION : ((Number) this.precision.fold()).intValue();
+        // folding and checking with null here after the folding constants rules do their job, otherwise there could be a NPE
+        int precision = (this.precision == null || this.precision.fold() == null)
+            ? DEFAULT_PRECISION
+            : ((Number) this.precision.fold()).intValue();
         if (SUPPLIERS.containsKey(type) == false) {
             // If the type checking did its job, this should never happen
             throw EsqlIllegalArgumentException.illegalDataType(type);

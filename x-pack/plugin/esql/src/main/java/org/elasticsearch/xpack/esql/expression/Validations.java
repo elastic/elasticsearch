@@ -19,8 +19,8 @@ public final class Validations {
     /**
      * Validates if the given expression is foldable - if not returns a Failure.
      */
-    public static Failure isFoldable(Expression e, String operationName, TypeResolutions.ParamOrdinal paramOrd) {
-        TypeResolution resolution = TypeResolutions.isFoldable(e, operationName, paramOrd);
-        return resolution.unresolved() ? Failure.fail(e, resolution.message()) : null;
+    public static Failure isFoldable(Expression e, Expression rootExpression, TypeResolutions.ParamOrdinal paramOrd) {
+        TypeResolution resolution = TypeResolutions.isFoldable(e, rootExpression.sourceText(), paramOrd);
+        return resolution.unresolved() ? Failure.fail(rootExpression, resolution.message()) : null;
     }
 }

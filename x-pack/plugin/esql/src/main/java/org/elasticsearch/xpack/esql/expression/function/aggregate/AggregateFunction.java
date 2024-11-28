@@ -95,6 +95,13 @@ public abstract class AggregateFunction extends Function {
         return filter;
     }
 
+    /**
+     * Indicates if an aggregate function can be folded away when foldable arguments are given to it.
+     */
+    public boolean isConstantFoldable() {
+        return true;
+    }
+
     @Override
     protected TypeResolution resolveType() {
         return TypeResolutions.isExact(field, sourceText(), DEFAULT);

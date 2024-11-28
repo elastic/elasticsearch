@@ -398,11 +398,9 @@ public class Bucket extends GroupingFunction implements Validatable, TwoOptional
 
     @Override
     public void validate(Failures failures) {
-        String operation = sourceText();
-
-        failures.add(isFoldable(buckets, operation, SECOND))
-            .add(from != null ? isFoldable(from, operation, THIRD) : null)
-            .add(to != null ? isFoldable(to, operation, FOURTH) : null);
+        failures.add(isFoldable(buckets, this, SECOND))
+            .add(from != null ? isFoldable(from, this, THIRD) : null)
+            .add(to != null ? isFoldable(to, this, FOURTH) : null);
     }
 
     private long foldToLong(Expression e) {

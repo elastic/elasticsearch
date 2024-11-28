@@ -11,11 +11,17 @@ import org.elasticsearch.xpack.esql.core.expression.Alias;
 import org.elasticsearch.xpack.esql.core.expression.AttributeMap;
 import org.elasticsearch.xpack.esql.core.expression.Expression;
 import org.elasticsearch.xpack.esql.core.expression.Literal;
+import org.elasticsearch.xpack.esql.core.expression.NamedExpression;
 import org.elasticsearch.xpack.esql.core.expression.ReferenceAttribute;
+import org.elasticsearch.xpack.esql.expression.function.aggregate.AggregateFunction;
+import org.elasticsearch.xpack.esql.plan.logical.Aggregate;
 import org.elasticsearch.xpack.esql.plan.logical.Eval;
 import org.elasticsearch.xpack.esql.plan.logical.Filter;
 import org.elasticsearch.xpack.esql.plan.logical.LogicalPlan;
 import org.elasticsearch.xpack.esql.rule.Rule;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Replace any reference attribute with its source, if it does not affect the result.
@@ -48,10 +54,22 @@ public final class PropagateEvalFoldables extends Rule<LogicalPlan, LogicalPlan>
 
         plan = plan.transformUp(p -> {
             // Apply the replacement inside Filter and Eval (which shouldn't make a difference)
-            // TODO: also allow aggregates once aggs on constants are supported.
-            // C.f. https://github.com/elastic/elasticsearch/issues/100634
             if (p instanceof Filter || p instanceof Eval) {
                 p = p.transformExpressionsOnly(ReferenceAttribute.class, replaceReference);
+            } else if (p instanceof Aggregate agg) {
+                List<NamedExpression> newAggs = new ArrayList<>(agg.aggregates().size());
+                agg.aggregates().forEach(e -> {
+                    // don't touch the aggregate functions that have a filter. The filter can eliminate the value altogether or change
+                    // it to something else (see ReplaceStatsFilteredAggWithEval)
+                    if (Alias.unwrap(e) instanceof AggregateFunction af && af.isConstantFoldable() && af.hasFilter() == false) {
+                        newAggs.add((NamedExpression) e.transformUp(ReferenceAttribute.class, replaceReference));
+                    } else {
+                        newAggs.add(e);
+                    }
+                });
+                if (agg.aggregates().equals(newAggs) == false) {
+                    p = new Aggregate(agg.source(), agg.child(), agg.aggregateType(), agg.groupings(), newAggs);
+                }
             }
             return p;
         });

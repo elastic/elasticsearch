@@ -206,7 +206,7 @@ public class FoldNullTests extends ESTestCase {
         CountDistinct countd = new CountDistinct(EMPTY, getFieldAttribute("a"), getFieldAttribute("a"));
         assertEquals(countd, rule.rule(countd));
         countd = new CountDistinct(EMPTY, NULL, NULL);
-        assertEquals(new Literal(EMPTY, null, LONG), rule.rule(countd));
+        assertEquals(countd, rule.rule(countd));
 
         Median median = new Median(EMPTY, getFieldAttribute("a"));
         assertEquals(median, rule.rule(median));

@@ -116,7 +116,7 @@ public final class PruneColumns extends Rule<LogicalPlan, LogicalPlan> {
 
     /**
      * Prunes attributes from the list not found in the given set.
-     * Returns null if no changed occurred.
+     * Returns null if no changes occurred.
      */
     private static <N extends NamedExpression> List<N> removeUnused(List<N> named, AttributeSet used) {
         var clone = new ArrayList<>(named);

@@ -1,3 +1,84 @@
+percentileOfNull
+required_capability: extend_aggs_on_constants_support
+row x = null::integer, y = null, z = 123 - null 
+| stats percIntNull = percentile(x, 90), 
+        percNull = percentile(y, 90), 
+        percentile(null, 90), 
+        percentile(null+2, 90), 
+        percentile(z, 90);
+
+  percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double
+null                |null           |null                       |null                         |null
+;
+
+percentileWithPropagateablePercentileArgument
+required_capability: extend_aggs_on_constants_support
+row value200 = 200, x = null::integer, y = null, z = 123 - null, p90 = 80+10 
+| eval p100 = p90 + 10, 
+       p3_null = null + 2, 
+       p50 = 40+10 
+| stats percentile(value200, p90), 
+        percentile(value200, p100), 
+        percentile(value200, p3_null), 
+        percentile(value200, p50), 
+        percentile(p90, p90), 
+        percentile(p90, p50), 
+        percentile(p3_null, p3_null), 
+        percentile(p100, p3_null);
+
+percentile(value200, p90):double|percentile(value200, p100):double|percentile(value200, p3_null):double|percentile(value200, p50):double|percentile(p90, p90):double|percentile(p90, p50):double|percentile(p3_null, p3_null):double|percentile(p100, p3_null):double
+200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null
+;
+
+percentileWithPropagateablePercentileArgumentOnRealIndex
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval value200 = 200, 
+       x = null::integer, 
+       y = null, 
+       z = 123 - null, 
+       p90 = 80+10
+| eval p100 = p90 + 10, 
+       p3_null = null + 2, 
+       p50 = 40+10 
+| stats percentile(value200, p90), 
+        percentile(value200, p100), 
+        percentile(value200, p3_null), 
+        percentile(value200, p50), 
+        percentile(p90, p90), 
+        percentile(p90, p50), 
+        percentile(p3_null, p3_null), 
+        percentile(p100, p3_null) by gender
+| sort gender;
+
+percentile(value200, p90):double|percentile(value200, p100):double|percentile(value200, p3_null):double|percentile(value200, p50):double|percentile(p90, p90):double|percentile(p90, p50):double|percentile(p3_null, p3_null):double|percentile(p100, p3_null):double|gender:keyword
+200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null                            |F
+200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null                            |M
+200.0                           |200.0                            |null                                |200.0                           |90.0                       |90.0                       |null                               |null                            |null
+;
+
+percentileOfNullsOnRealIndex
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval x = null::integer,
+       y = null, 
+       z = 123 - null
+| stats percIntNull = percentile(x, 90), 
+        percNull = percentile(y, 90), 
+        percentile(null, 90), 
+        percentile(null+2, 90), 
+        percentile(z, 90) by languages
+| sort languages desc;
+
+  percIntNull:double|percNull:double|percentile(null, 90):double|percentile(null+2, 90):double|percentile(z, 90):double|languages:integer
+null                |null           |null                       |null                         |null                    |null
+null                |null           |null                       |null                         |null                    |5
+null                |null           |null                       |null                         |null                    |4
+null                |null           |null                       |null                         |null                    |3
+null                |null           |null                       |null                         |null                    |2
+null                |null           |null                       |null                         |null                    |1
+;              
+
 percentileOfLong
 from employees | stats p0 = percentile(salary_change.long, 0), p50 = percentile(salary_change.long, 50), p99 = percentile(salary_change.long, 99);
 
@@ -121,7 +202,7 @@ m:double   | p50:double      | job_positions:keyword
 
 
 medianOfDoubleByKeyword#[skip:-8.12.99,reason:ReplaceStatsAggExpressionWithEval breaks bwc gh-103765]
-from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50)by job_positions | sort m desc | limit 4;
+from employees | stats m = median(salary_change), p50 = percentile(salary_change, 50) by job_positions | sort m desc | limit 4;
 
 m:double           | p50:double           | job_positions:keyword
 5.94               | 5.94                 | "Accountant"
@@ -172,6 +253,7 @@ p80_max_salary_change:double
 
 constantsFrom
 required_capability: fn_mv_percentile
+required_capability: extend_aggs_on_constants_support
 from employees
 | eval single = 7, mv = [1, 7, 10]
 | stats
@@ -204,4 +286,54 @@ row a=0
 
 constant_single:double
 5
+;
+
+foldablePercentileValue
+required_capability: extend_aggs_on_constants_support
+from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90);
+
+percentile(salary, x):double|percentile(salary, 90):double
+68442.6                     |68442.6
+;
+
+
+foldablePercentileValue_WithGrouping
+required_capability: extend_aggs_on_constants_support
+from employees | eval x = 82+8 | stats percentile(salary, x), percentile(salary, 90) by languages | sort languages desc;
+
+percentile(salary, x):double|percentile(salary, 90):double|languages:integer   
+73965.8                     |73965.8                      |null           
+54518.0                     |54518.0                      |5              
+66286.2                     |66286.2                      |4              
+68961.2                     |68961.2                      |3              
+63067.2                     |63067.2                      |2              
+69425.4                     |69425.4                      |1
+;
+
+nullPercentileValue
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval x = null + 1 
+| stats pNull = percentile(salary_change, null), 
+        pNullFolding = percentile(salary_change, null + 1),
+        pNullEvalFolding = percentile(salary_change, x);
+
+ pNull:double  |pNullFolding:double|pNullEvalFolding:double
+null           |null               |null
+;
+
+nullPercentileValue_WithGrouping
+required_capability: extend_aggs_on_constants_support
+from employees 
+| eval x = null + 1 
+| stats pNull = percentile(salary_change, null), 
+        pNullFolding = percentile(salary_change, null + 1), 
+        pNullEvalFolding = percentile(salary_change, x), 
+        p = percentile(salary_change, 75) by gender 
+| sort p;
+
+ pNull:double  |pNullFolding:double|pNullEvalFolding:double|   p:double    |gender:keyword
+null           |null               |null                   |7.34           |M
+null           |null               |null                   |8.3375         |F
+null           |null               |null                   |8.985          |null
 ;

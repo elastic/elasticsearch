@@ -234,8 +234,7 @@ public class MvSort extends EsqlScalarFunction implements OptionalArgument, Vali
         if (order == null) {
             return;
         }
-        String operation = sourceText();
-        failures.add(isFoldable(order, operation, SECOND));
+        failures.add(isFoldable(order, this, SECOND));
         if (isValidOrder() == false) {
             failures.add(
                 Failure.fail(order, INVALID_ORDER_ERROR, sourceText(), ASC.value(), DESC.value(), ((BytesRef) order.fold()).utf8ToString())
